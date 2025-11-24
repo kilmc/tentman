@@ -1,0 +1,14 @@
+{
+	"label": "Blog Posts",
+	"template": "./post.template.md",
+	"filename": "{{slug}}",
+	"fields": [
+		{ "label": "Title", "type": "text" },
+		{ "label": "Slug", "type": "text" },
+		{ "label": "Date", "type": "date" },
+		{ "label": "Author", "type": "text" },
+		{ "label": "Cover Image", "type": "image" },
+		{ "label": "Excerpt", "type": "textarea" },
+		{ "label": "Published", "type": "boolean" }
+	]
+}
