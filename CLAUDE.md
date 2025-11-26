@@ -9,12 +9,14 @@ Tentman is a Git-based CMS - a standalone SvelteKit admin application that allow
 ### The Problem Being Solved
 
 Enables building static sites (SvelteKit) for clients who want to manage content themselves without:
+
 - Using platforms like Squarespace, Wix, or WordPress
 - Paying for hosting or CMS services
 - Losing the benefits of GitHub + Netlify (free, automated deployment)
 - Loading CMS scripts on the public site
 
 ### Tech Stack
+
 - **Framework**: SvelteKit + TypeScript + Svelte 5
 - **Styling**: Tailwind CSS v4
 - **GitHub API**: Octokit (to be integrated)
@@ -25,6 +27,7 @@ Enables building static sites (SvelteKit) for clients who want to manage content
 ## Development Commands
 
 ### Run Development Server
+
 ```bash
 npm run dev
 # or with browser open
@@ -32,30 +35,35 @@ npm run dev -- --open
 ```
 
 ### Build & Preview
+
 ```bash
 npm run build
 npm run preview
 ```
 
 ### Type Checking
+
 ```bash
 npm run check           # Run once
 npm run check:watch     # Watch mode
 ```
 
 ### Linting & Formatting
+
 ```bash
 npm run lint            # Check formatting and lint
 npm run format          # Fix formatting
 ```
 
 ### Testing
+
 ```bash
 npm run test            # Run all tests once
 npm run test:unit       # Run tests in watch mode
 ```
 
 The project uses Vitest with two test configurations:
+
 - **Client tests** (`*.svelte.{test,spec}.{js,ts}`): Run in browser environment using Playwright/Chromium
 - **Server tests** (`*.{test,spec}.{js,ts}`, excluding Svelte files): Run in Node environment
 
@@ -64,6 +72,7 @@ The project uses Vitest with two test configurations:
 ### Separation of Concerns
 
 The CMS follows a clean separation principle:
+
 - **Public site**: Normal SvelteKit app that reads content files (JSON, markdown)
 - **CMS admin app**: This standalone SvelteKit app that edits those files via GitHub API
 - **No coupling**: Public sites never know the CMS exists
@@ -73,15 +82,18 @@ The CMS follows a clean separation principle:
 The CMS supports three distinct content management patterns:
 
 **1. Singleton** - Single object (about page, homepage hero)
+
 - One JSON file with structured data
 - Config describes fields only
 
 **2. Single-file Array** - Array in one file (tour dates, releases)
+
 - One JSON file containing an array
 - Config specifies JSONPath to array location
 - Uses `idField` for reliable updates/deletes
 
 **3. Multi-file Collection** - Multiple files in directory (blog posts)
+
 - Markdown or JSON files, one per item
 - Config includes template for new items
 - Filename-based identification
@@ -89,17 +101,20 @@ The CMS supports three distinct content management patterns:
 ### Config File Design
 
 **Convention-Based Discovery:**
-- Configs are `*.config.json` files co-located with content
+
+- Configs are `*.tentman.json` files co-located with content
 - CMS uses GitHub Trees API to discover all configs in repo
 - No central manifest needed
 
 **Type Inference:**
 Behavior is inferred from config structure:
+
 - Has `template`? → Multi-file collection
 - Has `contentFile` + `collectionPath`? → Single-file array
 - Has `contentFile` only? → Singleton
 
 **Config Properties:**
+
 - `label`: Display name in CMS
 - `contentFile`: Path to content file (for singletons and arrays)
 - `collectionPath`: JSONPath to array (for single-file arrays)
@@ -109,6 +124,7 @@ Behavior is inferred from config structure:
 - `fields`: Object defining content structure and form inputs
 
 **Field Types:**
+
 ```
 Simple string types:
 - "text", "textarea", "markdown"
@@ -122,42 +138,45 @@ Fields can be:
 - Objects: "fieldName": {"type": "text", "required": true, "generated": true}
 ```
 
-**Example Config** (`src/lib/examples/*.tent.json`):
+**Example Config** (`src/lib/examples/*.tentman.json`):
 
 Current implementation (Phase 1):
+
 ```json
 {
-  "label": "Blog Posts",
-  "template": "./post.template.md",
-  "filename": "{{slug}}",
-  "fields": [
-    { "label": "Title", "type": "text" },
-    { "label": "Slug", "type": "text" },
-    { "label": "Date", "type": "date" },
-    { "label": "Published", "type": "boolean" }
-  ]
+	"label": "Blog Posts",
+	"template": "./post.template.md",
+	"filename": "{{slug}}",
+	"fields": [
+		{ "label": "Title", "type": "text" },
+		{ "label": "Slug", "type": "text" },
+		{ "label": "Date", "type": "date" },
+		{ "label": "Published", "type": "boolean" }
+	]
 }
 ```
 
 Planned format (with field names as keys):
+
 ```json
 {
-  "label": "Blog Posts",
-  "contentFile": "./posts/index.json",
-  "collectionPath": "$.posts",
-  "idField": "slug",
-  "fields": {
-    "title": "text",
-    "slug": {"type": "text", "generated": true},
-    "date": "date",
-    "published": "boolean"
-  }
+	"label": "Blog Posts",
+	"contentFile": "./posts/index.json",
+	"collectionPath": "$.posts",
+	"idField": "slug",
+	"fields": {
+		"title": "text",
+		"slug": { "type": "text", "generated": true },
+		"date": "date",
+		"published": "boolean"
+	}
 }
 ```
 
 ### Current Implementation (Phase 1)
 
 **Data Flow:**
+
 1. Example configs are loaded via `import.meta.glob()` in `src/lib/examples/index.ts`
 2. Configs are exported as the `examples` array
 3. Routes dynamically load and render configurations:
@@ -169,7 +188,7 @@ Planned format (with field names as keys):
 ### Directory Structure
 
 - `src/lib/` - Reusable library code
-  - `examples/` - Example configurations (*.tent.json) and templates
+  - `examples/` - Example configurations (\*.tentman.json) and templates
   - `utils/` - Utility functions (e.g., `slugify`)
   - `assets/` - Static assets like icons
 - `src/routes/` - SvelteKit file-based routing
@@ -182,10 +201,12 @@ Planned format (with field names as keys):
 ### Key Patterns
 
 **Svelte 5 Runes:** This project uses Svelte 5 with runes syntax:
+
 - `$props()` for component props
 - `{@render children?.()}` for slot content
 
 **Path Aliases:**
+
 - `$lib` → `src/lib/`
 - Managed by SvelteKit automatically
 
@@ -228,6 +249,7 @@ The project uses `@sveltejs/adapter-netlify` for Netlify deployment.
 ## TypeScript Configuration
 
 Strict mode is enabled with the following key settings:
+
 - `strict: true`
 - `moduleResolution: "bundler"`
 - JSON module imports enabled
