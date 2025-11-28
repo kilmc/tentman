@@ -16,6 +16,7 @@ export type FieldType =
 
 export interface FieldOptions {
 	type: FieldType;
+	label?: string; // Optional custom display label
 	required?: boolean;
 	generated?: boolean;
 	fields?: Record<string, FieldDefinition>; // For nested fields in arrays
@@ -23,10 +24,21 @@ export interface FieldOptions {
 
 export type FieldDefinition = FieldType | FieldOptions;
 
+// Array format (alternative): fields as array with explicit order and labels
+export interface FieldArrayItem {
+	property: string; // The property name in the content data (e.g., "title", "coverImage")
+	label: string; // Display label (e.g., "Title", "Cover Image")
+	type: FieldType;
+	required?: boolean;
+	generated?: boolean;
+	fields?: FieldArrayItem[]; // For nested fields in arrays
+}
+
 export interface BaseConfig {
 	label: string;
 	idField?: string;
-	fields: Record<string, FieldDefinition>;
+	fields: Record<string, FieldDefinition> | FieldArrayItem[]; // Support both formats
+	imagePath?: string; // Custom path for image uploads (defaults to 'static/images/')
 }
 
 export interface SingletonConfig extends BaseConfig {
@@ -57,4 +69,61 @@ export interface DiscoveredConfig {
 	slug: string; // URL-friendly identifier
 	config: Config;
 	type: ConfigType;
+}
+
+/**
+ * Normalize fields from array format to object format
+ * Converts array of field definitions to keyed object
+ */
+export function normalizeFields(
+	fields: Record<string, FieldDefinition> | FieldArrayItem[]
+): Record<string, FieldDefinition> {
+	// Already in object format
+	if (!Array.isArray(fields)) {
+		return fields;
+	}
+
+	// Convert array format to object format using the property names
+	const normalized: Record<string, FieldDefinition> = {};
+
+	for (const field of fields) {
+		// Build field definition
+		if (field.required || field.generated || field.fields) {
+			normalized[field.property] = {
+				type: field.type,
+				label: field.label, // Preserve the label
+				...(field.required && { required: field.required }),
+				...(field.generated && { generated: field.generated }),
+				...(field.fields && {
+					fields: normalizeFields(field.fields) as Record<string, FieldDefinition>
+				})
+			};
+		} else {
+			// Simple field: just type, but preserve label
+			normalized[field.property] = {
+				type: field.type,
+				label: field.label
+			};
+		}
+	}
+
+	return normalized;
+}
+
+/**
+ * Get the display label for a field
+ * If field has explicit label, use it; otherwise generate from field name
+ */
+export function getFieldLabel(fieldName: string, fieldDef: FieldDefinition): string {
+	// If it's an object with a label property, use it
+	if (typeof fieldDef === 'object' && 'label' in fieldDef && fieldDef.label) {
+		return fieldDef.label;
+	}
+
+	// Otherwise, generate from field name: camelCase → Title Case
+	return fieldName
+		.replace(/([A-Z])/g, ' $1')
+		.replace(/_/g, ' ')
+		.replace(/^./, (str) => str.toUpperCase())
+		.trim();
 }

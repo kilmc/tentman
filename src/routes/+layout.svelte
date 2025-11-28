@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import type { LayoutData } from './$types';
 
 	let { children, data } = $props<{ children?: any; data: LayoutData }>();
@@ -65,4 +66,6 @@
 	<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 		{@render children?.()}
 	</main>
+
+	<ToastContainer />
 </div>

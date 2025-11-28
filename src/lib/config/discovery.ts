@@ -5,6 +5,7 @@
 
 import type { Octokit } from 'octokit';
 import type { Config, ConfigType, DiscoveredConfig } from '$lib/types/config';
+import { normalizeFields } from '$lib/types/config';
 import { slugify } from '$lib/utils';
 
 /**
@@ -84,6 +85,9 @@ export async function discoverConfigs(
 					if ('content' in fileData && fileData.content) {
 						const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
 						const config = JSON.parse(content) as Config;
+
+						// Normalize fields (convert array format to object format if needed)
+						config.fields = normalizeFields(config.fields);
 
 						// Infer type
 						const type = inferConfigType(config);
