@@ -69,6 +69,33 @@ The project uses Vitest with two test configurations:
 
 ## Architecture
 
+### Client-First Philosophy
+
+**This is a client-side application.** The vast majority of logic should run in the browser to minimize Netlify serverless costs and maximize performance.
+
+**Server-side is ONLY for:**
+- OAuth callback handling (GitHub auth flow)
+- Initial authentication check (validate token)
+- Serving the SPA
+
+**Client-side handles:**
+- All GitHub API calls (using user's token)
+- Config discovery and caching
+- Content fetching and writing
+- Form state management
+- Route navigation
+
+**Why client-first:**
+- User data is per-account (no shared state to cache server-side)
+- Each server request costs money on Netlify
+- Faster navigation (no server roundtrips)
+- Simpler architecture (less server/client coordination)
+
+**Implementation approach:**
+- Use `+page.ts` (universal load) instead of `+page.server.ts` where possible
+- Use Svelte stores for client-side state/caching
+- Only use `+page.server.ts` for auth checks and redirects
+
 ### Separation of Concerns
 
 The CMS follows a clean separation principle:
@@ -135,8 +162,17 @@ Simple string types:
 
 Fields can be:
 - Simple: "fieldName": "text"
-- Objects: "fieldName": {"type": "text", "required": true, "generated": true}
+- Objects: "fieldName": {"type": "text", "required": true, "generated": true, "show": "primary"}
 ```
+
+**Field Display Options:**
+
+The `show` property controls which fields appear on index/list view cards:
+- `show: "primary"` - Displays as a prominent title on the card (can have multiple)
+- `show: "secondary"` - Displays as metadata below the title (can have multiple)
+- No `show` property - Field is hidden on cards (default behavior)
+
+**Default behavior:** If no fields have a `show` property, the first field is automatically shown as primary.
 
 **Example Config** (`src/lib/examples/*.tentman.json`):
 
@@ -165,13 +201,19 @@ Planned format (with field names as keys):
 	"collectionPath": "$.posts",
 	"idField": "slug",
 	"fields": {
-		"title": "text",
+		"title": { "type": "text", "show": "primary" },
 		"slug": { "type": "text", "generated": true },
-		"date": "date",
+		"date": { "type": "date", "show": "secondary" },
+		"author": { "type": "text", "show": "secondary" },
 		"published": "boolean"
 	}
 }
 ```
+
+This configuration will display cards on the index page with:
+- **Primary**: Title (large, bold)
+- **Secondary**: Date and Author (smaller, metadata style)
+- Hidden: Slug and Published (visible only in edit form)
 
 ### Current Implementation (Phase 1)
 

@@ -1,77 +1,64 @@
 <script lang="ts">
-	import type { PageData, ActionData } from './$types';
-	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
-	import KeyboardShortcutHelp from '$lib/components/KeyboardShortcutHelp.svelte';
-	import { enhance } from '$app/forms';
+	import type { PageData } from './$types';
 	import { toasts } from '$lib/stores/toasts';
-	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
-	import { getFieldLabel } from '$lib/types/config';
+	import { getFieldLabel, normalizeFields } from '$lib/types/config';
 	import { onMount } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
+	import ItemCard from '$lib/components/ItemCard.svelte';
+	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data }: { data: PageData } = $props();
 
-	const { discoveredConfig, content, contentError, repo } = data;
+	const { discoveredConfig, content, contentError, repo, draftBranch, draftChanges } = data;
 	const { config, type, path } = discoveredConfig;
 
-	// Edit mode state
-	let editMode = $state(false);
-	let createMode = $state(false);
-	let editingItem = $state<any>(null);
-	let editingIndex = $state<number | null>(null);
+	// Normalize fields to handle both array and object formats
+	const normalizedFields = normalizeFields(config.fields);
 
-	// Delete confirmation state
-	let deleteConfirmItem = $state<any>(null);
-	let deleteConfirmIndex = $state<number | null>(null);
+	// Handle URL query parameters for merge/cancel/delete/save success messages
+	onMount(() => {
+		const urlParams = new URLSearchParams(window.location.search);
 
-	// Feedback state
-	let saving = $state(false);
-	let saveError = $state<string | null>(null);
-	let saveSuccess = $state(false);
+		// Handle draft branch from save redirect
+		const branch = urlParams.get('branch');
+		if (branch && repo) {
+			const repoFullName = `${repo.owner}/${repo.name}`;
+			draftBranchStore.setBranch(branch, repoFullName);
+		}
 
-	// Track if form has unsaved changes
-	let hasUnsavedChanges = $state(false);
-	let originalData = $state<any>(null);
+		if (urlParams.get('saved') === 'true') {
+			toasts.add('Changes saved to draft!', 'success');
+			// Clean up URL without reload
+			const url = new URL(window.location.href);
+			url.searchParams.delete('saved');
+			url.searchParams.delete('branch');
+			window.history.replaceState({}, '', url.toString());
+		}
 
-	// Form submission reference
-	let currentForm: HTMLFormElement | null = null;
+		if (urlParams.get('merged') === 'true') {
+			toasts.add('Changes published successfully!', 'success');
+			// Clean up URL without reload
+			const url = new URL(window.location.href);
+			url.searchParams.delete('merged');
+			window.history.replaceState({}, '', url.toString());
+		}
 
-	// Handle form action results
-	$effect(() => {
-		if (form?.success) {
-			saveSuccess = true;
-			saveError = null;
-			saving = false;
-			hasUnsavedChanges = false;
-			originalData = null;
+		if (urlParams.get('cancelled') === 'true') {
+			toasts.add('Draft discarded successfully.', 'info');
+			// Clean up URL without reload
+			const url = new URL(window.location.href);
+			url.searchParams.delete('cancelled');
+			window.history.replaceState({}, '', url.toString());
+		}
 
-			// Show success toast
-			if (form.created) {
-				toasts.add('Item created successfully!', 'success');
-			} else if (form.deleted) {
-				toasts.add('Item deleted successfully!', 'success');
-			} else {
-				toasts.add('Changes saved successfully!', 'success');
-			}
-
-			editMode = false;
-			createMode = false;
-			editingItem = null;
-			editingIndex = null;
-			deleteConfirmItem = null;
-			deleteConfirmIndex = null;
-
-			// Reload the page to show updated content
-			if (form.created || form.deleted) {
-				window.location.reload();
-			}
-		} else if (form?.error) {
-			saveError = form.error;
-			saveSuccess = false;
-			saving = false;
-			toasts.add(form.error, 'error');
+		if (urlParams.get('deleted') === 'true') {
+			toasts.add('Item deleted successfully!', 'success');
+			// Clean up URL without reload
+			const url = new URL(window.location.href);
+			url.searchParams.delete('deleted');
+			window.history.replaceState({}, '', url.toString());
 		}
 	});
+
 
 	// Helper to format field values for display
 	function formatFieldValue(value: any): string {
@@ -108,124 +95,122 @@
 		return String(value);
 	}
 
-
-	// Track changes to form data
-	$effect(() => {
-		if (editMode && editingItem && originalData) {
-			hasUnsavedChanges = JSON.stringify(editingItem) !== JSON.stringify(originalData);
-		}
-	});
-
-	// Warn before leaving page with unsaved changes
-	beforeNavigate(({ cancel }) => {
-		if (hasUnsavedChanges && !saving) {
-			if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
-				cancel();
-			}
-		}
-	});
-
-	// Keyboard shortcuts
-	onMount(() => {
-		const cleanup = registerKeyboardShortcuts([
-			{
-				key: 's',
-				meta: true, // Cmd on Mac
-				ctrl: true, // Ctrl on Windows/Linux (one will match depending on platform)
-				callback: () => {
-					if (editMode && currentForm) {
-						currentForm.requestSubmit();
-					}
-				}
-			},
-			{
-				key: 'Escape',
-				callback: () => {
-					if (deleteConfirmItem) {
-						cancelDelete();
-					} else if (editMode) {
-						handleCancelEdit();
-					}
-				}
-			}
-		]);
-
-		return cleanup;
-	});
-
-	// Edit handlers
-	function startEditSingleton() {
-		editingItem = structuredClone(content);
-		originalData = structuredClone(content);
-		editMode = true;
-		hasUnsavedChanges = false;
-	}
-
-	function startEditItem(item: any, index: number) {
-		editingItem = structuredClone(item);
-		originalData = structuredClone(item);
-		editingIndex = index;
-		editMode = true;
-		hasUnsavedChanges = false;
-	}
-
-	function handleCancelEdit() {
-		if (hasUnsavedChanges) {
-			if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
-				return;
-			}
-		}
-		cancelEdit();
-	}
-
-	function cancelEdit() {
-		editMode = false;
-		createMode = false;
-		editingItem = null;
-		editingIndex = null;
-		originalData = null;
-		hasUnsavedChanges = false;
-		saveError = null;
-	}
-
-	function startCreateItem() {
-		// Initialize empty item based on field types
-		const newItem: Record<string, any> = {};
-		for (const [fieldName, fieldDef] of Object.entries(config.fields)) {
-			const fieldType = typeof fieldDef === 'object' ? fieldDef.type : fieldDef;
-			// Set defaults based on type
-			if (fieldType === 'boolean') {
-				newItem[fieldName] = false;
-			} else if (fieldType === 'number') {
-				newItem[fieldName] = 0;
-			} else if (fieldType === 'array') {
-				newItem[fieldName] = [];
-			} else {
-				newItem[fieldName] = '';
-			}
-		}
-		editingItem = newItem;
-		originalData = structuredClone(newItem);
-		createMode = true;
-		editMode = true;
-		hasUnsavedChanges = false;
-	}
-
-	function startDeleteItem(item: any, index: number) {
-		deleteConfirmItem = item;
-		deleteConfirmIndex = index;
-	}
-
-	function cancelDelete() {
-		deleteConfirmItem = null;
-		deleteConfirmIndex = null;
-	}
-
 	function getItemId(item: any): string | undefined {
-		if (!config.idField) return undefined;
-		const id = item[config.idField];
-		return id !== undefined ? String(id) : undefined;
+		// For collections, use filename without extension
+		if (type === 'collection' && item._filename) {
+			return item._filename.replace(/\.[^/.]+$/, '');
+		}
+
+		// For arrays, use idField if configured
+		if (config.idField) {
+			const id = item[config.idField];
+			return id !== undefined ? String(id) : undefined;
+		}
+
+		// No suitable ID found
+		return undefined;
 	}
+
+	// Get fields to display on index cards
+	function getCardFields() {
+		const entries = Object.entries(normalizedFields);
+
+		// Check if any fields have 'show' property set
+		const hasShowConfig = entries.some(([_, fieldDef]) =>
+			typeof fieldDef === 'object' && 'show' in fieldDef
+		);
+
+		if (hasShowConfig) {
+			// Use fields with 'show' property
+			return {
+				primary: entries.filter(([_, fieldDef]) =>
+					typeof fieldDef === 'object' && fieldDef.show === 'primary'
+				),
+				secondary: entries.filter(([_, fieldDef]) =>
+					typeof fieldDef === 'object' && fieldDef.show === 'secondary'
+				)
+			};
+		} else {
+			// Default: show first field as primary
+			return {
+				primary: entries.length > 0 ? [entries[0]] : [],
+				secondary: []
+			};
+		}
+	}
+
+	const cardFields = getCardFields();
+
+	// Helper to check if an item has draft changes
+	function hasDraftChanges(itemId: string | undefined): 'modified' | 'created' | 'deleted' | null {
+		if (!itemId || !draftChanges) return null;
+
+		if (draftChanges.modified.some(change => change.itemId === itemId)) return 'modified';
+		if (draftChanges.created.some(change => change.itemId === itemId)) return 'created';
+		if (draftChanges.deleted.some(change => change.itemId === itemId)) return 'deleted';
+
+		return null;
+	}
+
+	// Get items with draft changes for the draft section
+	function getDraftItems() {
+		if (!draftChanges || !Array.isArray(content)) return [];
+
+		const items = [];
+
+		// Add modified items (show draft content)
+		for (const change of draftChanges.modified) {
+			if (change.draftContent) {
+				items.push({
+					item: change.draftContent,
+					badge: 'draft' as const,
+					itemId: change.itemId
+				});
+			}
+		}
+
+		// Add created items (new items only in draft)
+		for (const change of draftChanges.created) {
+			if (change.draftContent) {
+				items.push({
+					item: change.draftContent,
+					badge: 'new' as const,
+					itemId: change.itemId
+				});
+			}
+		}
+
+		// Add deleted items (items removed in draft)
+		for (const change of draftChanges.deleted) {
+			if (change.mainContent) {
+				items.push({
+					item: change.mainContent,
+					badge: 'deleted' as const,
+					itemId: change.itemId
+				});
+			}
+		}
+
+		return items;
+	}
+
+	// Get items without draft changes for the main section
+	function getRegularItems() {
+		if (!Array.isArray(content)) return [];
+
+		return content.filter(item => {
+			const itemId = getItemId(item);
+			const changeType = hasDraftChanges(itemId);
+			// Only show items that don't have draft changes
+			return !changeType;
+		});
+	}
+
+	const hasDrafts = draftChanges && (
+		draftChanges.modified.length > 0 ||
+		draftChanges.created.length > 0 ||
+		draftChanges.deleted.length > 0
+	);
 </script>
 
 <div class="container mx-auto p-4 sm:p-6">
@@ -242,18 +227,21 @@
 		</div>
 	</div>
 
-	<!-- Success/Error feedback -->
-	{#if saveSuccess}
-		<div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
-			<p class="text-sm font-medium text-green-800">✓ Changes saved successfully!</p>
-		</div>
-	{/if}
-
-	{#if saveError}
-		<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-			<p class="text-sm font-medium text-red-800">✗ Failed to save changes</p>
-			<p class="mt-1 text-sm text-red-700">{saveError}</p>
-		</div>
+	<!-- Draft Changes Banner -->
+	{#if draftBranch && draftChanges}
+		{@const hasChanges = draftChanges.modified.length > 0 || draftChanges.created.length > 0 || draftChanges.deleted.length > 0}
+		{#if hasChanges}
+			<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+				<div class="flex items-start justify-between">
+					<div class="flex-1">
+						<p class="text-sm font-medium text-blue-800">📝 Draft Changes</p>
+						<p class="mt-1 text-sm text-blue-700">
+							You have unpublished changes on <code class="text-xs bg-blue-100 px-1 rounded">{draftBranch}</code>
+						</p>
+					</div>
+				</div>
+			</div>
+		{/if}
 	{/if}
 
 	{#if contentError}
@@ -275,301 +263,146 @@
 	{:else if type === 'singleton'}
 		<!-- Singleton view: Display single object -->
 		<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-			<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-				<h2 class="font-semibold">{editMode ? 'Edit Content' : 'Content'}</h2>
+			<div class="border-b border-gray-200 bg-gray-50 px-4 sm:px-6 py-4">
+				<h2 class="font-semibold text-gray-900">Content</h2>
 			</div>
-			<div class="p-6">
-				{#if editMode}
-					<form
-						bind:this={currentForm}
-						method="POST"
-						action="?/save"
-						use:enhance={() => {
-							saving = true;
-							return async ({ update }) => {
-								await update();
-							};
-						}}
-					>
-						<input type="hidden" name="data" value={JSON.stringify(editingItem)} />
-						<FormGenerator
-							{config}
-							initialData={editingItem}
-							onchange={(data) => editingItem = data}
-							showButtons={false}
-							existingItems={Array.isArray(content) ? content : []}
-							currentItemId={editingItem && config.idField ? String(editingItem[config.idField]) : undefined}
-						/>
-						<div class="mt-6 flex gap-3">
-							<button
-								type="submit"
-								disabled={saving}
-								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-							>
-								{saving ? 'Saving...' : 'Save Changes'}
-							</button>
-							<button
-								type="button"
-								onclick={handleCancelEdit}
-								disabled={saving}
-								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Cancel
-							</button>
-						</div>
-					</form>
-				{:else}
-					<dl class="space-y-4">
-						{#each Object.entries(config.fields) as [fieldName, fieldDef]}
-							<div class="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-								<dt class="mb-1 text-sm font-medium text-gray-700">
-									{getFieldLabel(fieldName, fieldDef)}
-								</dt>
-								<dd class="text-gray-900">
-									{#if fieldName === '_body'}
-										<div class="prose max-w-none">
-											{content[fieldName] || '—'}
-										</div>
-									{:else if typeof fieldDef === 'object' && fieldDef.type === 'markdown'}
-										<div class="prose max-w-none whitespace-pre-wrap font-mono text-sm">
-											{formatFieldValue(content[fieldName])}
-										</div>
-									{:else if typeof fieldDef === 'object' && fieldDef.type === 'array' && Array.isArray(content[fieldName])}
-										<ul class="mt-1 space-y-1 text-sm">
+			<div class="p-4 sm:p-6">
+				<dl class="space-y-6">
+					{#each Object.entries(normalizedFields) as [fieldName, fieldDef]}
+						<div class="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
+							<dt class="mb-2 text-sm font-semibold text-gray-700">
+								{getFieldLabel(fieldName, fieldDef)}
+							</dt>
+							<dd class="text-gray-900">
+								{#if fieldName === '_body'}
+									<div class="prose max-w-none">
+										{content[fieldName] || '—'}
+									</div>
+								{:else if typeof fieldDef === 'object' && fieldDef.type === 'markdown'}
+									<div class="prose max-w-none whitespace-pre-wrap font-mono text-sm">
+										{formatFieldValue(content[fieldName])}
+									</div>
+								{:else if typeof fieldDef === 'object' && fieldDef.type === 'array' && Array.isArray(content[fieldName])}
+									<div class="mt-2 space-y-3">
+										{#if content[fieldName].length === 0}
+											<p class="text-sm text-gray-500 italic">No items</p>
+										{:else}
 											{#each content[fieldName] as item, i}
-												<li class="rounded bg-gray-50 px-2 py-1">
-													{typeof item === 'object' ? JSON.stringify(item) : item}
-												</li>
+												<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+													{#if typeof item === 'object' && item !== null}
+														<!-- Display object as key-value pairs -->
+														<dl class="space-y-2">
+															{#each Object.entries(item) as [key, value]}
+																{#if value !== '' && value !== null && value !== undefined}
+																	<div class="flex flex-col sm:flex-row sm:gap-2">
+																		<dt class="text-xs font-medium text-gray-600 capitalize min-w-24">
+																			{key}:
+																		</dt>
+																		<dd class="text-sm text-gray-900 break-words">
+																			{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
+																		</dd>
+																	</div>
+																{/if}
+															{/each}
+														</dl>
+													{:else}
+														<!-- Display primitive values -->
+														<span class="text-sm text-gray-900">{item}</span>
+													{/if}
+												</div>
 											{/each}
-										</ul>
-									{:else}
-										<span class="text-sm">{formatFieldValue(content[fieldName])}</span>
-									{/if}
-								</dd>
-							</div>
-						{/each}
-					</dl>
-				{/if}
+										{/if}
+									</div>
+								{:else}
+									<span class="text-sm">{formatFieldValue(content[fieldName])}</span>
+								{/if}
+							</dd>
+						</div>
+					{/each}
+				</dl>
 			</div>
-			{#if !editMode}
-				<div class="border-t border-gray-200 bg-gray-50 px-6 py-4">
-					<button
-						type="button"
-						onclick={startEditSingleton}
-						class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-					>
-						Edit
-					</button>
-				</div>
-			{/if}
+			<div class="border-t border-gray-200 bg-gray-50 px-4 sm:px-6 py-4 flex gap-3">
+				<a
+					href="/pages/{discoveredConfig.slug}/edit"
+					class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors shadow-sm"
+				>
+					Edit Content
+				</a>
+			</div>
 		</div>
 	{:else if type === 'array' || type === 'collection'}
 		<!-- Array/Collection view: Display list of items -->
-		{#if editMode}
-			<!-- Edit/Create form for array/collection item -->
-			<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-				<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-					<h2 class="font-semibold">
-						{createMode ? 'New' : 'Edit'} {config.label.replace(/s$/, '')}
-						{#if !createMode && editingIndex !== null}
-							(Item {editingIndex + 1})
-						{/if}
-					</h2>
-				</div>
-				<div class="p-6">
-					<form
-						bind:this={currentForm}
-						method="POST"
-						action={createMode ? '?/create' : '?/save'}
-						use:enhance={() => {
-							saving = true;
-							return async ({ update }) => {
-								await update();
-							};
-						}}
-					>
-						<input type="hidden" name="data" value={JSON.stringify(editingItem)} />
-						{#if !createMode && editingIndex !== null}
-							<input type="hidden" name="itemIndex" value={editingIndex} />
-						{/if}
-						{#if !createMode && config.idField && editingItem}
-							{@const itemId = getItemId(editingItem)}
-							{#if itemId}
-								<input type="hidden" name="itemId" value={itemId} />
-							{/if}
-						{/if}
-						{#if !createMode && editingItem?._filename}
-							<input type="hidden" name="filename" value={editingItem._filename} />
-						{/if}
-						<FormGenerator
-							{config}
-							initialData={editingItem}
-							onchange={(data) => editingItem = data}
-							showButtons={false}
-							existingItems={Array.isArray(content) ? content : []}
-							currentItemId={editingItem && config.idField ? String(editingItem[config.idField]) : undefined}
-						/>
-						<div class="mt-6 flex gap-3">
-							<button
-								type="submit"
-								disabled={saving}
-								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-							>
-								{saving ? 'Saving...' : createMode ? 'Create' : 'Save Changes'}
-							</button>
-							<button
-								type="button"
-								onclick={handleCancelEdit}
-								disabled={saving}
-								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Cancel
-							</button>
-						</div>
-					</form>
-				</div>
-			</div>
-		{:else if Array.isArray(content) && content.length > 0}
+		{@const draftItems = getDraftItems()}
+		{@const regularItems = getRegularItems()}
+		{@const totalItems = Array.isArray(content) ? content.length : 0}
+
+		{#if totalItems > 0 || hasDrafts}
 			<div class="mb-4 flex items-center justify-between">
-				<p class="text-sm text-gray-600">{content.length} {content.length === 1 ? 'item' : 'items'}</p>
-				<button
-					type="button"
-					onclick={startCreateItem}
+				<p class="text-sm text-gray-600">{totalItems} {totalItems === 1 ? 'item' : 'items'}</p>
+				<a
+					href="/pages/{discoveredConfig.slug}/new"
 					class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
 				>
 					New {config.label.replace(/s$/, '')}
-				</button>
+				</a>
 			</div>
 
-			<div class="space-y-4">
-				{#each content as item, i}
-					<div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:border-gray-300">
-						<div class="mb-4 flex flex-col sm:flex-row items-start justify-between gap-3">
-							<div class="flex-1 w-full sm:w-auto">
-								{#each Object.entries(config.fields).slice(0, 3) as [fieldName, fieldDef], idx}
-									{#if idx === 0}
-										<h3 class="text-lg font-semibold text-gray-900 break-words">
-											{formatFieldValue(item[fieldName])}
-										</h3>
-									{:else}
-										<p class="mt-1 text-sm text-gray-600">
-											<span class="font-medium">{getFieldLabel(fieldName, fieldDef)}:</span>
-											{formatFieldValue(item[fieldName])}
-										</p>
-									{/if}
-								{/each}
-							</div>
-							<div class="flex gap-2 w-full sm:w-auto">
-								<button
-									type="button"
-									onclick={() => startEditItem(item, i)}
-									class="flex-1 sm:flex-none rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 transition-colors"
-								>
-									Edit
-								</button>
-								<button
-									type="button"
-									onclick={() => startDeleteItem(item, i)}
-									class="flex-1 sm:flex-none rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 transition-colors"
-								>
-									Delete
-								</button>
-							</div>
-						</div>
-
-						{#if Object.entries(config.fields).length > 3}
-							<details class="mt-4">
-								<summary class="cursor-pointer text-sm text-blue-600 hover:underline">
-									Show all fields
-								</summary>
-								<dl class="mt-3 space-y-2 border-t border-gray-100 pt-3">
-									{#each Object.entries(config.fields).slice(3) as [fieldName, fieldDef]}
-										<div class="text-sm">
-											<dt class="inline font-medium text-gray-700">
-												{getFieldLabel(fieldName, fieldDef)}:
-											</dt>
-											<dd class="inline text-gray-900 ml-2">
-												{formatFieldValue(item[fieldName])}
-											</dd>
-										</div>
-									{/each}
-								</dl>
-							</details>
-						{/if}
-
-						{#if item._filename}
-							<p class="mt-3 text-xs text-gray-400 font-mono">{item._filename}</p>
-						{/if}
+			<!-- Draft Changes Section -->
+			{#if hasDrafts && draftItems.length > 0}
+				<div class="mb-8">
+					<div class="mb-4 flex items-center gap-2">
+						<h2 class="text-xl font-semibold text-gray-900">Draft Changes</h2>
+						<span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+							{draftItems.length}
+						</span>
 					</div>
-				{/each}
-			</div>
+					<div class="space-y-4">
+						{#each draftItems as { item, badge, itemId }}
+							<ItemCard
+								{item}
+								href="/pages/{discoveredConfig.slug}/{itemId}/edit"
+								{cardFields}
+								{badge}
+							/>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!-- All Items Section -->
+			{#if regularItems.length > 0}
+				<div>
+					{#if hasDrafts}
+						<div class="mb-4 flex items-center gap-2">
+							<h2 class="text-xl font-semibold text-gray-900">All Items</h2>
+							<span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+								{regularItems.length}
+							</span>
+						</div>
+					{/if}
+					<div class="space-y-4">
+						{#each regularItems as item, i}
+							<ItemCard
+								{item}
+								href="/pages/{discoveredConfig.slug}/{getItemId(item) || i}/edit"
+								{cardFields}
+							/>
+						{/each}
+					</div>
+				</div>
+			{/if}
 		{:else}
 			<!-- Empty state -->
 			<div class="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
 				<p class="mb-4 text-gray-600">No {config.label.toLowerCase()} found</p>
-				<button
-					type="button"
-					onclick={startCreateItem}
-					class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+				<a
+					href="/pages/{discoveredConfig.slug}/new"
+					class="inline-block rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
 				>
 					Create your first {config.label.replace(/s$/, '').toLowerCase()}
-				</button>
+				</a>
 			</div>
 		{/if}
-	{/if}
-
-	<!-- Delete confirmation modal -->
-	{#if deleteConfirmItem}
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fadeIn" onclick={cancelDelete}>
-			<div class="mx-4 w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-2xl animate-scaleIn" onclick={(e) => e.stopPropagation()}>
-				<h3 class="mb-4 text-lg font-semibold text-gray-900">Confirm Delete</h3>
-				<p class="mb-6 text-sm text-gray-600">
-					Are you sure you want to delete this item? This action cannot be undone.
-				</p>
-
-				<form
-					method="POST"
-					action="?/delete"
-					use:enhance={() => {
-						saving = true;
-						return async ({ update }) => {
-							await update();
-						};
-					}}
-				>
-					{#if deleteConfirmIndex !== null}
-						<input type="hidden" name="itemIndex" value={deleteConfirmIndex} />
-					{/if}
-					{#if config.idField && deleteConfirmItem}
-						{@const itemId = getItemId(deleteConfirmItem)}
-						{#if itemId}
-							<input type="hidden" name="itemId" value={itemId} />
-						{/if}
-					{/if}
-					{#if deleteConfirmItem._filename}
-						<input type="hidden" name="filename" value={deleteConfirmItem._filename} />
-					{/if}
-
-					<div class="flex gap-3">
-						<button
-							type="submit"
-							disabled={saving}
-							class="flex-1 rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-						>
-							{saving ? 'Deleting...' : 'Delete'}
-						</button>
-						<button
-							type="button"
-							onclick={cancelDelete}
-							disabled={saving}
-							class="flex-1 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							Cancel
-						</button>
-					</div>
-				</form>
-			</div>
-		</div>
 	{/if}
 
 	<!-- Debug info (can be removed later) -->
@@ -578,14 +411,9 @@
 			Debug: View raw data
 		</summary>
 		<pre class="mt-2 overflow-auto rounded border border-gray-200 bg-gray-50 p-4 text-xs">{JSON.stringify(
-				{ config, type, content },
+				{ config, type, content, draftChanges },
 				null,
 				2
 			)}</pre>
 	</details>
-
-	<!-- Keyboard shortcut help -->
-	{#if editMode}
-		<KeyboardShortcutHelp />
-	{/if}
 </div>

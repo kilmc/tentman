@@ -19,6 +19,7 @@ export interface FieldOptions {
 	label?: string; // Optional custom display label
 	required?: boolean;
 	generated?: boolean;
+	show?: 'primary' | 'secondary'; // Display on index cards (primary = title, secondary = metadata)
 	fields?: Record<string, FieldDefinition>; // For nested fields in arrays
 }
 
@@ -31,6 +32,7 @@ export interface FieldArrayItem {
 	type: FieldType;
 	required?: boolean;
 	generated?: boolean;
+	show?: 'primary' | 'secondary'; // Display on index cards (primary = title, secondary = metadata)
 	fields?: FieldArrayItem[]; // For nested fields in arrays
 }
 
@@ -55,7 +57,7 @@ export interface SingleFileArrayConfig extends BaseConfig {
 
 export interface MultiFileCollectionConfig extends BaseConfig {
 	template: string;
-	filename: string; // Pattern like {{slug}}
+	filename?: string; // DEPRECATED: Users now enter filename manually when creating items
 	idField: string; // Required for collections
 	// No contentFile, no collectionPath
 }
@@ -88,12 +90,13 @@ export function normalizeFields(
 
 	for (const field of fields) {
 		// Build field definition
-		if (field.required || field.generated || field.fields) {
+		if (field.required || field.generated || field.show || field.fields) {
 			normalized[field.property] = {
 				type: field.type,
 				label: field.label, // Preserve the label
 				...(field.required && { required: field.required }),
 				...(field.generated && { generated: field.generated }),
+				...(field.show && { show: field.show }),
 				...(field.fields && {
 					fields: normalizeFields(field.fields) as Record<string, FieldDefinition>
 				})

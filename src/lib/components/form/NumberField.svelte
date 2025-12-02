@@ -7,7 +7,7 @@
 		min?: number;
 		max?: number;
 		step?: number;
-		oninput?: (value: number) => void;
+		onchange?: () => void;
 	}
 
 	let {
@@ -18,14 +18,8 @@
 		min,
 		max,
 		step = 1,
-		oninput
+		onchange
 	}: Props = $props();
-
-	function handleInput(event: Event) {
-		const target = event.target as HTMLInputElement;
-		value = parseFloat(target.value) || 0;
-		oninput?.(value);
-	}
 </script>
 
 <div class="mb-4">
@@ -37,13 +31,13 @@
 	</label>
 	<input
 		type="number"
-		{value}
+		bind:value
 		{placeholder}
 		{required}
 		{min}
 		{max}
 		{step}
-		oninput={handleInput}
+		oninput={() => onchange?.()}
 		class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 	/>
 </div>

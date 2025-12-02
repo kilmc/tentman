@@ -8,9 +8,11 @@ import type {
 	MultiFileCollectionConfig,
 	ConfigType
 } from '$lib/types/config';
+import { resolveConfigPath } from '$lib/utils/validation';
 
 /**
  * Fetches content from GitHub based on config type
+ * @param branch - Optional branch name to fetch from (defaults to default branch)
  */
 export async function fetchContent(
 	octokit: Octokit,
@@ -18,15 +20,16 @@ export async function fetchContent(
 	repo: string,
 	config: Config,
 	configType: ConfigType,
-	configPath: string
+	configPath: string,
+	branch?: string
 ): Promise<any> {
 	switch (configType) {
 		case 'singleton':
-			return fetchSingleton(octokit, owner, repo, config as SingletonConfig);
+			return fetchSingleton(octokit, owner, repo, config as SingletonConfig, configPath, branch);
 		case 'array':
-			return fetchArrayItems(octokit, owner, repo, config as SingleFileArrayConfig);
+			return fetchArrayItems(octokit, owner, repo, config as SingleFileArrayConfig, configPath, branch);
 		case 'collection':
-			return fetchCollectionItems(octokit, owner, repo, config as MultiFileCollectionConfig, configPath);
+			return fetchCollectionItems(octokit, owner, repo, config as MultiFileCollectionConfig, configPath, branch);
 	}
 }
 
@@ -37,13 +40,19 @@ async function fetchSingleton(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
-	config: SingletonConfig
+	config: SingletonConfig,
+	configPath: string,
+	branch?: string
 ): Promise<any> {
 	try {
+		// Resolve path relative to config file location
+		const filePath = resolveConfigPath(configPath, config.contentFile);
+
 		const response = await octokit.rest.repos.getContent({
 			owner,
 			repo,
-			path: config.contentFile
+			path: filePath,
+			...(branch && { ref: branch })
 		});
 
 		if (Array.isArray(response.data) || response.data.type !== 'file') {
@@ -66,13 +75,19 @@ async function fetchArrayItems(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
-	config: SingleFileArrayConfig
+	config: SingleFileArrayConfig,
+	configPath: string,
+	branch?: string
 ): Promise<any[]> {
 	try {
+		// Resolve path relative to config file location
+		const filePath = resolveConfigPath(configPath, config.contentFile);
+
 		const response = await octokit.rest.repos.getContent({
 			owner,
 			repo,
-			path: config.contentFile
+			path: filePath,
+			...(branch && { ref: branch })
 		});
 
 		if (Array.isArray(response.data) || response.data.type !== 'file') {
@@ -107,18 +122,20 @@ async function fetchCollectionItems(
 	owner: string,
 	repo: string,
 	config: MultiFileCollectionConfig,
-	configPath: string
+	configPath: string,
+	branch?: string
 ): Promise<any[]> {
 	try {
-		// Determine the directory path from the config file's location
-		// The config lives in the same directory as the content files
-		const dirPath = configPath.substring(0, configPath.lastIndexOf('/'));
+		// Resolve template path to determine the directory where content files live
+		const resolvedTemplate = resolveConfigPath(configPath, config.template);
+		const dirPath = resolvedTemplate.substring(0, resolvedTemplate.lastIndexOf('/')) || '.';
 
 		// Get directory contents
 		const response = await octokit.rest.repos.getContent({
 			owner,
 			repo,
-			path: dirPath || '.'
+			path: dirPath || '.',
+			...(branch && { ref: branch })
 		});
 
 		if (!Array.isArray(response.data)) {
@@ -147,7 +164,8 @@ async function fetchCollectionItems(
 					const fileResponse = await octokit.rest.repos.getContent({
 						owner,
 						repo,
-						path: file.path
+						path: file.path,
+						...(branch && { ref: branch })
 					});
 
 					if (Array.isArray(fileResponse.data) || fileResponse.data.type !== 'file') {

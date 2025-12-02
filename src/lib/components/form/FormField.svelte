@@ -15,7 +15,7 @@
 		fieldName: string;
 		fieldDef: FieldDefinition;
 		value: any;
-		onchange?: (value: any) => void;
+		onchange?: () => void;
 		imagePath?: string; // Custom image storage path from config
 	}
 
@@ -32,33 +32,28 @@
 		.replace(/_/g, ' ')
 		.replace(/^./, (str) => str.toUpperCase())
 		.trim();
-
-	function handleChange(newValue: any) {
-		value = newValue;
-		onchange?.(newValue);
-	}
 </script>
 
 {#if fieldType === 'text'}
-	<TextField {label} bind:value {required} oninput={handleChange} />
+	<TextField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'textarea'}
-	<TextareaField {label} bind:value {required} oninput={handleChange} />
+	<TextareaField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'markdown'}
-	<MarkdownField {label} bind:value {required} oninput={handleChange} />
+	<MarkdownField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'email'}
-	<EmailField {label} bind:value {required} oninput={handleChange} />
+	<EmailField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'url'}
-	<UrlField {label} bind:value {required} oninput={handleChange} />
+	<UrlField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'number'}
-	<NumberField {label} bind:value {required} oninput={handleChange} />
+	<NumberField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'date'}
-	<DateField {label} bind:value {required} oninput={handleChange} />
+	<DateField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'boolean'}
-	<BooleanField {label} bind:value {required} onchange={handleChange} />
+	<BooleanField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'image'}
-	<ImageField {label} bind:value {required} onchange={handleChange} storagePath={imagePath} />
+	<ImageField {label} bind:value {required} {onchange} storagePath={imagePath} />
 {:else if fieldType === 'array'}
-	<ArrayField {label} bind:value fields={nestedFields} {required} onchange={handleChange} />
+	<ArrayField {label} bind:value fields={nestedFields} {required} {onchange} />
 {:else}
 	<div class="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
 		Unsupported field type: {fieldType}

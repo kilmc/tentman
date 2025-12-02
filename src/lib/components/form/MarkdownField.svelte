@@ -5,7 +5,7 @@
 		required?: boolean;
 		placeholder?: string;
 		rows?: number;
-		oninput?: (value: string) => void;
+		onchange?: () => void;
 	}
 
 	let {
@@ -14,16 +14,10 @@
 		required = false,
 		placeholder = '',
 		rows = 12,
-		oninput
+		onchange
 	}: Props = $props();
 
 	let activeTab = $state<'edit' | 'preview'>('edit');
-
-	function handleInput(event: Event) {
-		const target = event.target as HTMLTextAreaElement;
-		value = target.value;
-		oninput?.(value);
-	}
 
 	// Simple markdown to HTML conversion for preview
 	// This is a basic implementation - a real app might use marked.js or similar
@@ -93,11 +87,11 @@
 	<!-- Edit tab -->
 	{#if activeTab === 'edit'}
 		<textarea
-			{value}
+			bind:value
 			{placeholder}
 			{required}
 			{rows}
-			oninput={handleInput}
+			oninput={() => onchange?.()}
 			class="w-full rounded border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 		></textarea>
 		<p class="mt-1 text-xs text-gray-500">Supports Markdown formatting</p>

@@ -3,7 +3,7 @@
 		label: string;
 		value: string;
 		required?: boolean;
-		onchange?: (value: string) => void;
+		onchange?: () => void;
 		storagePath?: string; // Optional custom storage path (defaults to 'static/images/')
 	}
 
@@ -66,7 +66,7 @@
 
 			// Update the value with the uploaded image path
 			value = result.path;
-			onchange?.(result.path);
+			onchange?.();
 		} catch (err) {
 			console.error('Upload error:', err);
 			uploadError = err instanceof Error ? err.message : 'Failed to upload image';
@@ -80,7 +80,7 @@
 		value = '';
 		previewUrl = null;
 		uploadError = null;
-		onchange?.('');
+		onchange?.();
 	}
 </script>
 

@@ -1,38 +1,33 @@
 <script lang="ts">
 	import type { Config } from '$lib/types/config';
+	import { normalizeFields } from '$lib/types/config';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import FormField from './FormField.svelte';
 
 	interface Props {
 		config: Config;
 		initialData?: Record<string, any>;
-		onchange?: (data: Record<string, any>) => void;
-		onsubmit?: (data: Record<string, any>) => void;
-		oncancel?: () => void;
-		submitLabel?: string;
-		cancelLabel?: string;
-		showButtons?: boolean;
 		existingItems?: any[];
 		currentItemId?: string;
+		// Function to get current form data - called by parent before submit
+		onvalidate?: (data: Record<string, any>, errors: ValidationError[]) => void;
 	}
 
 	let {
 		config,
 		initialData = {},
-		onchange,
-		onsubmit,
-		oncancel,
-		submitLabel = 'Save',
-		cancelLabel = 'Cancel',
-		showButtons = true,
 		existingItems = [],
-		currentItemId
+		currentItemId,
+		onvalidate
 	}: Props = $props();
+
+	// Normalize fields to object format (supports both array and object configs)
+	const normalizedFields = normalizeFields(config.fields);
 
 	// Helper function to initialize form data
 	function initializeFormData(initial: Record<string, any>): Record<string, any> {
 		const newFormData: Record<string, any> = {};
-		for (const [fieldName, fieldDef] of Object.entries(config.fields)) {
+		for (const [fieldName, fieldDef] of Object.entries(normalizedFields)) {
 			const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
 
 			// Use initial data if available, otherwise use type-based defaults
@@ -57,25 +52,13 @@
 		return newFormData;
 	}
 
-	// FormGenerator owns its own state - initialize immediately to avoid undefined bindings
-	let formData = $state<Record<string, any>>(initializeFormData(initialData));
+	// FormGenerator owns its own state - initialize once with structuredClone
+	let formData = $state<Record<string, any>>(initializeFormData(structuredClone(initialData)));
 	let validationErrors = $state<ValidationError[]>([]);
 	let showErrors = $state(false);
 
-	// Re-initialize form data when initialData changes
-	$effect(() => {
-		formData = initializeFormData(initialData);
-		showErrors = false;
-		validationErrors = [];
-
-		// Notify parent of initial data
-		onchange?.(formData);
-	});
-
-	function handleSubmit(event: Event) {
-		event.preventDefault();
-
-		// Validate form data with uniqueness check
+	// Validate and return errors - can be called by parent
+	export function validate(): { data: Record<string, any>; errors: ValidationError[] } {
 		const errors = validateFormData(config, formData, {
 			existingItems,
 			currentItemId
@@ -83,18 +66,18 @@
 		validationErrors = errors;
 		showErrors = true;
 
-		// Only submit if no errors
-		if (errors.length === 0) {
-			onsubmit?.(formData);
-		}
+		// Call onvalidate callback if provided
+		onvalidate?.(formData, errors);
+
+		return { data: formData, errors };
 	}
 
-	function handleFieldChange(fieldName: string, value: any) {
-		formData = { ...formData, [fieldName]: value };
+	// Get current form data without validation
+	export function getData(): Record<string, any> {
+		return formData;
+	}
 
-		// Notify parent of changes
-		onchange?.(formData);
-
+	function handleFieldChange(fieldName: string) {
 		// Clear errors for this field when user makes changes
 		if (showErrors) {
 			validationErrors = validationErrors.filter((err) => err.field !== fieldName);
@@ -106,7 +89,7 @@
 	}
 </script>
 
-<form onsubmit={handleSubmit} class="space-y-4">
+<div class="space-y-4">
 	{#if showErrors && validationErrors.length > 0}
 		<div class="rounded-lg border border-red-200 bg-red-50 p-4">
 			<h3 class="mb-2 font-semibold text-red-800">Please fix the following errors:</h3>
@@ -118,38 +101,18 @@
 		</div>
 	{/if}
 
-	{#each Object.entries(config.fields) as [fieldName, fieldDef]}
+	{#each Object.entries(normalizedFields) as [fieldName, fieldDef]}
 		<div>
 			<FormField
 				{fieldName}
 				{fieldDef}
 				bind:value={formData[fieldName]}
-				onchange={(value) => handleFieldChange(fieldName, value)}
 				imagePath={config.imagePath}
+				onchange={() => handleFieldChange(fieldName)}
 			/>
 			{#if showErrors && getFieldError(fieldName)}
 				<p class="mt-1 text-sm text-red-600">{getFieldError(fieldName)}</p>
 			{/if}
 		</div>
 	{/each}
-
-	{#if showButtons}
-		<div class="flex gap-2 border-t border-gray-200 pt-4">
-			<button
-				type="submit"
-				class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-			>
-				{submitLabel}
-			</button>
-			{#if oncancel}
-				<button
-					type="button"
-					onclick={oncancel}
-					class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-				>
-					{cancelLabel}
-				</button>
-			{/if}
-		</div>
-	{/if}
-</form>
+</div>

@@ -5,7 +5,7 @@
 		required?: boolean;
 		placeholder?: string;
 		rows?: number;
-		oninput?: (value: string) => void;
+		onchange?: () => void;
 	}
 
 	let {
@@ -14,14 +14,8 @@
 		required = false,
 		placeholder = '',
 		rows = 4,
-		oninput
+		onchange
 	}: Props = $props();
-
-	function handleInput(event: Event) {
-		const target = event.target as HTMLTextAreaElement;
-		value = target.value;
-		oninput?.(value);
-	}
 </script>
 
 <div class="mb-4">
@@ -32,11 +26,11 @@
 		{/if}
 	</label>
 	<textarea
-		{value}
+		bind:value
 		{placeholder}
 		{required}
 		{rows}
-		oninput={handleInput}
+		oninput={() => onchange?.()}
 		class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 	></textarea>
 </div>

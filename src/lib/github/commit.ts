@@ -2,6 +2,7 @@ import type { Octokit } from 'octokit';
 
 /**
  * Updates a file in a GitHub repository by creating a new commit
+ * @param branch - Optional branch name to commit to (defaults to default branch)
  */
 export async function updateFile(
 	octokit: Octokit,
@@ -9,7 +10,8 @@ export async function updateFile(
 	repo: string,
 	path: string,
 	content: string,
-	message: string
+	message: string,
+	branch?: string
 ): Promise<void> {
 	try {
 		// Get the current file to retrieve its SHA (required for updates)
@@ -18,7 +20,8 @@ export async function updateFile(
 			const { data: currentFile } = await octokit.rest.repos.getContent({
 				owner,
 				repo,
-				path
+				path,
+				...(branch && { ref: branch })
 			});
 
 			if ('sha' in currentFile) {
@@ -36,7 +39,8 @@ export async function updateFile(
 			path,
 			message,
 			content: Buffer.from(content).toString('base64'),
-			sha
+			sha,
+			...(branch && { branch })
 		});
 	} catch (err) {
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -49,14 +53,15 @@ export async function updateFile(
  * Generates a commit message for content updates
  */
 export function generateCommitMessage(
-	action: 'update' | 'create' | 'delete',
+	action: 'update' | 'create' | 'delete' | 'rename',
 	contentType: string,
 	identifier?: string
 ): string {
 	const messages = {
 		update: identifier ? `Update ${contentType}: ${identifier}` : `Update ${contentType}`,
 		create: identifier ? `Create ${contentType}: ${identifier}` : `Create ${contentType}`,
-		delete: identifier ? `Delete ${contentType}: ${identifier}` : `Delete ${contentType}`
+		delete: identifier ? `Delete ${contentType}: ${identifier}` : `Delete ${contentType}`,
+		rename: identifier ? `Rename ${contentType}: ${identifier}` : `Rename ${contentType}`
 	};
 
 	return `${messages[action]} via Tentman CMS`;

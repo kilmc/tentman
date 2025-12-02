@@ -7,7 +7,7 @@
 		value: any[];
 		fields?: Record<string, FieldDefinition>;
 		required?: boolean;
-		onchange?: (value: any[]) => void;
+		onchange?: () => void;
 	}
 
 	let { label, value = $bindable([]), fields = {}, required = false, onchange }: Props = $props();
@@ -32,17 +32,12 @@
 			}
 		}
 		value = [...value, newItem];
-		onchange?.(value);
+		onchange?.();
 	}
 
 	function removeItem(index: number) {
 		value = value.filter((_, i) => i !== index);
-		onchange?.(value);
-	}
-
-	function updateItem(index: number, fieldName: string, fieldValue: any) {
-		value = value.map((item, i) => (i === index ? { ...item, [fieldName]: fieldValue } : item));
-		onchange?.(value);
+		onchange?.();
 	}
 </script>
 
@@ -88,16 +83,16 @@
 								<FormField
 									{fieldName}
 									{fieldDef}
-									value={item[fieldName]}
-									onchange={(newValue) => updateItem(index, fieldName, newValue)}
+									bind:value={value[index][fieldName]}
+									onchange={() => onchange?.()}
 								/>
 							{/each}
 						</div>
 					{:else}
 						<input
 							type="text"
-							value={item}
-							oninput={(e) => updateItem(index, '', e.currentTarget.value)}
+							bind:value={value[index]}
+							oninput={() => onchange?.()}
 							class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 						/>
 					{/if}
