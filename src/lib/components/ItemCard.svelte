@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { FieldDefinition } from '$lib/types/config';
 	import { getFieldLabel } from '$lib/types/config';
+	import { formatContentValue } from '$lib/features/content-management/item';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	interface Props {
-		item: any;
+		item: ContentRecord;
 		href: string;
 		cardFields: {
 			primary: [string, FieldDefinition][];
@@ -13,41 +15,6 @@
 	}
 
 	let { item, href, cardFields, badge }: Props = $props();
-
-	// Helper to format field values for display
-	function formatFieldValue(value: any): string {
-		if (value === null || value === undefined) return '—';
-		if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-		if (Array.isArray(value)) return `[${value.length} items]`;
-
-		// Handle dates (both Date objects and ISO strings)
-		if (value instanceof Date) {
-			return value.toLocaleDateString('en-US', {
-				year: 'numeric',
-				month: 'long',
-				day: 'numeric'
-			});
-		}
-
-		// Try to parse ISO date strings
-		if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-			try {
-				const date = new Date(value);
-				if (!isNaN(date.getTime())) {
-					return date.toLocaleDateString('en-US', {
-						year: 'numeric',
-						month: 'long',
-						day: 'numeric'
-					});
-				}
-			} catch {
-				// Fall through to string display
-			}
-		}
-
-		if (typeof value === 'object') return '[Object]';
-		return String(value);
-	}
 
 	function getBadgeStyles(badgeType: 'draft' | 'new' | 'deleted') {
 		switch (badgeType) {
@@ -83,7 +50,7 @@
 				<div class="space-y-1">
 					{#each cardFields.primary as [fieldName, fieldDef]}
 						<h3 class="text-lg font-semibold text-gray-900 break-words">
-							{formatFieldValue(item[fieldName])}
+							{formatContentValue(item[fieldName])}
 						</h3>
 					{/each}
 				</div>
@@ -95,7 +62,7 @@
 					{#each cardFields.secondary as [fieldName, fieldDef]}
 						<p class="text-sm text-gray-600">
 							<span class="font-medium">{getFieldLabel(fieldName, fieldDef)}:</span>
-							{formatFieldValue(item[fieldName])}
+							{formatContentValue(item[fieldName])}
 						</p>
 					{/each}
 				</div>

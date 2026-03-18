@@ -3,26 +3,12 @@ import type { PageServerLoad, Actions } from './$types';
 import { calculateChanges } from '$lib/utils/preview.js';
 import { saveContent } from '$lib/content/writer.js';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
-import { createBranch, branchExists } from '$lib/github/branch.js';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { requireDiscoveredConfig } from '$lib/server/page-context';
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-	// Auth check
-	if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
-
-	const { owner, name } = locals.selectedRepo;
-
-	// Get configs from cache
-	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(locals.octokit, owner, name);
-
-	// Find config matching the slug
-	const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-	if (!discoveredConfig) {
-		throw error(404, 'Configuration not found');
-	}
+	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	// Only allow singletons on this route
 	if (discoveredConfig.type !== 'singleton') {
@@ -35,7 +21,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		throw redirect(302, `/pages/${params.page}/edit`);
 	}
 
-	let contentData: Record<string, any>;
+	let contentData: ContentRecord;
 	try {
 		contentData = JSON.parse(Buffer.from(encodedData, 'base64url').toString());
 	} catch (err) {
@@ -48,8 +34,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	let changesError = null;
 
 	try {
-		changesSummary = await calculateChanges(
-			locals.octokit,
+			changesSummary = await calculateChanges(
+				octokit,
 			owner,
 			name,
 			discoveredConfig.config,
@@ -73,74 +59,23 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 export const actions: Actions = {
 	createPreview: async ({ locals, params, request, cookies }) => {
-		// Require authentication and selected repo
-		if (!locals.isAuthenticated || !locals.octokit) {
-			return fail(401, { error: 'Not authenticated' });
-		}
-
-		if (!locals.selectedRepo) {
-			return fail(400, { error: 'No repository selected' });
-		}
-
-		const { owner, name } = locals.selectedRepo;
-
 		try {
-			// Get configs from cache
-			const { getCachedConfigs } = await import('$lib/stores/config-cache');
-			const configs = await getCachedConfigs(locals.octokit, owner, name);
-			const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-			if (!discoveredConfig) {
-				return fail(404, { error: 'Configuration not found' });
-			}
+			const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
-			const contentData = JSON.parse(formData.get('data') as string);
+			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 
 			// Get or create draft branch
 			const formBranchName = formData.get('branchName') as string | null;
-			let branchName: string;
-			let needsNewBranch = false;
-
-			if (formBranchName) {
-				// Use existing draft branch from client
-				branchName = formBranchName;
-
-				// Verify it still exists
-				const exists = await branchExists(locals.octokit, owner, name, branchName);
-				if (!exists) {
-					needsNewBranch = true;
-				}
-			} else {
-				// Create new draft branch with today's date
-				const today = new Date();
-				const yyyy = today.getFullYear();
-				const mm = String(today.getMonth() + 1).padStart(2, '0');
-				const dd = String(today.getDate()).padStart(2, '0');
-				const baseName = `preview-${yyyy}-${mm}-${dd}`;
-
-				// Check if branch already exists, append sequence number if needed
-				branchName = baseName;
-				let sequence = 2;
-
-				while (await branchExists(locals.octokit, owner, name, branchName)) {
-					branchName = `${baseName}-${sequence}`;
-					sequence++;
-				}
-
-				needsNewBranch = true;
-			}
-
-			// Create the branch if needed
-			if (needsNewBranch) {
-				await createBranch(locals.octokit, owner, name, branchName);
+			const { branchName, created } = await ensureDraftBranch(octokit, owner, name, formBranchName);
+			if (created) {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
 
 			// Save the content to the draft branch
 			await saveContent(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				discoveredConfig.config,
@@ -170,34 +105,16 @@ export const actions: Actions = {
 	},
 
 	publishNow: async ({ locals, params, request }) => {
-		// Require authentication and selected repo
-		if (!locals.isAuthenticated || !locals.octokit) {
-			return fail(401, { error: 'Not authenticated' });
-		}
-
-		if (!locals.selectedRepo) {
-			return fail(400, { error: 'No repository selected' });
-		}
-
-		const { owner, name } = locals.selectedRepo;
-
 		try {
-			// Get configs from cache
-			const { getCachedConfigs } = await import('$lib/stores/config-cache');
-			const configs = await getCachedConfigs(locals.octokit, owner, name);
-			const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-			if (!discoveredConfig) {
-				return fail(404, { error: 'Configuration not found' });
-			}
+			const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
-			const contentData = JSON.parse(formData.get('data') as string);
+			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 
 			// Save the content directly to main branch (no branch specified = default branch)
 			await saveContent(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				discoveredConfig.config,

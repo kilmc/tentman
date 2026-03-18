@@ -1,6 +1,5 @@
 import type { Octokit } from 'octokit';
 import { JSONPath } from 'jsonpath-plus';
-import matter from 'gray-matter';
 import type {
 	Config,
 	SingletonConfig,
@@ -9,6 +8,8 @@ import type {
 	ConfigType
 } from '$lib/types/config';
 import { resolveConfigPath } from '$lib/utils/validation';
+import { decodeBase64Content, getTemplateInfo, parseCollectionItem } from '$lib/features/content-management/transforms';
+import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 
 /**
  * Fetches content from GitHub based on config type
@@ -22,7 +23,7 @@ export async function fetchContent(
 	configType: ConfigType,
 	configPath: string,
 	branch?: string
-): Promise<any> {
+): Promise<ContentDocument> {
 	switch (configType) {
 		case 'singleton':
 			return fetchSingleton(octokit, owner, repo, config as SingletonConfig, configPath, branch);
@@ -43,7 +44,7 @@ async function fetchSingleton(
 	config: SingletonConfig,
 	configPath: string,
 	branch?: string
-): Promise<any> {
+): Promise<ContentRecord> {
 	try {
 		// Resolve path relative to config file location
 		const filePath = resolveConfigPath(configPath, config.contentFile);
@@ -59,8 +60,7 @@ async function fetchSingleton(
 			throw new Error(`Expected file at ${config.contentFile}, got directory or multiple files`);
 		}
 
-		const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-		return JSON.parse(content);
+			return JSON.parse(decodeBase64Content(response.data.content)) as ContentRecord;
 	} catch (error) {
 		throw new Error(
 			`Failed to fetch singleton content from ${config.contentFile}: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -78,7 +78,7 @@ async function fetchArrayItems(
 	config: SingleFileArrayConfig,
 	configPath: string,
 	branch?: string
-): Promise<any[]> {
+): Promise<ContentRecord[]> {
 	try {
 		// Resolve path relative to config file location
 		const filePath = resolveConfigPath(configPath, config.contentFile);
@@ -94,8 +94,7 @@ async function fetchArrayItems(
 			throw new Error(`Expected file at ${config.contentFile}, got directory or multiple files`);
 		}
 
-		const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-		const json = JSON.parse(content);
+			const json = JSON.parse(decodeBase64Content(response.data.content));
 
 		// Use JSONPath to extract the array from the JSON structure
 		const items = JSONPath({ path: config.collectionPath, json });
@@ -105,7 +104,8 @@ async function fetchArrayItems(
 		}
 
 		// If JSONPath returns an array of arrays, flatten it
-		return Array.isArray(items[0]) ? items.flat() : items;
+			const records = Array.isArray(items[0]) ? items.flat() : items;
+			return records as ContentRecord[];
 	} catch (error) {
 		throw new Error(
 			`Failed to fetch array items from ${config.contentFile}: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -124,11 +124,10 @@ async function fetchCollectionItems(
 	config: MultiFileCollectionConfig,
 	configPath: string,
 	branch?: string
-): Promise<any[]> {
+): Promise<ContentRecord[]> {
 	try {
-		// Resolve template path to determine the directory where content files live
-		const resolvedTemplate = resolveConfigPath(configPath, config.template);
-		const dirPath = resolvedTemplate.substring(0, resolvedTemplate.lastIndexOf('/')) || '.';
+		const templateInfo = getTemplateInfo(configPath, config);
+		const dirPath = templateInfo.templateDir || '.';
 
 		// Get directory contents
 		const response = await octokit.rest.repos.getContent({
@@ -142,19 +141,15 @@ async function fetchCollectionItems(
 			throw new Error(`Expected directory at ${dirPath}, got single file`);
 		}
 
-		// Determine file extension from template
-		const templateExt = config.template.substring(config.template.lastIndexOf('.'));
-		const isMarkdown = templateExt === '.md' || templateExt === '.markdown';
-
 		// Filter for content files (exclude template and private files)
 		const contentFiles = response.data.filter((file) => {
 			if (file.type !== 'file') return false;
 			if (file.name.startsWith('_')) return false; // Skip private files
-			if (file.name === config.template.split('/').pop()) return false; // Skip template
+			if (file.name === templateInfo.templateFilename) return false; // Skip template
 			if (file.name.endsWith('.tentman.json')) return false; // Skip config files
 
 			// Check extension matches template
-			return file.name.endsWith(templateExt);
+			return file.name.endsWith(templateInfo.templateExt);
 		});
 
 		// Fetch and parse each file
@@ -172,33 +167,20 @@ async function fetchCollectionItems(
 						return null;
 					}
 
-					const content = Buffer.from(fileResponse.data.content, 'base64').toString('utf-8');
-
-					if (isMarkdown) {
-						// Parse markdown frontmatter
-						const { data, content: body } = matter(content);
-						return {
-							...data,
-							_body: body, // Store markdown body
-							_filename: file.name
-						};
-					} else {
-						// Parse JSON
-						const data = JSON.parse(content);
-						return {
-							...data,
-							_filename: file.name
-						};
-					}
-				} catch (error) {
-					console.error(`Failed to fetch file ${file.path}:`, error);
-					return null;
+						return parseCollectionItem(
+							decodeBase64Content(fileResponse.data.content),
+							templateInfo.isMarkdown,
+							file.name
+						);
+					} catch (error) {
+						console.error(`Failed to fetch file ${file.path}:`, error);
+						return null;
 				}
 			})
 		);
 
 		// Filter out failed fetches
-		return items.filter((item): item is any => item !== null);
+			return items.filter((item): item is ContentRecord => item !== null);
 	} catch (error) {
 		throw new Error(
 			`Failed to fetch collection items from ${config.template}: ${error instanceof Error ? error.message : 'Unknown error'}`

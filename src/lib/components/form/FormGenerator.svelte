@@ -1,17 +1,18 @@
 <script lang="ts">
 	import type { Config } from '$lib/types/config';
-	import { normalizeFields } from '$lib/types/config';
+	import { buildFormData, normalizeFields } from '$lib/features/forms/helpers';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 
 	interface Props {
 		config: Config;
 		initialData?: Record<string, any>;
-		existingItems?: any[];
+		existingItems?: Record<string, any>[];
 		currentItemId?: string;
 		realtimeValidation?: boolean; // Enable real-time validation on field change
 		// Function to get current form data - called by parent before submit
-		onvalidate?: (data: Record<string, any>, errors: ValidationError[]) => void;
+		onvalidate?: (data: ContentRecord, errors: ValidationError[]) => void;
 	}
 
 	let {
@@ -26,36 +27,8 @@
 	// Normalize fields to object format (supports both array and object configs)
 	const normalizedFields = normalizeFields(config.fields);
 
-	// Helper function to initialize form data
-	function initializeFormData(initial: Record<string, any>): Record<string, any> {
-		const newFormData: Record<string, any> = {};
-		for (const [fieldName, fieldDef] of Object.entries(normalizedFields)) {
-			const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
-
-			// Use initial data if available, otherwise use type-based defaults
-			if (initial[fieldName] !== undefined) {
-				newFormData[fieldName] = initial[fieldName];
-			} else {
-				switch (fieldType) {
-					case 'boolean':
-						newFormData[fieldName] = false;
-						break;
-					case 'number':
-						newFormData[fieldName] = 0;
-						break;
-					case 'array':
-						newFormData[fieldName] = [];
-						break;
-					default:
-						newFormData[fieldName] = '';
-				}
-			}
-		}
-		return newFormData;
-	}
-
 	// FormGenerator owns its own state - initialize once with structuredClone
-	let formData = $state<Record<string, any>>(initializeFormData(structuredClone(initialData)));
+	let formData = $state<Record<string, any>>(buildFormData(config, structuredClone(initialData)));
 	let validationErrors = $state<ValidationError[]>([]);
 	let showErrors = $state(false);
 	let touchedFields = $state<Set<string>>(new Set()); // Track which fields have been interacted with

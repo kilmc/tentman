@@ -7,6 +7,7 @@
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -14,8 +15,8 @@
 	const { config } = discoveredConfig;
 
 	// Form state
-	let formGenerator: FormGenerator | null = null;
-	let currentForm: HTMLFormElement | null = null;
+	let formGenerator = $state<FormGenerator | null>(null);
+	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let hasUnsavedChanges = $state(false);
 
@@ -76,9 +77,9 @@
 		}
 
 		// Update the hidden input with validated data
-		const hiddenInput = currentForm?.querySelector('input[name="data"]') as HTMLInputElement;
+		const hiddenInput = currentForm?.querySelector('input[name="data"]');
 		if (hiddenInput) {
-			hiddenInput.value = JSON.stringify(formData);
+			(hiddenInput as HTMLInputElement).value = JSON.stringify(formData);
 		}
 
 		// Let the form submit naturally

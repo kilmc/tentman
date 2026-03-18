@@ -1,7 +1,11 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 
-	let { data } = $props<{ data: PageData }>();
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
 </script>
 
 <div class="mx-auto max-w-3xl py-16 text-center">

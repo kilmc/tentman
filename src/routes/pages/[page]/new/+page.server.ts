@@ -1,23 +1,10 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
+import { requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	// Auth check
-	if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
-
-	// Get configs from cache
-	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(locals.octokit, locals.selectedRepo.owner, locals.selectedRepo.name);
-
-	// Find config matching the slug
-	const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-	if (!discoveredConfig) {
-		throw error(404, 'Configuration not found');
-	}
+	const { discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
@@ -40,25 +27,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	createToPreview: async ({ locals, params, request }) => {
-		// Require authentication and selected repo
-		if (!locals.isAuthenticated || !locals.octokit) {
-			return fail(401, { error: 'Not authenticated' });
-		}
-
-		if (!locals.selectedRepo) {
-			return fail(400, { error: 'No repository selected' });
-		}
-
 		try {
-			// Get configs from cache
-			const { getCachedConfigs } = await import('$lib/stores/config-cache');
-			const { owner, name } = locals.selectedRepo;
-			const configs = await getCachedConfigs(locals.octokit, owner, name);
-			const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-			if (!discoveredConfig) {
-				return fail(404, { error: 'Configuration not found' });
-			}
+			const { discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();

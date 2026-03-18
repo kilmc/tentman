@@ -1,26 +1,12 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { fetchContent } from '$lib/content/fetcher';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
+import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { findContentItem } from '$lib/features/content-management/item';
+import { requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params, cookies }) => {
-	// Auth check
-	if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
-
-	const { owner, name } = locals.selectedRepo;
-
-	// Get configs from cache
-	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(locals.octokit, owner, name);
-
-	// Find config matching the slug
-	const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-	if (!discoveredConfig) {
-		throw error(404, 'Configuration not found');
-	}
+	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
@@ -32,11 +18,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 		// Check if there's a draft branch - load from draft if it exists
 		let branch: string | undefined;
 		try {
-			const { listPreviewBranches } = await import('$lib/github/branch');
-			const branches = await listPreviewBranches(locals.octokit, owner, name);
-			if (branches.length > 0) {
-				branch = branches[0].name;
-			}
+			branch = await getLatestPreviewBranchName(octokit, owner, name);
 		} catch (err) {
 			console.error('Failed to check for draft branch:', err);
 		}
@@ -49,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 		try {
 			const { getCachedContent } = await import('$lib/stores/content-cache');
 			content = await getCachedContent(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				discoveredConfig.config,
@@ -61,25 +43,12 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 
 			// Find the specific item
 			if (Array.isArray(content)) {
-				// For arrays and collections, find the item by ID or filename
-				const itemId = params.itemId;
+				item = findContentItem(content, discoveredConfig.type, discoveredConfig.config, params.itemId);
 
-				if (discoveredConfig.type === 'collection') {
-					// For collections, itemId is the filename (without extension)
-					item = content.find((i) => {
-						const filenameWithoutExt = i._filename?.replace(/\.[^/.]+$/, '');
-						return filenameWithoutExt === itemId;
-					});
-				} else {
-					// For arrays, use the idField if configured
-					if (discoveredConfig.config.idField) {
-						item = content.find((i) => String(i[discoveredConfig.config.idField!]) === itemId);
-					} else {
-						// Fall back to index-based lookup
-						const index = parseInt(itemId);
-						if (!isNaN(index) && index >= 0 && index < content.length) {
-							item = content[index];
-						}
+				if (!item && discoveredConfig.type === 'array') {
+					const index = Number.parseInt(params.itemId, 10);
+					if (!Number.isNaN(index) && index >= 0 && index < content.length) {
+						item = content[index];
 					}
 				}
 
@@ -112,26 +81,8 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 
 export const actions: Actions = {
 	delete: async ({ locals, params }) => {
-		// Require authentication and selected repo
-		if (!locals.isAuthenticated || !locals.octokit) {
-			return fail(401, { error: 'Not authenticated' });
-		}
-
-		if (!locals.selectedRepo) {
-			return fail(400, { error: 'No repository selected' });
-		}
-
-		const { owner, name } = locals.selectedRepo;
-
 		try {
-			// Get configs from cache
-			const { getCachedConfigs } = await import('$lib/stores/config-cache');
-			const configs = await getCachedConfigs(locals.octokit, owner, name);
-			const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-			if (!discoveredConfig) {
-				return fail(404, { error: 'Configuration not found' });
-			}
+			const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			const itemId = params.itemId;
 
@@ -139,13 +90,13 @@ export const actions: Actions = {
 			const { deleteContent } = await import('$lib/content/writer');
 
 			// Delete the content - prepare options based on type
-			let deleteOptions: any = {};
+			const deleteOptions: { itemId?: string; filename?: string } = {};
 
 			if (discoveredConfig.type === 'collection') {
 				// For collections, we need to fetch the item to get its filename
 				const { getCachedContent } = await import('$lib/stores/content-cache');
 				const content = await getCachedContent(
-					locals.octokit,
+					octokit,
 					owner,
 					name,
 					discoveredConfig.config,
@@ -155,10 +106,7 @@ export const actions: Actions = {
 				);
 
 				if (Array.isArray(content)) {
-					const item = content.find((i) => {
-						const filenameWithoutExt = i._filename?.replace(/\.[^/.]+$/, '');
-						return filenameWithoutExt === itemId;
-					});
+					const item = findContentItem(content, discoveredConfig.type, discoveredConfig.config, itemId);
 
 					if (item?._filename) {
 						deleteOptions.filename = item._filename;
@@ -170,7 +118,7 @@ export const actions: Actions = {
 			}
 
 			await deleteContent(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				discoveredConfig.config,
@@ -195,25 +143,8 @@ export const actions: Actions = {
 	},
 
 	saveToPreview: async ({ locals, params, request }) => {
-		// Require authentication and selected repo
-		if (!locals.isAuthenticated || !locals.octokit) {
-			return fail(401, { error: 'Not authenticated' });
-		}
-
-		if (!locals.selectedRepo) {
-			return fail(400, { error: 'No repository selected' });
-		}
-
 		try {
-			// Get configs from cache
-			const { getCachedConfigs } = await import('$lib/stores/config-cache');
-			const { owner, name } = locals.selectedRepo;
-			const configs = await getCachedConfigs(locals.octokit, owner, name);
-			const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-			if (!discoveredConfig) {
-				return fail(404, { error: 'Configuration not found' });
-			}
+			const { discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();

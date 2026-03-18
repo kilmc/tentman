@@ -1,8 +1,15 @@
 import type { Octokit } from 'octokit';
 import { JSONPath } from 'jsonpath-plus';
-import matter from 'gray-matter';
 import type { Config } from '$lib/types/config';
 import { resolveConfigPath } from '$lib/utils/validation';
+import {
+	buildCollectionFilePath,
+	decodeBase64Content,
+	getTemplateInfo,
+	serializeCollectionItem,
+	toJsonFileContent
+} from '$lib/features/content-management/transforms';
+import type { ContentRecord, PreviewInput } from '$lib/features/content-management/types';
 
 export interface FileChange {
 	path: string;
@@ -28,14 +35,8 @@ export async function calculateChanges(
 	config: Config,
 	configType: 'singleton' | 'array' | 'collection',
 	configPath: string,
-	data: Record<string, any>,
-	options?: {
-		isNew?: boolean;
-		itemId?: string;
-		filename?: string;
-		newFilename?: string;
-		branch?: string;
-	}
+	data: ContentRecord,
+	options?: Omit<PreviewInput, 'configType' | 'data'>
 ): Promise<ChangesSummary> {
 	const files: FileChange[] = [];
 
@@ -98,7 +99,7 @@ async function calculateSingletonChange(
 	repo: string,
 	config: Config,
 	configPath: string,
-	data: Record<string, any>,
+	data: ContentRecord,
 	branch?: string
 ): Promise<FileChange> {
 	if (!('contentFile' in config)) {
@@ -106,7 +107,7 @@ async function calculateSingletonChange(
 	}
 
 	const filePath = resolveConfigPath(configPath, config.contentFile);
-	const newContent = JSON.stringify(data, null, 2) + '\n';
+	const newContent = toJsonFileContent(data);
 
 	// Try to fetch existing content
 	let oldContent: string | undefined;
@@ -121,11 +122,11 @@ async function calculateSingletonChange(
 		});
 
 		if ('content' in fileData) {
-			oldContent = Buffer.from(fileData.content, 'base64').toString('utf-8');
+			oldContent = decodeBase64Content(fileData.content);
 		}
-	} catch (err: any) {
+	} catch (err: unknown) {
 		// File doesn't exist yet
-		if (err?.status === 404) {
+		if (typeof err === 'object' && err !== null && 'status' in err && err.status === 404) {
 			type = 'create';
 		} else {
 			throw err;
@@ -150,7 +151,7 @@ async function calculateArrayChange(
 	repo: string,
 	config: Config,
 	configPath: string,
-	updatedItem: Record<string, any>,
+	updatedItem: ContentRecord,
 	options?: {
 		isNew?: boolean;
 		itemId?: string;
@@ -175,7 +176,7 @@ async function calculateArrayChange(
 		throw new Error('Expected file, got directory');
 	}
 
-	const oldContent = Buffer.from(fileData.content, 'base64').toString('utf-8');
+	const oldContent = decodeBase64Content(fileData.content);
 	const jsonData = JSON.parse(oldContent);
 
 	// Find the array using JSONPath
@@ -209,7 +210,7 @@ async function calculateArrayChange(
 		wrap: false
 	});
 
-	const newContent = JSON.stringify(jsonData, null, 2) + '\n';
+	const newContent = toJsonFileContent(jsonData);
 
 	return {
 		path: filePath,
@@ -229,7 +230,7 @@ async function calculateCollectionChange(
 	repo: string,
 	config: Config,
 	configPath: string,
-	newItem: Record<string, any>,
+	newItem: ContentRecord,
 	options?: {
 		isNew?: boolean;
 		filename?: string;
@@ -241,20 +242,8 @@ async function calculateCollectionChange(
 		throw new Error('Collection config must have template');
 	}
 
-	const resolvedTemplate = resolveConfigPath(configPath, config.template);
-	const templateDir = resolvedTemplate.substring(0, resolvedTemplate.lastIndexOf('/')) || '';
-	const templateExt = config.template.substring(config.template.lastIndexOf('.'));
-	const isMarkdown = templateExt === '.md' || templateExt === '.markdown';
-
-	// Prepare content based on file type
-	let newContent: string;
-	if (isMarkdown) {
-		const { _body, _filename, ...frontmatterData } = newItem;
-		newContent = matter.stringify(_body || '', frontmatterData);
-	} else {
-		const { _filename, ...jsonData } = newItem;
-		newContent = JSON.stringify(jsonData, null, 2) + '\n';
-	}
+	const templateInfo = getTemplateInfo(configPath, config);
+	const newContent = serializeCollectionItem(newItem, templateInfo.isMarkdown);
 
 	const changes: FileChange[] = [];
 
@@ -263,10 +252,10 @@ async function calculateCollectionChange(
 		let filename = options.newFilename || 'new-item';
 
 		if (!filename.includes('.')) {
-			filename = `${filename}${templateExt}`;
+			filename = `${filename}${templateInfo.templateExt}`;
 		}
 
-		const filePath = templateDir ? `${templateDir}/${filename}` : filename;
+		const filePath = buildCollectionFilePath(templateInfo.templateDir, filename);
 
 		changes.push({
 			path: filePath,
@@ -280,7 +269,7 @@ async function calculateCollectionChange(
 			throw new Error('Filename is required for updating collection items');
 		}
 
-		const oldFilePath = templateDir ? `${templateDir}/${options.filename}` : options.filename;
+		const oldFilePath = buildCollectionFilePath(templateInfo.templateDir, options.filename);
 
 		// Try to fetch existing content
 		let oldContent: string | undefined;
@@ -293,17 +282,21 @@ async function calculateCollectionChange(
 			});
 
 			if ('content' in fileData) {
-				oldContent = Buffer.from(fileData.content, 'base64').toString('utf-8');
+				oldContent = decodeBase64Content(fileData.content);
 			}
-		} catch (err: any) {
-			if (err?.status !== 404) {
+		} catch (err: unknown) {
+			if (!(typeof err === 'object' && err !== null && 'status' in err && err.status === 404)) {
 				throw err;
 			}
 		}
 
 		// Check for filename change (rename)
 		if (options.newFilename && options.newFilename !== options.filename) {
-			const newFilePath = templateDir ? `${templateDir}/${options.newFilename}` : options.newFilename;
+			let nextFilename = options.newFilename;
+			if (!nextFilename.includes('.')) {
+				nextFilename = `${nextFilename}${templateInfo.templateExt}`;
+			}
+			const newFilePath = buildCollectionFilePath(templateInfo.templateDir, nextFilename);
 
 			// Delete old file
 			changes.push({

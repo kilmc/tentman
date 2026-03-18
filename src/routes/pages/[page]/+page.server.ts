@@ -1,33 +1,17 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
+import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params, cookies, depends }) => {
 	const startTime = performance.now();
 	console.log(`🟢 [VIEW ${params.page}] Starting load...`);
 
-	// Auth check
-	if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
-
 	// Get configs from locals (already loaded by layout)
 	// Note: We'll get this from parent data via SvelteKit's automatic data flow
 	depends('app:content');
-
-	const { owner, name } = locals.selectedRepo;
-
-	// We need to get configs - since parent() causes double load,
-	// let's use the cache directly
-	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(locals.octokit, owner, name);
-
-	// Find config matching the slug
-	const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-	if (!discoveredConfig) {
-		throw error(404, 'Configuration not found');
-	}
+	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
@@ -41,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 			console.log(`🟢 [VIEW ${params.page}] Getting content...`);
 			const { getCachedContent } = await import('$lib/stores/content-cache');
 			content = await getCachedContent(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				discoveredConfig.config,
@@ -61,19 +45,15 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 		let draftChanges = null;
 
 		try {
-			const { listPreviewBranches } = await import('$lib/github/branch');
-			const branches = await listPreviewBranches(locals.octokit, owner, name);
-
-			if (branches.length > 0) {
-				// Use the most recent preview branch
-				draftBranch = branches[0].name;
+			draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+			if (draftBranch) {
 				console.log(`🟢 [VIEW ${params.page}] Found draft branch: ${draftBranch}`);
 
 				// Compare draft content to main for this config
 				const draftStartTime = performance.now();
 				const { compareDraftToBranch } = await import('$lib/utils/draft-comparison');
 				draftChanges = await compareDraftToBranch(
-					locals.octokit,
+					octokit,
 					owner,
 					name,
 					discoveredConfig.config,
@@ -109,4 +89,3 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 		throw error(500, 'Failed to load configuration');
 	}
 };
-

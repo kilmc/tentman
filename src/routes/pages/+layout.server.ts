@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { getCachedConfigs } from '$lib/stores/config-cache';
+import { requireAuthenticatedRepo } from '$lib/server/page-context';
 
 /**
  * Server layout load with caching
@@ -10,27 +11,18 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	const startTime = performance.now();
 	console.log('🔵 [LAYOUT] Starting load...');
 
-	// Require authentication and selected repo
-	if (!locals.isAuthenticated || !locals.octokit) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
-
-	if (!locals.selectedRepo) {
-		throw redirect(302, '/repos');
-	}
-
-	const { owner, name } = locals.selectedRepo;
+	const { octokit, owner, name, repo } = requireAuthenticatedRepo(locals);
 
 	try {
 		// Fetch configs with caching (uses module-level cache)
-		const configs = await getCachedConfigs(locals.octokit, owner, name);
+		const configs = await getCachedConfigs(octokit, owner, name);
 
 		const totalTime = performance.now() - startTime;
 		console.log(`✅ [LAYOUT] Total load time: ${totalTime.toFixed(0)}ms`);
 
 		return {
 			configs,
-			repo: locals.selectedRepo
+			repo
 		};
 	} catch (err) {
 		console.error('Failed to load configs:', err);

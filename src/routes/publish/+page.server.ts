@@ -1,16 +1,13 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import { requireAuthenticatedRepo } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-		throw redirect(302, '/auth/login?redirect=/publish');
-	}
-
-	const { owner, name } = locals.selectedRepo;
+	const { octokit, owner, name } = requireAuthenticatedRepo(locals, '/publish');
 
 	// List preview branches
 	const { listPreviewBranches } = await import('$lib/github/branch');
-	const branches = await listPreviewBranches(locals.octokit, owner, name);
+	const branches = await listPreviewBranches(octokit, owner, name);
 
 	if (branches.length === 0) {
 		throw error(404, 'No draft branch found');
@@ -21,7 +18,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Get all configs
 	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(locals.octokit, owner, name);
+	const configs = await getCachedConfigs(octokit, owner, name);
 
 	// For each config, check if it has draft changes
 	const configsWithChanges = [];
@@ -29,7 +26,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	for (const config of configs) {
 		const { compareDraftToBranch } = await import('$lib/utils/draft-comparison');
 		const changes = await compareDraftToBranch(
-			locals.octokit,
+			octokit,
 			owner,
 			name,
 			config.config,
@@ -51,7 +48,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Get commit history
 	const { getCommitsSince } = await import('$lib/github/branch');
-	const commits = await getCommitsSince(locals.octokit, owner, name, 'main', draftBranch.name);
+	const commits = await getCommitsSince(octokit, owner, name, 'main', draftBranch.name);
 
 	return {
 		draftBranch,
@@ -62,15 +59,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions = {
 	publish: async ({ locals }) => {
-		if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-			throw error(401, 'Not authenticated');
-		}
-
-		const { owner, name } = locals.selectedRepo;
+		const { octokit, owner, name } = requireAuthenticatedRepo(locals);
 
 		// Get the draft branch
 		const { listPreviewBranches } = await import('$lib/github/branch');
-		const branches = await listPreviewBranches(locals.octokit, owner, name);
+		const branches = await listPreviewBranches(octokit, owner, name);
 
 		if (branches.length === 0) {
 			throw error(400, 'No draft branch to publish');
@@ -82,7 +75,7 @@ export const actions = {
 			// Merge to main
 			const { mergeBranch } = await import('$lib/github/branch');
 			await mergeBranch(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				draftBranch.name,
@@ -92,7 +85,7 @@ export const actions = {
 
 			// Delete branch
 			const { deleteBranch } = await import('$lib/github/branch');
-			await deleteBranch(locals.octokit, owner, name, draftBranch.name);
+			await deleteBranch(octokit, owner, name, draftBranch.name);
 
 			console.log(`✅ Published and deleted draft branch: ${draftBranch.name}`);
 
@@ -112,15 +105,11 @@ export const actions = {
 	},
 
 	discard: async ({ locals }) => {
-		if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-			throw error(401, 'Not authenticated');
-		}
-
-		const { owner, name } = locals.selectedRepo;
+		const { octokit, owner, name } = requireAuthenticatedRepo(locals);
 
 		// Get the draft branch
 		const { listPreviewBranches } = await import('$lib/github/branch');
-		const branches = await listPreviewBranches(locals.octokit, owner, name);
+		const branches = await listPreviewBranches(octokit, owner, name);
 
 		if (branches.length === 0) {
 			throw error(400, 'No draft branch to discard');
@@ -131,7 +120,7 @@ export const actions = {
 		try {
 			// Delete branch without merging
 			const { deleteBranch } = await import('$lib/github/branch');
-			await deleteBranch(locals.octokit, owner, name, draftBranch.name);
+			await deleteBranch(octokit, owner, name, draftBranch.name);
 
 			console.log(`✅ Discarded draft branch: ${draftBranch.name}`);
 

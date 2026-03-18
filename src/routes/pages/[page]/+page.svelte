@@ -1,18 +1,19 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { toasts } from '$lib/stores/toasts';
-	import { getFieldLabel, normalizeFields } from '$lib/types/config';
+	import { getFieldLabel, type FieldDefinition } from '$lib/types/config';
 	import { onMount } from 'svelte';
 	import ItemCard from '$lib/components/ItemCard.svelte';
 	import ItemCardSkeleton from '$lib/components/ItemCardSkeleton.svelte';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
+	import { getCardFields, normalizeFields } from '$lib/features/forms/helpers';
+	import { formatContentValue, getContentItemId } from '$lib/features/content-management/item';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	let { data }: { data: PageData } = $props();
 
 	const { discoveredConfig, content, contentError, repo, draftBranch, draftChanges } = data;
 	const { config, type, path } = discoveredConfig;
-
-	// Normalize fields to handle both array and object formats
 	const normalizedFields = normalizeFields(config.fields);
 
 	// Handle URL query parameters for merge/cancel/delete/save success messages
@@ -60,95 +61,24 @@
 		}
 	});
 
+	const cardFields = getCardFields(config);
 
-	// Helper to format field values for display
-	function formatFieldValue(value: any): string {
-		if (value === null || value === undefined) return '—';
-		if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-		if (Array.isArray(value)) return `[${value.length} items]`;
-
-		// Handle dates (both Date objects and ISO strings)
-		if (value instanceof Date) {
-			return value.toLocaleDateString('en-US', {
-				year: 'numeric',
-				month: 'long',
-				day: 'numeric'
-			});
-		}
-
-		// Try to parse ISO date strings
-		if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-			try {
-				const date = new Date(value);
-				if (!isNaN(date.getTime())) {
-					return date.toLocaleDateString('en-US', {
-						year: 'numeric',
-						month: 'long',
-						day: 'numeric'
-					});
-				}
-			} catch {
-				// Fall through to string display
-			}
-		}
-
-		if (typeof value === 'object') return '[Object]';
-		return String(value);
+	function getFieldType(fieldDef: FieldDefinition): string | undefined {
+		return typeof fieldDef === 'object' ? fieldDef.type : undefined;
 	}
 
-	function getItemId(item: any): string | undefined {
-		// For collections, use filename without extension
-		if (type === 'collection' && item._filename) {
-			return item._filename.replace(/\.[^/.]+$/, '');
-		}
-
-		// For arrays, use idField if configured
-		if (config.idField) {
-			const id = item[config.idField];
-			return id !== undefined ? String(id) : undefined;
-		}
-
-		// No suitable ID found
-		return undefined;
+	function getArrayItems(record: ContentRecord, fieldName: string): any[] {
+		const value = record[fieldName];
+		return Array.isArray(value) ? value : [];
 	}
-
-	// Get fields to display on index cards
-	function getCardFields() {
-		const entries = Object.entries(normalizedFields);
-
-		// Check if any fields have 'show' property set
-		const hasShowConfig = entries.some(([_, fieldDef]) =>
-			typeof fieldDef === 'object' && 'show' in fieldDef
-		);
-
-		if (hasShowConfig) {
-			// Use fields with 'show' property
-			return {
-				primary: entries.filter(([_, fieldDef]) =>
-					typeof fieldDef === 'object' && fieldDef.show === 'primary'
-				),
-				secondary: entries.filter(([_, fieldDef]) =>
-					typeof fieldDef === 'object' && fieldDef.show === 'secondary'
-				)
-			};
-		} else {
-			// Default: show first field as primary
-			return {
-				primary: entries.length > 0 ? [entries[0]] : [],
-				secondary: []
-			};
-		}
-	}
-
-	const cardFields = getCardFields();
 
 	// Helper to check if an item has draft changes
 	function hasDraftChanges(itemId: string | undefined): 'modified' | 'created' | 'deleted' | null {
 		if (!itemId || !draftChanges) return null;
 
-		if (draftChanges.modified.some(change => change.itemId === itemId)) return 'modified';
-		if (draftChanges.created.some(change => change.itemId === itemId)) return 'created';
-		if (draftChanges.deleted.some(change => change.itemId === itemId)) return 'deleted';
+		if (draftChanges.modified.some((change) => change.itemId === itemId)) return 'modified';
+		if (draftChanges.created.some((change) => change.itemId === itemId)) return 'created';
+		if (draftChanges.deleted.some((change) => change.itemId === itemId)) return 'deleted';
 
 		return null;
 	}
@@ -163,7 +93,7 @@
 		for (const change of draftChanges.modified) {
 			if (change.draftContent) {
 				items.push({
-					item: change.draftContent,
+					item: change.draftContent as ContentRecord,
 					badge: 'draft' as const,
 					itemId: change.itemId
 				});
@@ -174,7 +104,7 @@
 		for (const change of draftChanges.created) {
 			if (change.draftContent) {
 				items.push({
-					item: change.draftContent,
+					item: change.draftContent as ContentRecord,
 					badge: 'new' as const,
 					itemId: change.itemId
 				});
@@ -185,7 +115,7 @@
 		for (const change of draftChanges.deleted) {
 			if (change.mainContent) {
 				items.push({
-					item: change.mainContent,
+					item: change.mainContent as ContentRecord,
 					badge: 'deleted' as const,
 					itemId: change.itemId
 				});
@@ -199,8 +129,8 @@
 	function getRegularItems() {
 		if (!Array.isArray(content)) return [];
 
-		return content.filter(item => {
-			const itemId = getItemId(item);
+		return content.filter((item) => {
+			const itemId = getContentItemId(type, config, item as ContentRecord);
 			const changeType = hasDraftChanges(itemId);
 			// Only show items that don't have draft changes
 			return !changeType;
@@ -276,18 +206,18 @@
 									<div class="prose max-w-none">
 										{content[fieldName] || '—'}
 									</div>
-								{:else if typeof fieldDef === 'object' && fieldDef.type === 'markdown'}
+								{:else if getFieldType(fieldDef) === 'markdown'}
 									<div class="prose max-w-none whitespace-pre-wrap font-mono text-sm">
-										{formatFieldValue(content[fieldName])}
+										{formatContentValue((content as ContentRecord)[fieldName])}
 									</div>
-								{:else if typeof fieldDef === 'object' && fieldDef.type === 'array' && Array.isArray(content[fieldName])}
+								{:else if getFieldType(fieldDef) === 'array' && Array.isArray((content as ContentRecord)[fieldName])}
 									<div class="mt-2 space-y-3">
-										{#if content[fieldName].length === 0}
+										{#if getArrayItems(content as ContentRecord, fieldName).length === 0}
 											<div class="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
 												<p class="text-sm text-gray-500">No items in this list</p>
 											</div>
 										{:else}
-											{#each content[fieldName] as item, i}
+											{#each getArrayItems(content as ContentRecord, fieldName) as item, i}
 												<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
 													{#if typeof item === 'object' && item !== null}
 														<!-- Display object as key-value pairs -->
@@ -314,7 +244,7 @@
 										{/if}
 									</div>
 								{:else}
-									<span class="text-sm">{formatFieldValue(content[fieldName])}</span>
+									<span class="text-sm">{formatContentValue((content as ContentRecord)[fieldName])}</span>
 								{/if}
 							</dd>
 						</div>
@@ -384,7 +314,7 @@
 						{#each regularItems as item, i}
 							<ItemCard
 								{item}
-								href="/pages/{discoveredConfig.slug}/{getItemId(item) || i}/edit"
+								href="/pages/{discoveredConfig.slug}/{getContentItemId(type, config, item as ContentRecord) || i}/edit"
 								{cardFields}
 							/>
 						{/each}

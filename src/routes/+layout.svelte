@@ -3,10 +3,11 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import type { LayoutData } from './$types';
+	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
 	import { draftBranch } from '$lib/stores/draft-branch';
 
-	let { children, data } = $props<{ children?: any; data: LayoutData }>();
+	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	// Initialize draft branch on mount
 	onMount(async () => {

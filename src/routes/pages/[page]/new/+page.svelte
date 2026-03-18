@@ -12,15 +12,9 @@
 	const { discoveredConfig } = data;
 	const { config } = discoveredConfig;
 
-	// DEBUG: Log config on mount
-	console.log('=== NEW PAGE DEBUG ===');
-	console.log('Config:', config);
-	console.log('Config fields:', config.fields);
-	console.log('Type:', discoveredConfig.type);
-
 	// Form state
-	let formGenerator: FormGenerator | null = null;
-	let currentForm: HTMLFormElement | null = null;
+	let formGenerator = $state<FormGenerator | null>(null);
+	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let hasUnsavedChanges = $state(false);
 	let filename = $state('');
@@ -76,12 +70,6 @@
 
 		const { data: formData, errors } = formGenerator.validate();
 
-		// DEBUG: Log form data
-		console.log('=== FORM SUBMIT DEBUG ===');
-		console.log('Form data from validate():', formData);
-		console.log('Validation errors:', errors);
-		console.log('Filename:', filename);
-
 		// If there are validation errors, prevent submission
 		if (errors.length > 0) {
 			event.preventDefault();
@@ -109,10 +97,9 @@
 		}
 
 		// Update the hidden input with validated data
-		const hiddenInput = currentForm?.querySelector('input[name="data"]') as HTMLInputElement;
+		const hiddenInput = currentForm?.querySelector('input[name="data"]');
 		if (hiddenInput) {
-			hiddenInput.value = JSON.stringify(formData);
-			console.log('Hidden input value:', hiddenInput.value);
+			(hiddenInput as HTMLInputElement).value = JSON.stringify(formData);
 		}
 
 		// Let the form submit naturally

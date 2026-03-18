@@ -17,6 +17,8 @@
 		storagePath = 'static/images/'
 	}: Props = $props();
 
+	const inputId = `image-field-${Math.random().toString(36).substring(2, 9)}`;
+
 	let uploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let previewUrl = $state<string | null>(null);
@@ -156,7 +158,7 @@
 </script>
 
 <div class="mb-4">
-	<label class="mb-1 block text-sm font-medium text-gray-700">
+	<label for={inputId} class="mb-1 block text-sm font-medium text-gray-700">
 		{label}
 		{#if required}
 			<span class="text-red-600">*</span>
@@ -234,6 +236,7 @@
 	{/if}
 
 	<input
+		id={inputId}
 		type="file"
 		accept="image/*"
 		required={required && !value}

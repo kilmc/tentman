@@ -24,6 +24,7 @@
 	}: Props = $props();
 
 	let activeTab = $state<'edit' | 'preview'>('edit');
+	const textareaId = `markdown-field-${Math.random().toString(36).substring(2, 9)}`;
 
 	// Character count state
 	let characterCount = $derived(value.length);
@@ -33,7 +34,7 @@
 
 <div class="mb-4">
 	<div class="mb-1 flex items-center justify-between">
-		<label class="text-sm font-medium text-gray-700">
+		<label for={textareaId} class="text-sm font-medium text-gray-700">
 			{label}
 			{#if required}
 				<span class="text-red-600">*</span>
@@ -67,6 +68,7 @@
 	<!-- Edit tab -->
 	{#if activeTab === 'edit'}
 		<textarea
+			id={textareaId}
 			bind:value
 			{placeholder}
 			{required}

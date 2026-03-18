@@ -1,5 +1,7 @@
 import type { Config, FieldDefinition } from '$lib/types/config';
-import { normalizeFields } from '$lib/types/config';
+import { normalizeFields } from '$lib/features/forms/helpers';
+import { getFieldLabel } from '$lib/types/config';
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export interface ValidationError {
 	field: string;
@@ -8,9 +10,9 @@ export interface ValidationError {
 
 export function validateFormData(
 	config: Config,
-	data: Record<string, any>,
+	data: ContentRecord,
 	options?: {
-		existingItems?: any[];
+		existingItems?: ContentRecord[];
 		currentItemId?: string;
 	}
 ): ValidationError[] {
@@ -30,7 +32,7 @@ export function validateFormData(
 		if (required && (value === undefined || value === null || value === '')) {
 			errors.push({
 				field: fieldName,
-				message: `${getFieldLabel(fieldName)} is required`
+				message: `${getFieldLabel(fieldName, fieldDef)} is required`
 			});
 			continue;
 		}
@@ -45,13 +47,13 @@ export function validateFormData(
 			if (minLength !== undefined && value.length < minLength) {
 				errors.push({
 					field: fieldName,
-					message: `${getFieldLabel(fieldName)} must be at least ${minLength} character${minLength === 1 ? '' : 's'}`
+					message: `${getFieldLabel(fieldName, fieldDef)} must be at least ${minLength} character${minLength === 1 ? '' : 's'}`
 				});
 			}
 			if (maxLength !== undefined && value.length > maxLength) {
 				errors.push({
 					field: fieldName,
-					message: `${getFieldLabel(fieldName)} must not exceed ${maxLength} character${maxLength === 1 ? '' : 's'}`
+					message: `${getFieldLabel(fieldName, fieldDef)} must not exceed ${maxLength} character${maxLength === 1 ? '' : 's'}`
 				});
 			}
 		}
@@ -59,19 +61,19 @@ export function validateFormData(
 		// Type-specific validation
 		switch (fieldType) {
 			case 'email':
-				if (!isValidEmail(value)) {
+				if (typeof value !== 'string' || !isValidEmail(value)) {
 					errors.push({
 						field: fieldName,
-						message: `${getFieldLabel(fieldName)} must be a valid email address`
+						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid email address`
 					});
 				}
 				break;
 
 			case 'url':
-				if (!isValidUrl(value)) {
+				if (typeof value !== 'string' || !isValidUrl(value)) {
 					errors.push({
 						field: fieldName,
-						message: `${getFieldLabel(fieldName)} must be a valid URL`
+						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid URL`
 					});
 				}
 				break;
@@ -80,16 +82,16 @@ export function validateFormData(
 				if (typeof value !== 'number' || isNaN(value)) {
 					errors.push({
 						field: fieldName,
-						message: `${getFieldLabel(fieldName)} must be a valid number`
+						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid number`
 					});
 				}
 				break;
 
 			case 'date':
-				if (!isValidDate(value)) {
+				if (typeof value !== 'string' || !isValidDate(value)) {
 					errors.push({
 						field: fieldName,
-						message: `${getFieldLabel(fieldName)} must be a valid date`
+						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid date`
 					});
 				}
 				break;
@@ -98,7 +100,7 @@ export function validateFormData(
 				if (!Array.isArray(value)) {
 					errors.push({
 						field: fieldName,
-						message: `${getFieldLabel(fieldName)} must be an array`
+						message: `${getFieldLabel(fieldName, fieldDef)} must be an array`
 					});
 				}
 				break;
@@ -121,21 +123,13 @@ export function validateFormData(
 			if (isDuplicate) {
 				errors.push({
 					field: config.idField,
-					message: `${getFieldLabel(config.idField)} must be unique. This value is already in use.`
+					message: `${getFieldLabel(config.idField, normalizedFields[config.idField] as FieldDefinition)} must be unique. This value is already in use.`
 				});
 			}
 		}
 	}
 
 	return errors;
-}
-
-function getFieldLabel(fieldName: string): string {
-	return fieldName
-		.replace(/([A-Z])/g, ' $1')
-		.replace(/_/g, ' ')
-		.replace(/^./, (str) => str.toUpperCase())
-		.trim();
 }
 
 function isValidEmail(email: string): boolean {
@@ -216,7 +210,7 @@ export function resolveConfigPath(configPath: string, relativePath: string): str
  * @private
  */
 function resolveRelativePath(basePath: string, relativePath: string): string {
-	const parts = basePath.split('/').filter(p => p.length > 0);
+	const parts = basePath.split('/').filter((p) => p.length > 0);
 	const relativeParts = relativePath.split('/');
 
 	for (const part of relativeParts) {

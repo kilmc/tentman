@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { FieldDefinition } from '$lib/types/config';
+	import { getDefaultFieldValue } from '$lib/features/forms/helpers';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 
 	interface Props {
@@ -13,23 +15,9 @@
 	let { label, value = $bindable([]), fields = {}, required = false, onchange }: Props = $props();
 
 	function addItem() {
-		// Create new item with default values based on field types
-		const newItem: any = {};
+		const newItem: ContentRecord = {};
 		for (const [fieldName, fieldDef] of Object.entries(fields)) {
-			const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
-			switch (fieldType) {
-				case 'boolean':
-					newItem[fieldName] = false;
-					break;
-				case 'number':
-					newItem[fieldName] = 0;
-					break;
-				case 'array':
-					newItem[fieldName] = [];
-					break;
-				default:
-					newItem[fieldName] = '';
-			}
+			newItem[fieldName] = getDefaultFieldValue(fieldDef);
 		}
 		value = [...value, newItem];
 		onchange?.();
@@ -41,14 +29,14 @@
 	}
 </script>
 
-<div class="mb-4">
+<fieldset class="mb-4">
 	<div class="mb-2 flex items-center justify-between">
-		<label class="text-sm font-medium text-gray-700">
+		<legend class="text-sm font-medium text-gray-700">
 			{label}
 			{#if required}
 				<span class="text-red-600">*</span>
 			{/if}
-		</label>
+		</legend>
 		<button
 			type="button"
 			onclick={addItem}
@@ -106,4 +94,4 @@
 			{/each}
 		</div>
 	{/if}
-</div>
+</fieldset>

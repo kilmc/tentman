@@ -118,9 +118,10 @@
 		<form
 			method="POST"
 			action="?/discard"
-			use:enhance={() => {
+			use:enhance={({ cancel }) => {
 				if (!confirm('Are you sure you want to discard all draft changes? This cannot be undone.')) {
-					return ({ cancel }) => cancel();
+					cancel();
+					return;
 				}
 				discarding = true;
 				return async ({ update }) => {

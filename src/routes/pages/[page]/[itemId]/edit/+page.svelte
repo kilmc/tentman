@@ -7,19 +7,20 @@
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
-	import { normalizeFields } from '$lib/types/config';
+	import { getFieldLabel } from '$lib/types/config';
+	import { getCardFields } from '$lib/features/forms/helpers';
+	import { formatContentValue } from '$lib/features/content-management/item';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const { discoveredConfig, item, contentError, itemId } = data;
 	const { config } = discoveredConfig;
-
-	// Normalize fields to handle both array and object formats
-	const normalizedFields = normalizeFields(config.fields);
+	const cardFields = getCardFields(config);
 
 	// Form state
-	let formGenerator: FormGenerator | null = null;
-	let currentForm: HTMLFormElement | null = null;
+	let formGenerator = $state<FormGenerator | null>(null);
+	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let hasUnsavedChanges = $state(false);
 	let showDeleteConfirm = $state(false);
@@ -82,86 +83,21 @@
 		}
 
 		// Update the hidden input with validated data
-		const hiddenInput = currentForm?.querySelector('input[name="data"]') as HTMLInputElement;
+		const hiddenInput = currentForm?.querySelector('input[name="data"]');
 		if (hiddenInput) {
-			hiddenInput.value = JSON.stringify(formData);
+			(hiddenInput as HTMLInputElement).value = JSON.stringify(formData);
 		}
 
 		// Let the form submit naturally
 		return true;
 	}
 
-	// Helper to format field values for display
-	function formatFieldValue(value: any): string {
-		if (value === null || value === undefined) return '—';
-		if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-		if (Array.isArray(value)) return `[${value.length} items]`;
-
-		// Handle dates (both Date objects and ISO strings)
-		if (value instanceof Date) {
-			return value.toLocaleDateString('en-US', {
-				year: 'numeric',
-				month: 'long',
-				day: 'numeric'
-			});
-		}
-
-		// Try to parse ISO date strings
-		if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-			try {
-				const date = new Date(value);
-				if (!isNaN(date.getTime())) {
-					return date.toLocaleDateString('en-US', {
-						year: 'numeric',
-						month: 'long',
-						day: 'numeric'
-					});
-				}
-			} catch {
-				// Fall through to string display
-			}
-		}
-
-		if (typeof value === 'object') return '[Object]';
-		return String(value);
-	}
-
-	// Get fields to display on index cards (for preview in delete modal)
-	function getCardFields() {
-		const entries = Object.entries(normalizedFields);
-
-		// Check if any fields have 'show' property set
-		const hasShowConfig = entries.some(([_, fieldDef]) =>
-			typeof fieldDef === 'object' && 'show' in fieldDef
-		);
-
-		if (hasShowConfig) {
-			// Use fields with 'show' property
-			return {
-				primary: entries.filter(([_, fieldDef]) =>
-					typeof fieldDef === 'object' && fieldDef.show === 'primary'
-				),
-				secondary: entries.filter(([_, fieldDef]) =>
-					typeof fieldDef === 'object' && fieldDef.show === 'secondary'
-				)
-			};
-		} else {
-			// Default: show first field as primary
-			return {
-				primary: entries.length > 0 ? [entries[0]] : [],
-				secondary: []
-			};
-		}
-	}
-
-	const cardFields = getCardFields();
-
 	// Get item title for display
 	function getItemTitle(): string {
 		if (!item) return 'Item';
 
 		// Try to find a meaningful field for the title
-		const firstField = Object.entries(normalizedFields)[0];
+		const firstField = cardFields.primary[0] ?? cardFields.secondary[0];
 		if (firstField) {
 			const [fieldName] = firstField;
 			const value = item[fieldName];
@@ -272,15 +208,20 @@
 
 	<!-- Delete confirmation modal -->
 	{#if showDeleteConfirm}
-		<div
-			class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fadeIn"
-			onclick={() => (showDeleteConfirm = false)}
-		>
+		<div class="fixed inset-0 z-50 flex items-center justify-center animate-fadeIn">
+			<button
+				type="button"
+				class="absolute inset-0 bg-black bg-opacity-50"
+				aria-label="Close delete confirmation"
+				onclick={() => (showDeleteConfirm = false)}
+			></button>
 			<div
-				class="mx-4 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-2xl animate-scaleIn"
-				onclick={(e) => e.stopPropagation()}
+				class="relative mx-4 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-2xl animate-scaleIn"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="delete-dialog-title"
 			>
-				<h3 class="mb-4 text-lg font-semibold text-gray-900">Confirm Delete</h3>
+				<h3 id="delete-dialog-title" class="mb-4 text-lg font-semibold text-gray-900">Confirm Delete</h3>
 
 				<!-- Item preview -->
 				{#if item}
@@ -292,7 +233,7 @@
 								<div class="space-y-1">
 									{#each cardFields.primary as [fieldName, fieldDef]}
 										<p class="text-lg font-semibold text-gray-900 break-words">
-											{formatFieldValue(item[fieldName])}
+											{formatContentValue((item as ContentRecord)[fieldName])}
 										</p>
 									{/each}
 								</div>
@@ -304,7 +245,7 @@
 									{#each cardFields.secondary as [fieldName, fieldDef]}
 										<p class="text-sm text-gray-600">
 											<span class="font-medium">{getFieldLabel(fieldName, fieldDef)}:</span>
-											{formatFieldValue(item[fieldName])}
+											{formatContentValue((item as ContentRecord)[fieldName])}
 										</p>
 									{/each}
 								</div>

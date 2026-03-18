@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { FieldDefinition } from '$lib/types/config';
+	import { getFieldLabel } from '$lib/features/forms/helpers';
 	import TextField from './TextField.svelte';
 	import TextareaField from './TextareaField.svelte';
 	import NumberField from './NumberField.svelte';
@@ -28,12 +29,7 @@
 	const maxLength = typeof fieldDef === 'object' ? fieldDef.maxLength : undefined;
 	const nestedFields = typeof fieldDef === 'object' ? fieldDef.fields : undefined;
 
-	// Generate label from field name
-	const label = fieldName
-		.replace(/([A-Z])/g, ' $1')
-		.replace(/_/g, ' ')
-		.replace(/^./, (str) => str.toUpperCase())
-		.trim();
+	const label = getFieldLabel(fieldName, fieldDef);
 </script>
 
 {#if fieldType === 'text'}

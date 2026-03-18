@@ -8,11 +8,12 @@
 import type { Octokit } from 'octokit';
 import type { Config, ConfigType } from '$lib/types/config';
 import { fetchContent } from '$lib/content/fetcher';
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export interface DraftChange {
 	itemId: string;
-	mainContent?: any;
-	draftContent?: any;
+	mainContent?: ContentRecord;
+	draftContent?: ContentRecord;
 }
 
 export interface DraftComparison {
@@ -71,13 +72,13 @@ export async function compareDraftToBranch(
 		let comparison: DraftComparison;
 		switch (configType) {
 			case 'singleton':
-				comparison = compareSingleton(mainContent, draftContent);
+				comparison = compareSingleton(mainContent as ContentRecord, draftContent as ContentRecord);
 				break;
 			case 'array':
-				comparison = compareArray(mainContent, draftContent, config.idField!);
+				comparison = compareArray(mainContent as ContentRecord[], draftContent as ContentRecord[], config.idField!);
 				break;
 			case 'collection':
-				comparison = compareCollection(mainContent, draftContent);
+				comparison = compareCollection(mainContent as ContentRecord[], draftContent as ContentRecord[]);
 				break;
 		}
 

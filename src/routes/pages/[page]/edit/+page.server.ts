@@ -1,25 +1,11 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
+import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { requireAuthenticatedRepo, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	// Auth check
-	if (!locals.isAuthenticated || !locals.octokit || !locals.selectedRepo) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
-
-	const { owner, name } = locals.selectedRepo;
-
-	// Get configs from cache (no parent() call to avoid double load)
-	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(locals.octokit, owner, name);
-
-	// Find config matching the slug
-	const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-	if (!discoveredConfig) {
-		throw error(404, 'Configuration not found');
-	}
+	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
@@ -35,11 +21,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		// Check if there's a draft branch - load from draft if it exists
 		let branch: string | undefined;
 		try {
-			const { listPreviewBranches } = await import('$lib/github/branch');
-			const branches = await listPreviewBranches(locals.octokit, owner, name);
-			if (branches.length > 0) {
-				branch = branches[0].name;
-			}
+			branch = await getLatestPreviewBranchName(octokit, owner, name);
 		} catch (err) {
 			console.error('Failed to check for draft branch:', err);
 		}
@@ -47,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		try {
 			const { getCachedContent } = await import('$lib/stores/content-cache');
 			content = await getCachedContent(
-				locals.octokit,
+				octokit,
 				owner,
 				name,
 				discoveredConfig.config,
@@ -77,25 +59,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 export const actions: Actions = {
 	saveToPreview: async ({ locals, params, request }) => {
-		// Require authentication and selected repo
-		if (!locals.isAuthenticated || !locals.octokit) {
-			return fail(401, { error: 'Not authenticated' });
-		}
-
-		if (!locals.selectedRepo) {
-			return fail(400, { error: 'No repository selected' });
-		}
-
 		try {
-			// Get configs from cache
-			const { getCachedConfigs } = await import('$lib/stores/config-cache');
-			const { owner, name } = locals.selectedRepo;
-			const configs = await getCachedConfigs(locals.octokit, owner, name);
-			const discoveredConfig = configs.find((c) => c.slug === params.page);
-
-			if (!discoveredConfig) {
-				return fail(404, { error: 'Configuration not found' });
-			}
+			await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
