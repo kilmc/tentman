@@ -3,8 +3,17 @@ import type { MultiFileCollectionConfig } from '$lib/types/config';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type { ContentRecord, TemplateInfo, ContentValue } from './types';
 
-export function toJsonFileContent(data: ContentValue): string {
-	return `${JSON.stringify(data, null, 2)}\n`;
+export function detectJsonIndent(content: string): string | number {
+	const match = content.match(/^[ \t]+(?=")/m);
+	if (!match) {
+		return 2;
+	}
+
+	return match[0].includes('\t') ? '\t' : match[0].length;
+}
+
+export function toJsonFileContent(data: ContentValue, indent: string | number = 2): string {
+	return `${JSON.stringify(data, null, indent)}\n`;
 }
 
 export function decodeBase64Content(content: string): string {

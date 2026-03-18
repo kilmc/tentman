@@ -1,8 +1,3 @@
-/**
- * Config discovery utilities for Tentman CMS
- * Discovers and parses *.tentman.json files from GitHub repos
- */
-
 import type { Octokit } from 'octokit';
 import type { Config, ConfigType, DiscoveredConfig } from '$lib/types/config';
 import { normalizeFields } from '$lib/types/config';
@@ -36,9 +31,25 @@ export function inferConfigType(config: Config): ConfigType {
 }
 
 /**
- * Discovers all *.tentman.json files in a repository using the Git Trees API
+ * Shared parser for config files discovered by any backend.
  */
-export async function discoverConfigs(
+export function parseDiscoveredConfig(path: string, content: string): DiscoveredConfig {
+	const config = JSON.parse(content) as Config;
+
+	config.fields = normalizeFields(config.fields);
+
+	return {
+		path,
+		slug: slugify(config.label),
+		config,
+		type: inferConfigType(config)
+	};
+}
+
+/**
+ * Discovers all *.tentman.json files in a GitHub repository using the Git Trees API.
+ */
+export async function discoverGitHubConfigs(
 	octokit: Octokit,
 	owner: string,
 	repo: string
@@ -84,23 +95,7 @@ export async function discoverConfigs(
 					// Decode base64 content
 					if ('content' in fileData && fileData.content) {
 						const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
-						const config = JSON.parse(content) as Config;
-
-						// Normalize fields (convert array format to object format if needed)
-						config.fields = normalizeFields(config.fields);
-
-						// Infer type
-						const type = inferConfigType(config);
-
-						// Generate slug from label
-						const slug = slugify(config.label);
-
-						return {
-							path,
-							slug,
-							config,
-							type
-						} as DiscoveredConfig;
+						return parseDiscoveredConfig(path, content);
 					}
 
 					return null;

@@ -1,5 +1,9 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import {
+	SELECTED_BACKEND_COOKIE,
+	SELECTED_LOCAL_REPO_COOKIE
+} from '$lib/repository/selection';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.isAuthenticated || !locals.octokit) {
@@ -58,6 +62,14 @@ export const actions = {
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30 // 30 days
 		});
+		cookies.set(SELECTED_BACKEND_COOKIE, 'github', {
+			path: '/',
+			httpOnly: true,
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'lax',
+			maxAge: 60 * 60 * 24 * 30
+		});
+		cookies.delete(SELECTED_LOCAL_REPO_COOKIE, { path: '/' });
 
 		throw redirect(302, '/pages');
 	}

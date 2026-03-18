@@ -5,9 +5,9 @@
  * Content is cached per repository per config and has a TTL for staleness detection.
  */
 
-import type { Octokit } from 'octokit';
 import type { Config, ConfigType, DiscoveredConfig } from '$lib/types/config';
 import { fetchContent } from '$lib/content/fetcher';
+import type { RepositoryBackend } from '$lib/repository/types';
 
 interface ContentCacheEntry {
 	content: any;
@@ -25,8 +25,8 @@ const cache = new Map<string, ContentCacheEntry>();
  * Get a unique key for content
  * Includes branch to support separate caching of main and draft content
  */
-function getContentKey(owner: string, repo: string, configSlug: string, branch?: string): string {
-	return `${owner}/${repo}/${configSlug}/${branch || 'main'}`;
+function getContentKey(cacheKey: string, configSlug: string, branch?: string): string {
+	return `${cacheKey}/${configSlug}/${branch || 'main'}`;
 }
 
 /**
@@ -42,16 +42,14 @@ function isValid(entry: ContentCacheEntry | undefined): boolean {
  * Get cached content for a config, or fetch if not cached/stale
  */
 export async function getCachedContent(
-	octokit: Octokit,
-	owner: string,
-	repo: string,
+	backend: RepositoryBackend,
 	config: Config,
 	configType: ConfigType,
 	configPath: string,
 	configSlug: string,
 	branch?: string
 ): Promise<any> {
-	const cacheKey = getContentKey(owner, repo, configSlug, branch);
+	const cacheKey = getContentKey(backend.cacheKey, configSlug, branch);
 	const cachedEntry = cache.get(cacheKey);
 
 	// If cache is valid, return it
@@ -63,11 +61,11 @@ export async function getCachedContent(
 	}
 
 	// Cache miss or stale - fetch from GitHub
-	console.log(`🔄 [CONTENT CACHE] Cache miss for ${cacheKey}, fetching from GitHub...`);
+	console.log(`🔄 [CONTENT CACHE] Cache miss for ${cacheKey}, fetching from backend...`);
 	const fetchStart = performance.now();
 
 	try {
-		const content = await fetchContent(octokit, owner, repo, config, configType, configPath, branch);
+		const content = await fetchContent(backend, config, configType, configPath, branch);
 		const fetchTime = performance.now() - fetchStart;
 		console.log(`✅ [CONTENT CACHE] Fetched content in ${fetchTime.toFixed(0)}ms`);
 
@@ -90,9 +88,7 @@ export async function getCachedContent(
  * This loads everything upfront for instant navigation
  */
 export async function prefetchAllContent(
-	octokit: Octokit,
-	owner: string,
-	repo: string,
+	backend: RepositoryBackend,
 	configs: DiscoveredConfig[]
 ): Promise<void> {
 	const startTime = performance.now();
@@ -103,7 +99,7 @@ export async function prefetchAllContent(
 		const { config, type, path, slug } = discoveredConfig;
 
 		try {
-			await getCachedContent(octokit, owner, repo, config, type, path, slug);
+			await getCachedContent(backend, config, type, path, slug);
 		} catch (error) {
 			// Log but don't fail the whole prefetch if one config fails
 			console.error(`⚠️ [CONTENT PREFETCH] Failed to prefetch ${slug}:`, error);
@@ -121,19 +117,23 @@ export async function prefetchAllContent(
  * If branch is specified, only invalidates that branch's cache
  * If no branch specified, invalidates both main and any draft branches
  */
-export function invalidateContent(owner: string, repo: string, configSlug?: string, branch?: string): void {
+export function invalidateContent(
+	cacheKey: string,
+	configSlug?: string,
+	branch?: string
+): void {
 	if (branch) {
 		if (!configSlug) {
 			throw new Error('configSlug is required when invalidating a specific branch cache entry');
 		}
 
 		// Invalidate specific branch
-		const cacheKey = getContentKey(owner, repo, configSlug, branch);
-		console.log(`🗑️ [CONTENT CACHE] Invalidating cache for ${cacheKey}`);
-		cache.delete(cacheKey);
+		const specificKey = getContentKey(cacheKey, configSlug, branch);
+		console.log(`🗑️ [CONTENT CACHE] Invalidating cache for ${specificKey}`);
+		cache.delete(specificKey);
 	} else {
 		// Invalidate all branches for a config, or the whole repo when no slug is provided.
-		const prefix = configSlug ? `${owner}/${repo}/${configSlug}/` : `${owner}/${repo}/`;
+		const prefix = configSlug ? `${cacheKey}/${configSlug}/` : `${cacheKey}/`;
 		const keysToDelete: string[] = [];
 
 		for (const [key] of cache.entries()) {

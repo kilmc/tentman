@@ -8,6 +8,13 @@ export interface RootConfig {
 	netlify?: {
 		siteName: string;
 	};
+	local?: {
+		previewUrl: string;
+	};
+}
+
+export function parseRootConfig(content: string): RootConfig {
+	return JSON.parse(content) as RootConfig;
 }
 
 /**
@@ -34,7 +41,7 @@ export async function fetchRootConfig(
 		// Ensure we got file content, not directory listing
 		if ('content' in data && !Array.isArray(data)) {
 			const content = Buffer.from(data.content, 'base64').toString('utf-8');
-			return JSON.parse(content) as RootConfig;
+			return parseRootConfig(content);
 		}
 
 		return null;

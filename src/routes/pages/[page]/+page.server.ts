@@ -2,16 +2,28 @@ import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params, cookies, depends }) => {
 	const startTime = performance.now();
 	console.log(`🟢 [VIEW ${params.page}] Starting load...`);
 
+	if (isLocalMode(locals)) {
+		return {
+			discoveredConfig: null,
+			content: null,
+			contentError: null,
+			draftBranch: null,
+			draftChanges: null,
+			pageSlug: params.page,
+			mode: 'local' as const
+		};
+	}
+
 	// Get configs from locals (already loaded by layout)
 	// Note: We'll get this from parent data via SvelteKit's automatic data flow
 	depends('app:content');
-	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
@@ -25,9 +37,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 			console.log(`🟢 [VIEW ${params.page}] Getting content...`);
 			const { getCachedContent } = await import('$lib/stores/content-cache');
 			content = await getCachedContent(
-				octokit,
-				owner,
-				name,
+				backend,
 				discoveredConfig.config,
 				discoveredConfig.type,
 				discoveredConfig.path,
@@ -79,7 +89,9 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 			content,
 			contentError,
 			draftBranch,
-			draftChanges
+			draftChanges,
+			pageSlug: params.page,
+			mode: 'github' as const
 		};
 	} catch (err) {
 		if (err && typeof err === 'object' && 'status' in err && err.status === 404) {

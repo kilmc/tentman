@@ -3,10 +3,21 @@ import type { PageServerLoad, Actions } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { findContentItem } from '$lib/features/content-management/item';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params, cookies }) => {
-	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	if (isLocalMode(locals)) {
+		return {
+			discoveredConfig: null,
+			item: null,
+			contentError: null,
+			itemId: params.itemId,
+			pageSlug: params.page,
+			mode: 'local' as const
+		};
+	}
+
+	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
@@ -31,9 +42,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 		try {
 			const { getCachedContent } = await import('$lib/stores/content-cache');
 			content = await getCachedContent(
-				octokit,
-				owner,
-				name,
+				backend,
 				discoveredConfig.config,
 				discoveredConfig.type,
 				discoveredConfig.path,
@@ -68,7 +77,9 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 			discoveredConfig,
 			item,
 			contentError,
-			itemId: params.itemId
+			itemId: params.itemId,
+			pageSlug: params.page,
+			mode: 'github' as const
 		};
 	} catch (err) {
 		if (err && typeof err === 'object' && 'status' in err && (err.status === 404 || err.status === 302)) {
@@ -82,7 +93,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 export const actions: Actions = {
 	delete: async ({ locals, params }) => {
 		try {
-			const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			const itemId = params.itemId;
 
@@ -96,9 +107,7 @@ export const actions: Actions = {
 				// For collections, we need to fetch the item to get its filename
 				const { getCachedContent } = await import('$lib/stores/content-cache');
 				const content = await getCachedContent(
-					octokit,
-					owner,
-					name,
+					backend,
 					discoveredConfig.config,
 					discoveredConfig.type,
 					discoveredConfig.path,
@@ -118,9 +127,7 @@ export const actions: Actions = {
 			}
 
 			await deleteContent(
-				octokit,
-				owner,
-				name,
+				backend,
 				discoveredConfig.config,
 				discoveredConfig.type,
 				discoveredConfig.path,

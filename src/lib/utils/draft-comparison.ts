@@ -9,6 +9,7 @@ import type { Octokit } from 'octokit';
 import type { Config, ConfigType } from '$lib/types/config';
 import { fetchContent } from '$lib/content/fetcher';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import { createGitHubRepositoryBackend } from '$lib/repository/github';
 
 export interface DraftChange {
 	itemId: string;
@@ -62,10 +63,16 @@ export async function compareDraftToBranch(
 			return { ...emptyComparison(), metadata };
 		}
 
+		const backend = createGitHubRepositoryBackend(octokit, {
+			owner,
+			name: repo,
+			full_name: `${owner}/${repo}`
+		});
+
 		// Fetch content from both branches
 		const [mainContent, draftContent] = await Promise.all([
-			fetchContent(octokit, owner, repo, config, configType, configPath, 'main'),
-			fetchContent(octokit, owner, repo, config, configType, configPath, draftBranch)
+			fetchContent(backend, config, configType, configPath, 'main'),
+			fetchContent(backend, config, configType, configPath, draftBranch)
 		]);
 
 		// Compare based on content type

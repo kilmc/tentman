@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
 
 	interface Props {
 		data: PageData;
@@ -12,17 +13,35 @@
 	<h1 class="mb-4 text-5xl font-bold text-gray-900">Welcome to Tentman CMS</h1>
 	<p class="mb-8 text-xl text-gray-600">A Git-based content management system for static sites</p>
 
-	{#if !data.isAuthenticated}
+	{#if !data.selectedBackend && !data.isAuthenticated}
 		<div class="mb-8 rounded-lg bg-white p-8 shadow-md">
 			<h2 class="mb-4 text-2xl font-semibold">Get Started</h2>
 			<p class="mb-6 text-gray-600">
-				Login with your GitHub account to manage content for your repositories
+				Login with GitHub or open a local repository to manage content
+			</p>
+			<div class="flex items-center justify-center gap-4">
+				<LocalRepoButton
+					class="inline-block rounded-lg border border-gray-300 px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+				/>
+				<a
+					href="/auth/login"
+					class="inline-block rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
+				>
+					Login with GitHub
+				</a>
+			</div>
+		</div>
+	{:else if data.selectedBackend?.kind === 'local'}
+		<div class="mb-8 rounded-lg bg-white p-8 shadow-md">
+			<h2 class="mb-4 text-2xl font-semibold">Local Repository Ready</h2>
+			<p class="mb-6 text-gray-600">
+				Editing files directly inside <span class="font-semibold">{data.selectedBackend.repo.name}</span>
 			</p>
 			<a
-				href="/auth/login"
-				class="inline-block rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
+				href="/pages"
+				class="inline-block rounded-lg bg-green-600 px-6 py-3 font-medium text-white transition-colors hover:bg-green-700"
 			>
-				Login with GitHub
+				View Content
 			</a>
 		</div>
 	{:else if !data.selectedRepo}

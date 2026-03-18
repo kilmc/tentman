@@ -1,9 +1,17 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
+	if (isLocalMode(locals)) {
+		return {
+			discoveredConfig: null,
+			pageSlug: params.page,
+			mode: 'local' as const
+		};
+	}
+
 	const { discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
@@ -14,7 +22,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		}
 
 		return {
-			discoveredConfig
+			discoveredConfig,
+			pageSlug: params.page,
+			mode: 'github' as const
 		};
 	} catch (err) {
 		if (err && typeof err === 'object' && 'status' in err && (err.status === 404 || err.status === 302)) {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
 
 	let { data } = $props<{ data: PageData }>();
 </script>
@@ -11,6 +12,16 @@
 			Choose a repository to manage content. The CMS will discover configuration files and display
 			available content types.
 		</p>
+	</div>
+
+	<div class="mb-8 rounded-lg border border-gray-200 bg-white p-6">
+		<h2 class="mb-2 text-lg font-semibold text-gray-900">Open a Local Repository</h2>
+		<p class="mb-4 text-sm text-gray-600">
+			Skip the GitHub round-trip and edit a checked-out repository directly in Chromium.
+		</p>
+		<LocalRepoButton
+			class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+		/>
 	</div>
 
 	{#if data.repos.length === 0}

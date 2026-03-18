@@ -24,11 +24,19 @@
 		onvalidate
 	}: Props = $props();
 
+	function cloneInitialData(value: Record<string, any>): Record<string, any> {
+		try {
+			return structuredClone(value);
+		} catch {
+			return JSON.parse(JSON.stringify(value)) as Record<string, any>;
+		}
+	}
+
 	// Normalize fields to object format (supports both array and object configs)
 	const normalizedFields = normalizeFields(config.fields);
 
 	// FormGenerator owns its own state - initialize once with structuredClone
-	let formData = $state<Record<string, any>>(buildFormData(config, structuredClone(initialData)));
+	let formData = $state<Record<string, any>>(buildFormData(config, cloneInitialData(initialData)));
 	let validationErrors = $state<ValidationError[]>([]);
 	let showErrors = $state(false);
 	let touchedFields = $state<Set<string>>(new Set()); // Track which fields have been interacted with

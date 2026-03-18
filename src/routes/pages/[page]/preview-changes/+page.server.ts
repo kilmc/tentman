@@ -4,11 +4,15 @@ import { calculateChanges } from '$lib/utils/preview.js';
 import { saveContent } from '$lib/content/writer.js';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-	const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	if (isLocalMode(locals)) {
+		throw redirect(302, `/pages/${params.page}/edit`);
+	}
+
+	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	// Only allow singletons on this route
 	if (discoveredConfig.type !== 'singleton') {
@@ -35,9 +39,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 	try {
 			changesSummary = await calculateChanges(
-				octokit,
-			owner,
-			name,
+				backend,
 			discoveredConfig.config,
 			discoveredConfig.type,
 			discoveredConfig.path,
@@ -60,7 +62,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 export const actions: Actions = {
 	createPreview: async ({ locals, params, request, cookies }) => {
 		try {
-			const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
@@ -75,9 +77,7 @@ export const actions: Actions = {
 
 			// Save the content to the draft branch
 			await saveContent(
-				octokit,
-				owner,
-				name,
+				backend,
 				discoveredConfig.config,
 				discoveredConfig.type,
 				discoveredConfig.path,
@@ -106,7 +106,7 @@ export const actions: Actions = {
 
 	publishNow: async ({ locals, params, request }) => {
 		try {
-			const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
@@ -114,9 +114,7 @@ export const actions: Actions = {
 
 			// Save the content directly to main branch (no branch specified = default branch)
 			await saveContent(
-				octokit,
-				owner,
-				name,
+				backend,
 				discoveredConfig.config,
 				discoveredConfig.type,
 				discoveredConfig.path,

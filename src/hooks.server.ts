@@ -1,5 +1,10 @@
 import type { Handle } from '@sveltejs/kit';
 import { Octokit } from 'octokit';
+import {
+	SELECTED_BACKEND_COOKIE,
+	SELECTED_LOCAL_REPO_COOKIE,
+	type LocalRepositoryIdentity
+} from '$lib/repository/selection';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const token = event.cookies.get('github_token');
@@ -34,6 +39,26 @@ export const handle: Handle = async ({ event, resolve }) => {
 		} catch {
 			// Invalid JSON, ignore
 		}
+	}
+
+	const selectedBackendKind = event.cookies.get(SELECTED_BACKEND_COOKIE);
+	if (selectedBackendKind === 'local') {
+		const localRepo = event.cookies.get(SELECTED_LOCAL_REPO_COOKIE);
+		if (localRepo) {
+			try {
+				event.locals.selectedBackend = {
+					kind: 'local',
+					repo: JSON.parse(localRepo) as LocalRepositoryIdentity
+				};
+			} catch {
+				// Ignore invalid local repo metadata.
+			}
+		}
+	} else if (event.locals.selectedRepo) {
+		event.locals.selectedBackend = {
+			kind: 'github',
+			repo: event.locals.selectedRepo
+		};
 	}
 
 	return resolve(event);

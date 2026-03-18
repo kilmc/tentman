@@ -9,8 +9,7 @@
  */
 
 import type { DiscoveredConfig } from '$lib/types/config';
-import type { Octokit } from 'octokit';
-import { discoverConfigs } from '$lib/config/discovery';
+import type { RepositoryBackend } from '$lib/repository/types';
 
 interface CacheEntry {
 	configs: DiscoveredConfig[];
@@ -27,10 +26,6 @@ const cache = new Map<string, CacheEntry>();
 /**
  * Get a unique key for a repository
  */
-function getRepoKey(owner: string, repo: string): string {
-	return `${owner}/${repo}`;
-}
-
 /**
  * Check if a cache entry is still valid
  */
@@ -44,11 +39,9 @@ function isValid(entry: CacheEntry | undefined): boolean {
  * Get cached configs for a repository, or fetch if not cached/stale
  */
 export async function getCachedConfigs(
-	octokit: Octokit,
-	owner: string,
-	repo: string
+	backend: RepositoryBackend
 ): Promise<DiscoveredConfig[]> {
-	const repoKey = getRepoKey(owner, repo);
+	const repoKey = backend.cacheKey;
 	const cachedEntry = cache.get(repoKey);
 
 	// If cache is valid, return it
@@ -60,11 +53,11 @@ export async function getCachedConfigs(
 	}
 
 	// Cache miss or stale - fetch from GitHub
-	console.log(`🔄 [CONFIG CACHE] Cache miss for ${repoKey}, fetching from GitHub...`);
+	console.log(`🔄 [CONFIG CACHE] Cache miss for ${repoKey}, fetching from backend...`);
 	const fetchStart = performance.now();
 
 	try {
-		const configs = await discoverConfigs(octokit, owner, repo);
+		const configs = await backend.discoverConfigs();
 		const fetchTime = performance.now() - fetchStart;
 		console.log(`✅ [CONFIG CACHE] Fetched ${configs.length} configs in ${fetchTime.toFixed(0)}ms`);
 
@@ -85,8 +78,7 @@ export async function getCachedConfigs(
 /**
  * Invalidate cache for a specific repository
  */
-export function invalidateCache(owner: string, repo: string): void {
-	const repoKey = getRepoKey(owner, repo);
+export function invalidateCache(repoKey: string): void {
 	console.log(`🗑️ [CONFIG CACHE] Invalidating cache for ${repoKey}`);
 	cache.delete(repoKey);
 }

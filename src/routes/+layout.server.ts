@@ -4,6 +4,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		isAuthenticated: locals.isAuthenticated,
 		user: locals.user,
-		selectedRepo: locals.selectedRepo
+		selectedRepo: locals.selectedRepo,
+		selectedBackend: locals.selectedBackend
 	};
 };

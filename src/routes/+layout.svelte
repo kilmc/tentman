@@ -6,15 +6,13 @@
 	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
 	import { draftBranch } from '$lib/stores/draft-branch';
+	import { localRepo } from '$lib/stores/local-repo';
+	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
-	// Initialize draft branch on mount
 	onMount(async () => {
-		if (data.isAuthenticated && data.selectedRepo && data.octokit) {
-			const { owner, name } = data.selectedRepo;
-			await draftBranch.initialize(data.octokit, owner, name);
-		}
+		await localRepo.hydrate();
 	});
 </script>
 
@@ -34,14 +32,14 @@
 						<a href="/docs" class="text-sm text-gray-700 hover:text-gray-900 hover:underline">
 							Docs
 						</a>
-						{#if data.selectedRepo}
+						{#if data.selectedBackend}
 							<a href="/pages" class="text-sm text-gray-700 hover:text-gray-900 hover:underline">
 								Content
 							</a>
 						{/if}
 					</nav>
 
-					{#if data.selectedRepo}
+					{#if data.selectedBackend?.kind === 'github' && data.selectedRepo}
 						<div class="flex items-center gap-2 text-sm">
 							<span class="text-gray-500">Repository:</span>
 							<span class="font-medium text-gray-900">{data.selectedRepo.full_name}</span>
@@ -53,12 +51,32 @@
 								Change
 							</a>
 						</div>
+					{:else if data.selectedBackend?.kind === 'local'}
+						<div class="flex items-center gap-2 text-sm">
+							<span class="text-gray-500">Local Repo:</span>
+							<span class="font-medium text-gray-900">{data.selectedBackend.repo.name}</span>
+							<LocalRepoButton
+								label="Change"
+								class="ml-2 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+							/>
+						</div>
 					{/if}
 				</div>
 
 				<div class="flex items-center gap-4">
-					{#if data.isAuthenticated && data.user}
-						<!-- Publish Changes button (only visible when draft exists) -->
+					{#if data.selectedBackend?.kind === 'local'}
+						<LocalRepoButton
+							label="Open Local Repo"
+							class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+						/>
+						<button
+							type="button"
+							class="text-sm text-gray-600 hover:text-gray-900 hover:underline"
+							onclick={() => localRepo.clear()}
+						>
+							Close Local Repo
+						</button>
+					{:else if data.isAuthenticated && data.user}
 						{#if $draftBranch.branchName}
 							<a
 								href="/publish"
@@ -79,12 +97,17 @@
 							</a>
 						</div>
 					{:else}
-						<a
-							href="/auth/login"
-							class="rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
-						>
-							Login with GitHub
-						</a>
+						<div class="flex items-center gap-3">
+							<LocalRepoButton
+								class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+							/>
+							<a
+								href="/auth/login"
+								class="rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+							>
+								Login with GitHub
+							</a>
+						</div>
 					{/if}
 				</div>
 			</div>

@@ -1,9 +1,9 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { requireAuthenticatedRepo } from '$lib/server/page-context';
+import { requireGitHubRepository } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const { octokit, owner, name } = requireAuthenticatedRepo(locals, '/publish');
+	const { octokit, owner, name, backend } = requireGitHubRepository(locals, '/publish');
 
 	// List preview branches
 	const { listPreviewBranches } = await import('$lib/github/branch');
@@ -18,7 +18,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Get all configs
 	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(octokit, owner, name);
+	const configs = await getCachedConfigs(backend);
 
 	// For each config, check if it has draft changes
 	const configsWithChanges = [];
@@ -59,7 +59,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions = {
 	publish: async ({ locals }) => {
-		const { octokit, owner, name } = requireAuthenticatedRepo(locals);
+		const { octokit, owner, name, backend } = requireGitHubRepository(locals);
 
 		// Get the draft branch
 		const { listPreviewBranches } = await import('$lib/github/branch');
@@ -91,7 +91,7 @@ export const actions = {
 
 			// Invalidate content cache
 			const { invalidateContent } = await import('$lib/stores/content-cache');
-			invalidateContent(owner, name);
+			invalidateContent(backend.cacheKey);
 
 			throw redirect(303, '/pages?merged=true');
 		} catch (err) {
@@ -105,7 +105,7 @@ export const actions = {
 	},
 
 	discard: async ({ locals }) => {
-		const { octokit, owner, name } = requireAuthenticatedRepo(locals);
+		const { octokit, owner, name } = requireGitHubRepository(locals);
 
 		// Get the draft branch
 		const { listPreviewBranches } = await import('$lib/github/branch');
