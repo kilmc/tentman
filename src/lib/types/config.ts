@@ -21,6 +21,8 @@ export interface FieldOptions {
 	generated?: boolean;
 	show?: 'primary' | 'secondary'; // Display on index cards (primary = title, secondary = metadata)
 	fields?: Record<string, FieldDefinition>; // For nested fields in arrays
+	minLength?: number; // Minimum character length for text/textarea/markdown fields
+	maxLength?: number; // Maximum character length for text/textarea/markdown fields
 }
 
 export type FieldDefinition = FieldType | FieldOptions;
@@ -34,6 +36,8 @@ export interface FieldArrayItem {
 	generated?: boolean;
 	show?: 'primary' | 'secondary'; // Display on index cards (primary = title, secondary = metadata)
 	fields?: FieldArrayItem[]; // For nested fields in arrays
+	minLength?: number; // Minimum character length for text/textarea/markdown fields
+	maxLength?: number; // Maximum character length for text/textarea/markdown fields
 }
 
 export interface BaseConfig {
@@ -90,13 +94,15 @@ export function normalizeFields(
 
 	for (const field of fields) {
 		// Build field definition
-		if (field.required || field.generated || field.show || field.fields) {
+		if (field.required || field.generated || field.show || field.fields || field.minLength || field.maxLength) {
 			normalized[field.property] = {
 				type: field.type,
 				label: field.label, // Preserve the label
 				...(field.required && { required: field.required }),
 				...(field.generated && { generated: field.generated }),
 				...(field.show && { show: field.show }),
+				...(field.minLength !== undefined && { minLength: field.minLength }),
+				...(field.maxLength !== undefined && { maxLength: field.maxLength }),
 				...(field.fields && {
 					fields: normalizeFields(field.fields) as Record<string, FieldDefinition>
 				})

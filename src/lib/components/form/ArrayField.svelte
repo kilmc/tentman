@@ -59,8 +59,14 @@
 	</div>
 
 	{#if value.length === 0}
-		<div class="rounded border border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-500">
-			No items yet. Click "Add Item" to create one.
+		<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+			<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white">
+				<svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+				</svg>
+			</div>
+			<p class="text-sm font-medium text-gray-700 mb-1">No items yet</p>
+			<p class="text-xs text-gray-500">Click "Add Item" above to get started</p>
 		</div>
 	{:else}
 		<div class="space-y-4">

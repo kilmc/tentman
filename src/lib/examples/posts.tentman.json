@@ -3,12 +3,13 @@
 	"template": "./post.template.md",
 	"filename": "{{slug}}",
 	"fields": [
-		{ "label": "Title", "type": "text" },
-		{ "label": "Slug", "type": "text" },
-		{ "label": "Date", "type": "date" },
-		{ "label": "Author", "type": "text" },
+		{ "label": "Title", "type": "text", "required": true, "minLength": 5, "maxLength": 100 },
+		{ "label": "Slug", "type": "text", "required": true, "maxLength": 50 },
+		{ "label": "Date", "type": "date", "required": true },
+		{ "label": "Author", "type": "text", "required": true, "maxLength": 50 },
 		{ "label": "Cover Image", "type": "image" },
-		{ "label": "Excerpt", "type": "textarea" },
+		{ "label": "Excerpt", "type": "textarea", "required": true, "minLength": 20, "maxLength": 300 },
+		{ "label": "Content", "type": "markdown", "required": true, "minLength": 50 },
 		{ "label": "Published", "type": "boolean" }
 	]
 }

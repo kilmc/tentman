@@ -24,6 +24,8 @@
 	// Parse field definition
 	const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
 	const required = typeof fieldDef === 'object' ? fieldDef.required ?? false : false;
+	const minLength = typeof fieldDef === 'object' ? fieldDef.minLength : undefined;
+	const maxLength = typeof fieldDef === 'object' ? fieldDef.maxLength : undefined;
 	const nestedFields = typeof fieldDef === 'object' ? fieldDef.fields : undefined;
 
 	// Generate label from field name
@@ -35,11 +37,11 @@
 </script>
 
 {#if fieldType === 'text'}
-	<TextField {label} bind:value {required} {onchange} />
+	<TextField {label} bind:value {required} {minLength} {maxLength} {onchange} />
 {:else if fieldType === 'textarea'}
-	<TextareaField {label} bind:value {required} {onchange} />
+	<TextareaField {label} bind:value {required} {minLength} {maxLength} {onchange} />
 {:else if fieldType === 'markdown'}
-	<MarkdownField {label} bind:value {required} {onchange} />
+	<MarkdownField {label} bind:value {required} {minLength} {maxLength} {onchange} />
 {:else if fieldType === 'email'}
 	<EmailField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'url'}

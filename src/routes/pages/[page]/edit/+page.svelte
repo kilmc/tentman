@@ -2,6 +2,7 @@
 	import type { PageData, ActionData } from './$types';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import KeyboardShortcutHelp from '$lib/components/KeyboardShortcutHelp.svelte';
+	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { enhance } from '$app/forms';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
@@ -111,13 +112,8 @@
 		</div>
 	{:else if content === null}
 		<!-- Loading state -->
-		<div class="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center animate-pulse">
-			<div class="flex flex-col items-center gap-4">
-				<div
-					class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"
-				></div>
-				<p class="text-gray-600">Loading content...</p>
-			</div>
+		<div class="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
+			<LoadingSpinner size="lg" label="Loading content..." />
 		</div>
 	{:else}
 		<!-- Edit form -->

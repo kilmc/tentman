@@ -43,7 +43,9 @@
 		"vitest-browser-svelte": "^1.1.0"
 	},
 	"dependencies": {
+		"@humanspeak/svelte-markdown": "^0.8.13",
 		"@octokit/auth-oauth-app": "^9.0.3",
+		"@tailwindcss/typography": "^0.5.19",
 		"gray-matter": "^4.0.3",
 		"jsonpath-plus": "^10.3.0",
 		"octokit": "^5.0.5"

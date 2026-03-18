@@ -4,6 +4,7 @@
 	import { getFieldLabel, normalizeFields } from '$lib/types/config';
 	import { onMount } from 'svelte';
 	import ItemCard from '$lib/components/ItemCard.svelte';
+	import ItemCardSkeleton from '$lib/components/ItemCardSkeleton.svelte';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 
 	let { data }: { data: PageData } = $props();
@@ -251,14 +252,11 @@
 			<p class="text-sm text-red-700">{contentError}</p>
 		</div>
 	{:else if content === null}
-		<!-- Loading state -->
-		<div class="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center animate-pulse">
-			<div class="flex flex-col items-center gap-4">
-				<div
-					class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"
-				></div>
-				<p class="text-gray-600">Loading content...</p>
-			</div>
+		<!-- Loading state with skeleton cards -->
+		<div class="space-y-4">
+			{#each Array(6) as _}
+				<ItemCardSkeleton />
+			{/each}
 		</div>
 	{:else if type === 'singleton'}
 		<!-- Singleton view: Display single object -->
@@ -285,7 +283,9 @@
 								{:else if typeof fieldDef === 'object' && fieldDef.type === 'array' && Array.isArray(content[fieldName])}
 									<div class="mt-2 space-y-3">
 										{#if content[fieldName].length === 0}
-											<p class="text-sm text-gray-500 italic">No items</p>
+											<div class="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+												<p class="text-sm text-gray-500">No items in this list</p>
+											</div>
 										{:else}
 											{#each content[fieldName] as item, i}
 												<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -393,12 +393,23 @@
 			{/if}
 		{:else}
 			<!-- Empty state -->
-			<div class="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
-				<p class="mb-4 text-gray-600">No {config.label.toLowerCase()} found</p>
+			<div class="rounded-lg border border-gray-200 bg-white shadow-sm p-12 text-center">
+				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+					<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					</svg>
+				</div>
+				<h3 class="mb-2 text-lg font-semibold text-gray-900">No {config.label.toLowerCase()} yet</h3>
+				<p class="mb-6 text-sm text-gray-600">
+					Get started by creating your first {config.label.replace(/s$/, '').toLowerCase()}.
+				</p>
 				<a
 					href="/pages/{discoveredConfig.slug}/new"
-					class="inline-block rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+					class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 transition-colors shadow-sm"
 				>
+					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+					</svg>
 					Create your first {config.label.replace(/s$/, '').toLowerCase()}
 				</a>
 			</div>

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@plugin "@tailwindcss/typography";
 
 /* Custom animations for better UX */
 @keyframes fadeIn {
@@ -32,6 +33,28 @@
 	}
 }
 
+@keyframes slideInRight {
+	from {
+		opacity: 0;
+		transform: translateX(100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@keyframes slideOutRight {
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(100%);
+	}
+}
+
 .animate-fadeIn {
 	animation: fadeIn 0.2s ease-out;
 }
@@ -42,4 +65,12 @@
 
 .animate-slideDown {
 	animation: slideDown 0.3s ease-out;
+}
+
+.animate-slideInRight {
+	animation: slideInRight 0.3s ease-out;
+}
+
+.animate-slideOutRight {
+	animation: slideOutRight 0.3s ease-in;
 }

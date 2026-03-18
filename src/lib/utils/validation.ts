@@ -22,6 +22,8 @@ export function validateFormData(
 	for (const [fieldName, fieldDef] of Object.entries(normalizedFields)) {
 		const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
 		const required = typeof fieldDef === 'object' ? fieldDef.required ?? false : false;
+		const minLength = typeof fieldDef === 'object' ? fieldDef.minLength : undefined;
+		const maxLength = typeof fieldDef === 'object' ? fieldDef.maxLength : undefined;
 		const value = data[fieldName];
 
 		// Check required fields
@@ -36,6 +38,22 @@ export function validateFormData(
 		// Skip validation if field is empty and not required
 		if (value === undefined || value === null || value === '') {
 			continue;
+		}
+
+		// Length validation for string fields
+		if (typeof value === 'string' && (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'markdown' || fieldType === 'email' || fieldType === 'url')) {
+			if (minLength !== undefined && value.length < minLength) {
+				errors.push({
+					field: fieldName,
+					message: `${getFieldLabel(fieldName)} must be at least ${minLength} character${minLength === 1 ? '' : 's'}`
+				});
+			}
+			if (maxLength !== undefined && value.length > maxLength) {
+				errors.push({
+					field: fieldName,
+					message: `${getFieldLabel(fieldName)} must not exceed ${maxLength} character${maxLength === 1 ? '' : 's'}`
+				});
+			}
 		}
 
 		// Type-specific validation
