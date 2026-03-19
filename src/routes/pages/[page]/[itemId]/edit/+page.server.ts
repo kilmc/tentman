@@ -1,5 +1,6 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import { deleteContentDocument } from '$lib/content/service';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { findContentItem } from '$lib/features/content-management/item';
@@ -9,6 +10,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 	if (isLocalMode(locals)) {
 		return {
 			discoveredConfig: null,
+			blockConfigs: [],
 			item: null,
 			contentError: null,
 			itemId: params.itemId,
@@ -22,7 +24,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 	try {
 
 		// Only allow arrays and collections on this route
-		if (discoveredConfig.type === 'singleton') {
+		if (!discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}/edit`);
 		}
 
@@ -44,7 +46,6 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 			content = await getCachedContent(
 				backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				params.page, // slug for cache key
 				branch // Fetch from preview branch if it exists
@@ -52,9 +53,9 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 
 			// Find the specific item
 			if (Array.isArray(content)) {
-				item = findContentItem(content, discoveredConfig.type, discoveredConfig.config, params.itemId);
+				item = findContentItem(content, discoveredConfig.config, params.itemId);
 
-				if (!item && discoveredConfig.type === 'array') {
+				if (!item && discoveredConfig.config.content.mode === 'file') {
 					const index = Number.parseInt(params.itemId, 10);
 					if (!Number.isNaN(index) && index >= 0 && index < content.length) {
 						item = content[index];
@@ -75,6 +76,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 
 		return {
 			discoveredConfig,
+			blockConfigs: await backend.discoverBlockConfigs(),
 			item,
 			contentError,
 			itemId: params.itemId,
@@ -97,25 +99,21 @@ export const actions: Actions = {
 
 			const itemId = params.itemId;
 
-			// Import deleteContent
-			const { deleteContent } = await import('$lib/content/writer');
-
 			// Delete the content - prepare options based on type
 			const deleteOptions: { itemId?: string; filename?: string } = {};
 
-			if (discoveredConfig.type === 'collection') {
+			if (discoveredConfig.config.content.mode === 'directory') {
 				// For collections, we need to fetch the item to get its filename
 				const { getCachedContent } = await import('$lib/stores/content-cache');
 				const content = await getCachedContent(
 					backend,
 					discoveredConfig.config,
-					discoveredConfig.type,
 					discoveredConfig.path,
 					params.page
 				);
 
 				if (Array.isArray(content)) {
-					const item = findContentItem(content, discoveredConfig.type, discoveredConfig.config, itemId);
+					const item = findContentItem(content, discoveredConfig.config, itemId);
 
 					if (item?._filename) {
 						deleteOptions.filename = item._filename;
@@ -126,10 +124,9 @@ export const actions: Actions = {
 				deleteOptions.itemId = itemId;
 			}
 
-			await deleteContent(
+			await deleteContentDocument(
 				backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				deleteOptions
 			);
@@ -164,7 +161,7 @@ export const actions: Actions = {
 			const urlParams = new URLSearchParams({ data: encodedData });
 
 			// For collections, include filename information
-			if (discoveredConfig.type === 'collection') {
+			if (discoveredConfig.config.content.mode === 'directory') {
 				const filename = formData.get('filename') as string;
 				if (!filename) {
 					return fail(400, {

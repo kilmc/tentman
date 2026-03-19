@@ -10,13 +10,14 @@
 	import { get } from 'svelte/store';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
-	import { createContent } from '$lib/content/writer';
+	import { createContentDocument } from '$lib/content/service';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const isLocalMode = data.mode === 'local';
 
 	let discoveredConfig = $state(data.discoveredConfig);
+	let blockConfigs = $state(data.blockConfigs ?? []);
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
@@ -26,6 +27,7 @@
 	let localError = $state<string | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
+	const requiresFilename = $derived(discoveredConfig?.config.content.mode === 'directory');
 
 	function handleFieldsChanged() {
 		hasUnsavedChanges = true;
@@ -56,7 +58,9 @@
 		if (isLocalMode) {
 			void (async () => {
 				await localContent.refresh();
-				discoveredConfig = get(localContent).configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+				const contentState = get(localContent);
+				discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+				blockConfigs = contentState.blockConfigs;
 			})();
 		}
 
@@ -72,7 +76,7 @@
 			return false;
 		}
 
-		if (discoveredConfig.type === 'collection') {
+		if (requiresFilename) {
 			const trimmedFilename = filename.trim();
 			if (!trimmedFilename) {
 				filenameError = 'Filename is required';
@@ -112,13 +116,12 @@
 		localError = null;
 
 		try {
-			await createContent(
+			await createContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				formData,
-				discoveredConfig.type === 'collection' ? { filename: filename.trim() } : undefined
+				requiresFilename ? { filename: filename.trim() } : undefined
 			);
 			await localContent.refresh();
 			await goto(`/pages/${discoveredConfig.slug}?published=true`);
@@ -157,7 +160,7 @@
 				<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
 					<input type="hidden" name="data" value="" />
 
-					{#if discoveredConfig?.type === 'collection'}
+					{#if requiresFilename}
 						<div class="mb-6 border-b border-gray-200 pb-6">
 							<label for="filename" class="mb-2 block text-sm font-medium text-gray-700">
 								Filename <span class="text-red-500">*</span>
@@ -193,6 +196,7 @@
 						<FormGenerator
 							bind:this={formGenerator}
 							{config}
+							{blockConfigs}
 							initialData={{}}
 							existingItems={[]}
 							currentItemId={undefined}
@@ -234,7 +238,7 @@
 				>
 					<input type="hidden" name="data" value="" />
 
-					{#if discoveredConfig?.type === 'collection'}
+					{#if requiresFilename}
 						<div class="mb-6 border-b border-gray-200 pb-6">
 							<label for="filename" class="mb-2 block text-sm font-medium text-gray-700">
 								Filename <span class="text-red-500">*</span>
@@ -270,6 +274,7 @@
 						<FormGenerator
 							bind:this={formGenerator}
 							{config}
+							{blockConfigs}
 							initialData={{}}
 							existingItems={[]}
 							currentItemId={undefined}

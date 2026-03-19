@@ -5,8 +5,8 @@
  * Content is cached per repository per config and has a TTL for staleness detection.
  */
 
-import type { Config, ConfigType, DiscoveredConfig } from '$lib/types/config';
-import { fetchContent } from '$lib/content/fetcher';
+import type { Config, DiscoveredConfig } from '$lib/types/config';
+import { fetchContentDocument } from '$lib/content/service';
 import type { RepositoryBackend } from '$lib/repository/types';
 
 interface ContentCacheEntry {
@@ -44,7 +44,6 @@ function isValid(entry: ContentCacheEntry | undefined): boolean {
 export async function getCachedContent(
 	backend: RepositoryBackend,
 	config: Config,
-	configType: ConfigType,
 	configPath: string,
 	configSlug: string,
 	branch?: string
@@ -65,7 +64,7 @@ export async function getCachedContent(
 	const fetchStart = performance.now();
 
 	try {
-		const content = await fetchContent(backend, config, configType, configPath, branch);
+		const content = await fetchContentDocument(backend, config, configPath, { branch });
 		const fetchTime = performance.now() - fetchStart;
 		console.log(`✅ [CONTENT CACHE] Fetched content in ${fetchTime.toFixed(0)}ms`);
 
@@ -96,10 +95,10 @@ export async function prefetchAllContent(
 
 	// Fetch all content in parallel
 	const fetchPromises = configs.map(async (discoveredConfig) => {
-		const { config, type, path, slug } = discoveredConfig;
+		const { config, path, slug } = discoveredConfig;
 
 		try {
-			await getCachedContent(backend, config, type, path, slug);
+			await getCachedContent(backend, config, path, slug);
 		} catch (error) {
 			// Log but don't fail the whole prefetch if one config fails
 			console.error(`⚠️ [CONTENT PREFETCH] Failed to prefetch ${slug}:`, error);

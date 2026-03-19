@@ -1,4 +1,9 @@
-import { parseDiscoveredConfig } from '$lib/config/discovery';
+import {
+	getDiscoverableBlockConfigPaths,
+	getDiscoverableContentConfigPaths,
+	parseDiscoveredBlockConfig,
+	parseDiscoveredConfig
+} from '$lib/config/discovery';
 import { parseRootConfig, type RootConfig } from '$lib/config/root-config';
 import type {
 	RepoEntry,
@@ -117,7 +122,7 @@ async function listDirectoryEntries(
 	return entries.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function findConfigFiles(
+async function findTentmanFiles(
 	root: FileSystemDirectoryHandle,
 	path = '.'
 ): Promise<string[]> {
@@ -130,7 +135,7 @@ async function findConfigFiles(
 				continue;
 			}
 
-			configPaths.push(...(await findConfigFiles(root, entry.path)));
+			configPaths.push(...(await findTentmanFiles(root, entry.path)));
 			continue;
 		}
 
@@ -172,9 +177,26 @@ export function createLocalRepositoryBackend(
 		repo,
 
 		async discoverConfigs() {
-			const configPaths = await findConfigFiles(rootHandle);
+			const [rootConfig, tentmanFiles] = await Promise.all([
+				this.readRootConfig(),
+				findTentmanFiles(rootHandle)
+			]);
+			const configPaths = getDiscoverableContentConfigPaths(tentmanFiles, rootConfig);
 			return Promise.all(
 				configPaths.map(async (path) => parseDiscoveredConfig(path, await readFileText(rootHandle, path)))
+			);
+		},
+
+		async discoverBlockConfigs() {
+			const [rootConfig, tentmanFiles] = await Promise.all([
+				this.readRootConfig(),
+				findTentmanFiles(rootHandle)
+			]);
+			const configPaths = getDiscoverableBlockConfigPaths(tentmanFiles, rootConfig);
+			return Promise.all(
+				configPaths.map(async (path) =>
+					parseDiscoveredBlockConfig(path, await readFileText(rootHandle, path))
+				)
 			);
 		},
 

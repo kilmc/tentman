@@ -12,14 +12,14 @@
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
-	import { fetchContent } from '$lib/content/fetcher';
-	import { saveContent } from '$lib/content/writer';
+	import { fetchContentDocument, saveContentDocument } from '$lib/content/service';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const isLocalMode = data.mode === 'local';
 
 	let discoveredConfig = $state(data.discoveredConfig);
+	let blockConfigs = $state(data.blockConfigs ?? []);
 	let content = $state(data.content);
 	let contentError = $state(data.contentError);
 	let formGenerator = $state<FormGenerator | null>(null);
@@ -69,6 +69,7 @@
 		const contentState = get(localContent);
 
 		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+		blockConfigs = contentState.blockConfigs;
 
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
@@ -76,10 +77,9 @@
 		}
 
 		try {
-			content = await fetchContent(
+			content = await fetchContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path
 			);
 		} catch (error) {
@@ -108,10 +108,9 @@
 		localError = null;
 
 		try {
-			await saveContent(
+			await saveContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				formData
 			);
@@ -164,6 +163,7 @@
 						<FormGenerator
 							bind:this={formGenerator}
 							{config}
+							{blockConfigs}
 							initialData={content}
 							existingItems={[]}
 							currentItemId={undefined}
@@ -204,6 +204,7 @@
 						<FormGenerator
 							bind:this={formGenerator}
 							{config}
+							{blockConfigs}
 							initialData={content}
 							existingItems={[]}
 							currentItemId={undefined}

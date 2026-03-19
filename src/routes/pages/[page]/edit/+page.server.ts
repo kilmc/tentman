@@ -8,6 +8,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (isLocalMode(locals)) {
 		return {
 			discoveredConfig: null,
+			blockConfigs: [],
 			content: null,
 			contentError: null,
 			pageSlug: params.page,
@@ -20,7 +21,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	try {
 
 		// Only allow singletons on this route
-		if (discoveredConfig.type !== 'singleton') {
+		if (discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}`);
 		}
 
@@ -41,7 +42,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			content = await getCachedContent(
 				backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				params.page, // slug for cache key
 				branch // Fetch from preview branch if it exists
@@ -53,6 +53,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 		return {
 			discoveredConfig,
+			blockConfigs: await backend.discoverBlockConfigs(),
 			content,
 			contentError,
 			pageSlug: params.page,

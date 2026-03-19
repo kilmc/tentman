@@ -1,7 +1,16 @@
 import matter from 'gray-matter';
-import type { MultiFileCollectionConfig } from '$lib/types/config';
+import type { ParsedContentConfig } from '$lib/config/parse';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type { ContentRecord, TemplateInfo, ContentValue } from './types';
+
+type DirectoryBackedConfig = ParsedContentConfig & {
+	content: {
+		mode: 'directory';
+		path: string;
+		template: string;
+		filename?: string;
+	};
+};
 
 export function detectJsonIndent(content: string): string | number {
 	const match = content.match(/^[ \t]+(?=")/m);
@@ -20,11 +29,11 @@ export function decodeBase64Content(content: string): string {
 	return Buffer.from(content, 'base64').toString('utf-8');
 }
 
-export function getTemplateInfo(configPath: string, config: MultiFileCollectionConfig): TemplateInfo {
-	const resolvedTemplatePath = resolveConfigPath(configPath, config.template);
+export function getTemplateInfo(configPath: string, config: DirectoryBackedConfig): TemplateInfo {
+	const resolvedTemplatePath = resolveConfigPath(configPath, config.content.template);
 	const templateDir = resolvedTemplatePath.substring(0, resolvedTemplatePath.lastIndexOf('/')) || '';
 	const templateFilename = resolvedTemplatePath.split('/').pop() ?? resolvedTemplatePath;
-	const templateExt = config.template.substring(config.template.lastIndexOf('.'));
+	const templateExt = config.content.template.substring(config.content.template.lastIndexOf('.'));
 
 	return {
 		resolvedTemplatePath,

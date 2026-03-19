@@ -9,6 +9,14 @@
 	const isLocalMode = data.selectedBackend?.kind === 'local';
 	const configs = $derived(isLocalMode ? $localContent.configs : data.configs);
 
+	function getContentKind(config: (typeof configs)[number]) {
+		if (!config.config.collection) {
+			return 'singleton';
+		}
+
+		return config.config.content.mode === 'directory' ? 'collection' : 'array';
+	}
+
 	onMount(async () => {
 		if (isLocalMode) {
 			await localContent.refresh();
@@ -68,6 +76,7 @@
 	{:else}
 		<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 			{#each configs as config}
+				{@const contentKind = getContentKind(config)}
 				<a
 					href="/pages/{config.slug}"
 					class="block rounded-lg border border-gray-200 p-4 transition-all hover:border-blue-500 hover:shadow-md"
@@ -75,9 +84,9 @@
 					<div class="flex items-start justify-between">
 						<div>
 							<h3 class="text-lg font-semibold">{config.config.label}</h3>
-							<p class="mt-1 text-sm text-gray-500 capitalize">{config.type}</p>
+							<p class="mt-1 text-sm text-gray-500 capitalize">{contentKind}</p>
 						</div>
-						<span class="rounded bg-gray-100 px-2 py-1 text-xs">{config.type}</span>
+						<span class="rounded bg-gray-100 px-2 py-1 text-xs">{contentKind}</span>
 					</div>
 					<p class="mt-2 truncate text-xs text-gray-400">{config.path}</p>
 				</a>

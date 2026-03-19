@@ -1,20 +1,11 @@
 import type { Octokit } from 'octokit';
+import { parseRootConfig as parseRootConfigContent } from '$lib/config/parse';
+import type { RootConfig } from '$lib/config/types';
 
-/**
- * Root-level configuration for a content repository.
- * Stored in .tentman.json at the repository root.
- */
-export interface RootConfig {
-	netlify?: {
-		siteName: string;
-	};
-	local?: {
-		previewUrl: string;
-	};
-}
+export type { RootConfig };
 
 export function parseRootConfig(content: string): RootConfig {
-	return JSON.parse(content) as RootConfig;
+	return parseRootConfigContent(content);
 }
 
 /**

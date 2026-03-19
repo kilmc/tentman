@@ -1,3 +1,5 @@
+import type { BlockRegistry } from '$lib/blocks/registry';
+import { DEFAULT_BLOCK_REGISTRY, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
 import type { Config, FieldDefinition } from '$lib/types/config';
 import { normalizeFields } from '$lib/features/forms/helpers';
 import { getFieldLabel } from '$lib/types/config';
@@ -14,97 +16,37 @@ export function validateFormData(
 	options?: {
 		existingItems?: ContentRecord[];
 		currentItemId?: string;
-	}
+	},
+	registry: BlockRegistry = DEFAULT_BLOCK_REGISTRY
 ): ValidationError[] {
 	const errors: ValidationError[] = [];
 
 	// Normalize fields to handle both array and object formats
 	const normalizedFields = normalizeFields(config.fields);
 
-	for (const [fieldName, fieldDef] of Object.entries(normalizedFields)) {
-		const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
-		const required = typeof fieldDef === 'object' ? fieldDef.required ?? false : false;
-		const minLength = typeof fieldDef === 'object' ? fieldDef.minLength : undefined;
-		const maxLength = typeof fieldDef === 'object' ? fieldDef.maxLength : undefined;
-		const value = data[fieldName];
-
-		// Check required fields
-		if (required && (value === undefined || value === null || value === '')) {
-			errors.push({
-				field: fieldName,
-				message: `${getFieldLabel(fieldName, fieldDef)} is required`
-			});
-			continue;
-		}
-
-		// Skip validation if field is empty and not required
-		if (value === undefined || value === null || value === '') {
-			continue;
-		}
-
-		// Length validation for string fields
-		if (typeof value === 'string' && (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'markdown' || fieldType === 'email' || fieldType === 'url')) {
-			if (minLength !== undefined && value.length < minLength) {
-				errors.push({
-					field: fieldName,
-					message: `${getFieldLabel(fieldName, fieldDef)} must be at least ${minLength} character${minLength === 1 ? '' : 's'}`
-				});
-			}
-			if (maxLength !== undefined && value.length > maxLength) {
-				errors.push({
-					field: fieldName,
-					message: `${getFieldLabel(fieldName, fieldDef)} must not exceed ${maxLength} character${maxLength === 1 ? '' : 's'}`
-				});
-			}
-		}
+	for (const block of config.blocks) {
+		const value = data[block.id];
+		const fieldDef = normalizedFields[block.id];
+		const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef?.type;
 
 		// Type-specific validation
-		switch (fieldType) {
-			case 'email':
-				if (typeof value !== 'string' || !isValidEmail(value)) {
-					errors.push({
-						field: fieldName,
-						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid email address`
-					});
-				}
-				break;
-
-			case 'url':
-				if (typeof value !== 'string' || !isValidUrl(value)) {
-					errors.push({
-						field: fieldName,
-						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid URL`
-					});
-				}
-				break;
-
-			case 'number':
-				if (typeof value !== 'number' || isNaN(value)) {
-					errors.push({
-						field: fieldName,
-						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid number`
-					});
-				}
-				break;
-
-			case 'date':
-				if (typeof value !== 'string' || !isValidDate(value)) {
-					errors.push({
-						field: fieldName,
-						message: `${getFieldLabel(fieldName, fieldDef)} must be a valid date`
-					});
-				}
-				break;
-
-			case 'array':
-				if (!Array.isArray(value)) {
-					errors.push({
-						field: fieldName,
-						message: `${getFieldLabel(fieldName, fieldDef)} must be an array`
-					});
-				}
-				break;
+		if (!resolveBlockAdapterForUsage(block, registry) && fieldType === 'array') {
+			if (!Array.isArray(value)) {
+				errors.push({
+					field: block.id,
+					message: `${getFieldLabel(block.id, fieldDef)} must be an array`
+				});
+			}
+			continue;
 		}
+
+		const adapter = resolveBlockAdapterForUsage(block, registry);
+		if (!adapter?.validate) {
+			continue;
+		}
+
+		const fieldErrors = adapter.validate(value, block);
+		errors.push(...fieldErrors.map((message) => ({ field: block.id, message })));
 	}
 
 	// Validate uniqueness for ID field (if configured)
@@ -130,25 +72,6 @@ export function validateFormData(
 	}
 
 	return errors;
-}
-
-function isValidEmail(email: string): boolean {
-	const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-	return emailRegex.test(email);
-}
-
-function isValidUrl(url: string): boolean {
-	try {
-		new URL(url);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-function isValidDate(date: string): boolean {
-	const parsedDate = new Date(date);
-	return !isNaN(parsedDate.getTime());
 }
 
 /**

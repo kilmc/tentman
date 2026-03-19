@@ -14,14 +14,18 @@
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
-	import { fetchContent } from '$lib/content/fetcher';
-	import { deleteContent, saveContent } from '$lib/content/writer';
+	import {
+		deleteContentDocument,
+		fetchContentDocument,
+		saveContentDocument
+	} from '$lib/content/service';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const isLocalMode = data.mode === 'local';
 
 	let discoveredConfig = $state(data.discoveredConfig);
+	let blockConfigs = $state(data.blockConfigs ?? []);
 	let item = $state(data.item);
 	let contentError = $state(data.contentError);
 	let formGenerator = $state<FormGenerator | null>(null);
@@ -66,16 +70,16 @@
 		const contentState = get(localContent);
 
 		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+		blockConfigs = contentState.blockConfigs;
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
 			return;
 		}
 
 		try {
-			const loadedContent = await fetchContent(
+			const loadedContent = await fetchContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path
 			);
 
@@ -83,7 +87,6 @@
 				item =
 					findContentItem(
 						loadedContent,
-						discoveredConfig.type,
 						discoveredConfig.config,
 						data.itemId
 					) ?? null;
@@ -126,13 +129,12 @@
 		localError = null;
 
 		try {
-			await saveContent(
+			await saveContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				formData,
-				discoveredConfig.type === 'collection'
+				discoveredConfig.config.content.mode === 'directory'
 					? { filename: item?._filename }
 					: { itemId: data.itemId }
 			);
@@ -158,12 +160,11 @@
 		localError = null;
 
 		try {
-			await deleteContent(
+			await deleteContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
-				discoveredConfig.type === 'collection'
+				discoveredConfig.config.content.mode === 'directory'
 					? { filename: item?._filename, itemId: data.itemId }
 					: { itemId: data.itemId }
 			);
@@ -181,8 +182,7 @@
 		if (!item) return 'Item';
 		const firstField = cardFields.primary[0] ?? cardFields.secondary[0];
 		if (firstField) {
-			const [fieldName] = firstField;
-			const value = item[fieldName];
+			const value = item[firstField.id];
 			if (value) return String(value);
 		}
 		return data.itemId;
@@ -230,6 +230,7 @@
 							<FormGenerator
 								bind:this={formGenerator}
 								{config}
+								{blockConfigs}
 								initialData={item}
 								existingItems={[]}
 								currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
@@ -274,6 +275,7 @@
 							<FormGenerator
 								bind:this={formGenerator}
 								{config}
+								{blockConfigs}
 								initialData={item}
 								existingItems={[]}
 								currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
@@ -330,9 +332,9 @@
 						<div class="rounded-md border border-red-100 bg-white p-4">
 							{#if cardFields.primary.length > 0}
 								<div class="space-y-1">
-									{#each cardFields.primary as [fieldName]}
+									{#each cardFields.primary as block}
 										<p class="break-words text-lg font-semibold text-gray-900">
-											{formatContentValue((item as ContentRecord)[fieldName])}
+											{formatContentValue((item as ContentRecord)[block.id])}
 										</p>
 									{/each}
 								</div>
@@ -340,10 +342,10 @@
 
 							{#if cardFields.secondary.length > 0}
 								<div class="mt-3 space-y-1">
-									{#each cardFields.secondary as [fieldName, fieldDef]}
+									{#each cardFields.secondary as block}
 										<p class="text-sm text-gray-600">
-											<span class="font-medium">{getFieldLabel(fieldName, fieldDef)}:</span>
-											{formatContentValue((item as ContentRecord)[fieldName])}
+											<span class="font-medium">{block.label ?? block.id}:</span>
+											{formatContentValue((item as ContentRecord)[block.id])}
 										</p>
 									{/each}
 								</div>

@@ -1,11 +1,34 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { calculateChanges } from '$lib/utils/preview.js';
-import { saveContent, createContent } from '$lib/content/writer.js';
+import {
+	createContentDocument,
+	previewContentChanges,
+	saveContentDocument
+} from '$lib/content/service.js';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 import type { ContentRecord } from '$lib/features/content-management/types';
+
+function getExistingItemMutationOptions(
+	contentMode: 'file' | 'directory',
+	itemId: string,
+	filename?: string,
+	newFilename?: string
+) {
+	if (contentMode === 'directory') {
+		if (!filename) {
+			return null;
+		}
+
+		return {
+			filename,
+			...(newFilename && newFilename !== filename ? { newFilename } : {})
+		};
+	}
+
+	return { itemId };
+}
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (isLocalMode(locals)) {
@@ -20,7 +43,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	// Only allow arrays and collections on this route
-	if (discoveredConfig.type === 'singleton') {
+	if (!discoveredConfig.config.collection) {
 		throw redirect(302, `/pages/${params.page}/edit`);
 	}
 
@@ -46,19 +69,25 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	// Note: We calculate against main branch for the preview
 	let changesSummary = null;
 	let changesError = null;
+	const existingItemOptions =
+		!isNew
+			? getExistingItemMutationOptions(
+					discoveredConfig.config.content.mode,
+					params.itemId,
+					filename,
+					newFilename
+				)
+			: null;
 
 	try {
-			changesSummary = await calculateChanges(
-				backend,
+		changesSummary = await previewContentChanges(
+			backend,
 			discoveredConfig.config,
-			discoveredConfig.type,
 			discoveredConfig.path,
 			contentData,
 			{
 				isNew,
-				itemId: params.itemId,
-				filename,
-				newFilename,
+				...(isNew ? { newFilename } : existingItemOptions ?? {}),
 				branch: undefined // Preview against main branch
 			}
 		);
@@ -101,10 +130,9 @@ export const actions: Actions = {
 
 			// Save or create the content to the draft branch
 			if (isNew) {
-				await createContent(
+				await createContentDocument(
 					backend,
 					discoveredConfig.config,
-					discoveredConfig.type,
 					discoveredConfig.path,
 					contentData,
 					{
@@ -113,30 +141,27 @@ export const actions: Actions = {
 					}
 				);
 			} else {
-				// Prepare save options based on config type
-				const saveOptions: { branch: string; filename?: string; newFilename?: string; itemId?: string } = {
-					branch: branchName
-				};
+				const existingItemOptions = getExistingItemMutationOptions(
+					discoveredConfig.config.content.mode,
+					params.itemId,
+					filename,
+					newFilename
+				);
 
-				if (discoveredConfig.type === 'collection') {
-					if (!filename) {
-						return fail(400, {
-							error: 'Filename is required for collection items.'
-						});
-					}
-					saveOptions.filename = filename;
-					if (newFilename && newFilename !== filename) {
-						saveOptions.newFilename = newFilename;
-					}
-				} else {
-					// For arrays, use the ID
-					saveOptions.itemId = params.itemId;
+				if (!existingItemOptions) {
+					return fail(400, {
+						error: 'Filename is required for directory-backed content.'
+					});
 				}
 
-				await saveContent(
+				const saveOptions = {
+					branch: branchName,
+					...existingItemOptions
+				};
+
+				await saveContentDocument(
 					backend,
 					discoveredConfig.config,
-					discoveredConfig.type,
 					discoveredConfig.path,
 					contentData,
 					saveOptions
@@ -173,10 +198,9 @@ export const actions: Actions = {
 
 			// Save or create the content directly to main branch
 			if (isNew) {
-				await createContent(
+				await createContentDocument(
 					backend,
 					discoveredConfig.config,
-					discoveredConfig.type,
 					discoveredConfig.path,
 					contentData,
 					{
@@ -185,28 +209,22 @@ export const actions: Actions = {
 					}
 				);
 			} else {
-				// Prepare save options
-				const saveOptions: { filename?: string; newFilename?: string; itemId?: string } = {};
+				const saveOptions = getExistingItemMutationOptions(
+					discoveredConfig.config.content.mode,
+					params.itemId,
+					filename,
+					newFilename
+				);
 
-				if (discoveredConfig.type === 'collection') {
-					if (!filename) {
-						return fail(400, {
-							error: 'Filename is required for collection items.'
-						});
-					}
-					saveOptions.filename = filename;
-					if (newFilename && newFilename !== filename) {
-						saveOptions.newFilename = newFilename;
-					}
-				} else {
-					// For arrays, use the ID
-					saveOptions.itemId = params.itemId;
+				if (!saveOptions) {
+					return fail(400, {
+						error: 'Filename is required for directory-backed content.'
+					});
 				}
 
-				await saveContent(
+				await saveContentDocument(
 					backend,
 					discoveredConfig.config,
-					discoveredConfig.type,
 					discoveredConfig.path,
 					contentData,
 					saveOptions

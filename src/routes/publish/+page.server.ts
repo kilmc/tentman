@@ -30,7 +30,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 			owner,
 			name,
 			config.config,
-			config.type,
 			config.path,
 			draftBranch.name
 		);

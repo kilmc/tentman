@@ -11,6 +11,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 	if (isLocalMode(locals)) {
 		return {
 			discoveredConfig: null,
+			blockConfigs: [],
 			content: null,
 			contentError: null,
 			draftBranch: null,
@@ -39,7 +40,6 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 			content = await getCachedContent(
 				backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				params.page // slug for cache key
 			);
@@ -67,7 +67,6 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 					owner,
 					name,
 					discoveredConfig.config,
-					discoveredConfig.type,
 					discoveredConfig.path,
 					draftBranch
 				);
@@ -86,6 +85,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 
 		return {
 			discoveredConfig,
+			blockConfigs: await backend.discoverBlockConfigs(),
 			content,
 			contentError,
 			draftBranch,

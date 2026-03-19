@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { createBlockRegistry } from '$lib/blocks/registry';
 	import { get, writable } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { toasts } from '$lib/stores/toasts';
-	import { getFieldLabel, type FieldDefinition, normalizeFields } from '$lib/types/config';
 	import ItemCard from '$lib/components/ItemCard.svelte';
 	import ItemCardSkeleton from '$lib/components/ItemCardSkeleton.svelte';
+	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { getCardFields } from '$lib/features/forms/helpers';
 	import { formatContentValue, getContentItemId } from '$lib/features/content-management/item';
@@ -13,22 +14,34 @@
 	import type { RootConfig } from '$lib/config/root-config';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
-	import { fetchContent } from '$lib/content/fetcher';
+	import { fetchContentDocument } from '$lib/content/service';
 
 	let { data }: { data: PageData } = $props();
 
 	const isLocalMode = data.mode === 'local';
 
 	let discoveredConfig = $state(data.discoveredConfig);
+	let blockConfigs = $state(data.blockConfigs ?? []);
 	let content = $state(data.content);
 	let contentError = $state(data.contentError);
 	let rootConfig = $state<RootConfig | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const type = $derived(discoveredConfig?.type ?? null);
 	const path = $derived(discoveredConfig?.path ?? null);
-	const normalizedFields = $derived(config ? normalizeFields(config.fields) : {});
+	const isSingletonContent = $derived(!config?.collection);
+	const contentKind = $derived.by(() => {
+		if (!config) {
+			return null;
+		}
+
+		if (!config.collection) {
+			return 'singleton';
+		}
+
+		return config.content.mode === 'directory' ? 'collection' : 'array';
+	});
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
+	const blockRegistry = $derived(createBlockRegistry(blockConfigs));
 	const flashMessageKeys = ['saved', 'published', 'merged', 'cancelled', 'deleted', 'branch'] as const;
 
 	function getFlashMessageKey() {
@@ -104,6 +117,7 @@
 		}
 
 		rootConfig = contentState.rootConfig;
+		blockConfigs = contentState.blockConfigs;
 		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
 
 		if (!discoveredConfig) {
@@ -112,25 +126,15 @@
 		}
 
 		try {
-			content = await fetchContent(
+			content = await fetchContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path
 			);
 		} catch (error) {
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
 		}
 	});
-
-	function getFieldType(fieldDef: FieldDefinition): string | undefined {
-		return typeof fieldDef === 'object' ? fieldDef.type : undefined;
-	}
-
-	function getArrayItems(record: ContentRecord, fieldName: string): ContentRecord[] {
-		const value = record[fieldName];
-		return Array.isArray(value) ? (value as ContentRecord[]) : [];
-	}
 
 	function hasDraftChanges(itemId: string | undefined): 'modified' | 'created' | 'deleted' | null {
 		if (!itemId || !data.draftChanges) return null;
@@ -171,10 +175,10 @@
 	}
 
 	function getRegularItems() {
-		if (!Array.isArray(content) || !config || !type) return [];
+		if (!Array.isArray(content) || !config) return [];
 
 		return content.filter((item) => {
-			const itemId = getContentItemId(type, config, item as ContentRecord);
+			const itemId = getContentItemId(config, item as ContentRecord);
 			return !hasDraftChanges(itemId);
 		});
 	}
@@ -188,7 +192,7 @@
 	);
 </script>
 
-{#if !discoveredConfig || !config || !type || !path}
+{#if !discoveredConfig || !config || !contentKind || !path}
 	<div class="container mx-auto p-4 sm:p-6">
 		<div class="mb-4 sm:mb-6">
 			<a href="/pages" class="text-sm text-blue-600 hover:underline">&larr; Back to all content</a>
@@ -206,7 +210,7 @@
 		<div class="mb-4 sm:mb-6">
 			<h1 class="text-2xl sm:text-3xl font-bold">{config.label}</h1>
 			<div class="mt-2 flex flex-wrap gap-2 text-sm text-gray-600 sm:gap-3">
-				<span class="capitalize">Type: {type}</span>
+				<span class="capitalize">Type: {contentKind}</span>
 				<span class="hidden sm:inline">•</span>
 				<span class="font-mono text-xs break-all">{path}</span>
 				{#if isLocalMode && rootConfig?.local?.previewUrl}
@@ -250,59 +254,24 @@
 					<ItemCardSkeleton />
 				{/each}
 			</div>
-		{:else if type === 'singleton'}
+		{:else if isSingletonContent}
 			<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
 				<div class="border-b border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
 					<h2 class="font-semibold text-gray-900">Content</h2>
 				</div>
 				<div class="p-4 sm:p-6">
 					<dl class="space-y-6">
-						{#each Object.entries(normalizedFields) as [fieldName, fieldDef]}
+						{#each config.blocks as block}
 							<div class="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
 								<dt class="mb-2 text-sm font-semibold text-gray-700">
-									{getFieldLabel(fieldName, fieldDef)}
+									{block.label ?? block.id}
 								</dt>
 								<dd class="text-gray-900">
-									{#if fieldName === '_body'}
-										<div class="prose max-w-none">{content[fieldName] || '—'}</div>
-									{:else if getFieldType(fieldDef) === 'markdown'}
-										<div class="prose max-w-none whitespace-pre-wrap font-mono text-sm">
-											{formatContentValue((content as ContentRecord)[fieldName])}
-										</div>
-									{:else if getFieldType(fieldDef) === 'array' && Array.isArray((content as ContentRecord)[fieldName])}
-										<div class="mt-2 space-y-3">
-											{#if getArrayItems(content as ContentRecord, fieldName).length === 0}
-												<div class="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
-													<p class="text-sm text-gray-500">No items in this list</p>
-												</div>
-											{:else}
-												{#each getArrayItems(content as ContentRecord, fieldName) as item}
-													<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-														{#if typeof item === 'object' && item !== null}
-															<dl class="space-y-2">
-																{#each Object.entries(item) as [key, value]}
-																	{#if value !== '' && value !== null && value !== undefined}
-																		<div class="flex flex-col gap-2 sm:flex-row sm:gap-2">
-																			<dt class="min-w-24 text-xs font-medium capitalize text-gray-600">
-																				{key}:
-																			</dt>
-																			<dd class="break-words text-sm text-gray-900">
-																				{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
-																			</dd>
-																		</div>
-																	{/if}
-																{/each}
-															</dl>
-														{:else}
-															<span class="text-sm text-gray-900">{item}</span>
-														{/if}
-													</div>
-												{/each}
-											{/if}
-										</div>
-									{:else}
-										<span class="text-sm">{formatContentValue((content as ContentRecord)[fieldName])}</span>
-									{/if}
+									<ContentValueDisplay
+										{block}
+										value={(content as ContentRecord)[block.id]}
+										{blockRegistry}
+									/>
 								</dd>
 							</div>
 						{/each}
@@ -338,7 +307,7 @@
 						<h2 class="mb-3 text-lg font-semibold text-gray-900">Draft Changes</h2>
 						<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 							{#each draftItems as { item, badge }}
-								{@const itemId = getContentItemId(type, config, item)}
+								{@const itemId = getContentItemId(config, item)}
 								<ItemCard
 									{item}
 									{cardFields}
@@ -350,12 +319,12 @@
 					</div>
 				{/if}
 
-				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-					{#each regularItems as item}
-						{@const itemId = getContentItemId(type, config, item as ContentRecord)}
-						<ItemCard {item} {cardFields} href={`/pages/${discoveredConfig.slug}/${itemId}/edit`} />
-					{/each}
-				</div>
+					<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+						{#each regularItems as item}
+							{@const itemId = getContentItemId(config, item as ContentRecord)}
+							<ItemCard {item} {cardFields} href={`/pages/${discoveredConfig.slug}/${itemId}/edit`} />
+						{/each}
+					</div>
 			{:else}
 				<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
 					<h3 class="mb-2 text-lg font-semibold text-gray-900">No items yet</h3>

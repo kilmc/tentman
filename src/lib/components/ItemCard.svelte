@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { FieldDefinition } from '$lib/types/config';
-	import { getFieldLabel } from '$lib/types/config';
+	import type { BlockUsage } from '$lib/types/config';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 
@@ -8,13 +7,17 @@
 		item: ContentRecord;
 		href: string;
 		cardFields: {
-			primary: [string, FieldDefinition][];
-			secondary: [string, FieldDefinition][];
+			primary: BlockUsage[];
+			secondary: BlockUsage[];
 		};
 		badge?: 'draft' | 'new' | 'deleted';
 	}
 
 	let { item, href, cardFields, badge }: Props = $props();
+
+	function getBlockLabel(block: BlockUsage) {
+		return block.label ?? block.id.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, (str) => str.toUpperCase()).trim();
+	}
 
 	function getBadgeStyles(badgeType: 'draft' | 'new' | 'deleted') {
 		switch (badgeType) {
@@ -48,9 +51,9 @@
 			<!-- Primary fields (titles) -->
 			{#if cardFields.primary.length > 0}
 				<div class="space-y-1">
-					{#each cardFields.primary as [fieldName, fieldDef]}
+					{#each cardFields.primary as block}
 						<h3 class="text-lg font-semibold text-gray-900 break-words">
-							{formatContentValue(item[fieldName])}
+							{formatContentValue(item[block.id])}
 						</h3>
 					{/each}
 				</div>
@@ -59,10 +62,10 @@
 			<!-- Secondary fields (metadata) -->
 			{#if cardFields.secondary.length > 0}
 				<div class="mt-2 space-y-1">
-					{#each cardFields.secondary as [fieldName, fieldDef]}
+					{#each cardFields.secondary as block}
 						<p class="text-sm text-gray-600">
-							<span class="font-medium">{getFieldLabel(fieldName, fieldDef)}:</span>
-							{formatContentValue(item[fieldName])}
+							<span class="font-medium">{getBlockLabel(block)}:</span>
+							{formatContentValue(item[block.id])}
 						</p>
 					{/each}
 				</div>

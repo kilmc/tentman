@@ -1,24 +1,32 @@
 <script lang="ts">
-	import type { FieldDefinition } from '$lib/types/config';
-	import { getDefaultFieldValue } from '$lib/features/forms/helpers';
+	import type { BlockUsage } from '$lib/config/types';
+	import type { BlockRegistry } from '$lib/blocks/registry';
+	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 
 	interface Props {
 		label: string;
 		value: any[];
-		fields?: Record<string, FieldDefinition>;
+		blocks?: BlockUsage[];
 		required?: boolean;
 		onchange?: () => void;
+		imagePath?: string;
+		blockRegistry: BlockRegistry;
 	}
 
-	let { label, value = $bindable([]), fields = {}, required = false, onchange }: Props = $props();
+	let {
+		label,
+		value = $bindable([]),
+		blocks = [],
+		required = false,
+		onchange,
+		imagePath,
+		blockRegistry
+	}: Props = $props();
 
 	function addItem() {
-		const newItem: ContentRecord = {};
-		for (const [fieldName, fieldDef] of Object.entries(fields)) {
-			newItem[fieldName] = getDefaultFieldValue(fieldDef);
-		}
+		const newItem: ContentRecord = buildBlockFormData(blocks, {}, blockRegistry);
 		value = [...value, newItem];
 		onchange?.();
 	}
@@ -71,13 +79,14 @@
 						</button>
 					</div>
 
-					{#if Object.keys(fields).length > 0}
+					{#if blocks.length > 0}
 						<div class="space-y-2">
-							{#each Object.entries(fields) as [fieldName, fieldDef]}
+							{#each blocks as block}
 								<FormField
-									{fieldName}
-									{fieldDef}
-									bind:value={value[index][fieldName]}
+									{block}
+									bind:value={value[index][block.id]}
+									{imagePath}
+									{blockRegistry}
 									onchange={() => onchange?.()}
 								/>
 							{/each}

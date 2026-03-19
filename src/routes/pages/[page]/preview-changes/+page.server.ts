@@ -1,7 +1,6 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { calculateChanges } from '$lib/utils/preview.js';
-import { saveContent } from '$lib/content/writer.js';
+import { previewContentChanges, saveContentDocument } from '$lib/content/service.js';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
@@ -15,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	// Only allow singletons on this route
-	if (discoveredConfig.type !== 'singleton') {
+	if (discoveredConfig.config.collection) {
 		throw redirect(302, `/pages/${params.page}`);
 	}
 
@@ -38,10 +37,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	let changesError = null;
 
 	try {
-			changesSummary = await calculateChanges(
-				backend,
+		changesSummary = await previewContentChanges(
+			backend,
 			discoveredConfig.config,
-			discoveredConfig.type,
 			discoveredConfig.path,
 			contentData
 		);
@@ -76,10 +74,9 @@ export const actions: Actions = {
 			}
 
 			// Save the content to the draft branch
-			await saveContent(
+			await saveContentDocument(
 				backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				contentData,
 				{
@@ -113,10 +110,9 @@ export const actions: Actions = {
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 
 			// Save the content directly to main branch (no branch specified = default branch)
-			await saveContent(
+			await saveContentDocument(
 				backend,
 				discoveredConfig.config,
-				discoveredConfig.type,
 				discoveredConfig.path,
 				contentData
 				// No branch option = commits to default branch

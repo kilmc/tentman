@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { createBlockRegistry } from '$lib/blocks/registry';
+	import type { DiscoveredBlockConfig } from '$lib/types/config';
 	import type { Config } from '$lib/types/config';
-	import { buildFormData, normalizeFields } from '$lib/features/forms/helpers';
+	import { buildFormData } from '$lib/features/forms/helpers';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
@@ -11,6 +13,7 @@
 		existingItems?: Record<string, any>[];
 		currentItemId?: string;
 		realtimeValidation?: boolean; // Enable real-time validation on field change
+		blockConfigs?: DiscoveredBlockConfig[];
 		// Function to get current form data - called by parent before submit
 		onvalidate?: (data: ContentRecord, errors: ValidationError[]) => void;
 	}
@@ -21,6 +24,7 @@
 		existingItems = [],
 		currentItemId,
 		realtimeValidation = false,
+		blockConfigs = [],
 		onvalidate
 	}: Props = $props();
 
@@ -32,11 +36,12 @@
 		}
 	}
 
-	// Normalize fields to object format (supports both array and object configs)
-	const normalizedFields = normalizeFields(config.fields);
+	const blockRegistry = createBlockRegistry(blockConfigs);
 
 	// FormGenerator owns its own state - initialize once with structuredClone
-	let formData = $state<Record<string, any>>(buildFormData(config, cloneInitialData(initialData)));
+	let formData = $state<Record<string, any>>(
+		buildFormData(config, cloneInitialData(initialData), blockRegistry)
+	);
 	let validationErrors = $state<ValidationError[]>([]);
 	let showErrors = $state(false);
 	let touchedFields = $state<Set<string>>(new Set()); // Track which fields have been interacted with
@@ -46,7 +51,7 @@
 		const errors = validateFormData(config, formData, {
 			existingItems,
 			currentItemId
-		});
+		}, blockRegistry);
 		validationErrors = errors;
 		showErrors = true;
 
@@ -70,7 +75,7 @@
 			const errors = validateFormData(config, formData, {
 				existingItems,
 				currentItemId
-			});
+			}, blockRegistry);
 			validationErrors = errors;
 			// Only show errors for touched fields in real-time mode
 			showErrors = touchedFields.size > 0;
@@ -118,21 +123,21 @@
 		{/if}
 	{/if}
 
-	{#each Object.entries(normalizedFields) as [fieldName, fieldDef]}
+	{#each config.blocks as block}
 		<div>
 			<FormField
-				{fieldName}
-				{fieldDef}
-				bind:value={formData[fieldName]}
+				{block}
+				bind:value={formData[block.id]}
 				imagePath={config.imagePath}
-				onchange={() => handleFieldChange(fieldName)}
+				{blockRegistry}
+				onchange={() => handleFieldChange(block.id)}
 			/>
-			{#if showErrors && getFieldError(fieldName)}
+			{#if showErrors && getFieldError(block.id)}
 				<div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">
 					<svg class="h-4 w-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
 						<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
 					</svg>
-					<span class="font-medium">{getFieldError(fieldName)}</span>
+					<span class="font-medium">{getFieldError(block.id)}</span>
 				</div>
 			{/if}
 		</div>

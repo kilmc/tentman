@@ -1,5 +1,5 @@
 import type { Octokit } from 'octokit';
-import { discoverGitHubConfigs } from '$lib/config/discovery';
+import { discoverGitHubBlockConfigs, discoverGitHubConfigs } from '$lib/config/discovery';
 import { parseRootConfig, type RootConfig } from '$lib/config/root-config';
 import type {
 	RepoEntry,
@@ -44,6 +44,10 @@ export function createGitHubRepositoryBackend(
 
 		discoverConfigs() {
 			return discoverGitHubConfigs(octokit, owner, name);
+		},
+
+		discoverBlockConfigs() {
+			return discoverGitHubBlockConfigs(octokit, owner, name);
 		},
 
 		async readRootConfig(): Promise<RootConfig | null> {

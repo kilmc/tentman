@@ -7,22 +7,24 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (isLocalMode(locals)) {
 		return {
 			discoveredConfig: null,
+			blockConfigs: [],
 			pageSlug: params.page,
 			mode: 'local' as const
 		};
 	}
 
-	const { discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	const { backend, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
 
 		// Only allow arrays and collections on this route
-		if (discoveredConfig.type === 'singleton') {
+		if (!discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}`);
 		}
 
 		return {
 			discoveredConfig,
+			blockConfigs: await backend.discoverBlockConfigs(),
 			pageSlug: params.page,
 			mode: 'github' as const
 		};
@@ -60,7 +62,7 @@ export const actions: Actions = {
 			});
 
 			// For collections, include the filename
-			if (discoveredConfig.type === 'collection') {
+			if (discoveredConfig.config.content.mode === 'directory') {
 				const newFilename = formData.get('newFilename') as string;
 				if (!newFilename) {
 					return fail(400, {

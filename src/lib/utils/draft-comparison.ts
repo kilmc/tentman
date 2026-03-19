@@ -2,13 +2,13 @@
  * Draft Comparison Utility
  *
  * Compares content between main and draft branches to identify changes.
- * Handles all three content types: singleton, array, and collection.
  */
 
 import type { Octokit } from 'octokit';
-import type { Config, ConfigType } from '$lib/types/config';
-import { fetchContent } from '$lib/content/fetcher';
-import type { ContentRecord } from '$lib/features/content-management/types';
+import type { Config } from '$lib/types/config';
+import { fetchContentDocument } from '$lib/content/service';
+import { getContentItemId } from '$lib/features/content-management/item';
+import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 
 export interface DraftChange {
@@ -40,7 +40,6 @@ export interface DraftMetadata {
  * @param owner - Repository owner
  * @param repo - Repository name
  * @param config - Content configuration
- * @param configType - Type of configuration (singleton, array, collection)
  * @param configPath - Path to config file
  * @param draftBranch - Name of the draft branch
  * @returns Comparison result showing modified, created, and deleted items
@@ -50,7 +49,6 @@ export async function compareDraftToBranch(
 	owner: string,
 	repo: string,
 	config: Config,
-	configType: ConfigType,
 	configPath: string,
 	draftBranch: string
 ): Promise<DraftComparison> {
@@ -71,23 +69,11 @@ export async function compareDraftToBranch(
 
 		// Fetch content from both branches
 		const [mainContent, draftContent] = await Promise.all([
-			fetchContent(backend, config, configType, configPath, 'main'),
-			fetchContent(backend, config, configType, configPath, draftBranch)
+			fetchContentDocument(backend, config, configPath, { branch: 'main' }),
+			fetchContentDocument(backend, config, configPath, { branch: draftBranch })
 		]);
 
-		// Compare based on content type
-		let comparison: DraftComparison;
-		switch (configType) {
-			case 'singleton':
-				comparison = compareSingleton(mainContent as ContentRecord, draftContent as ContentRecord);
-				break;
-			case 'array':
-				comparison = compareArray(mainContent as ContentRecord[], draftContent as ContentRecord[], config.idField!);
-				break;
-			case 'collection':
-				comparison = compareCollection(mainContent as ContentRecord[], draftContent as ContentRecord[]);
-				break;
-		}
+		const comparison = compareLoadedDraftContent(config, mainContent, draftContent);
 
 		// Attach metadata to comparison result
 		comparison.metadata = metadata;
@@ -97,6 +83,22 @@ export async function compareDraftToBranch(
 		// Gracefully degrade - return empty comparison
 		return emptyComparison();
 	}
+}
+
+export function compareLoadedDraftContent(
+	config: Config,
+	mainContent: ContentDocument,
+	draftContent: ContentDocument
+): DraftComparison {
+	if (!config.collection) {
+		return compareSingleton(mainContent as ContentRecord, draftContent as ContentRecord);
+	}
+
+	if (!Array.isArray(mainContent) || !Array.isArray(draftContent)) {
+		throw new Error('Expected array content for collection draft comparison');
+	}
+
+	return compareItemCollections(config, mainContent, draftContent);
 }
 
 /**
@@ -231,21 +233,30 @@ function compareSingleton(mainContent: any, draftContent: any): DraftComparison 
 	};
 }
 
-/**
- * Compare array content using ID field
- */
-function compareArray(
-	mainContent: any[],
-	draftContent: any[],
-	idField: string
+function compareItemCollections(
+	config: Config,
+	mainContent: ContentRecord[],
+	draftContent: ContentRecord[]
 ): DraftComparison {
-	// Build Sets of IDs for efficient lookup
-	const mainIds = new Set(mainContent.map((item) => item[idField]));
-	const draftIds = new Set(draftContent.map((item) => item[idField]));
+	const mainMap = new Map<string, ContentRecord>();
+	const draftMap = new Map<string, ContentRecord>();
 
-	// Build maps for content lookup
-	const mainMap = new Map(mainContent.map((item) => [item[idField], item]));
-	const draftMap = new Map(draftContent.map((item) => [item[idField], item]));
+	for (const item of mainContent) {
+		const itemId = getContentItemId(config, item);
+		if (itemId) {
+			mainMap.set(itemId, item);
+		}
+	}
+
+	for (const item of draftContent) {
+		const itemId = getContentItemId(config, item);
+		if (itemId) {
+			draftMap.set(itemId, item);
+		}
+	}
+
+	const mainIds = new Set(mainMap.keys());
+	const draftIds = new Set(draftMap.keys());
 
 	const modified: DraftChange[] = [];
 	const created: DraftChange[] = [];
@@ -283,61 +294,6 @@ function compareArray(
 			deleted.push({
 				itemId: String(id),
 				mainContent: mainMap.get(id)
-			});
-		}
-	}
-
-	return { modified, created, deleted };
-}
-
-/**
- * Compare collection content using _filename as identifier
- */
-function compareCollection(mainContent: any[], draftContent: any[]): DraftComparison {
-	// Use _filename as the identifier for collections
-	const mainFilenames = new Set(mainContent.map((item) => item._filename));
-	const draftFilenames = new Set(draftContent.map((item) => item._filename));
-
-	// Build maps for content lookup
-	const mainMap = new Map(mainContent.map((item) => [item._filename, item]));
-	const draftMap = new Map(draftContent.map((item) => [item._filename, item]));
-
-	const modified: DraftChange[] = [];
-	const created: DraftChange[] = [];
-	const deleted: DraftChange[] = [];
-
-	// Find modified items (exist in both but have different content)
-	for (const filename of draftFilenames) {
-		if (mainFilenames.has(filename)) {
-			const mainItem = mainMap.get(filename);
-			const draftItem = draftMap.get(filename);
-
-			if (JSON.stringify(mainItem) !== JSON.stringify(draftItem)) {
-				modified.push({
-					itemId: filename.replace(/\.[^/.]+$/, ''), // Remove file extension for URL routing
-					mainContent: mainItem,
-					draftContent: draftItem
-				});
-			}
-		}
-	}
-
-	// Find created items (only in draft)
-	for (const filename of draftFilenames) {
-		if (!mainFilenames.has(filename)) {
-			created.push({
-				itemId: filename.replace(/\.[^/.]+$/, ''), // Remove file extension for URL routing
-				draftContent: draftMap.get(filename)
-			});
-		}
-	}
-
-	// Find deleted items (only in main)
-	for (const filename of mainFilenames) {
-		if (!draftFilenames.has(filename)) {
-			deleted.push({
-				itemId: filename.replace(/\.[^/.]+$/, ''), // Remove file extension for URL routing
-				mainContent: mainMap.get(filename)
 			});
 		}
 	}

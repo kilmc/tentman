@@ -1,5 +1,7 @@
 <script lang="ts">
-	import type { FieldDefinition } from '$lib/types/config';
+	import type { BlockRegistry } from '$lib/blocks/registry';
+	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
+	import type { BlockUsage } from '$lib/config/types';
 	import { getFieldLabel } from '$lib/features/forms/helpers';
 	import TextField from './TextField.svelte';
 	import TextareaField from './TextareaField.svelte';
@@ -11,25 +13,32 @@
 	import MarkdownField from './MarkdownField.svelte';
 	import ImageField from './ImageField.svelte';
 	import ArrayField from './ArrayField.svelte';
+	import StructuredBlockField from './StructuredBlockField.svelte';
 
 	interface Props {
-		fieldName: string;
-		fieldDef: FieldDefinition;
+		block: BlockUsage;
 		value: any;
 		onchange?: () => void;
 		imagePath?: string; // Custom image storage path from config
+		blockRegistry: BlockRegistry;
 	}
 
-	let { fieldName, fieldDef, value = $bindable(), onchange, imagePath }: Props = $props();
+	let { block, value = $bindable(), onchange, imagePath, blockRegistry }: Props = $props();
 
-	// Parse field definition
-	const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
-	const required = typeof fieldDef === 'object' ? fieldDef.required ?? false : false;
-	const minLength = typeof fieldDef === 'object' ? fieldDef.minLength : undefined;
-	const maxLength = typeof fieldDef === 'object' ? fieldDef.maxLength : undefined;
-	const nestedFields = typeof fieldDef === 'object' ? fieldDef.fields : undefined;
+	function getBlockLabel(id: string): string {
+		return id
+			.replace(/([A-Z])/g, ' $1')
+			.replace(/_/g, ' ')
+			.replace(/^./, (str) => str.toUpperCase())
+			.trim();
+	}
 
-	const label = getFieldLabel(fieldName, fieldDef);
+	const label = block.label ?? getBlockLabel(block.id);
+	const required = block.required ?? false;
+	const minLength = block.minLength;
+	const maxLength = block.maxLength;
+	const structuredBlocks = getStructuredBlocksForUsage(block, blockRegistry);
+	const fieldType = structuredBlocks ? (structuredBlocks.collection ? 'array' : 'object') : block.type;
 </script>
 
 {#if fieldType === 'text'}
@@ -51,9 +60,27 @@
 {:else if fieldType === 'image'}
 	<ImageField {label} bind:value {required} {onchange} storagePath={imagePath} />
 {:else if fieldType === 'array'}
-	<ArrayField {label} bind:value fields={nestedFields} {required} {onchange} />
+	<ArrayField
+		{label}
+		bind:value
+		blocks={structuredBlocks?.blocks ?? []}
+		{required}
+		{onchange}
+		{imagePath}
+		{blockRegistry}
+	/>
+{:else if fieldType === 'object'}
+	<StructuredBlockField
+		{label}
+		bind:value
+		blocks={structuredBlocks?.blocks ?? []}
+		{required}
+		{onchange}
+		{imagePath}
+		{blockRegistry}
+	/>
 {:else}
 	<div class="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-		Unsupported field type: {fieldType}
+		Unsupported block type: {block.type}
 	</div>
 {/if}

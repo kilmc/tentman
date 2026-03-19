@@ -1,12 +1,8 @@
-import type { Config, ConfigType, FieldDefinition } from '$lib/types/config';
+import type { BlockUsage, Config } from '$lib/types/config';
 import type { ContentRecord, ContentValue } from './types';
 
-export function getContentItemId(
-	configType: ConfigType,
-	config: Config,
-	item: ContentRecord
-): string | undefined {
-	if (configType === 'collection' && item._filename) {
+export function getContentItemId(config: Config, item: ContentRecord): string | undefined {
+	if (config.content.mode === 'directory' && item._filename) {
 		return item._filename.replace(/\.[^/.]+$/, '');
 	}
 
@@ -20,11 +16,10 @@ export function getContentItemId(
 
 export function findContentItem(
 	items: ContentRecord[],
-	configType: ConfigType,
 	config: Config,
 	itemId: string
 ): ContentRecord | undefined {
-	return items.find((item) => getContentItemId(configType, config, item) === itemId);
+	return items.find((item) => getContentItemId(config, item) === itemId);
 }
 
 export function formatContentValue(value: ContentValue | undefined): string {
@@ -56,6 +51,6 @@ export function formatContentValue(value: ContentValue | undefined): string {
 }
 
 export interface CardFields {
-	primary: [string, FieldDefinition][];
-	secondary: [string, FieldDefinition][];
+	primary: BlockUsage[];
+	secondary: BlockUsage[];
 }

@@ -1,11 +1,12 @@
 import { get, writable } from 'svelte/store';
 import { localRepo } from '$lib/stores/local-repo';
 import type { RootConfig } from '$lib/config/root-config';
-import type { DiscoveredConfig } from '$lib/types/config';
+import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/types/config';
 
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
 	configs: DiscoveredConfig[];
+	blockConfigs: DiscoveredBlockConfig[];
 	rootConfig: RootConfig | null;
 	error: string | null;
 };
@@ -14,6 +15,7 @@ function createStore() {
 	const { subscribe, set, update } = writable<LocalContentState>({
 		status: 'idle',
 		configs: [],
+		blockConfigs: [],
 		rootConfig: null,
 		error: null
 	});
@@ -32,6 +34,7 @@ function createStore() {
 				set({
 					status: 'error',
 					configs: [],
+					blockConfigs: [],
 					rootConfig: null,
 					error: 'No local repository is open.'
 				});
@@ -41,14 +44,16 @@ function createStore() {
 			update((state) => ({ ...state, status: 'loading', error: null }));
 
 			try {
-				const [configs, rootConfig] = await Promise.all([
+				const [configs, blockConfigs, rootConfig] = await Promise.all([
 					repoState.backend.discoverConfigs(),
+					repoState.backend.discoverBlockConfigs(),
 					repoState.backend.readRootConfig()
 				]);
 
 				set({
 					status: 'ready',
 					configs,
+					blockConfigs,
 					rootConfig,
 					error: null
 				});
@@ -56,6 +61,7 @@ function createStore() {
 				set({
 					status: 'error',
 					configs: [],
+					blockConfigs: [],
 					rootConfig: null,
 					error: error instanceof Error ? error.message : 'Failed to load local repository content'
 				});

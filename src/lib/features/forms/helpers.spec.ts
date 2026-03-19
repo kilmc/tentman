@@ -1,23 +1,35 @@
 import { describe, expect, it } from 'vitest';
+import { parseConfigFile } from '$lib/config/parse';
 import { buildFormData, getCardFields, normalizeFields } from './helpers';
 import type { Config } from '$lib/types/config';
 
-const config: Config = {
-	label: 'Posts',
-	idField: 'slug',
-	template: './post.md',
-	fields: [
-		{ property: 'title', label: 'Title', type: 'text', show: 'primary', required: true },
-		{ property: 'slug', label: 'Slug', type: 'text', required: true },
-		{ property: 'published', label: 'Published', type: 'boolean', show: 'secondary' },
+const config = parseConfigFile(`{
+	"type": "content",
+	"label": "Posts",
+	"itemLabel": "Post",
+	"collection": true,
+	"idField": "slug",
+	"content": {
+		"mode": "directory",
+		"path": "./posts",
+		"template": "./post.md",
+		"filename": "{{slug}}"
+	},
+	"blocks": [
+		{ "id": "title", "label": "Title", "type": "text", "show": "primary", "required": true },
+		{ "id": "slug", "label": "Slug", "type": "text", "required": true },
+		{ "id": "published", "label": "Published", "type": "boolean", "show": "secondary" },
 		{
-			property: 'tags',
-			label: 'Tags',
-			type: 'array',
-			fields: [{ property: 'name', label: 'Name', type: 'text' }]
+			"id": "tags",
+			"label": "Tags",
+			"type": "block",
+			"collection": true,
+			"blocks": [
+				{ "id": "name", "label": "Name", "type": "text" }
+			]
 		}
 	]
-};
+}`) as Config;
 
 describe('forms/helpers', () => {
 	it('builds defaults and preserves provided values', () => {
@@ -38,8 +50,8 @@ describe('forms/helpers', () => {
 
 	it('derives card fields from show metadata', () => {
 		expect(getCardFields(config)).toEqual({
-			primary: [['title', expect.objectContaining({ type: 'text' })]],
-			secondary: [['published', expect.objectContaining({ type: 'boolean' })]]
+			primary: [expect.objectContaining({ id: 'title', type: 'text' })],
+			secondary: [expect.objectContaining({ id: 'published', type: 'boolean' })]
 		});
 	});
 });
