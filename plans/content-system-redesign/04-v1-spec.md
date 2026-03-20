@@ -192,6 +192,7 @@ Used for file-per-entry content.
 - Built-in blocks use built-in block adapters.
 - Custom block configs use the generic structured adapter by default.
 - A block config may opt into a custom adapter by file path.
+- In the current local browser-backed implementation, custom adapter files must be self-contained `.js` or `.mjs` ESM modules.
 - Content persistence is handled by content adapters, not block adapters.
 - Inline nested block definitions do not use custom adapter files in v1.
 - Recursive validation should walk child block usages for generated structured adapters in v1.

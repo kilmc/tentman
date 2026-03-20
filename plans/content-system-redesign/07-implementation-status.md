@@ -2,21 +2,21 @@
 
 ## Current Slice
 
-- Phase: 4
+- Phase: 5
 - Slice: 1
-- Title: Define the custom block adapter file contract
-- Status: in_progress
+- Title: Define the package block registration contract
+- Status: pending
 
 ## Slice Goal
 
-Establish the first explicit Phase 4 boundary for optional custom block adapter files so local block configs can eventually opt into adapter code without disturbing the generic structured adapter path.
+If package-distributed blocks become a real priority, define the first explicit Phase 5 boundary for how package-provided blocks enter the registry without destabilizing the local adapter model that Phase 4 just established.
 
 This slice should establish:
-- a stable adapter module contract for local block adapter files
-- a clear loader boundary for resolving adapter paths relative to block config files
-- validation rules for missing or malformed adapter exports before runtime wiring expands further
+- the root-config contract for package-provided blocks
+- the package export shape for one or more reusable block definitions
+- the first conflict/merge rules between built-ins, local blocks, and package blocks
 
-It should not yet attempt package-distributed adapters.
+It should not yet implement a broad package ecosystem or blueprints.
 
 ## Completed Work
 
@@ -183,6 +183,27 @@ It should not yet attempt package-distributed adapters.
 - Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/config/discovery.spec.ts src/lib/content/service.spec.ts src/lib/utils/draft-comparison.spec.ts src/lib/features/content-management/item.spec.ts`.
 - Phase 3 completed.
 - The remaining legacy top-level schema/docs surface has been cleared: routes and docs now describe the explicit config model, parsed configs no longer expose bridge aliases, and Phase 3's content adapter cleanup is in place end-to-end.
+- Phase 4 / Slice 1 completed.
+- Added `src/lib/blocks/adapter-files.ts` as the first custom-adapter file boundary for local block configs, including repo-relative adapter path resolution and validation of the named `adapter` module export.
+- Extended `src/lib/blocks/registry.ts` so `loadBlockRegistry` can accept an injected local adapter-module loader, attach validated adapter-file metadata to local registry entries, and fall back to the structured adapter when no custom adapter is loaded.
+- Added focused registry tests covering successful custom-adapter loading plus failures for missing named exports and block-type mismatches.
+- Verified with `npm run check` and `npx vitest run src/lib/blocks/registry.spec.ts`.
+- Phase 4 / Slice 2 completed.
+- Extended `src/lib/repository/local.ts` with a concrete local-only adapter-module loader that reads repo files through the browser file-handle backend, imports self-contained `.js` / `.mjs` ESM via blob URLs, and surfaces unsupported local runtime cases explicitly.
+- Added `createLoadedBlockRegistry(...)` plus local-content store wiring so local mode now loads a real block registry asynchronously, preserves adapter-load failures as explicit UI state, and threads the loaded registry into the local read/edit/new route consumers.
+- Added focused local-loader coverage in `src/lib/repository/local.spec.ts`.
+- Updated the Phase 4 architecture/spec docs to record the current local runtime constraint that adapter files must be self-contained `.js` / `.mjs` ESM modules for now.
+- Verified with `npm run check` and `npx vitest run src/lib/blocks/registry.spec.ts src/lib/repository/local.spec.ts`.
+- Phase 4 / Slice 3 completed.
+- Updated `src/routes/docs/+page.svelte` with a dedicated custom block adapter section covering reusable block `adapter` declarations, the required named `adapter` export, relative path resolution, local registry error behavior, and the current self-contained `.js` / `.mjs` local runtime constraint.
+- Added a matching reusable-block custom-adapter example to the in-app docs and migration notes so authors can follow the implementation that now exists in local mode.
+- Verified with `npm run check`.
+- Phase 4 completed.
+- Phase 4 now has the planned loader boundary, validation rules, local runtime integration, and author-facing documentation in place.
+- Phase 4 / Slice 4 completed.
+- Reviewed the shipped Phase 4 result against the rollout goals and confirmed that the current local-only custom-adapter runtime constraints are acceptable for v1.
+- Decided not to open another Phase 4 hardening slice before Phase 5; the current boundary is intentionally narrow but coherent, documented, and validated.
+- Decided not to start Phase 5 package work immediately by default; package-distributed blocks remain a later extension point rather than the current recommended next implementation step.
 
 ## Files Changed In Current Program Of Work
 
@@ -195,9 +216,11 @@ It should not yet attempt package-distributed adapters.
 - `/Users/kilmc/code/tentman/src/lib/config/parse.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/config/discovery.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/repository/local.ts`
+- `/Users/kilmc/code/tentman/src/lib/repository/local.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/repository/github.ts`
 - `/Users/kilmc/code/tentman/src/lib/repository/types.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/types.ts`
+- `/Users/kilmc/code/tentman/src/lib/blocks/adapter-files.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/builtins.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/builtins.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/structured.ts`
@@ -249,11 +272,16 @@ It should not yet attempt package-distributed adapters.
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/preview-changes/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/[itemId]/preview-changes/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/publish/+page.server.ts`
+- `/Users/kilmc/code/tentman/src/routes/docs/+page.svelte`
+- `/Users/kilmc/code/tentman/plans/content-system-redesign/02-adapter-and-registry.md`
+- `/Users/kilmc/code/tentman/plans/content-system-redesign/04-v1-spec.md`
 - `/Users/kilmc/code/tentman/plans/content-system-redesign/07-implementation-status.md`
 
 ## Blockers Or Open Questions
 
-- None currently blocking Phase 4 / Slice 1.
+- There is no active blocker in Phase 4.
+- The current local runtime only supports self-contained `.js` / `.mjs` ESM adapter files loaded through browser blob URLs. Repo-local TypeScript adapter authoring and adapter modules with further local imports would need a later transpilation or import-resolution step.
+- Phase 5 is intentionally deferred until package-distributed blocks become a real product need, since it would reopen loader/runtime questions that the current local-only Phase 4 boundary deliberately avoids.
 
 ## Plan Changes
 
@@ -279,14 +307,20 @@ It should not yet attempt package-distributed adapters.
 - `src/lib/config/fields-compat.ts` is now reduced to normalization helpers only, and parsed content configs no longer manufacture legacy top-level persistence aliases beyond the explicit `content` object.
 - The main remaining legacy-facing surface under `src/` is UI/docs vocabulary that still talks about `singleton` / `array` / `collection` and old `contentFile` / `collectionPath` concepts even though runtime behavior has moved on.
 - The route-level UI vocabulary and the in-app docs page have now been migrated to the explicit v1 schema, so the redesign can move into Phase 4 without carrying the old top-level content model in user-facing documentation.
+- Added a narrow Phase 4 loader boundary in `src/lib/blocks/adapter-files.ts` and `src/lib/blocks/registry.ts` that resolves adapter paths relative to each block config file and validates a named `adapter` export before registry wiring uses it.
+- Kept the existing synchronous `createBlockRegistry(...)` path on generated structured adapters for now; custom adapter files only enter through the async `loadBlockRegistry(..., { loadLocalAdapterModule })` boundary until the next slice wires a concrete local loader strategy.
+- The local browser-backed repository path now provides that concrete loader strategy: local mode reads adapter files through `FileSystemDirectoryHandle`, loads self-contained `.js` / `.mjs` ESM via blob URLs, and surfaces adapter-load failures separately from config discovery failures.
+- The plan docs now note this current runtime limit so the written spec matches the shipped Phase 4 behavior rather than still implying repo-local `.ts` adapter files already work end-to-end.
+- The in-app docs page now documents the same custom-adapter contract and runtime constraints, so local adapter authoring guidance lives in both the implementation plans and the product docs.
+- The planned post-Phase-4 pause is now complete: the current local-only adapter model is accepted for v1, no extra Phase 4 hardening slice is required right now, and Phase 5 package work remains explicitly deferred until it is worth the extra complexity.
 
 ## Exact Next Action
 
-Inspect `src/lib/blocks/registry.ts`, `src/lib/config/types.ts`, and the Phase 4 plan notes, then introduce the first adapter-file loader boundary for local block configs with a validated module shape resolved relative to each block config file.
+If package-distributed blocks become the next priority, inspect the current registry and root-config boundaries, then define the smallest `blockPackages` contract and package export shape that can merge after built-ins and local blocks with clear conflict errors.
 
 ## Next Slice
 
-- Phase: 4
+- Phase: 5
 - Slice: 1
-- Title: Define the custom block adapter file contract
-- Status: in_progress
+- Title: Define the package block registration contract
+- Status: pending

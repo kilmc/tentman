@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createBlockRegistry } from '$lib/blocks/registry';
+	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 	import type { ParsedContentConfig } from '$lib/config/parse';
 	import { buildFormData } from '$lib/features/forms/helpers';
@@ -14,6 +14,7 @@
 		currentItemId?: string;
 		realtimeValidation?: boolean; // Enable real-time validation on field change
 		blockConfigs?: DiscoveredBlockConfig[];
+		blockRegistry?: BlockRegistry;
 		// Function to get current form data - called by parent before submit
 		onvalidate?: (data: ContentRecord, errors: ValidationError[]) => void;
 	}
@@ -25,6 +26,7 @@
 		currentItemId,
 		realtimeValidation = false,
 		blockConfigs = [],
+		blockRegistry: providedBlockRegistry = undefined,
 		onvalidate
 	}: Props = $props();
 
@@ -36,7 +38,7 @@
 		}
 	}
 
-	const blockRegistry = createBlockRegistry(blockConfigs);
+	const blockRegistry = providedBlockRegistry ?? createBlockRegistry(blockConfigs);
 
 	// FormGenerator owns its own state - initialize once with structuredClone
 	let formData = $state<Record<string, any>>(

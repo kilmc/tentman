@@ -1,3 +1,8 @@
+import {
+	loadLocalBlockAdapter,
+	type LoadedLocalBlockAdapter,
+	type LoadLocalBlockAdapterModule
+} from '$lib/blocks/adapter-files';
 import { createStructuredBlockAdapter } from '$lib/blocks/adapters/structured';
 import { BUILT_IN_BLOCKS, type BuiltInBlockDefinition } from '$lib/blocks/builtins';
 import type { BlockAdapter } from '$lib/blocks/adapters/types';
@@ -10,6 +15,7 @@ export interface LocalBlockDefinition {
 	kind: 'local';
 	path: string;
 	config: DiscoveredBlockConfig['config'];
+	adapterPath?: string;
 	adapter?: BlockAdapter;
 }
 
@@ -20,6 +26,14 @@ export interface BlockRegistry {
 	get(id: string): BlockRegistryEntry | undefined;
 	has(id: string): boolean;
 	getAdapter(id: string): BlockAdapter | undefined;
+}
+
+interface CreateBlockRegistryOptions {
+	localAdapters?: Map<string, LoadedLocalBlockAdapter>;
+}
+
+export interface LoadBlockRegistryOptions {
+	loadLocalAdapterModule?: LoadLocalBlockAdapterModule;
 }
 
 function failOnDuplicateId(id: string, existing: BlockRegistryEntry, nextPath?: string): never {
@@ -68,7 +82,36 @@ export function getStructuredBlocksForUsage(
 	};
 }
 
-export function createBlockRegistry(localBlocks: DiscoveredBlockConfig[]): BlockRegistry {
+function createStructuredLocalBlockAdapter(
+	entry: LocalBlockDefinition,
+	registry: BlockRegistry
+): BlockAdapter {
+	return createStructuredBlockAdapter({
+		type: entry.id,
+		blocks: entry.config.blocks,
+		defaultCollection: entry.config.collection,
+		resolveAdapter: (usage) => resolveBlockAdapterForUsage(usage, registry)
+	});
+}
+
+async function loadLocalBlockAdapters(
+	localBlocks: DiscoveredBlockConfig[],
+	loadModule: LoadLocalBlockAdapterModule
+): Promise<Map<string, LoadedLocalBlockAdapter>> {
+	const adapters = await Promise.all(
+		localBlocks.map(async (block) => {
+			const loadedAdapter = await loadLocalBlockAdapter(block, loadModule);
+			return loadedAdapter ? ([block.id, loadedAdapter] as const) : null;
+		})
+	);
+
+	return new Map(adapters.filter((entry): entry is readonly [string, LoadedLocalBlockAdapter] => !!entry));
+}
+
+export function createBlockRegistry(
+	localBlocks: DiscoveredBlockConfig[],
+	options: CreateBlockRegistryOptions = {}
+): BlockRegistry {
 	const entriesById = new Map<string, BlockRegistryEntry>();
 
 	for (const block of BUILT_IN_BLOCKS) {
@@ -88,7 +131,8 @@ export function createBlockRegistry(localBlocks: DiscoveredBlockConfig[]): Block
 			id: block.id,
 			kind: 'local',
 			path: block.path,
-			config: block.config
+			config: block.config,
+			adapterPath: options.localAdapters?.get(block.id)?.path
 		};
 
 		localEntries.push(entry);
@@ -112,20 +156,35 @@ export function createBlockRegistry(localBlocks: DiscoveredBlockConfig[]): Block
 	};
 
 	for (const entry of localEntries) {
-		entry.adapter = createStructuredBlockAdapter({
-			type: entry.id,
-			blocks: entry.config.blocks,
-			defaultCollection: entry.config.collection,
-			resolveAdapter: (usage) => resolveBlockAdapterForUsage(usage, registry)
-		});
+		entry.adapter =
+			options.localAdapters?.get(entry.id)?.adapter ?? createStructuredLocalBlockAdapter(entry, registry);
 	}
 
 	return registry;
 }
 
-export async function loadBlockRegistry(backend: RepositoryBackend): Promise<BlockRegistry> {
+export async function createLoadedBlockRegistry(
+	localBlocks: DiscoveredBlockConfig[],
+	options: LoadBlockRegistryOptions = {}
+): Promise<BlockRegistry> {
+	const localAdapters = options.loadLocalAdapterModule
+		? await loadLocalBlockAdapters(localBlocks, options.loadLocalAdapterModule)
+		: undefined;
+
+	return createBlockRegistry(localBlocks, { localAdapters });
+}
+
+export async function loadBlockRegistry(
+	backend: RepositoryBackend,
+	options: LoadBlockRegistryOptions = {}
+): Promise<BlockRegistry> {
 	const localBlocks = await backend.discoverBlockConfigs();
-	return createBlockRegistry(localBlocks);
+
+	if (backend.kind !== 'local' || !options.loadLocalAdapterModule) {
+		return createBlockRegistry(localBlocks);
+	}
+
+	return createLoadedBlockRegistry(localBlocks, options);
 }
 
 export const DEFAULT_BLOCK_REGISTRY = createBlockRegistry([]);

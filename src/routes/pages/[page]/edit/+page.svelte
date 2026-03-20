@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData, ActionData } from './$types';
+	import type { BlockRegistry } from '$lib/blocks/registry';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import KeyboardShortcutHelp from '$lib/components/KeyboardShortcutHelp.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
@@ -20,12 +21,14 @@
 
 	let discoveredConfig = $state(data.discoveredConfig);
 	let blockConfigs = $state(data.blockConfigs ?? []);
+	let blockRegistry = $state<BlockRegistry | null>(null);
 	let content = $state(data.content);
 	let contentError = $state(data.contentError);
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let hasUnsavedChanges = $state(false);
+	let blockRegistryError = $state<string | null>(null);
 	let localError = $state<string | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
@@ -70,6 +73,8 @@
 
 		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
 		blockConfigs = contentState.blockConfigs;
+		blockRegistry = contentState.blockRegistry;
+		blockRegistryError = contentState.blockRegistryError;
 
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
@@ -160,20 +165,32 @@
 				{#if isLocalMode}
 					<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
 						<input type="hidden" name="data" value="" />
-						<FormGenerator
-							bind:this={formGenerator}
-							{config}
-							{blockConfigs}
-							initialData={content}
-							existingItems={[]}
-							currentItemId={undefined}
-							onvalidate={handleFieldsChanged}
-						/>
+						{#if blockRegistryError}
+							<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+								<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
+								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+							</div>
+						{:else if !blockRegistry}
+							<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+								Loading block registry...
+							</div>
+						{:else}
+							<FormGenerator
+								bind:this={formGenerator}
+								{config}
+								{blockConfigs}
+								{blockRegistry}
+								initialData={content}
+								existingItems={[]}
+								currentItemId={undefined}
+								onvalidate={handleFieldsChanged}
+							/>
+						{/if}
 						<div class="mt-6 flex gap-3">
 							<button
 								type="button"
 								onclick={() => void handleLocalSave()}
-								disabled={saving}
+								disabled={saving || !blockRegistry || !!blockRegistryError}
 								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
 							>
 								{saving ? 'Saving...' : 'Save Changes'}

@@ -28,6 +28,7 @@
 			<li><a href="#root-config" class="text-blue-600 hover:underline">Root Config</a></li>
 			<li><a href="#content-configs" class="text-blue-600 hover:underline">Content Configs</a></li>
 			<li><a href="#block-configs" class="text-blue-600 hover:underline">Block Configs</a></li>
+			<li><a href="#custom-adapters" class="text-blue-600 hover:underline">Custom Block Adapters</a></li>
 			<li><a href="#content-modes" class="text-blue-600 hover:underline">Content Modes</a></li>
 			<li><a href="#block-types" class="text-blue-600 hover:underline">Built-in Block Types</a></li>
 			<li><a href="#discovery" class="text-blue-600 hover:underline">Discovery and Paths</a></li>
@@ -164,6 +165,11 @@
 				<code class="rounded bg-gray-100 px-1.5 py-0.5">collection: true</code> makes the block
 				repeatable.
 			</li>
+			<li>
+				Reusable block configs may also declare an
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">adapter</code> file when the generic
+				structured adapter is not enough.
+			</li>
 		</ul>
 
 		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Inline Structured Blocks</h3>
@@ -183,6 +189,81 @@
     { "id": "caption", "type": "text" }
   ]
 }`}</code></pre>
+	</section>
+
+	<section id="custom-adapters" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Custom Block Adapters</h2>
+		<p class="mb-4">
+			Most reusable block configs should rely on Tentman's generated structured adapter. Add a custom
+			adapter file only when a reusable <code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code>
+			config needs custom defaults or validation behavior.
+		</p>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "block",
+  "id": "imageGallery",
+  "label": "Image Gallery",
+  "collection": true,
+  "adapter": "./image-gallery.adapter.js",
+  "blocks": [
+    { "id": "image", "type": "image", "required": true },
+    { "id": "alt", "type": "text", "required": true },
+    { "id": "caption", "type": "text" }
+  ]
+}`}</code></pre>
+
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Adapter Module Contract</h3>
+		<p class="mb-4">
+			The adapter file must export a named <code class="rounded bg-gray-100 px-1.5 py-0.5">adapter</code>
+			object. Its <code class="rounded bg-gray-100 px-1.5 py-0.5">type</code> must exactly match the
+			block config's <code class="rounded bg-gray-100 px-1.5 py-0.5">id</code>.
+		</p>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`export const adapter = {
+  type: "imageGallery",
+  getDefaultValue() {
+    return [];
+  },
+  validate(value) {
+    if (value === undefined || value === null) {
+      return [];
+    }
+
+    return Array.isArray(value) ? [] : ["Image Gallery must be a list."];
+  }
+};`}</code></pre>
+
+		<ul class="mt-4 ml-6 list-disc space-y-2">
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">getDefaultValue</code> is required.
+			</li>
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">validate</code> is optional.
+			</li>
+			<li>
+				If the adapter file is missing, malformed, or exports the wrong block
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">type</code>, Tentman surfaces that as a block
+				registry load error in local mode.
+			</li>
+		</ul>
+
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Path and Runtime Rules</h3>
+		<ul class="ml-6 list-disc space-y-2">
+			<li>
+				Adapter paths resolve relative to the block config file that declares them.
+			</li>
+			<li>
+				Custom adapter files are only supported for reusable block configs, not inline nested block
+				definitions.
+			</li>
+			<li>
+				In the current local browser-backed runtime, adapter files must be self-contained ESM
+				JavaScript modules with a <code class="rounded bg-gray-100 px-1.5 py-0.5">.js</code> or
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">.mjs</code> extension.
+			</li>
+			<li>
+				Repo-local TypeScript adapter files and adapter files that depend on further local imports are
+				not supported yet.
+			</li>
+		</ul>
 	</section>
 
 	<section id="content-modes" class="mb-12">
@@ -271,6 +352,11 @@
 				Block adapter paths resolve relative to the block config file that declares them.
 			</li>
 			<li>
+				In local mode, adapter files currently need to be self-contained
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">.js</code> or
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">.mjs</code> modules.
+			</li>
+			<li>
 				Root config paths resolve relative to the root <code class="rounded bg-gray-100 px-1.5 py-0.5"
 					>.tentman.json</code
 				>.
@@ -333,6 +419,20 @@
     { "id": "body", "type": "markdown", "label": "Body", "required": true }
   ]
 }`}</code></pre>
+
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Reusable Block With Custom Adapter</h3>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "block",
+  "id": "imageGallery",
+  "label": "Image Gallery",
+  "collection": true,
+  "adapter": "./image-gallery.adapter.js",
+  "blocks": [
+    { "id": "image", "type": "image", "required": true },
+    { "id": "alt", "type": "text", "required": true },
+    { "id": "caption", "type": "text" }
+  ]
+}`}</code></pre>
 	</section>
 
 	<section id="migration" class="mb-12">
@@ -361,6 +461,12 @@
 			<li>
 				Reusable nested structures belong in block configs or inline
 				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> definitions.
+			</li>
+			<li>
+				When a reusable block needs custom adapter logic in local mode, declare
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">adapter</code> with a self-contained
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">.js</code> or
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">.mjs</code> module path.
 			</li>
 		</ul>
 	</section>

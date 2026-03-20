@@ -141,6 +141,8 @@ Each block config may optionally define:
 
 Adapter paths resolve relative to the block config file.
 
+In the current local browser-backed runtime, adapter files need to be self-contained ESM JavaScript modules (`.js` or `.mjs`). Supporting repo-local TypeScript adapter files would require an extra transpilation/loading step later.
+
 Example:
 
 ```json
@@ -152,7 +154,7 @@ Example:
   "content": {
     "mode": "embedded"
   },
-  "adapter": "./image-gallery.adapter.ts",
+  "adapter": "./image-gallery.adapter.js",
   "blocks": [
     { "id": "image", "type": "image", "required": true },
     { "id": "alt", "type": "text", "required": true },

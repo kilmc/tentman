@@ -1,3 +1,5 @@
+import type { BlockRegistry } from '$lib/blocks/registry';
+import { createLoadedBlockRegistry } from '$lib/blocks/registry';
 import { get, writable } from 'svelte/store';
 import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
 import { localRepo } from '$lib/stores/local-repo';
@@ -7,6 +9,8 @@ type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
 	configs: DiscoveredConfig[];
 	blockConfigs: DiscoveredBlockConfig[];
+	blockRegistry: BlockRegistry | null;
+	blockRegistryError: string | null;
 	rootConfig: RootConfig | null;
 	error: string | null;
 };
@@ -16,6 +20,8 @@ function createStore() {
 		status: 'idle',
 		configs: [],
 		blockConfigs: [],
+		blockRegistry: null,
+		blockRegistryError: null,
 		rootConfig: null,
 		error: null
 	});
@@ -35,6 +41,8 @@ function createStore() {
 					status: 'error',
 					configs: [],
 					blockConfigs: [],
+					blockRegistry: null,
+					blockRegistryError: null,
 					rootConfig: null,
 					error: 'No local repository is open.'
 				});
@@ -50,10 +58,24 @@ function createStore() {
 					repoState.backend.readRootConfig()
 				]);
 
+				let blockRegistry: BlockRegistry | null = null;
+				let blockRegistryError: string | null = null;
+
+				try {
+					blockRegistry = await createLoadedBlockRegistry(blockConfigs, {
+						loadLocalAdapterModule: repoState.backend.loadLocalAdapterModule
+					});
+				} catch (error) {
+					blockRegistryError =
+						error instanceof Error ? error.message : 'Failed to load local block adapters';
+				}
+
 				set({
 					status: 'ready',
 					configs,
 					blockConfigs,
+					blockRegistry,
+					blockRegistryError,
 					rootConfig,
 					error: null
 				});
@@ -62,6 +84,8 @@ function createStore() {
 					status: 'error',
 					configs: [],
 					blockConfigs: [],
+					blockRegistry: null,
+					blockRegistryError: null,
 					rootConfig: null,
 					error: error instanceof Error ? error.message : 'Failed to load local repository content'
 				});
