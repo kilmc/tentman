@@ -5,7 +5,8 @@
  * Content is cached per repository per config and has a TTL for staleness detection.
  */
 
-import type { Config, DiscoveredConfig } from '$lib/types/config';
+import type { ParsedContentConfig } from '$lib/config/parse';
+import type { DiscoveredConfig } from '$lib/config/discovery';
 import { fetchContentDocument } from '$lib/content/service';
 import type { RepositoryBackend } from '$lib/repository/types';
 
@@ -43,7 +44,7 @@ function isValid(entry: ContentCacheEntry | undefined): boolean {
  */
 export async function getCachedContent(
 	backend: RepositoryBackend,
-	config: Config,
+	config: ParsedContentConfig,
 	configPath: string,
 	configSlug: string,
 	branch?: string

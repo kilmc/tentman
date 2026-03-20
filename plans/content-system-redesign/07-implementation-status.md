@@ -2,21 +2,21 @@
 
 ## Current Slice
 
-- Phase: 3
-- Slice: 18
-- Title: Move item identity and draft comparison helpers off the bridge Config alias
+- Phase: 4
+- Slice: 1
+- Title: Define the custom block adapter file contract
 - Status: in_progress
 
 ## Slice Goal
 
-Replace the remaining non-field runtime consumers that still import the bridge `Config` alias in item identity and draft-comparison helpers with direct parsed-config typing.
+Establish the first explicit Phase 4 boundary for optional custom block adapter files so local block configs can eventually opt into adapter code without disturbing the generic structured adapter path.
 
 This slice should establish:
-- item identity and draft-comparison helpers typed against `ParsedContentConfig` rather than `$lib/types/config`'s `Config` alias
-- a smaller non-field bridge surface outside the remaining field compatibility helpers
-- no behavior change in item ID derivation or draft comparison logic
+- a stable adapter module contract for local block adapter files
+- a clear loader boundary for resolving adapter paths relative to block config files
+- validation rules for missing or malformed adapter exports before runtime wiring expands further
 
-It should not yet remove the temporary compatibility bridge in `src/lib/types/config.ts` or the parsed `fields` bridge it still supports.
+It should not yet attempt package-distributed adapters.
 
 ## Completed Work
 
@@ -132,12 +132,65 @@ It should not yet remove the temporary compatibility bridge in `src/lib/types/co
 - Phase 3 / Slice 17 completed.
 - Moved `src/lib/content/adapters/types.ts` and `src/lib/content/service.ts` off the bridge `Config` alias and onto `ParsedContentConfig`.
 - Verified with `npm run check` and `npx vitest run src/lib/content/service.spec.ts`.
+- Phase 3 / Slice 18 completed.
+- Moved `src/lib/features/content-management/item.ts` and `src/lib/utils/draft-comparison.ts` off the bridge `Config` alias and onto `ParsedContentConfig`.
+- Updated the focused item/draft-comparison specs to use parsed content config fixtures without bridge casts.
+- Verified with `npm run check` and `npx vitest run src/lib/features/content-management/item.spec.ts src/lib/utils/draft-comparison.spec.ts`.
+- Phase 3 / Slice 19 completed.
+- Moved `src/lib/features/forms/helpers.ts` and `src/lib/utils/validation.ts` off the bridge `Config` alias and onto `ParsedContentConfig`, while preserving the field helper bridge imports they still require.
+- Updated the focused form-helper spec to use parsed content config fixtures without bridge casts.
+- Verified with `npm run check` and `npx vitest run src/lib/features/forms/helpers.spec.ts src/lib/blocks/adapters/structured.spec.ts`.
+- Phase 3 / Slice 20 completed.
+- Moved the remaining caller-side bridge `Config` alias usage in `src/lib/components/form/FormGenerator.svelte` and `src/lib/stores/content-cache.ts` onto `ParsedContentConfig`.
+- Confirmed there are no remaining `Config` imports from `src/lib/types/config.ts` anywhere under `src/`.
+- Verified with `npm run check` and `npx vitest run src/lib/stores/content-cache.spec.ts`.
+- Phase 3 / Slice 21 completed.
+- Replaced the remaining component-facing `BlockUsage` imports in `src/lib/features/content-management/item.ts` and `src/lib/components/ItemCard.svelte` with direct `$lib/config/types` imports.
+- Confirmed there are no remaining `BlockUsage` imports from `src/lib/types/config.ts` anywhere under `src/`.
+- Verified with `npm run check`.
+- Phase 3 / Slice 22 completed.
+- Moved `DiscoveredConfig` and `DiscoveredBlockConfig` into the config discovery domain and switched repository/cache/server/form-registry callers to import them directly from `$lib/config/discovery`.
+- Verified with `npm run check` and `npx vitest run src/lib/config/discovery.spec.ts src/lib/blocks/registry.spec.ts src/lib/stores/content-cache.spec.ts`.
+- Phase 3 / Slice 23 completed.
+- Extracted field compatibility helpers into `src/lib/config/fields-compat.ts` and switched the remaining field-helper callers away from the deleted bridge module path.
+- Confirmed there are no remaining `src/` imports from `src/lib/types/config.ts`.
+- Verified with `npm run check` and `npx vitest run src/lib/config/discovery.spec.ts src/lib/features/forms/helpers.spec.ts src/lib/content/service.spec.ts src/lib/blocks/adapters/structured.spec.ts src/lib/stores/content-cache.spec.ts`.
+- Phase 3 / Slice 24 completed.
+- Deleted the now-unused temporary compatibility bridge at `src/lib/types/config.ts` after confirming it had no remaining code callers outside docs/plans.
+- Verified with `npm run check` and `npx vitest run src/lib/config/discovery.spec.ts src/lib/features/forms/helpers.spec.ts src/lib/content/service.spec.ts src/lib/blocks/registry.spec.ts src/lib/stores/content-cache.spec.ts`.
+- Phase 3 / Slice 25 completed.
+- Replaced the remaining runtime `config.fields` reads in `src/lib/utils/validation.ts` and `src/lib/content/adapters/file.ts` with block-driven metadata helpers from `config.blocks`.
+- Added focused validation and content-service coverage for custom collection array validation and generated file-backed IDs sourced from block metadata.
+- Verified with `npm run check` and `npx vitest run src/lib/utils/validation.spec.ts src/lib/content/service.spec.ts src/lib/features/forms/helpers.spec.ts`.
+- Phase 3 / Slice 26 completed.
+- Removed parsed `fields` from `ParsedContentConfig` / `ParsedBlockConfig` in `src/lib/config/parse.ts` and updated parser/discovery/helper specs to normalize `blocks` explicitly where that compatibility shape is still under test.
+- Confirmed there are no remaining parsed-config `.fields` callers anywhere under `src/lib` or `src/routes`.
+- Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/config/discovery.spec.ts src/lib/features/forms/helpers.spec.ts src/lib/utils/validation.spec.ts src/lib/content/service.spec.ts`.
+- Phase 3 / Slice 27 completed.
+- Removed the dead `FieldDefinition`-driven runtime helper path from `src/lib/features/forms/helpers.ts` and `src/lib/blocks/compat.ts` by deleting `getDefaultFieldValue` and `toBlockAdapterUsage`.
+- Cleared stale runtime `getFieldLabel` imports from `src/lib/components/form/FormField.svelte` and `src/routes/pages/[page]/[itemId]/edit/+page.svelte`.
+- Verified with `npm run check` and `npx vitest run src/lib/features/forms/helpers.spec.ts src/lib/blocks/adapters/structured.spec.ts`.
+- Phase 3 / Slice 28 completed.
+- Removed the now-unused `getFieldLabel` helper from `src/lib/config/fields-compat.ts`, leaving that module as a narrow explicit compatibility helper for field-shape normalization in specs.
+- Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/config/discovery.spec.ts src/lib/features/forms/helpers.spec.ts src/lib/content/service.spec.ts`.
+- Phase 3 / Slice 29 completed.
+- Simplified `src/lib/config/parse.ts` so parsed content configs no longer expose legacy compatibility aliases like `ParsedSingletonConfig`, `ParsedSingleFileArrayConfig`, `contentFile`, `collectionPath`, `template`, or top-level `filename`.
+- Updated parser/discovery specs to assert against the explicit `config.content` shape instead of those compatibility aliases.
+- Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/config/discovery.spec.ts src/lib/features/forms/helpers.spec.ts src/lib/content/service.spec.ts`.
+- Phase 3 / Slice 30 completed.
+- Replaced the remaining route-level legacy content vocabulary in the page list/detail routes with explicit labels like `single entry`, `file collection`, and `directory collection`, and updated the related page-route server comments to match the current content model.
+- Rewrote `src/routes/docs/+page.svelte` so the in-app docs now describe the explicit v1 schema (`type`, `content`, `blocks`, reusable block configs, root discovery settings, and migration notes) instead of the removed legacy `fields` / `contentFile` / inferred-type model.
+- Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/config/discovery.spec.ts src/lib/content/service.spec.ts src/lib/utils/draft-comparison.spec.ts src/lib/features/content-management/item.spec.ts`.
+- Phase 3 completed.
+- The remaining legacy top-level schema/docs surface has been cleared: routes and docs now describe the explicit config model, parsed configs no longer expose bridge aliases, and Phase 3's content adapter cleanup is in place end-to-end.
 
 ## Files Changed In Current Program Of Work
 
 - `/Users/kilmc/code/tentman/src/lib/config/types.ts`
+- `/Users/kilmc/code/tentman/src/lib/config/blocks.ts`
 - `/Users/kilmc/code/tentman/src/lib/config/parse.ts`
 - `/Users/kilmc/code/tentman/src/lib/config/discovery.ts`
+- `/Users/kilmc/code/tentman/src/lib/config/fields-compat.ts`
 - `/Users/kilmc/code/tentman/src/lib/config/root-config.ts`
 - `/Users/kilmc/code/tentman/src/lib/config/parse.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/config/discovery.spec.ts`
@@ -158,7 +211,6 @@ It should not yet remove the temporary compatibility bridge in `src/lib/types/co
 - `/Users/kilmc/code/tentman/src/lib/components/form/FormField.svelte`
 - `/Users/kilmc/code/tentman/src/lib/components/form/ArrayField.svelte`
 - `/Users/kilmc/code/tentman/src/lib/components/content/ContentValueDisplay.svelte`
-- `/Users/kilmc/code/tentman/src/lib/types/config.ts`
 - `/Users/kilmc/code/tentman/src/lib/examples/posts.tentman.json`
 - `/Users/kilmc/code/tentman/src/lib/components/ItemCard.svelte`
 - `/Users/kilmc/code/tentman/src/lib/features/content-management/item.ts`
@@ -180,11 +232,14 @@ It should not yet remove the temporary compatibility bridge in `src/lib/types/co
 - `/Users/kilmc/code/tentman/src/lib/utils/preview.ts`
 - `/Users/kilmc/code/tentman/src/lib/utils/draft-comparison.ts`
 - `/Users/kilmc/code/tentman/src/lib/utils/draft-comparison.spec.ts`
+- `/Users/kilmc/code/tentman/src/lib/utils/validation.ts`
+- `/Users/kilmc/code/tentman/src/lib/utils/validation.spec.ts`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/preview-changes/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/[itemId]/preview-changes/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/+page.svelte`
 - `/Users/kilmc/code/tentman/src/routes/pages/+page.svelte`
+- `/Users/kilmc/code/tentman/src/routes/docs/+page.svelte`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/new/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/new/+page.svelte`
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/edit/+page.server.ts`
@@ -198,7 +253,7 @@ It should not yet remove the temporary compatibility bridge in `src/lib/types/co
 
 ## Blockers Or Open Questions
 
-- None currently blocking Phase 3 / Slice 18.
+- None currently blocking Phase 4 / Slice 1.
 
 ## Plan Changes
 
@@ -215,18 +270,23 @@ It should not yet remove the temporary compatibility bridge in `src/lib/types/co
 - The old fetch/write/preview wrapper modules have now been removed, enabling follow-up cleanup passes against the remaining temporary bridge surface in `src/lib/types/config.ts`.
 - The preview route server path now uses `src/lib/content/service.ts` directly, so that caller slice no longer needs the old persistence wrappers.
 - The shared GitHub-backed content cache now reads through `src/lib/content/service.ts` directly, so `ConfigType` no longer needs to flow through `src/lib/stores/content-cache.ts` or its server callers.
-- The temporary compatibility bridge in `src/lib/types/config.ts` still remains intentionally in place and should only be removed by a caller slice that fully replaces its consumers.
 - The dead legacy option/preview types in `src/lib/features/content-management/types.ts` have been removed, and route-level singleton/collection gating now derives from `config.collection` / `config.content.mode` instead of `discoveredConfig.type`.
-- `DiscoveredConfig.type` has now been removed entirely, and the runtime-type bridge exports have now been deleted from `src/lib/types/config.ts`.
-- The persistence path no longer imports the bridge's legacy parsed-config aliases or its `Config` alias; the remaining bridge surface is now centered on field compatibility helpers plus non-persistence config consumers that still need caller-by-caller replacement.
+- `DiscoveredConfig.type` has now been removed entirely, and the runtime-type bridge exports were deleted before the final bridge cleanup.
+- The persistence path, item identity helpers, draft comparison helpers, form/validation helpers, and caller-facing `Config` typing no longer import the bridge's legacy parsed-config aliases or its `Config` alias.
+- `DiscoveredConfig` / `DiscoveredBlockConfig` and field compatibility helpers now live under `src/lib/config/*`, and `src/lib/types/config.ts` has been deleted.
+- Parsed configs no longer carry `fields`, and the remaining compatibility surface is now limited to the standalone `src/lib/config/fields-compat.ts` helper module plus a few dead or test-only callers.
+- Runtime code no longer depends on `FieldDefinition`-driven default/adapter helpers, leaving `fields-compat.ts` as a much narrower explicit compatibility surface for specs plus one final dead label helper.
+- `src/lib/config/fields-compat.ts` is now reduced to normalization helpers only, and parsed content configs no longer manufacture legacy top-level persistence aliases beyond the explicit `content` object.
+- The main remaining legacy-facing surface under `src/` is UI/docs vocabulary that still talks about `singleton` / `array` / `collection` and old `contentFile` / `collectionPath` concepts even though runtime behavior has moved on.
+- The route-level UI vocabulary and the in-app docs page have now been migrated to the explicit v1 schema, so the redesign can move into Phase 4 without carrying the old top-level content model in user-facing documentation.
 
 ## Exact Next Action
 
-Replace the `Config` imports in `src/lib/features/content-management/item.ts` and `src/lib/utils/draft-comparison.ts` with `ParsedContentConfig`, update their focused specs, and keep the field bridge untouched.
+Inspect `src/lib/blocks/registry.ts`, `src/lib/config/types.ts`, and the Phase 4 plan notes, then introduce the first adapter-file loader boundary for local block configs with a validated module shape resolved relative to each block config file.
 
 ## Next Slice
 
-- Phase: 3
-- Slice: 18
-- Title: Move item identity and draft comparison helpers off the bridge Config alias
+- Phase: 4
+- Slice: 1
+- Title: Define the custom block adapter file contract
 - Status: in_progress

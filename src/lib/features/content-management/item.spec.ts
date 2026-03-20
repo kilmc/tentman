@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { formatContentValue, getContentItemId } from './item';
-import { parseConfigFile } from '$lib/config/parse';
-import type { Config } from '$lib/types/config';
+import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
 
-const arrayConfig = parseConfigFile(`{
+function parseContentConfigFixture(content: string): ParsedContentConfig {
+	const parsed = parseConfigFile(content);
+
+	if (!isParsedContentConfig(parsed)) {
+		throw new Error('Expected content config fixture');
+	}
+
+	return parsed;
+}
+
+const arrayConfig = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
@@ -18,9 +27,9 @@ const arrayConfig = parseConfigFile(`{
 		{ "id": "title", "type": "text", "label": "Title" },
 		{ "id": "slug", "type": "text", "label": "Slug" }
 	]
-}`) as Config;
+}`);
 
-const collectionConfig = parseConfigFile(`{
+const collectionConfig = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
@@ -36,7 +45,7 @@ const collectionConfig = parseConfigFile(`{
 		{ "id": "title", "type": "text", "label": "Title" },
 		{ "id": "slug", "type": "text", "label": "Slug" }
 	]
-}`) as Config;
+}`);
 
 describe('content-management/item', () => {
 	it('resolves item ids for array content', () => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { BlockUsage } from '$lib/types/config';
+	import type { BlockUsage } from '$lib/config/types';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeFields } from '$lib/config/fields-compat';
 import { parseConfigFile, parseRootConfig } from '$lib/config/parse';
 
 describe('parseConfigFile', () => {
@@ -25,13 +26,13 @@ describe('parseConfigFile', () => {
 		if (parsed.type !== 'content') {
 			throw new Error('Expected content config');
 		}
-		if (!('template' in parsed)) {
+		if (parsed.content.mode !== 'directory') {
 			throw new Error('Expected directory-backed content config');
 		}
 
-		expect(parsed.template).toBe('./templates/post.md');
-		expect(parsed.filename).toBe('{{slug}}');
-		expect(parsed.fields.title).toMatchObject({
+		expect(parsed.content.template).toBe('./templates/post.md');
+		expect(parsed.content.filename).toBe('{{slug}}');
+		expect(normalizeFields(parsed.blocks).title).toMatchObject({
 			type: 'text',
 			label: 'Title',
 			required: true,
@@ -55,7 +56,7 @@ describe('parseConfigFile', () => {
 			throw new Error('Expected block config');
 		}
 
-		expect(parsed.fields.metaTitle).toMatchObject({
+		expect(normalizeFields(parsed.blocks).metaTitle).toMatchObject({
 			type: 'text',
 			label: 'Meta Title'
 		});

@@ -11,10 +11,12 @@
 
 	function getContentKind(config: (typeof configs)[number]) {
 		if (!config.config.collection) {
-			return 'singleton';
+			return 'single entry';
 		}
 
-		return config.config.content.mode === 'directory' ? 'collection' : 'array';
+		return config.config.content.mode === 'directory'
+			? 'directory collection'
+			: 'file collection';
 	}
 
 	onMount(async () => {

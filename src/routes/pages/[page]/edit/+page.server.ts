@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	try {
 
-		// Only allow singletons on this route
+		// Only allow single-entry content on this route
 		if (discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}`);
 		}

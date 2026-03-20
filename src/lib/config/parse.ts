@@ -2,44 +2,18 @@ import type {
 	BlockConfig,
 	BlockUsage,
 	ContentConfig,
-	ContentMode,
 	DirectoryContentMode,
 	FileContentMode,
 	RootConfig,
 	TentmanConfigFile
 } from '$lib/config/types';
-import { buildFields, type FieldDefinition } from '$lib/types/config';
 
-interface ParsedContentConfigBase extends ContentConfig {
-	fields: Record<string, FieldDefinition>;
+export interface ParsedContentConfig extends ContentConfig {
+	content: FileContentMode | DirectoryContentMode;
 	imagePath?: string;
 }
 
-export interface ParsedSingletonConfig extends ParsedContentConfigBase {
-	content: FileContentMode;
-	contentFile: string;
-}
-
-export interface ParsedSingleFileArrayConfig extends ParsedContentConfigBase {
-	content: FileContentMode & { itemsPath: string };
-	contentFile: string;
-	collectionPath: string;
-}
-
-export interface ParsedMultiFileCollectionConfig extends ParsedContentConfigBase {
-	content: DirectoryContentMode;
-	template: string;
-	filename?: string;
-}
-
-export type ParsedContentConfig =
-	| ParsedSingletonConfig
-	| ParsedSingleFileArrayConfig
-	| ParsedMultiFileCollectionConfig;
-
-export interface ParsedBlockConfig extends BlockConfig {
-	fields: Record<string, FieldDefinition>;
-}
+export interface ParsedBlockConfig extends BlockConfig {}
 
 export type ParsedConfigFile = ParsedContentConfig | ParsedBlockConfig;
 
@@ -170,7 +144,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	};
 }
 
-function parseContentMode(input: unknown, context: string): ContentMode {
+function parseContentMode(input: unknown, context: string): FileContentMode | DirectoryContentMode {
 	assertObject(input, `${context} must be an object`);
 
 	const mode = readRequiredString(input, 'mode', context);
@@ -196,22 +170,14 @@ function parseContentMode(input: unknown, context: string): ContentMode {
 		} as DirectoryContentMode;
 	}
 
-	if (mode === 'embedded') {
-		return { mode };
-	}
-
-	throw new Error(`${context}.mode must be "embedded", "file", or "directory"`);
+	throw new Error(`${context}.mode must be "file" or "directory" for top-level content configs`);
 }
 
 function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig {
 	const collection = readOptionalBoolean(input, 'collection', 'config');
 	const content = parseContentMode(input.content, 'config.content');
 
-	if (content.mode === 'embedded') {
-		throw new Error('config.content.mode must be "file" or "directory" for top-level content configs');
-	}
-
-	const config: ContentConfig = {
+	const config: ParsedContentConfig = {
 		type: 'content',
 		label: readRequiredString(input, 'label', 'config'),
 		...(readOptionalString(input, 'itemLabel', 'config') && {
@@ -229,41 +195,18 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 		throw new Error('config.itemLabel is required when config.collection is true');
 	}
 
-	const fields = buildFields(config.blocks);
-
 	if (content.mode === 'directory') {
-		const directoryConfig: ParsedMultiFileCollectionConfig = {
+		return {
 			...config,
 			content,
-			collection: config.collection ?? true,
-			fields,
-			template: content.template,
-			...(content.filename && { filename: content.filename })
+			collection: config.collection ?? true
 		};
-
-		return directoryConfig;
 	}
 
-	if (content.itemsPath) {
-		const arrayConfig: ParsedSingleFileArrayConfig = {
-			...config,
-			fields,
-			content: content as FileContentMode & { itemsPath: string },
-			contentFile: content.path,
-			collectionPath: content.itemsPath
-		};
-
-		return arrayConfig;
-	}
-
-	const singletonConfig: ParsedSingletonConfig = {
+	return {
 		...config,
-		content,
-		fields,
-		contentFile: content.path
+		content
 	};
-
-	return singletonConfig;
 }
 
 function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
@@ -287,8 +230,7 @@ function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
 	}
 
 	return {
-		...config,
-		fields: buildFields(config.blocks)
+		...config
 	};
 }
 

@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	try {
 
-		// Only allow arrays and collections on this route
+		// Only allow collection content on this route
 		if (!discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}`);
 		}
@@ -61,7 +61,7 @@ export const actions: Actions = {
 				new: 'true'
 			});
 
-			// For collections, include the filename
+			// Directory-backed collections need an explicit filename
 			if (discoveredConfig.config.content.mode === 'directory') {
 				const newFilename = formData.get('newFilename') as string;
 				if (!newFilename) {

@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 
 	try {
 
-		// Only allow arrays and collections on this route
+		// Only allow collection content on this route
 		if (!discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}/edit`);
 		}
@@ -103,7 +103,7 @@ export const actions: Actions = {
 			const deleteOptions: { itemId?: string; filename?: string } = {};
 
 			if (discoveredConfig.config.content.mode === 'directory') {
-				// For collections, we need to fetch the item to get its filename
+				// Directory-backed collections need the stored filename to delete an entry
 				const { getCachedContent } = await import('$lib/stores/content-cache');
 				const content = await getCachedContent(
 					backend,
@@ -120,7 +120,7 @@ export const actions: Actions = {
 					}
 				}
 			} else {
-				// For arrays, use the ID
+				// File-backed collections delete by item ID
 				deleteOptions.itemId = itemId;
 			}
 
@@ -160,7 +160,7 @@ export const actions: Actions = {
 			// Build URL params
 			const urlParams = new URLSearchParams({ data: encodedData });
 
-			// For collections, include filename information
+			// Directory-backed collections need filename information
 			if (discoveredConfig.config.content.mode === 'directory') {
 				const filename = formData.get('filename') as string;
 				if (!filename) {

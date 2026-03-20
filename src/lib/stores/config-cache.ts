@@ -8,7 +8,7 @@
  * For client-side caching, SvelteKit's built-in load caching is used instead.
  */
 
-import type { DiscoveredConfig } from '$lib/types/config';
+import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { RepositoryBackend } from '$lib/repository/types';
 
 interface CacheEntry {

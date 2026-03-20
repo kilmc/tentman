@@ -5,7 +5,7 @@
  */
 
 import type { Octokit } from 'octokit';
-import type { Config } from '$lib/types/config';
+import type { ParsedContentConfig } from '$lib/config/parse';
 import { fetchContentDocument } from '$lib/content/service';
 import { getContentItemId } from '$lib/features/content-management/item';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
@@ -48,7 +48,7 @@ export async function compareDraftToBranch(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
-	config: Config,
+	config: ParsedContentConfig,
 	configPath: string,
 	draftBranch: string
 ): Promise<DraftComparison> {
@@ -86,7 +86,7 @@ export async function compareDraftToBranch(
 }
 
 export function compareLoadedDraftContent(
-	config: Config,
+	config: ParsedContentConfig,
 	mainContent: ContentDocument,
 	draftContent: ContentDocument
 ): DraftComparison {
@@ -234,7 +234,7 @@ function compareSingleton(mainContent: any, draftContent: any): DraftComparison 
 }
 
 function compareItemCollections(
-	config: Config,
+	config: ParsedContentConfig,
 	mainContent: ContentRecord[],
 	draftContent: ContentRecord[]
 ): DraftComparison {

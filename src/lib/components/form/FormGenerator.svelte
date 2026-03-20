@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { createBlockRegistry } from '$lib/blocks/registry';
-	import type { DiscoveredBlockConfig } from '$lib/types/config';
-	import type { Config } from '$lib/types/config';
+	import type { DiscoveredBlockConfig } from '$lib/config/discovery';
+	import type { ParsedContentConfig } from '$lib/config/parse';
 	import { buildFormData } from '$lib/features/forms/helpers';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 
 	interface Props {
-		config: Config;
+		config: ParsedContentConfig;
 		initialData?: Record<string, any>;
 		existingItems?: Record<string, any>[];
 		currentItemId?: string;

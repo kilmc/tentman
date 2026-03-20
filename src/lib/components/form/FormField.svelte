@@ -2,7 +2,6 @@
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
-	import { getFieldLabel } from '$lib/features/forms/helpers';
 	import TextField from './TextField.svelte';
 	import TextareaField from './TextareaField.svelte';
 	import NumberField from './NumberField.svelte';

@@ -1,27 +1,13 @@
+import type { ParsedContentConfig } from '$lib/config/parse';
+import { normalizeFields } from '$lib/config/fields-compat';
+import type { BlockUsage } from '$lib/config/types';
 import type { BlockRegistry } from '$lib/blocks/registry';
 import { DEFAULT_BLOCK_REGISTRY, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
-import { toBlockAdapterUsage } from '$lib/blocks/compat';
-import { getFieldLabel, normalizeFields, type Config, type FieldDefinition } from '$lib/types/config';
 import type { CardFields } from '$lib/features/content-management/item';
-import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
-
-export function getDefaultFieldValue(fieldDef: FieldDefinition, fieldName = 'field'): ContentValue {
-	const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef.type;
-
-	if (fieldType === 'array') {
-		return [];
-	}
-
-	const adapter = DEFAULT_BLOCK_REGISTRY.getAdapter(fieldType);
-	if (adapter) {
-		return adapter.getDefaultValue(toBlockAdapterUsage(fieldName, fieldDef));
-	}
-
-	return '';
-}
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export function buildBlockFormData(
-	blocks: Config['blocks'],
+	blocks: BlockUsage[],
 	initialData: ContentRecord = {},
 	registry: BlockRegistry = DEFAULT_BLOCK_REGISTRY
 ): ContentRecord {
@@ -41,14 +27,14 @@ export function buildBlockFormData(
 }
 
 export function buildFormData(
-	config: Config,
+	config: ParsedContentConfig,
 	initialData: ContentRecord = {},
 	registry: BlockRegistry = DEFAULT_BLOCK_REGISTRY
 ): ContentRecord {
 	return buildBlockFormData(config.blocks, initialData, registry);
 }
 
-export function getCardFields(config: Config): CardFields {
+export function getCardFields(config: ParsedContentConfig): CardFields {
 	const hasShowConfig = config.blocks.some((block) => block.show !== undefined);
 
 	if (hasShowConfig) {
@@ -64,4 +50,4 @@ export function getCardFields(config: Config): CardFields {
 	};
 }
 
-export { getFieldLabel, normalizeFields };
+export { normalizeFields };

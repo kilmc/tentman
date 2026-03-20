@@ -1,4 +1,4 @@
-import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/types/config';
+import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
 import type { RootConfig } from '$lib/config/root-config';
 
 export interface RepoEntry {

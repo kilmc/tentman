@@ -1,654 +1,367 @@
+<script lang="ts">
+	const builtInBlocks = [
+		'text',
+		'textarea',
+		'markdown',
+		'email',
+		'url',
+		'number',
+		'date',
+		'boolean',
+		'image'
+	];
+</script>
+
 <div class="prose prose-gray max-w-none">
 	<div class="mb-8">
-		<h1 class="mb-2 text-4xl font-bold text-gray-900">Tentman CMS Documentation</h1>
+		<h1 class="mb-2 text-4xl font-bold text-gray-900">Tentman Documentation</h1>
 		<p class="text-xl text-gray-600">
-			A Git-based content management system for static sites
+			The current Tentman config model is built around explicit content configs, reusable block
+			definitions, and adapter-driven persistence.
 		</p>
 	</div>
 
-	<!-- Table of Contents -->
 	<nav class="mb-12 rounded-lg border border-gray-200 bg-gray-50 p-6">
 		<h2 class="mb-4 text-lg font-semibold text-gray-900">Table of Contents</h2>
 		<ul class="space-y-2">
 			<li><a href="#overview" class="text-blue-600 hover:underline">Overview</a></li>
-			<li><a href="#how-it-works" class="text-blue-600 hover:underline">How It Works</a></li>
-			<li><a href="#content-patterns" class="text-blue-600 hover:underline">Content Patterns</a></li>
-			<li><a href="#config-reference" class="text-blue-600 hover:underline">Configuration Reference</a></li>
-			<li><a href="#field-types" class="text-blue-600 hover:underline">Field Types</a></li>
-			<li><a href="#examples" class="text-blue-600 hover:underline">Example Configurations</a></li>
-			<li><a href="#getting-started" class="text-blue-600 hover:underline">Getting Started</a></li>
+			<li><a href="#root-config" class="text-blue-600 hover:underline">Root Config</a></li>
+			<li><a href="#content-configs" class="text-blue-600 hover:underline">Content Configs</a></li>
+			<li><a href="#block-configs" class="text-blue-600 hover:underline">Block Configs</a></li>
+			<li><a href="#content-modes" class="text-blue-600 hover:underline">Content Modes</a></li>
+			<li><a href="#block-types" class="text-blue-600 hover:underline">Built-in Block Types</a></li>
+			<li><a href="#discovery" class="text-blue-600 hover:underline">Discovery and Paths</a></li>
+			<li><a href="#examples" class="text-blue-600 hover:underline">Examples</a></li>
+			<li><a href="#migration" class="text-blue-600 hover:underline">Migration Notes</a></li>
 		</ul>
 	</nav>
 
-	<!-- Overview -->
 	<section id="overview" class="mb-12">
 		<h2 class="mb-4 text-2xl font-bold text-gray-900">Overview</h2>
 		<p class="mb-4">
-			Tentman is a standalone SvelteKit admin application that allows non-technical users to manage
-			content for static sites via a web interface. It authenticates with GitHub, reads configuration
-			files from your repositories to understand your content structure, generates forms for editing,
-			and commits changes back via the GitHub API.
-		</p>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">The Problem Being Solved</h3>
-		<p class="mb-4">
-			Tentman enables you to build static sites for clients who want to manage content themselves
-			without:
-		</p>
-		<ul class="mb-4 ml-6 list-disc space-y-2">
-			<li>Using platforms like Squarespace, Wix, or WordPress</li>
-			<li>Paying for hosting or CMS services</li>
-			<li>Losing the benefits of GitHub + Netlify (free, automated deployment)</li>
-			<li>Loading CMS scripts on the public site</li>
-		</ul>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Key Features</h3>
-		<ul class="mb-4 ml-6 list-disc space-y-2">
-			<li>
-				<strong>Convention-based config discovery:</strong> Place
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">*.tentman.json</code> files alongside your content
-			</li>
-			<li><strong>Three flexible content patterns:</strong> Singletons, arrays, and collections</li>
-			<li><strong>Multiple field types:</strong> Text, markdown, images, dates, and more</li>
-			<li><strong>GitHub-powered:</strong> All changes committed directly to your repository</li>
-			<li><strong>Draft workflow:</strong> Make multiple changes before publishing</li>
-			<li><strong>No dependencies on your public site:</strong> Your static site never knows the CMS exists</li>
-		</ul>
-	</section>
-
-	<!-- How It Works -->
-	<section id="how-it-works" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">How It Works</h2>
-		<ol class="ml-6 list-decimal space-y-3">
-			<li>
-				<strong>Authenticate:</strong> Login with GitHub to authorize Tentman to access your repositories
-			</li>
-			<li>
-				<strong>Select Repository:</strong> Choose which repository you want to manage content for
-			</li>
-			<li>
-				<strong>Config Discovery:</strong> Tentman scans your repository for
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">*.tentman.json</code> configuration files
-			</li>
-			<li>
-				<strong>Edit Content:</strong> Use auto-generated forms based on your config to create and edit
-				content
-			</li>
-			<li>
-				<strong>Draft Changes:</strong> All changes are saved to a draft branch (
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">tentman-draft</code>)
-			</li>
-			<li>
-				<strong>Publish:</strong> When ready, publish all draft changes to your main branch at once
-			</li>
-		</ol>
-	</section>
-
-	<!-- Content Patterns -->
-	<section id="content-patterns" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Content Patterns</h2>
-		<p class="mb-6">
-			Tentman supports three distinct content management patterns. The pattern is automatically
-			detected based on which properties are present in your configuration file.
-		</p>
-
-		<div class="space-y-8">
-			<!-- Singleton -->
-			<div class="rounded-lg border border-gray-200 bg-white p-6">
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">1. Singleton</h3>
-				<p class="mb-3 text-gray-700">
-					A single object with structured data. Perfect for pages like "About Us", homepage hero
-					sections, or site settings.
-				</p>
-				<p class="mb-2 text-sm font-medium text-gray-700">Detected when config has:</p>
-				<ul class="mb-3 ml-6 list-disc text-sm text-gray-600">
-					<li><code class="rounded bg-gray-100 px-1 py-0.5">contentFile</code> property</li>
-					<li>No <code class="rounded bg-gray-100 px-1 py-0.5">collectionPath</code></li>
-					<li>No <code class="rounded bg-gray-100 px-1 py-0.5">template</code></li>
-				</ul>
-				<p class="text-sm text-gray-600">
-					<strong>Example use cases:</strong> Homepage content, About page, Contact info, Site settings
-				</p>
-			</div>
-
-			<!-- Single-file Array -->
-			<div class="rounded-lg border border-gray-200 bg-white p-6">
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">2. Single-file Array</h3>
-				<p class="mb-3 text-gray-700">
-					An array stored in one JSON file. Great for lists that need to be ordered or grouped
-					together.
-				</p>
-				<p class="mb-2 text-sm font-medium text-gray-700">Detected when config has:</p>
-				<ul class="mb-3 ml-6 list-disc text-sm text-gray-600">
-					<li><code class="rounded bg-gray-100 px-1 py-0.5">contentFile</code> property</li>
-					<li>
-						<code class="rounded bg-gray-100 px-1 py-0.5">collectionPath</code> (JSONPath to the array)
-					</li>
-					<li><code class="rounded bg-gray-100 px-1 py-0.5">idField</code> (required)</li>
-					<li>No <code class="rounded bg-gray-100 px-1 py-0.5">template</code></li>
-				</ul>
-				<p class="text-sm text-gray-600">
-					<strong>Example use cases:</strong> Tour dates, Product releases, Team members, FAQ items
-				</p>
-			</div>
-
-			<!-- Multi-file Collection -->
-			<div class="rounded-lg border border-gray-200 bg-white p-6">
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">3. Multi-file Collection</h3>
-				<p class="mb-3 text-gray-700">
-					Multiple files (markdown or JSON) in a directory, one file per item. Ideal for content that
-					benefits from individual files.
-				</p>
-				<p class="mb-2 text-sm font-medium text-gray-700">Detected when config has:</p>
-				<ul class="mb-3 ml-6 list-disc text-sm text-gray-600">
-					<li><code class="rounded bg-gray-100 px-1 py-0.5">template</code> property</li>
-					<li><code class="rounded bg-gray-100 px-1 py-0.5">idField</code> (required)</li>
-					<li>No <code class="rounded bg-gray-100 px-1 py-0.5">contentFile</code></li>
-				</ul>
-				<p class="text-sm text-gray-600">
-					<strong>Example use cases:</strong> Blog posts, Documentation pages, Case studies, Recipes
-				</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Config Reference -->
-	<section id="config-reference" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Configuration Reference</h2>
-		<p class="mb-6">
-			Configuration files must be named <code class="rounded bg-gray-100 px-1.5 py-0.5"
-				>*.tentman.json</code
+			Tentman reads <code class="rounded bg-gray-100 px-1.5 py-0.5">*.tentman.json</code> files,
+			builds forms from the declared <code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code>,
+			and persists content through explicit <code class="rounded bg-gray-100 px-1.5 py-0.5"
+				>content.mode</code
 			>
-			and placed anywhere in your repository (typically alongside the content they describe).
+			behavior.
 		</p>
-
-		<div class="overflow-x-auto">
-			<table class="min-w-full border border-gray-200 bg-white text-sm">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Property</th
-						>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Type</th
-						>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Required</th
-						>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Description</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-200">
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">label</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3">✓</td>
-						<td class="px-4 py-3">Display name shown in the CMS (e.g., "Blog Posts")</td>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">fields</td>
-						<td class="px-4 py-3">object | array</td>
-						<td class="px-4 py-3">✓</td>
-						<td class="px-4 py-3">Field definitions (see Field Types section)</td>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">contentFile</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3">*</td>
-						<td class="px-4 py-3"
-							>Path to content file (for singletons and arrays). Relative to config file.</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">template</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3">*</td>
-						<td class="px-4 py-3"
-							>Path to template file (for collections). Relative to config file.</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">collectionPath</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3"></td>
-						<td class="px-4 py-3"
-							>JSONPath to array within content file (e.g., "$.posts"). Makes it a single-file
-							array.</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">idField</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3">**</td>
-						<td class="px-4 py-3"
-							>Field name to use as unique identifier (required for arrays and collections)</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">imagePath</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3"></td>
-						<td class="px-4 py-3">Custom path for image uploads (defaults to "static/images/")</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
-
-		<p class="mt-4 text-sm text-gray-600">
-			* Either <code class="rounded bg-gray-100 px-1 py-0.5">contentFile</code> or
-			<code class="rounded bg-gray-100 px-1 py-0.5">template</code> is required<br />
-			** <code class="rounded bg-gray-100 px-1 py-0.5">idField</code> is required for arrays and collections
+		<p class="mb-4">The current model uses two top-level config types:</p>
+		<ul class="mb-4 ml-6 list-disc space-y-2">
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "content"</code> for editable content
+				definitions
+			</li>
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> for reusable structured
+				block definitions
+			</li>
+		</ul>
+		<p class="mb-0">
+			For repeatable content, use <code class="rounded bg-gray-100 px-1.5 py-0.5"
+				>collection: true</code
+			>.
+			Persistence shape lives under the <code class="rounded bg-gray-100 px-1.5 py-0.5"
+				>content</code
+			>
+			object, and schema shape lives under <code class="rounded bg-gray-100 px-1.5 py-0.5"
+				>blocks</code
+			>.
 		</p>
 	</section>
 
-	<!-- Field Types -->
-	<section id="field-types" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Field Types</h2>
-		<p class="mb-6">
-			Fields can be defined in two formats: simple (just the type as a string) or detailed (an object
-			with additional options).
+	<section id="root-config" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Root Config</h2>
+		<p class="mb-4">
+			The root <code class="rounded bg-gray-100 px-1.5 py-0.5">.tentman.json</code> file is optional.
+			When present, it controls discovery defaults and shared asset behavior.
 		</p>
-
-		<h3 class="mb-3 text-lg font-semibold text-gray-900">Simple Format</h3>
-		<pre
-			class="mb-6 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`"fields": {
-  "title": "text",
-  "published": "boolean",
-  "content": "markdown"
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "blocksDir": "./tentman/blocks",
+  "configsDir": "./tentman/configs",
+  "assetsDir": "./static/images"
 }`}</code></pre>
-
-		<h3 class="mb-3 text-lg font-semibold text-gray-900">Detailed Format</h3>
-		<pre
-			class="mb-6 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`"fields": {
-  "title": {
-    "type": "text",
-    "required": true,
-    "show": "primary"
-  },
-  "slug": {
-    "type": "text",
-    "generated": true
-  },
-  "publishDate": {
-    "type": "date",
-    "show": "secondary"
-  }
-}`}</code></pre>
-
-		<h3 class="mb-4 mt-8 text-lg font-semibold text-gray-900">Available Field Types</h3>
-		<div class="space-y-4">
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">text</h4>
-				<p class="text-sm text-gray-700">Single-line text input</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">textarea</h4>
-				<p class="text-sm text-gray-700">Multi-line text input</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">markdown</h4>
-				<p class="text-sm text-gray-700">
-					Markdown editor with preview (for rich text content)
-				</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">email</h4>
-				<p class="text-sm text-gray-700">Email address input with validation</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">url</h4>
-				<p class="text-sm text-gray-700">URL input with validation</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">number</h4>
-				<p class="text-sm text-gray-700">Numeric input</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">date</h4>
-				<p class="text-sm text-gray-700">Date picker</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">boolean</h4>
-				<p class="text-sm text-gray-700">Checkbox for true/false values</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">image</h4>
-				<p class="text-sm text-gray-700">Image upload and preview</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h4 class="mb-2 font-mono text-sm font-semibold text-gray-900">array</h4>
-				<p class="mb-2 text-sm text-gray-700">
-					Repeatable nested fields (must include <code
-						class="rounded bg-gray-100 px-1 py-0.5 text-xs">fields</code
-					> property)
-				</p>
-				<pre
-					class="overflow-x-auto rounded bg-gray-50 p-2 text-xs"><code>{`"features": {
-  "type": "array",
-  "fields": {
-    "title": "text",
-    "description": "textarea"
-  }
-}`}</code></pre>
-			</div>
-		</div>
-
-		<h3 class="mb-4 mt-8 text-lg font-semibold text-gray-900">Field Options</h3>
-		<div class="overflow-x-auto">
-			<table class="min-w-full border border-gray-200 bg-white text-sm">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Option</th
-						>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Type</th
-						>
-						<th class="border-b border-gray-200 px-4 py-3 text-left font-semibold text-gray-900"
-							>Description</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-200">
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">type</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3">The field type (required)</td>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">label</td>
-						<td class="px-4 py-3">string</td>
-						<td class="px-4 py-3"
-							>Custom display label (defaults to field name converted to Title Case)</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">required</td>
-						<td class="px-4 py-3">boolean</td>
-						<td class="px-4 py-3">Whether the field is required</td>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">generated</td>
-						<td class="px-4 py-3">boolean</td>
-						<td class="px-4 py-3"
-							>Mark field as auto-generated (e.g., slug from title). Hidden by default.</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">show</td>
-						<td class="px-4 py-3">"primary" | "secondary"</td>
-						<td class="px-4 py-3"
-							>Display on index cards. "primary" = large title, "secondary" = metadata</td
-						>
-					</tr>
-					<tr>
-						<td class="px-4 py-3 font-mono text-xs">fields</td>
-						<td class="px-4 py-3">object</td>
-						<td class="px-4 py-3">Nested field definitions (for array type only)</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
+		<ul class="mt-4 ml-6 list-disc space-y-2">
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">blocksDir</code> limits reusable block config
+				discovery.
+			</li>
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">configsDir</code> limits top-level content
+				config discovery.
+			</li>
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">assetsDir</code> provides the default upload
+				location for image-oriented blocks.
+			</li>
+		</ul>
 	</section>
 
-	<!-- Examples -->
-	<section id="examples" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Example Configurations</h2>
-
-		<div class="space-y-8">
-			<!-- Singleton Example -->
-			<div>
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">Singleton: About Page</h3>
-				<p class="mb-3 text-sm text-gray-700">
-					A single JSON file containing your about page content.
-				</p>
-				<pre
-					class="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`// about.tentman.json
-{
-  "label": "About Page",
-  "contentFile": "./about.json",
-  "fields": {
-    "title": {
-      "type": "text",
-      "required": true,
-      "show": "primary"
-    },
-    "tagline": {
-      "type": "text",
-      "show": "secondary"
-    },
-    "content": "markdown",
-    "teamImage": "image"
-  }
-}`}</code></pre>
-			</div>
-
-			<!-- Single-file Array Example -->
-			<div>
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">Single-file Array: Tour Dates</h3>
-				<p class="mb-3 text-sm text-gray-700">
-					An array of tour dates stored in one JSON file.
-				</p>
-				<pre
-					class="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`// tours.tentman.json
-{
-  "label": "Tour Dates",
-  "contentFile": "./tours.json",
-  "collectionPath": "$.dates",
-  "idField": "id",
-  "fields": {
-    "id": {
-      "type": "text",
-      "generated": true
-    },
-    "date": {
-      "type": "date",
-      "required": true,
-      "show": "primary"
-    },
-    "venue": {
-      "type": "text",
-      "required": true,
-      "show": "secondary"
-    },
-    "city": {
-      "type": "text",
-      "show": "secondary"
-    },
-    "ticketUrl": "url",
-    "soldOut": "boolean"
-  }
-}`}</code></pre>
-				<p class="mt-3 text-sm text-gray-700">
-					The <code class="rounded bg-gray-100 px-1 py-0.5">tours.json</code> file would look like:
-				</p>
-				<pre
-					class="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`{
-  "dates": [
-    {
-      "id": "tour-1",
-      "date": "2025-06-15",
-      "venue": "Madison Square Garden",
-      "city": "New York",
-      "ticketUrl": "https://...",
-      "soldOut": false
-    }
+	<section id="content-configs" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Content Configs</h2>
+		<p class="mb-4">
+			Content configs declare editable content. They do not need an ID in v1.
+		</p>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "content",
+  "label": "Blog Posts",
+  "itemLabel": "Blog Post",
+  "collection": true,
+  "idField": "slug",
+  "content": {
+    "mode": "directory",
+    "path": "./src/content/posts",
+    "template": "./templates/post.md",
+    "filename": "{{slug}}"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+    { "id": "slug", "type": "text", "label": "Slug", "required": true },
+    { "id": "body", "type": "markdown", "label": "Body", "required": true }
   ]
 }`}</code></pre>
-			</div>
-
-			<!-- Multi-file Collection Example -->
-			<div>
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">Multi-file Collection: Blog Posts</h3>
-				<p class="mb-3 text-sm text-gray-700">
-					Individual markdown files for each blog post, using a template.
-				</p>
-				<pre
-					class="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`// posts.tentman.json
-{
-  "label": "Blog Posts",
-  "template": "./post.template.md",
-  "idField": "slug",
-  "fields": {
-    "title": {
-      "type": "text",
-      "required": true,
-      "show": "primary"
-    },
-    "slug": {
-      "type": "text",
-      "generated": true
-    },
-    "date": {
-      "type": "date",
-      "required": true,
-      "show": "secondary"
-    },
-    "author": {
-      "type": "text",
-      "show": "secondary"
-    },
-    "coverImage": "image",
-    "excerpt": "textarea",
-    "content": "markdown",
-    "published": "boolean"
-  }
-}`}</code></pre>
-				<p class="mt-3 text-sm text-gray-700">
-					The <code class="rounded bg-gray-100 px-1 py-0.5">post.template.md</code> file:
-				</p>
-				<pre
-					class="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`---
-title: ""
-slug: ""
-date: ""
-author: ""
-coverImage: ""
-excerpt: ""
-published: false
----
-
-Write your post content here...`}</code></pre>
-			</div>
-
-			<!-- Array Field Example -->
-			<div>
-				<h3 class="mb-3 text-xl font-semibold text-gray-900">
-					Using Array Fields: Product with Features
-				</h3>
-				<p class="mb-3 text-sm text-gray-700">
-					Array fields allow repeatable nested structures within a single item.
-				</p>
-				<pre
-					class="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4"><code class="text-sm">{`// products.tentman.json
-{
-  "label": "Products",
-  "contentFile": "./products.json",
-  "collectionPath": "$.products",
-  "idField": "id",
-  "fields": {
-    "id": {
-      "type": "text",
-      "generated": true
-    },
-    "name": {
-      "type": "text",
-      "required": true,
-      "show": "primary"
-    },
-    "price": {
-      "type": "number",
-      "show": "secondary"
-    },
-    "description": "textarea",
-    "features": {
-      "type": "array",
-      "fields": {
-        "icon": "text",
-        "title": "text",
-        "description": "textarea"
-      }
-    },
-    "inStock": "boolean"
-  }
-}`}</code></pre>
-			</div>
-		</div>
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Rules</h3>
+		<ul class="ml-6 list-disc space-y-2">
+			<li><code class="rounded bg-gray-100 px-1.5 py-0.5">label</code> is required.</li>
+			<li><code class="rounded bg-gray-100 px-1.5 py-0.5">content</code> is required.</li>
+			<li><code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code> is required.</li>
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">itemLabel</code> is required when
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">collection: true</code>.
+			</li>
+			<li>
+				Top-level content configs support <code class="rounded bg-gray-100 px-1.5 py-0.5">file</code>
+				and <code class="rounded bg-gray-100 px-1.5 py-0.5">directory</code> modes in v1.
+			</li>
+		</ul>
 	</section>
 
-	<!-- Getting Started -->
-	<section id="getting-started" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Getting Started</h2>
-
-		<div class="space-y-6">
-			<div>
-				<h3 class="mb-3 text-lg font-semibold text-gray-900">1. Create Your First Config File</h3>
-				<p class="mb-3 text-gray-700">
-					In your repository, create a file named <code class="rounded bg-gray-100 px-1.5 py-0.5"
-						>*.tentman.json</code
-					>
-					(e.g., <code class="rounded bg-gray-100 px-1.5 py-0.5">posts.tentman.json</code>). Place it
-					near your content files.
-				</p>
-			</div>
-
-			<div>
-				<h3 class="mb-3 text-lg font-semibold text-gray-900">2. Choose Your Content Pattern</h3>
-				<p class="mb-3 text-gray-700">
-					Decide which pattern fits your content needs:
-				</p>
-				<ul class="ml-6 list-disc space-y-2 text-gray-700">
-					<li>
-						<strong>Singleton:</strong> Single pages or settings
-						<code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">contentFile</code> only
-					</li>
-					<li>
-						<strong>Single-file Array:</strong> Lists in one file
-						<code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">contentFile</code> +
-						<code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">collectionPath</code>
-					</li>
-					<li>
-						<strong>Multi-file Collection:</strong> Individual files per item
-						<code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">template</code>
-					</li>
-				</ul>
-			</div>
-
-			<div>
-				<h3 class="mb-3 text-lg font-semibold text-gray-900">3. Define Your Fields</h3>
-				<p class="mb-3 text-gray-700">
-					List all the fields your content needs. Use simple types for basic fields, and the detailed
-					format when you need validation or display options.
-				</p>
-			</div>
-
-			<div>
-				<h3 class="mb-3 text-lg font-semibold text-gray-900">4. Login to Tentman</h3>
-				<p class="mb-3 text-gray-700">
-					Visit the Tentman CMS, login with GitHub, select your repository, and your configs will be
-					automatically discovered.
-				</p>
-			</div>
-
-			<div>
-				<h3 class="mb-3 text-lg font-semibold text-gray-900">5. Start Editing</h3>
-				<p class="mb-3 text-gray-700">
-					Use the auto-generated forms to create and edit your content. All changes are saved to a
-					draft branch until you're ready to publish.
-				</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Footer -->
-	<footer class="mt-16 border-t border-gray-200 pt-8 text-center text-sm text-gray-600">
-		<p>
-			Need help? Have questions? Check out the
-			<a href="https://github.com/anthropics/tentman" class="text-blue-600 hover:underline"
-				>GitHub repository</a
-			>
+	<section id="block-configs" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Block Configs</h2>
+		<p class="mb-4">
+			Block configs define reusable structured blocks that can be referenced by ID through the block
+			registry.
 		</p>
-	</footer>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "block",
+  "id": "seo",
+  "label": "SEO",
+  "blocks": [
+    { "id": "metaTitle", "type": "text", "label": "Meta Title" },
+    { "id": "metaDescription", "type": "textarea", "label": "Meta Description" }
+  ]
+}`}</code></pre>
+		<ul class="mt-4 ml-6 list-disc space-y-2">
+			<li>
+				Block configs require <code class="rounded bg-gray-100 px-1.5 py-0.5">id</code>,
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">label</code>, and
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code>.
+			</li>
+			<li>
+				They default to embedded behavior in v1, even when reused across content configs.
+			</li>
+			<li>
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">collection: true</code> makes the block
+				repeatable.
+			</li>
+		</ul>
+
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Inline Structured Blocks</h3>
+		<p class="mb-4">
+			You can also define nested structured blocks inline by using
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> inside a parent config's
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code> array.
+		</p>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "id": "gallery",
+  "type": "block",
+  "label": "Gallery",
+  "collection": true,
+  "blocks": [
+    { "id": "image", "type": "image", "required": true },
+    { "id": "alt", "type": "text", "required": true },
+    { "id": "caption", "type": "text" }
+  ]
+}`}</code></pre>
+	</section>
+
+	<section id="content-modes" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Content Modes</h2>
+		<div class="space-y-6">
+			<div class="rounded-lg border border-gray-200 bg-white p-6">
+				<h3 class="mb-2 text-xl font-semibold text-gray-900">File Mode</h3>
+				<p class="mb-3 text-gray-700">
+					Stores content in a single file. Use
+					<code class="rounded bg-gray-100 px-1.5 py-0.5">itemsPath</code> when a file-backed config
+					contains multiple entries.
+				</p>
+				<pre class="overflow-x-auto rounded bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "mode": "file",
+  "path": "./src/content/site.json"
+}`}</code></pre>
+				<pre class="mt-3 overflow-x-auto rounded bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "mode": "file",
+  "path": "./src/content/team.json",
+  "itemsPath": "$.members"
+}`}</code></pre>
+			</div>
+
+			<div class="rounded-lg border border-gray-200 bg-white p-6">
+				<h3 class="mb-2 text-xl font-semibold text-gray-900">Directory Mode</h3>
+				<p class="mb-3 text-gray-700">
+					Stores one entry per file inside a directory and uses a template to create new items.
+				</p>
+				<pre class="overflow-x-auto rounded bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "mode": "directory",
+  "path": "./src/content/posts",
+  "template": "./templates/post.md",
+  "filename": "{{slug}}"
+}`}</code></pre>
+			</div>
+
+			<div class="rounded-lg border border-gray-200 bg-white p-6">
+				<h3 class="mb-2 text-xl font-semibold text-gray-900">Embedded Mode</h3>
+				<p class="mb-0 text-gray-700">
+					Embedded mode is reserved for nested content structures. Top-level
+					<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "content"</code> configs do not use
+					it in v1.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<section id="block-types" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Built-in Block Types</h2>
+		<p class="mb-4">
+			Tentman ships with primitive block adapters for common authoring needs.
+		</p>
+		<div class="flex flex-wrap gap-2">
+			{#each builtInBlocks as blockType}
+				<span class="rounded-full border border-gray-200 bg-white px-3 py-1 text-sm text-gray-700">
+					{blockType}
+				</span>
+			{/each}
+		</div>
+		<p class="mt-4">
+			Block usages support shared metadata like
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">label</code>,
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">required</code>,
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">show</code>,
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">minLength</code>,
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">maxLength</code>, and
+			<code class="rounded bg-gray-100 px-1.5 py-0.5">assetsDir</code>.
+		</p>
+	</section>
+
+	<section id="discovery" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Discovery and Paths</h2>
+		<ul class="ml-6 list-disc space-y-2">
+			<li>
+				If <code class="rounded bg-gray-100 px-1.5 py-0.5">configsDir</code> is set, Tentman only
+				discovers top-level content configs inside that directory.
+			</li>
+			<li>
+				If <code class="rounded bg-gray-100 px-1.5 py-0.5">blocksDir</code> is set, Tentman discovers
+				reusable block configs from there and excludes them from top-level content discovery.
+			</li>
+			<li>
+				Content paths resolve relative to the config file that declares them.
+			</li>
+			<li>
+				Block adapter paths resolve relative to the block config file that declares them.
+			</li>
+			<li>
+				Root config paths resolve relative to the root <code class="rounded bg-gray-100 px-1.5 py-0.5"
+					>.tentman.json</code
+				>.
+			</li>
+		</ul>
+	</section>
+
+	<section id="examples" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Examples</h2>
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Single-Entry Content</h3>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "content",
+  "label": "Site Settings",
+  "content": {
+    "mode": "file",
+    "path": "./src/content/site.json"
+  },
+  "blocks": [
+    { "id": "siteTitle", "type": "text", "label": "Site Title", "required": true },
+    { "id": "tagline", "type": "textarea", "label": "Tagline" }
+  ]
+}`}</code></pre>
+
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">File-Backed Collection</h3>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "content",
+  "label": "Team Members",
+  "itemLabel": "Team Member",
+  "collection": true,
+  "idField": "slug",
+  "content": {
+    "mode": "file",
+    "path": "./src/content/team.json",
+    "itemsPath": "$.members"
+  },
+  "blocks": [
+    { "id": "name", "type": "text", "label": "Name", "required": true, "show": "primary" },
+    { "id": "slug", "type": "text", "label": "Slug", "required": true },
+    { "id": "role", "type": "text", "label": "Role", "show": "secondary" }
+  ]
+}`}</code></pre>
+
+		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Directory-Backed Collection</h3>
+		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+  "type": "content",
+  "label": "Blog Posts",
+  "itemLabel": "Blog Post",
+  "collection": true,
+  "idField": "slug",
+  "content": {
+    "mode": "directory",
+    "path": "./src/content/posts",
+    "template": "./templates/post.md",
+    "filename": "{{slug}}"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+    { "id": "slug", "type": "text", "label": "Slug", "required": true },
+    { "id": "date", "type": "date", "label": "Date", "required": true, "show": "secondary" },
+    { "id": "body", "type": "markdown", "label": "Body", "required": true }
+  ]
+}`}</code></pre>
+	</section>
+
+	<section id="migration" class="mb-12">
+		<h2 class="mb-4 text-2xl font-bold text-gray-900">Migration Notes</h2>
+		<ul class="ml-6 list-disc space-y-2">
+			<li>
+				Old inferred top-level config types are replaced by explicit
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "content"</code> and
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code>.
+			</li>
+			<li>
+				Legacy <code class="rounded bg-gray-100 px-1.5 py-0.5">fields</code> definitions are replaced
+				by <code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code>.
+			</li>
+			<li>
+				Single-file repeatable content now uses
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">content.mode: "file"</code> plus
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">itemsPath</code>.
+			</li>
+			<li>
+				File-per-entry content now uses
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">content.mode: "directory"</code> with
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">template</code> and optional
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">filename</code>.
+			</li>
+			<li>
+				Reusable nested structures belong in block configs or inline
+				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> definitions.
+			</li>
+		</ul>
+	</section>
 </div>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeFields } from '$lib/config/fields-compat';
 import {
 	getDiscoverableBlockConfigPaths,
 	getDiscoverableContentConfigPaths,
@@ -64,10 +65,10 @@ describe('parseDiscoveredConfig', () => {
 		);
 
 		expect(discovered.slug).toBe('site-settings');
-		if (!('contentFile' in discovered.config)) {
+		if (discovered.config.content.mode !== 'file') {
 			throw new Error('Expected file-backed content config');
 		}
-		expect(discovered.config.contentFile).toBe('./src/content/site.json');
+		expect(discovered.config.content.path).toBe('./src/content/site.json');
 	});
 });
 
@@ -87,7 +88,7 @@ describe('parseDiscoveredBlockConfig', () => {
 
 		expect(discovered.id).toBe('seo');
 		expect(discovered.config.type).toBe('block');
-		expect(discovered.config.fields.metaTitle).toMatchObject({
+		expect(normalizeFields(discovered.config.blocks).metaTitle).toMatchObject({
 			type: 'text',
 			label: 'Meta Title'
 		});

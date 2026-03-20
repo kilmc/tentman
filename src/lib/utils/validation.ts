@@ -1,8 +1,7 @@
+import { findBlockById, getBlockLabel } from '$lib/config/blocks';
+import type { ParsedContentConfig } from '$lib/config/parse';
 import type { BlockRegistry } from '$lib/blocks/registry';
 import { DEFAULT_BLOCK_REGISTRY, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
-import type { Config, FieldDefinition } from '$lib/types/config';
-import { normalizeFields } from '$lib/features/forms/helpers';
-import { getFieldLabel } from '$lib/types/config';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export interface ValidationError {
@@ -11,7 +10,7 @@ export interface ValidationError {
 }
 
 export function validateFormData(
-	config: Config,
+	config: ParsedContentConfig,
 	data: ContentRecord,
 	options?: {
 		existingItems?: ContentRecord[];
@@ -21,26 +20,20 @@ export function validateFormData(
 ): ValidationError[] {
 	const errors: ValidationError[] = [];
 
-	// Normalize fields to handle both array and object formats
-	const normalizedFields = normalizeFields(config.fields);
-
 	for (const block of config.blocks) {
 		const value = data[block.id];
-		const fieldDef = normalizedFields[block.id];
-		const fieldType = typeof fieldDef === 'string' ? fieldDef : fieldDef?.type;
+		const adapter = resolveBlockAdapterForUsage(block, registry);
 
-		// Type-specific validation
-		if (!resolveBlockAdapterForUsage(block, registry) && fieldType === 'array') {
+		if (!adapter && block.collection) {
 			if (!Array.isArray(value)) {
 				errors.push({
 					field: block.id,
-					message: `${getFieldLabel(block.id, fieldDef)} must be an array`
+					message: `${getBlockLabel(block)} must be an array`
 				});
 			}
 			continue;
 		}
 
-		const adapter = resolveBlockAdapterForUsage(block, registry);
 		if (!adapter?.validate) {
 			continue;
 		}
@@ -63,9 +56,11 @@ export function validateFormData(
 			});
 
 			if (isDuplicate) {
+				const idBlock = findBlockById(config.blocks, config.idField) ?? { id: config.idField };
+
 				errors.push({
 					field: config.idField,
-					message: `${getFieldLabel(config.idField, normalizedFields[config.idField] as FieldDefinition)} must be unique. This value is already in use.`
+					message: `${getBlockLabel(idBlock)} must be unique. This value is already in use.`
 				});
 			}
 		}

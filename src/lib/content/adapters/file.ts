@@ -1,7 +1,7 @@
 import { JSONPath } from 'jsonpath-plus';
+import { findBlockById } from '$lib/config/blocks';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { generateCommitMessage } from '$lib/github/commit';
-import { normalizeFields } from '$lib/types/config';
 import {
 	detectJsonIndent,
 	toJsonFileContent
@@ -93,10 +93,9 @@ function maybeAssignGeneratedId(config: FileCollectionConfig, item: ContentRecor
 		return;
 	}
 
-	const normalizedFields = normalizeFields(config.fields);
-	const fieldDef = normalizedFields[config.idField];
+	const idBlock = findBlockById(config.blocks, config.idField);
 
-	if (typeof fieldDef === 'object' && fieldDef.generated) {
+	if (idBlock?.generated) {
 		item[config.idField] = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 	}
 }

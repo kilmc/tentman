@@ -1,9 +1,26 @@
 import type { Octokit } from 'octokit';
-import { isParsedBlockConfig, isParsedContentConfig, parseConfigFile } from '$lib/config/parse';
+import {
+	isParsedBlockConfig,
+	isParsedContentConfig,
+	parseConfigFile,
+	type ParsedBlockConfig,
+	type ParsedContentConfig
+} from '$lib/config/parse';
 import { parseRootConfig } from '$lib/config/root-config';
 import type { RootConfig } from '$lib/config/root-config';
-import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/types/config';
 import { slugify } from '$lib/utils';
+
+export interface DiscoveredConfig {
+	path: string;
+	slug: string;
+	config: ParsedContentConfig;
+}
+
+export interface DiscoveredBlockConfig {
+	path: string;
+	id: string;
+	config: ParsedBlockConfig;
+}
 
 function normalizeDir(dir: string | undefined): string | undefined {
 	if (!dir) {

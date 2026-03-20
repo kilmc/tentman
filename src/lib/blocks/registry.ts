@@ -1,8 +1,8 @@
 import { createStructuredBlockAdapter } from '$lib/blocks/adapters/structured';
 import { BUILT_IN_BLOCKS, type BuiltInBlockDefinition } from '$lib/blocks/builtins';
 import type { BlockAdapter } from '$lib/blocks/adapters/types';
+import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 import type { BlockUsage } from '$lib/config/types';
-import type { DiscoveredBlockConfig } from '$lib/types/config';
 import type { RepositoryBackend } from '$lib/repository/types';
 
 export interface LocalBlockDefinition {

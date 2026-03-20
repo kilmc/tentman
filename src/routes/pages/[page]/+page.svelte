@@ -35,10 +35,10 @@
 		}
 
 		if (!config.collection) {
-			return 'singleton';
+			return 'single entry';
 		}
 
-		return config.content.mode === 'directory' ? 'collection' : 'array';
+		return config.content.mode === 'directory' ? 'directory collection' : 'file collection';
 	});
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
 	const blockRegistry = $derived(createBlockRegistry(blockConfigs));

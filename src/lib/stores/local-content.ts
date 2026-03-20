@@ -1,7 +1,7 @@
 import { get, writable } from 'svelte/store';
+import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
 import { localRepo } from '$lib/stores/local-repo';
 import type { RootConfig } from '$lib/config/root-config';
-import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/types/config';
 
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';

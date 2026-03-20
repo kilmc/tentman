@@ -8,7 +8,6 @@
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { getFieldLabel } from '$lib/types/config';
 	import { getCardFields } from '$lib/features/forms/helpers';
 	import { findContentItem, formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';

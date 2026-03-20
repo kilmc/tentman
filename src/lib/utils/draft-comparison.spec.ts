@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isParsedContentConfig, parseConfigFile } from '$lib/config/parse';
-import type { Config } from '$lib/types/config';
+import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
 import type { ContentRecord } from '$lib/features/content-management/types';
 import { compareLoadedDraftContent, getChangeCount, hasChanges } from './draft-comparison';
 
-function parseContentConfigFixture(content: string): Config {
+function parseContentConfigFixture(content: string): ParsedContentConfig {
 	const parsed = parseConfigFile(content);
 
 	if (!isParsedContentConfig(parsed)) {

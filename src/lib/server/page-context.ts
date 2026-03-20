@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
+import type { DiscoveredConfig } from '$lib/config/discovery';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
-import type { DiscoveredConfig } from '$lib/types/config';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 
 type AppLocals = App.Locals;
@@ -60,4 +60,3 @@ export async function getOptionalDraftBranchName(locals: AppLocals): Promise<str
 	const context = requireGitHubRepository(locals);
 	return getLatestPreviewBranchName(context.octokit, context.owner, context.name);
 }
-

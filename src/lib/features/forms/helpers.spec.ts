@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfigFile } from '$lib/config/parse';
+import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
 import { buildFormData, getCardFields, normalizeFields } from './helpers';
-import type { Config } from '$lib/types/config';
 
-const config = parseConfigFile(`{
+function parseContentConfigFixture(content: string): ParsedContentConfig {
+	const parsed = parseConfigFile(content);
+
+	if (!isParsedContentConfig(parsed)) {
+		throw new Error('Expected content config fixture');
+	}
+
+	return parsed;
+}
+
+const config = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
@@ -29,7 +38,7 @@ const config = parseConfigFile(`{
 			]
 		}
 	]
-}`) as Config;
+}`);
 
 describe('forms/helpers', () => {
 	it('builds defaults and preserves provided values', () => {
@@ -42,7 +51,7 @@ describe('forms/helpers', () => {
 	});
 
 	it('normalizes array-based field configs', () => {
-		expect(normalizeFields(config.fields)).toMatchObject({
+		expect(normalizeFields(config.blocks)).toMatchObject({
 			title: { type: 'text', label: 'Title' },
 			published: { type: 'boolean', label: 'Published', show: 'secondary' }
 		});

@@ -1,17 +1,4 @@
-import type {
-	BlockConfig,
-	BlockUsage,
-	ContentConfig,
-	PrimitiveBlockType,
-	RootConfig
-} from '$lib/config/types';
-import type {
-	ParsedBlockConfig,
-	ParsedContentConfig
-} from '$lib/config/parse';
-
-export type { BlockConfig, BlockUsage, ContentConfig, PrimitiveBlockType, RootConfig };
-export type { ParsedBlockConfig, ParsedContentConfig };
+import type { BlockUsage, PrimitiveBlockType } from '$lib/config/types';
 
 export type FieldType = PrimitiveBlockType | 'array';
 
@@ -38,20 +25,6 @@ export interface FieldArrayItem {
 	fields?: FieldArrayItem[];
 	minLength?: number;
 	maxLength?: number;
-}
-
-export type Config = ParsedContentConfig;
-
-export interface DiscoveredConfig {
-	path: string;
-	slug: string;
-	config: Config;
-}
-
-export interface DiscoveredBlockConfig {
-	path: string;
-	id: string;
-	config: ParsedBlockConfig;
 }
 
 function isFieldArrayItem(value: BlockUsage | FieldArrayItem): value is FieldArrayItem {
@@ -139,16 +112,4 @@ export function normalizeFields(
 	}
 
 	return fields;
-}
-
-export function getFieldLabel(fieldName: string, fieldDef: FieldDefinition): string {
-	if (typeof fieldDef === 'object' && fieldDef.label) {
-		return fieldDef.label;
-	}
-
-	return fieldName
-		.replace(/([A-Z])/g, ' $1')
-		.replace(/_/g, ' ')
-		.replace(/^./, (str) => str.toUpperCase())
-		.trim();
 }

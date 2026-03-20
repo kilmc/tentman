@@ -42,7 +42,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
-	// Only allow arrays and collections on this route
+	// Only allow collection content on this route
 	if (!discoveredConfig.config.collection) {
 		throw redirect(302, `/pages/${params.page}/edit`);
 	}

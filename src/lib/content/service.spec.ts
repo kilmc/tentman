@@ -125,6 +125,25 @@ const arrayConfig = parseContentConfigFixture(
 	})
 );
 
+const generatedIdArrayConfig = parseContentConfigFixture(
+	JSON.stringify({
+		type: 'content',
+		label: 'Team',
+		itemLabel: 'Member',
+		collection: true,
+		idField: 'slug',
+		content: {
+			mode: 'file',
+			path: './team-generated.json',
+			itemsPath: '$.members'
+		},
+		blocks: [
+			{ id: 'slug', type: 'text', label: 'Slug', generated: true },
+			{ id: 'name', type: 'text', label: 'Name' }
+		]
+	})
+);
+
 const directoryConfig = parseContentConfigFixture(
 	JSON.stringify({
 		type: 'content',
@@ -200,6 +219,27 @@ describe('content/service', () => {
 				{ slug: 'carol', name: 'Carol' }
 			]
 		});
+	});
+
+	it('assigns generated ids for file-mode collection creates from block metadata', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/team-generated.json': '{\n  "members": []\n}\n'
+		});
+
+		await createContentDocument(
+			backend,
+			generatedIdArrayConfig,
+			'content/team-generated.tentman.json',
+			{ name: 'Carol' }
+		);
+
+		const saved = JSON.parse(backend.files.get('content/team-generated.json') ?? '{}') as {
+			members: Array<{ slug?: string; name: string }>;
+		};
+
+		expect(saved.members).toHaveLength(1);
+		expect(saved.members[0]).toMatchObject({ name: 'Carol' });
+		expect(saved.members[0]?.slug).toMatch(/^\d+-[a-z0-9]+$/);
 	});
 
 	it('uses content.path for directory-mode fetch and write operations', async () => {
