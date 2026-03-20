@@ -88,6 +88,7 @@ export interface RootConfig {
 	blocksDir?: string;
 	configsDir?: string;
 	assetsDir?: string;
+	blockPackages?: string[];
 	netlify?: {
 		siteName: string;
 	};

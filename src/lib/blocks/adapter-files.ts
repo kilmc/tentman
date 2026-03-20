@@ -1,3 +1,4 @@
+import { validateBlockAdapterValue } from '$lib/blocks/adapter-contract';
 import type { BlockAdapter } from '$lib/blocks/adapters/types';
 import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 
@@ -66,34 +67,11 @@ export function validateLocalBlockAdapterModule(
 		);
 	}
 
-	const { adapter } = moduleValue;
-	if (!isRecord(adapter)) {
-		throw new Error(`Adapter export for ${getBlockContextLabel(block)} must be an object`);
-	}
-
-	if (typeof adapter.type !== 'string' || adapter.type.length === 0) {
-		throw new Error(`Adapter export for ${getBlockContextLabel(block)} must define a string "type"`);
-	}
-
-	if (adapter.type !== block.id) {
-		throw new Error(
-			`Adapter export for ${getBlockContextLabel(block)} must use type "${block.id}", received "${adapter.type}"`
-		);
-	}
-
-	if (typeof adapter.getDefaultValue !== 'function') {
-		throw new Error(
-			`Adapter export for ${getBlockContextLabel(block)} must define "getDefaultValue"`
-		);
-	}
-
-	if ('validate' in adapter && adapter.validate !== undefined && typeof adapter.validate !== 'function') {
-		throw new Error(
-			`Adapter export for ${getBlockContextLabel(block)} has an invalid "validate" export`
-		);
-	}
-
-	return adapter as unknown as BlockAdapter;
+	return validateBlockAdapterValue(
+		moduleValue.adapter,
+		block.id,
+		`Adapter export for ${getBlockContextLabel(block)}`
+	);
 }
 
 export async function loadLocalBlockAdapter(

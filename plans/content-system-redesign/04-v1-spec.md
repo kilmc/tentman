@@ -12,7 +12,8 @@ Optional.
 {
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
-  "assetsDir": "./static/images"
+  "assetsDir": "./static/images",
+  "blockPackages": ["@tentman/blocks-media"]
 }
 ```
 
@@ -21,6 +22,7 @@ Optional.
 - `blocksDir` is optional.
 - `configsDir` is optional.
 - `assetsDir` is optional and acts as the default upload destination.
+- `blockPackages` is optional and, when present, is a string array of package names.
 
 ## Content Config
 
@@ -193,14 +195,18 @@ Used for file-per-entry content.
 - Custom block configs use the generic structured adapter by default.
 - A block config may opt into a custom adapter by file path.
 - In the current local browser-backed implementation, custom adapter files must be self-contained `.js` or `.mjs` ESM modules.
+- Package-distributed blocks may provide an adapter object directly in their package export instead of a repo-local adapter path.
 - Content persistence is handled by content adapters, not block adapters.
 - Inline nested block definitions do not use custom adapter files in v1.
 - Recursive validation should walk child block usages for generated structured adapters in v1.
+- In the current first package-loading runtime, GitHub-backed/server mode only supports structured package blocks; package blocks that rely on direct adapter exports are rejected explicitly for now.
+- Local browser-backed repository mode does not support `rootConfig.blockPackages` yet and should fail clearly if it is configured.
 
 ## Registry Rules
 
 - Resolve block types in this order:
   1. built-ins
   2. local block configs
-  3. later: package-distributed blocks
+  3. package-distributed blocks from `rootConfig.blockPackages`
 - Duplicate block IDs are hard errors in v1.
+- Package modules use a named `blockPackage` export whose `blocks` array contributes reusable `type: "block"` configs after built-ins and local blocks.

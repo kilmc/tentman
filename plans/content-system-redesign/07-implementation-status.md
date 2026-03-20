@@ -2,21 +2,19 @@
 
 ## Current Slice
 
-- Phase: 5
+- Phase: post-rollout
 - Slice: 1
-- Title: Define the package block registration contract
+- Title: Try the redesigned content system on real content and capture follow-up friction
 - Status: pending
 
 ## Slice Goal
 
-If package-distributed blocks become a real priority, define the first explicit Phase 5 boundary for how package-provided blocks enter the registry without destabilizing the local adapter model that Phase 4 just established.
+Use the refactored core in practice before opening larger new architecture tracks.
 
-This slice should establish:
-- the root-config contract for package-provided blocks
-- the package export shape for one or more reusable block definitions
-- the first conflict/merge rules between built-ins, local blocks, and package blocks
-
-It should not yet implement a broad package ecosystem or blueprints.
+This slice should:
+- exercise the redesigned config/block/content system against real content
+- capture adoption blockers and sharp edges worth fixing next
+- keep broader package-runtime work and blueprints/scaffolding deferred unless real usage shows a clear need
 
 ## Completed Work
 
@@ -204,6 +202,29 @@ It should not yet implement a broad package ecosystem or blueprints.
 - Reviewed the shipped Phase 4 result against the rollout goals and confirmed that the current local-only custom-adapter runtime constraints are acceptable for v1.
 - Decided not to open another Phase 4 hardening slice before Phase 5; the current boundary is intentionally narrow but coherent, documented, and validated.
 - Decided not to start Phase 5 package work immediately by default; package-distributed blocks remain a later extension point rather than the current recommended next implementation step.
+- Phase 5 / Slice 1 completed.
+- Added `blockPackages` to the parsed root-config contract in `src/lib/config/types.ts` and `src/lib/config/parse.ts`, including validation that it is an array of non-empty package names.
+- Added `src/lib/blocks/packages.ts` plus `src/lib/blocks/adapter-contract.ts` to define the first package export contract: package modules expose a named `blockPackage` object whose `blocks` array contributes reusable `type: "block"` configs with optional direct adapter objects.
+- Extended `src/lib/blocks/registry.ts` so the async registry loader reads `rootConfig.blockPackages`, merges package blocks after built-ins and local blocks, gives package blocks the same structured-adapter fallback behavior as local reusable blocks, and throws explicit duplicate-ID or missing-loader/export errors.
+- Extended `src/lib/blocks/registry.spec.ts` and `src/lib/config/parse.spec.ts` with focused coverage for root-config parsing, package block loading, structured package defaults, missing package loaders/exports, and local-vs-package ID conflicts.
+- Tightened the plan/spec docs in `plans/content-system-redesign/02-adapter-and-registry.md` and `plans/content-system-redesign/04-v1-spec.md` so the written Phase 5 contract now matches the shipped code.
+- Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/blocks/registry.spec.ts`.
+- Phase 5 / Slice 2 completed.
+- Chose the first concrete package-loader runtime boundary: GitHub-backed/server mode now loads installed package modules, serializes structured package block configs into route data, and merges them into the client-side registry after built-ins and local blocks.
+- Added `src/lib/server/block-registry-data.ts` plus focused tests in `src/lib/server/block-registry-data.spec.ts` to load package blocks for GitHub-backed routes, reject package definitions that rely on direct adapter exports, and surface route-friendly registry errors instead of silently ignoring package failures.
+- Updated the GitHub-backed page/new/edit route loaders to pass `packageBlocks` and `blockRegistryError` through to the page clients, and updated the corresponding Svelte pages so non-local mode builds registries from built-ins + local blocks + package blocks only when that server-side load succeeded.
+- Updated `src/lib/stores/local-content.ts` so local browser-backed mode now fails explicitly when `root.blockPackages` is configured instead of quietly building an incomplete registry.
+- Tightened the Phase 5 plan/spec docs to record the new runtime decision: the first supported path is GitHub-backed/server mode with structured package blocks only, while local browser mode remains unsupported for `blockPackages`.
+- Verified with `npm run check` and `npx vitest run src/lib/config/parse.spec.ts src/lib/blocks/registry.spec.ts src/lib/server/block-registry-data.spec.ts`.
+- Phase 5 / Slice 3 completed.
+- Updated `src/routes/docs/+page.svelte` to document `root.blockPackages`, add a dedicated package-blocks section, and explain the exact first supported runtime boundary: GitHub-backed/server mode with installed structured package blocks only.
+- Added matching examples and migration/discovery notes so the in-app docs now call out the current limits clearly: direct package adapter exports are rejected in that path, and local browser-backed mode still does not support `blockPackages`.
+- Tightened the user-visible package error copy in `src/lib/server/block-registry-data.ts` and `src/lib/stores/local-content.ts` so product-facing guidance uses the same GitHub-backed/server-versus-local wording as the docs.
+- Verified with `npm run check`.
+- Phase 5 / Slice 4 completed.
+- Reviewed the realistic widening directions for package runtime support and concluded there is no obviously small safe follow-up slice: GitHub-backed direct package adapters would require a new adapter-execution boundary, while local browser `blockPackages` support would require a package-resolution/loading strategy that does not exist yet.
+- Decided with the user to keep broader package runtime support deferred and treat the current GitHub-backed structured-only path as the intentional Phase 5 stopping point.
+- Updated the rollout/architecture docs to record that decision so the plan now favors real-world trial of the refactored core before broader package runtime work or blueprints.
 
 ## Files Changed In Current Program Of Work
 
@@ -221,14 +242,18 @@ It should not yet implement a broad package ecosystem or blueprints.
 - `/Users/kilmc/code/tentman/src/lib/repository/types.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/types.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapter-files.ts`
+- `/Users/kilmc/code/tentman/src/lib/blocks/adapter-contract.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/builtins.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/builtins.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/structured.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/adapters/structured.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/compat.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/builtins.ts`
+- `/Users/kilmc/code/tentman/src/lib/blocks/packages.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/registry.ts`
 - `/Users/kilmc/code/tentman/src/lib/blocks/registry.spec.ts`
+- `/Users/kilmc/code/tentman/src/lib/server/block-registry-data.ts`
+- `/Users/kilmc/code/tentman/src/lib/server/block-registry-data.spec.ts`
 - `/Users/kilmc/code/tentman/src/lib/components/form/StructuredBlockField.svelte`
 - `/Users/kilmc/code/tentman/src/lib/components/form/FormGenerator.svelte`
 - `/Users/kilmc/code/tentman/src/lib/components/form/FormField.svelte`
@@ -273,15 +298,19 @@ It should not yet implement a broad package ecosystem or blueprints.
 - `/Users/kilmc/code/tentman/src/routes/pages/[page]/[itemId]/preview-changes/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/publish/+page.server.ts`
 - `/Users/kilmc/code/tentman/src/routes/docs/+page.svelte`
+- `/Users/kilmc/code/tentman/plans/content-system-redesign/03-phased-rollout.md`
 - `/Users/kilmc/code/tentman/plans/content-system-redesign/02-adapter-and-registry.md`
 - `/Users/kilmc/code/tentman/plans/content-system-redesign/04-v1-spec.md`
 - `/Users/kilmc/code/tentman/plans/content-system-redesign/07-implementation-status.md`
 
 ## Blockers Or Open Questions
 
-- There is no active blocker in Phase 4.
+- There is no active blocker in the shipped refactor path; the next step is practical trial and follow-up hardening.
 - The current local runtime only supports self-contained `.js` / `.mjs` ESM adapter files loaded through browser blob URLs. Repo-local TypeScript adapter authoring and adapter modules with further local imports would need a later transpilation or import-resolution step.
-- Phase 5 is intentionally deferred until package-distributed blocks become a real product need, since it would reopen loader/runtime questions that the current local-only Phase 4 boundary deliberately avoids.
+- The first supported `blockPackages` path is now GitHub-backed/server mode only, and it depends on the referenced block packages being installed in the Tentman app runtime.
+- Package blocks that rely on direct adapter exports are still unsupported in that first runtime because the current client-side form/display registry cannot serialize adapter functions across the server boundary.
+- Local browser-backed repository mode still does not support `blockPackages`; broadening Phase 5 beyond the current GitHub-backed structured-only path would require a different loading/distribution strategy.
+- Blueprints/scaffolding remain deliberately deferred; they should only come back into focus after the redesigned system has been used enough to prove what higher-level generation is actually needed.
 
 ## Plan Changes
 
@@ -313,14 +342,49 @@ It should not yet implement a broad package ecosystem or blueprints.
 - The plan docs now note this current runtime limit so the written spec matches the shipped Phase 4 behavior rather than still implying repo-local `.ts` adapter files already work end-to-end.
 - The in-app docs page now documents the same custom-adapter contract and runtime constraints, so local adapter authoring guidance lives in both the implementation plans and the product docs.
 - The planned post-Phase-4 pause is now complete: the current local-only adapter model is accepted for v1, no extra Phase 4 hardening slice is required right now, and Phase 5 package work remains explicitly deferred until it is worth the extra complexity.
+- Phase 5 now has a concrete code-level contract before any runtime support: `rootConfig.blockPackages` is the package list, package modules use a named `blockPackage` export, package block entries may carry direct adapters, and the async registry loader merges them after built-ins and local blocks with hard duplicate errors.
+- The contract is intentionally loader-agnostic for now: the shipped code requires an injected `loadBlockPackageModule(...)` and throws a clear error if `blockPackages` is configured without one.
+- Package-backed reusable blocks now share the same structured-block fallback path as local reusable block configs, so the read/form registry logic does not need a separate package-only rendering branch later.
+- The first concrete runtime decision is now explicit in code and docs: GitHub-backed/server mode loads installed package modules and passes structured package block configs into the client, while local browser mode rejects `blockPackages` clearly instead of pretending they work.
+- Direct package adapter exports remain part of the contract, but the first concrete runtime rejects them explicitly because adapter functions cannot cross the current server-to-client registry boundary.
+- Slice 4 closed a plan-level decision: broader package runtime support is intentionally deferred, and the redesign should move into real-world trial before more package work or Phase 6.
 
 ## Exact Next Action
 
-If package-distributed blocks become the next priority, inspect the current registry and root-config boundaries, then define the smallest `blockPackages` contract and package export shape that can merge after built-ins and local blocks with clear conflict errors.
+Run the redesigned system against real configs/content, note any adoption blockers, and only open the next implementation slice from concrete trial findings rather than from speculative architecture expansion.
 
 ## Next Slice
 
-- Phase: 5
+- Phase: 6
 - Slice: 1
-- Title: Define the package block registration contract
+- Title: Revisit blueprints only if real-world use proves the need
 - Status: pending
+
+## Notes For Next Session
+
+- Phase 5 is complete at the current intended boundary.
+- `src/lib/blocks/packages.ts` is now the contract boundary for package exports.
+- `src/lib/server/block-registry-data.ts` is now the first concrete runtime boundary for package blocks in GitHub-backed/server mode.
+- `src/routes/docs/+page.svelte` now documents the first supported `blockPackages` path and its limits.
+- The next practical work should come from trying the redesign on real content, not from opening blueprints or broader package/runtime support preemptively.
+
+## Ready-To-Paste Continuation Prompt
+
+Continue working on the Tentman content-system redesign.
+
+Start by reading these files:
+- /Users/kilmc/code/tentman/plans/content-system-redesign/README.md
+- /Users/kilmc/code/tentman/plans/content-system-redesign/03-phased-rollout.md
+- /Users/kilmc/code/tentman/plans/content-system-redesign/04-v1-spec.md
+- /Users/kilmc/code/tentman/plans/content-system-redesign/05-hard-cut-migration.md
+- /Users/kilmc/code/tentman/plans/content-system-redesign/06-implementation-protocol.md
+- /Users/kilmc/code/tentman/plans/content-system-redesign/07-implementation-status.md
+
+Then follow the protocol exactly:
+1. Summarize the current slice from the status doc.
+2. State the exact next step you are taking.
+3. Implement only that slice.
+
+Work from the repo state now in place. Phases 1 through 5 of the core redesign are complete enough to trial: explicit `type: "content"` / `type: "block"` configs are live, block-based form/read rendering is wired through the registry, content persistence runs through the new content service, local custom adapter files exist with their current runtime limits, and Phase 5 stops intentionally at the current GitHub-backed/server structured-package boundary. Broader package runtime support and Phase 6 blueprints/scaffolding are both deferred for now. The current slice is post-rollout trial work: run the redesigned system on real content, capture adoption blockers, and use those findings to decide what narrow follow-up slice should come next.
+
+Before ending, update `07-implementation-status.md` again and provide a fresh ready-to-paste continuation prompt.

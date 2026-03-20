@@ -10,100 +10,308 @@
 		'boolean',
 		'image'
 	];
-</script>
 
-<div class="prose prose-gray max-w-none">
-	<div class="mb-8">
-		<h1 class="mb-2 text-4xl font-bold text-gray-900">Tentman Documentation</h1>
-		<p class="text-xl text-gray-600">
-			The current Tentman config model is built around explicit content configs, reusable block
-			definitions, and adapter-driven persistence.
-		</p>
-	</div>
+	const tableOfContents = [
+		{ id: 'overview', label: 'Overview' },
+		{ id: 'root-config', label: 'Root Config' },
+		{ id: 'content-configs', label: 'Content Configs' },
+		{ id: 'content-modes', label: 'Content Modes' },
+		{ id: 'block-configs', label: 'Block Configs' },
+		{ id: 'package-blocks', label: 'Package Blocks' },
+		{ id: 'custom-adapters', label: 'Custom Adapters' },
+		{ id: 'discovery', label: 'Discovery and Paths' },
+		{ id: 'examples', label: 'Examples' }
+	];
 
-	<nav class="mb-12 rounded-lg border border-gray-200 bg-gray-50 p-6">
-		<h2 class="mb-4 text-lg font-semibold text-gray-900">Table of Contents</h2>
-		<ul class="space-y-2">
-			<li><a href="#overview" class="text-blue-600 hover:underline">Overview</a></li>
-			<li><a href="#root-config" class="text-blue-600 hover:underline">Root Config</a></li>
-			<li><a href="#content-configs" class="text-blue-600 hover:underline">Content Configs</a></li>
-			<li><a href="#block-configs" class="text-blue-600 hover:underline">Block Configs</a></li>
-			<li><a href="#custom-adapters" class="text-blue-600 hover:underline">Custom Block Adapters</a></li>
-			<li><a href="#content-modes" class="text-blue-600 hover:underline">Content Modes</a></li>
-			<li><a href="#block-types" class="text-blue-600 hover:underline">Built-in Block Types</a></li>
-			<li><a href="#discovery" class="text-blue-600 hover:underline">Discovery and Paths</a></li>
-			<li><a href="#examples" class="text-blue-600 hover:underline">Examples</a></li>
-			<li><a href="#migration" class="text-blue-600 hover:underline">Migration Notes</a></li>
-		</ul>
-	</nav>
+	const rootRows = [
+		{
+			field: 'blocksDir',
+			required: 'No',
+			type: 'string',
+			purpose: 'Limit reusable block discovery to one directory.',
+			notes: 'Files in this directory are excluded from top-level content discovery.'
+		},
+		{
+			field: 'configsDir',
+			required: 'No',
+			type: 'string',
+			purpose: 'Limit top-level content discovery to one directory.',
+			notes: 'Useful when a repo contains unrelated `*.tentman.json` files.'
+		},
+		{
+			field: 'assetsDir',
+			required: 'No',
+			type: 'string',
+			purpose: 'Provide a default image upload path.',
+			notes: 'A block can still override this locally with its own `assetsDir`.'
+		},
+		{
+			field: 'blockPackages',
+			required: 'No',
+			type: 'string[]',
+			purpose: 'Load reusable blocks from installed packages.',
+			notes: 'Currently aimed at the GitHub-backed/server runtime.'
+		},
+		{
+			field: 'netlify.siteName',
+			required: 'No',
+			type: 'string',
+			purpose: 'Generate Netlify preview URLs for draft branches.',
+			notes: 'Tentman combines the branch name with the site name.'
+		},
+		{
+			field: 'local.previewUrl',
+			required: 'No',
+			type: 'string',
+			purpose: 'Show a direct preview link in local mode.',
+			notes: 'Used as-is.'
+		}
+	];
 
-	<section id="overview" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Overview</h2>
-		<p class="mb-4">
-			Tentman reads <code class="rounded bg-gray-100 px-1.5 py-0.5">*.tentman.json</code> files,
-			builds forms from the declared <code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code>,
-			and persists content through explicit <code class="rounded bg-gray-100 px-1.5 py-0.5"
-				>content.mode</code
-			>
-			behavior.
-		</p>
-		<p class="mb-4">The current model uses two top-level config types:</p>
-		<ul class="mb-4 ml-6 list-disc space-y-2">
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "content"</code> for editable content
-				definitions
-			</li>
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> for reusable structured
-				block definitions
-			</li>
-		</ul>
-		<p class="mb-0">
-			For repeatable content, use <code class="rounded bg-gray-100 px-1.5 py-0.5"
-				>collection: true</code
-			>.
-			Persistence shape lives under the <code class="rounded bg-gray-100 px-1.5 py-0.5"
-				>content</code
-			>
-			object, and schema shape lives under <code class="rounded bg-gray-100 px-1.5 py-0.5"
-				>blocks</code
-			>.
-		</p>
-	</section>
+	const contentRows = [
+		{
+			field: 'type',
+			required: 'Yes',
+			type: '"content"',
+			purpose: 'Marks the file as a content config.',
+			notes: ''
+		},
+		{
+			field: 'label',
+			required: 'Yes',
+			type: 'string',
+			purpose: 'Human-friendly label used in the UI.',
+			notes: 'Also used to derive slugs in some flows.'
+		},
+		{
+			field: 'content',
+			required: 'Yes',
+			type: 'object',
+			purpose: 'Defines how the content is stored.',
+			notes: 'Pick `file` or `directory`.'
+		},
+		{
+			field: 'blocks',
+			required: 'Yes',
+			type: 'BlockUsage[]',
+			purpose: 'Ordered form schema for the editor.',
+			notes: 'Keep the main authoring fields first.'
+		},
+		{
+			field: 'collection',
+			required: 'No',
+			type: 'boolean',
+			purpose: 'Marks the config as multi-item content.',
+			notes: 'Directory mode defaults to collection behavior.'
+		},
+		{
+			field: 'itemLabel',
+			required: 'Sometimes',
+			type: 'string',
+			purpose: 'Singular label for one item in a collection.',
+			notes: 'Required when `collection: true` is explicitly set.'
+		},
+		{
+			field: 'idField',
+			required: 'No',
+			type: 'string',
+			purpose: 'Stable field used to identify items.',
+			notes: 'Recommended for collections.'
+		}
+	];
 
-	<section id="root-config" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Root Config</h2>
-		<p class="mb-4">
-			The root <code class="rounded bg-gray-100 px-1.5 py-0.5">.tentman.json</code> file is optional.
-			When present, it controls discovery defaults and shared asset behavior.
-		</p>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+	const contentModeRows = [
+		{
+			mode: 'file',
+			use: 'One JSON file, optionally containing a list under a nested path.',
+			requiredFields: '`path`',
+			optionalFields: '`itemsPath`',
+			notes: 'Use `itemsPath` when the array is nested inside a larger JSON object.'
+		},
+		{
+			mode: 'directory',
+			use: 'One file per content item.',
+			requiredFields: '`path`, `template`',
+			optionalFields: '`filename`',
+			notes: 'Good for posts, docs, or any file-backed collection.'
+		},
+		{
+			mode: 'embedded',
+			use: 'Nested/internal modeling only.',
+			requiredFields: 'n/a',
+			optionalFields: 'n/a',
+			notes: 'Not supported for top-level `type: "content"` configs by the current parser.'
+		}
+	];
+
+	const blockUsageRows = [
+		{
+			field: 'id',
+			required: 'Yes',
+			type: 'string',
+			purpose: 'Stable key for the field value.',
+			notes: ''
+		},
+		{
+			field: 'type',
+			required: 'Yes',
+			type: 'string',
+			purpose: 'Primitive type, inline `block`, or reusable block id.',
+			notes: ''
+		},
+		{
+			field: 'label',
+			required: 'No',
+			type: 'string',
+			purpose: 'Field label shown in the UI.',
+			notes: ''
+		},
+		{
+			field: 'required',
+			required: 'No',
+			type: 'boolean',
+			purpose: 'Marks the field as required.',
+			notes: ''
+		},
+		{
+			field: 'collection',
+			required: 'No',
+			type: 'boolean',
+			purpose: 'Makes the block repeatable.',
+			notes: 'Useful for galleries, links, callouts, and similar grouped data.'
+		},
+		{
+			field: 'itemLabel',
+			required: 'No',
+			type: 'string',
+			purpose: 'Singular label for repeated block items.',
+			notes: 'Helpful when `collection: true`.'
+		},
+		{
+			field: 'show',
+			required: 'No',
+			type: '"primary" | "secondary"',
+			purpose: 'Helps the UI group fields by importance.',
+			notes: 'A good way to keep forms easier to scan.'
+		},
+		{
+			field: 'minLength / maxLength',
+			required: 'No',
+			type: 'number',
+			purpose: 'Length constraints for supported text-style inputs.',
+			notes: ''
+		},
+		{
+			field: 'assetsDir',
+			required: 'No',
+			type: 'string',
+			purpose: 'Overrides the default asset directory for this block.',
+			notes: 'Most relevant for image-oriented blocks.'
+		},
+		{
+			field: 'generated',
+			required: 'No',
+			type: 'boolean',
+			purpose: 'Allows some flows to generate the field automatically.',
+			notes: 'Relevant when used with collection ids in file-backed content.'
+		}
+	];
+
+	const blockConfigRows = [
+		{
+			field: 'type',
+			required: 'Yes',
+			type: '"block"',
+			purpose: 'Marks the file as a reusable block config.',
+			notes: ''
+		},
+		{
+			field: 'id',
+			required: 'Yes',
+			type: 'string',
+			purpose: 'Registry id used to reference the block elsewhere.',
+			notes: ''
+		},
+		{
+			field: 'label',
+			required: 'Yes',
+			type: 'string',
+			purpose: 'Human-friendly label for the block.',
+			notes: ''
+		},
+		{
+			field: 'blocks',
+			required: 'Yes',
+			type: 'BlockUsage[]',
+			purpose: 'Nested fields that make up the structured block.',
+			notes: ''
+		},
+		{
+			field: 'collection',
+			required: 'No',
+			type: 'boolean',
+			purpose: 'Makes the reusable block repeatable.',
+			notes: ''
+		},
+		{
+			field: 'itemLabel',
+			required: 'Sometimes',
+			type: 'string',
+			purpose: 'Singular label for repeated block items.',
+			notes: 'Required when `collection: true` is explicitly set.'
+		},
+		{
+			field: 'adapter',
+			required: 'No',
+			type: 'string',
+			purpose: 'Path to a custom adapter module.',
+			notes: 'Only use this when the generated structured adapter is not enough.'
+		}
+	];
+
+	const adapterRows = [
+		{
+			exportName: 'adapter.type',
+			required: 'Yes',
+			type: 'string',
+			purpose: 'Must match the block config `id` exactly.'
+		},
+		{
+			exportName: 'adapter.getDefaultValue',
+			required: 'Yes',
+			type: 'function',
+			purpose: 'Returns the initial value for the block.'
+		},
+		{
+			exportName: 'adapter.validate',
+			required: 'No',
+			type: 'function',
+			purpose: 'Returns validation errors when custom validation is needed.'
+		}
+	];
+
+	const pathRules = [
+		'Root config paths resolve relative to `.tentman.json`.',
+		'Content storage paths resolve relative to the config file that declares them.',
+		'Custom adapter paths resolve relative to the reusable block config file that declares them.',
+		'If `configsDir` is set, Tentman only discovers top-level content configs inside that directory.',
+		'If `blocksDir` is set, Tentman discovers reusable block configs there and excludes them from top-level content discovery.',
+		'Files whose names start with an underscore are skipped during top-level content discovery.',
+		'Package blocks come from installed packages listed in `root.blockPackages`.',
+		'In local mode, custom adapter files must be self-contained ESM JavaScript modules with a `.js` or `.mjs` extension.'
+	];
+
+	const rootConfigExample = `{
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
-  "assetsDir": "./static/images"
-}`}</code></pre>
-		<ul class="mt-4 ml-6 list-disc space-y-2">
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">blocksDir</code> limits reusable block config
-				discovery.
-			</li>
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">configsDir</code> limits top-level content
-				config discovery.
-			</li>
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">assetsDir</code> provides the default upload
-				location for image-oriented blocks.
-			</li>
-		</ul>
-	</section>
+  "assetsDir": "./static/images",
+  "blockPackages": ["@tentman/blocks-media"],
+  "netlify": {
+    "siteName": "my-site"
+  }
+}`;
 
-	<section id="content-configs" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Content Configs</h2>
-		<p class="mb-4">
-			Content configs declare editable content. They do not need an ID in v1.
-		</p>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+	const contentConfigExample = `{
   "type": "content",
   "label": "Blog Posts",
   "itemLabel": "Blog Post",
@@ -118,270 +326,12 @@
   "blocks": [
     { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
+    { "id": "date", "type": "date", "label": "Publish Date", "show": "secondary" },
     { "id": "body", "type": "markdown", "label": "Body", "required": true }
   ]
-}`}</code></pre>
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Rules</h3>
-		<ul class="ml-6 list-disc space-y-2">
-			<li><code class="rounded bg-gray-100 px-1.5 py-0.5">label</code> is required.</li>
-			<li><code class="rounded bg-gray-100 px-1.5 py-0.5">content</code> is required.</li>
-			<li><code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code> is required.</li>
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">itemLabel</code> is required when
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">collection: true</code>.
-			</li>
-			<li>
-				Top-level content configs support <code class="rounded bg-gray-100 px-1.5 py-0.5">file</code>
-				and <code class="rounded bg-gray-100 px-1.5 py-0.5">directory</code> modes in v1.
-			</li>
-		</ul>
-	</section>
+}`;
 
-	<section id="block-configs" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Block Configs</h2>
-		<p class="mb-4">
-			Block configs define reusable structured blocks that can be referenced by ID through the block
-			registry.
-		</p>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "type": "block",
-  "id": "seo",
-  "label": "SEO",
-  "blocks": [
-    { "id": "metaTitle", "type": "text", "label": "Meta Title" },
-    { "id": "metaDescription", "type": "textarea", "label": "Meta Description" }
-  ]
-}`}</code></pre>
-		<ul class="mt-4 ml-6 list-disc space-y-2">
-			<li>
-				Block configs require <code class="rounded bg-gray-100 px-1.5 py-0.5">id</code>,
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">label</code>, and
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code>.
-			</li>
-			<li>
-				They default to embedded behavior in v1, even when reused across content configs.
-			</li>
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">collection: true</code> makes the block
-				repeatable.
-			</li>
-			<li>
-				Reusable block configs may also declare an
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">adapter</code> file when the generic
-				structured adapter is not enough.
-			</li>
-		</ul>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Inline Structured Blocks</h3>
-		<p class="mb-4">
-			You can also define nested structured blocks inline by using
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> inside a parent config's
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code> array.
-		</p>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "id": "gallery",
-  "type": "block",
-  "label": "Gallery",
-  "collection": true,
-  "blocks": [
-    { "id": "image", "type": "image", "required": true },
-    { "id": "alt", "type": "text", "required": true },
-    { "id": "caption", "type": "text" }
-  ]
-}`}</code></pre>
-	</section>
-
-	<section id="custom-adapters" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Custom Block Adapters</h2>
-		<p class="mb-4">
-			Most reusable block configs should rely on Tentman's generated structured adapter. Add a custom
-			adapter file only when a reusable <code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code>
-			config needs custom defaults or validation behavior.
-		</p>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "type": "block",
-  "id": "imageGallery",
-  "label": "Image Gallery",
-  "collection": true,
-  "adapter": "./image-gallery.adapter.js",
-  "blocks": [
-    { "id": "image", "type": "image", "required": true },
-    { "id": "alt", "type": "text", "required": true },
-    { "id": "caption", "type": "text" }
-  ]
-}`}</code></pre>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Adapter Module Contract</h3>
-		<p class="mb-4">
-			The adapter file must export a named <code class="rounded bg-gray-100 px-1.5 py-0.5">adapter</code>
-			object. Its <code class="rounded bg-gray-100 px-1.5 py-0.5">type</code> must exactly match the
-			block config's <code class="rounded bg-gray-100 px-1.5 py-0.5">id</code>.
-		</p>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`export const adapter = {
-  type: "imageGallery",
-  getDefaultValue() {
-    return [];
-  },
-  validate(value) {
-    if (value === undefined || value === null) {
-      return [];
-    }
-
-    return Array.isArray(value) ? [] : ["Image Gallery must be a list."];
-  }
-};`}</code></pre>
-
-		<ul class="mt-4 ml-6 list-disc space-y-2">
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">getDefaultValue</code> is required.
-			</li>
-			<li>
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">validate</code> is optional.
-			</li>
-			<li>
-				If the adapter file is missing, malformed, or exports the wrong block
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">type</code>, Tentman surfaces that as a block
-				registry load error in local mode.
-			</li>
-		</ul>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Path and Runtime Rules</h3>
-		<ul class="ml-6 list-disc space-y-2">
-			<li>
-				Adapter paths resolve relative to the block config file that declares them.
-			</li>
-			<li>
-				Custom adapter files are only supported for reusable block configs, not inline nested block
-				definitions.
-			</li>
-			<li>
-				In the current local browser-backed runtime, adapter files must be self-contained ESM
-				JavaScript modules with a <code class="rounded bg-gray-100 px-1.5 py-0.5">.js</code> or
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">.mjs</code> extension.
-			</li>
-			<li>
-				Repo-local TypeScript adapter files and adapter files that depend on further local imports are
-				not supported yet.
-			</li>
-		</ul>
-	</section>
-
-	<section id="content-modes" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Content Modes</h2>
-		<div class="space-y-6">
-			<div class="rounded-lg border border-gray-200 bg-white p-6">
-				<h3 class="mb-2 text-xl font-semibold text-gray-900">File Mode</h3>
-				<p class="mb-3 text-gray-700">
-					Stores content in a single file. Use
-					<code class="rounded bg-gray-100 px-1.5 py-0.5">itemsPath</code> when a file-backed config
-					contains multiple entries.
-				</p>
-				<pre class="overflow-x-auto rounded bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "mode": "file",
-  "path": "./src/content/site.json"
-}`}</code></pre>
-				<pre class="mt-3 overflow-x-auto rounded bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "mode": "file",
-  "path": "./src/content/team.json",
-  "itemsPath": "$.members"
-}`}</code></pre>
-			</div>
-
-			<div class="rounded-lg border border-gray-200 bg-white p-6">
-				<h3 class="mb-2 text-xl font-semibold text-gray-900">Directory Mode</h3>
-				<p class="mb-3 text-gray-700">
-					Stores one entry per file inside a directory and uses a template to create new items.
-				</p>
-				<pre class="overflow-x-auto rounded bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "mode": "directory",
-  "path": "./src/content/posts",
-  "template": "./templates/post.md",
-  "filename": "{{slug}}"
-}`}</code></pre>
-			</div>
-
-			<div class="rounded-lg border border-gray-200 bg-white p-6">
-				<h3 class="mb-2 text-xl font-semibold text-gray-900">Embedded Mode</h3>
-				<p class="mb-0 text-gray-700">
-					Embedded mode is reserved for nested content structures. Top-level
-					<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "content"</code> configs do not use
-					it in v1.
-				</p>
-			</div>
-		</div>
-	</section>
-
-	<section id="block-types" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Built-in Block Types</h2>
-		<p class="mb-4">
-			Tentman ships with primitive block adapters for common authoring needs.
-		</p>
-		<div class="flex flex-wrap gap-2">
-			{#each builtInBlocks as blockType}
-				<span class="rounded-full border border-gray-200 bg-white px-3 py-1 text-sm text-gray-700">
-					{blockType}
-				</span>
-			{/each}
-		</div>
-		<p class="mt-4">
-			Block usages support shared metadata like
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">label</code>,
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">required</code>,
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">show</code>,
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">minLength</code>,
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">maxLength</code>, and
-			<code class="rounded bg-gray-100 px-1.5 py-0.5">assetsDir</code>.
-		</p>
-	</section>
-
-	<section id="discovery" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Discovery and Paths</h2>
-		<ul class="ml-6 list-disc space-y-2">
-			<li>
-				If <code class="rounded bg-gray-100 px-1.5 py-0.5">configsDir</code> is set, Tentman only
-				discovers top-level content configs inside that directory.
-			</li>
-			<li>
-				If <code class="rounded bg-gray-100 px-1.5 py-0.5">blocksDir</code> is set, Tentman discovers
-				reusable block configs from there and excludes them from top-level content discovery.
-			</li>
-			<li>
-				Content paths resolve relative to the config file that declares them.
-			</li>
-			<li>
-				Block adapter paths resolve relative to the block config file that declares them.
-			</li>
-			<li>
-				In local mode, adapter files currently need to be self-contained
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">.js</code> or
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">.mjs</code> modules.
-			</li>
-			<li>
-				Root config paths resolve relative to the root <code class="rounded bg-gray-100 px-1.5 py-0.5"
-					>.tentman.json</code
-				>.
-			</li>
-		</ul>
-	</section>
-
-	<section id="examples" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Examples</h2>
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Single-Entry Content</h3>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "type": "content",
-  "label": "Site Settings",
-  "content": {
-    "mode": "file",
-    "path": "./src/content/site.json"
-  },
-  "blocks": [
-    { "id": "siteTitle", "type": "text", "label": "Site Title", "required": true },
-    { "id": "tagline", "type": "textarea", "label": "Tagline" }
-  ]
-}`}</code></pre>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">File-Backed Collection</h3>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+	const fileCollectionExample = `{
   "type": "content",
   "label": "Team Members",
   "itemLabel": "Team Member",
@@ -397,77 +347,375 @@
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
     { "id": "role", "type": "text", "label": "Role", "show": "secondary" }
   ]
-}`}</code></pre>
+}`;
 
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Directory-Backed Collection</h3>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
-  "type": "content",
-  "label": "Blog Posts",
-  "itemLabel": "Blog Post",
-  "collection": true,
-  "idField": "slug",
-  "content": {
-    "mode": "directory",
-    "path": "./src/content/posts",
-    "template": "./templates/post.md",
-    "filename": "{{slug}}"
-  },
-  "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
-    { "id": "slug", "type": "text", "label": "Slug", "required": true },
-    { "id": "date", "type": "date", "label": "Date", "required": true, "show": "secondary" },
-    { "id": "body", "type": "markdown", "label": "Body", "required": true }
-  ]
-}`}</code></pre>
-
-		<h3 class="mb-3 mt-6 text-xl font-semibold text-gray-900">Reusable Block With Custom Adapter</h3>
-		<pre class="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100"><code>{`{
+	const blockConfigExample = `{
   "type": "block",
-  "id": "imageGallery",
-  "label": "Image Gallery",
-  "collection": true,
-  "adapter": "./image-gallery.adapter.js",
+  "id": "seo",
+  "label": "SEO",
   "blocks": [
-    { "id": "image", "type": "image", "required": true },
-    { "id": "alt", "type": "text", "required": true },
-    { "id": "caption", "type": "text" }
+    { "id": "metaTitle", "type": "text", "label": "Meta Title" },
+    { "id": "metaDescription", "type": "textarea", "label": "Meta Description" }
   ]
-}`}</code></pre>
+}`;
+
+	const packageBlockExample = `export const blockPackage = {
+  blocks: [
+    {
+      config: {
+        type: "block",
+        id: "callout",
+        label: "Callout",
+        blocks: [
+          { "id": "title", "type": "text", "label": "Title" },
+          { "id": "body", "type": "markdown", "label": "Body" }
+        ]
+      }
+    }
+  ]
+};`;
+
+	const customAdapterExample = `export const adapter = {
+  type: "imageGallery",
+  getDefaultValue() {
+    return [];
+  },
+  validate(value) {
+    if (value === undefined || value === null) {
+      return [];
+    }
+
+    return Array.isArray(value) ? [] : ["Image Gallery must be a list."];
+  }
+};`;
+</script>
+
+<svelte:head>
+	<title>Documentation | Tentman</title>
+</svelte:head>
+
+<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+	<header class="border-b border-stone-200 pb-8">
+		<p class="text-sm font-medium text-stone-500">Tentman documentation</p>
+		<h1 class="mt-2 text-4xl font-semibold tracking-tight text-stone-950">Config reference</h1>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			Tentman is easiest to understand if you read it in this order: optional root config, content
+			configs, content storage modes, then reusable blocks. This page keeps the examples simple and
+			the API surface compact so you can scan it quickly.
+		</p>
+	</header>
+
+	<nav class="border-b border-stone-200 py-4">
+		<ul class="flex flex-wrap gap-x-4 gap-y-2 text-sm text-stone-600">
+			{#each tableOfContents as section}
+				<li>
+					<a href={`#${section.id}`} class="hover:text-stone-950 hover:underline">{section.label}</a
+					>
+				</li>
+			{/each}
+		</ul>
+	</nav>
+
+	<section id="overview" class="scroll-mt-24 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Overview</h2>
+		<div class="mt-4 space-y-4 text-base leading-7 text-stone-700">
+			<p>
+				Tentman reads <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">*.tentman.json</code>
+				files, builds forms from
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">blocks</code>, and stores data
+				according to the <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">content</code>
+				object.
+			</p>
+			<p>The main rule of thumb is:</p>
+			<ul class="list-disc space-y-2 pl-6">
+				<li>Use one `type: "content"` config per editable domain.</li>
+				<li>Keep the first version inline and simple.</li>
+				<li>Extract a `type: "block"` only when a grouped structure repeats.</li>
+				<li>
+					Add a custom adapter only when the generated structured block behavior is not enough.
+				</li>
+			</ul>
+		</div>
 	</section>
 
-	<section id="migration" class="mb-12">
-		<h2 class="mb-4 text-2xl font-bold text-gray-900">Migration Notes</h2>
-		<ul class="ml-6 list-disc space-y-2">
+	<section id="root-config" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Root Config</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			The root <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">.tentman.json</code> file is
+			optional. Keep it for project-wide defaults like discovery paths, preview links, and package blocks.
+		</p>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
+			<table class="min-w-full divide-y divide-stone-200 text-sm">
+				<thead class="bg-stone-50 text-left text-stone-700">
+					<tr>
+						<th class="px-4 py-3 font-medium">Field</th>
+						<th class="px-4 py-3 font-medium">Required</th>
+						<th class="px-4 py-3 font-medium">Type</th>
+						<th class="px-4 py-3 font-medium">Purpose</th>
+						<th class="px-4 py-3 font-medium">Notes</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-stone-200 bg-white text-stone-700">
+					{#each rootRows as row}
+						<tr class="align-top">
+							<td class="px-4 py-3 font-mono text-[13px] text-stone-900">{row.field}</td>
+							<td class="px-4 py-3">{row.required}</td>
+							<td class="px-4 py-3 font-mono text-[13px]">{row.type}</td>
+							<td class="px-4 py-3">{row.purpose}</td>
+							<td class="px-4 py-3">{row.notes}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{rootConfigExample}</code></pre>
+		</div>
+	</section>
+
+	<section id="content-configs" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Content Configs</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			A content config describes one editable thing: what it is called, how it is stored, and which
+			fields make up the editor.
+		</p>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
+			<table class="min-w-full divide-y divide-stone-200 text-sm">
+				<thead class="bg-stone-50 text-left text-stone-700">
+					<tr>
+						<th class="px-4 py-3 font-medium">Field</th>
+						<th class="px-4 py-3 font-medium">Required</th>
+						<th class="px-4 py-3 font-medium">Type</th>
+						<th class="px-4 py-3 font-medium">Purpose</th>
+						<th class="px-4 py-3 font-medium">Notes</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-stone-200 bg-white text-stone-700">
+					{#each contentRows as row}
+						<tr class="align-top">
+							<td class="px-4 py-3 font-mono text-[13px] text-stone-900">{row.field}</td>
+							<td class="px-4 py-3">{row.required}</td>
+							<td class="px-4 py-3 font-mono text-[13px]">{row.type}</td>
+							<td class="px-4 py-3">{row.purpose}</td>
+							<td class="px-4 py-3">{row.notes}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentConfigExample}</code></pre>
+		</div>
+	</section>
+
+	<section id="content-modes" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Content Modes</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			Pick the storage model first. That usually drives the rest of the config.
+		</p>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
+			<table class="min-w-full divide-y divide-stone-200 text-sm">
+				<thead class="bg-stone-50 text-left text-stone-700">
+					<tr>
+						<th class="px-4 py-3 font-medium">Mode</th>
+						<th class="px-4 py-3 font-medium">Use for</th>
+						<th class="px-4 py-3 font-medium">Required fields</th>
+						<th class="px-4 py-3 font-medium">Optional fields</th>
+						<th class="px-4 py-3 font-medium">Notes</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-stone-200 bg-white text-stone-700">
+					{#each contentModeRows as row}
+						<tr class="align-top">
+							<td class="px-4 py-3 font-mono text-[13px] text-stone-900">{row.mode}</td>
+							<td class="px-4 py-3">{row.use}</td>
+							<td class="px-4 py-3">{row.requiredFields}</td>
+							<td class="px-4 py-3">{row.optionalFields}</td>
+							<td class="px-4 py-3">{row.notes}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="mt-6 grid gap-6 lg:grid-cols-2">
+			<div class="overflow-x-auto rounded border border-stone-200 bg-stone-950">
+				<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentConfigExample}</code></pre>
+			</div>
+			<div class="overflow-x-auto rounded border border-stone-200 bg-stone-950">
+				<pre class="p-4 text-sm leading-6 text-stone-100"><code>{fileCollectionExample}</code></pre>
+			</div>
+		</div>
+	</section>
+
+	<section id="block-configs" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Block Configs</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			Use built-in primitives for normal fields. Use `type: "block"` when a structured shape needs
+			to be reused.
+		</p>
+
+		<p class="mt-4 text-sm text-stone-600">
+			Built-in block types:
+			{#each builtInBlocks as blockType, index}
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-[13px]">{blockType}</code
+				>{#if index < builtInBlocks.length - 1}
+					<span class="text-stone-400"> </span>
+				{/if}
+			{/each}
+		</p>
+
+		<h3 class="mt-6 text-lg font-semibold text-stone-950">Reusable block config fields</h3>
+		<div class="mt-3 overflow-x-auto rounded border border-stone-200">
+			<table class="min-w-full divide-y divide-stone-200 text-sm">
+				<thead class="bg-stone-50 text-left text-stone-700">
+					<tr>
+						<th class="px-4 py-3 font-medium">Field</th>
+						<th class="px-4 py-3 font-medium">Required</th>
+						<th class="px-4 py-3 font-medium">Type</th>
+						<th class="px-4 py-3 font-medium">Purpose</th>
+						<th class="px-4 py-3 font-medium">Notes</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-stone-200 bg-white text-stone-700">
+					{#each blockConfigRows as row}
+						<tr class="align-top">
+							<td class="px-4 py-3 font-mono text-[13px] text-stone-900">{row.field}</td>
+							<td class="px-4 py-3">{row.required}</td>
+							<td class="px-4 py-3 font-mono text-[13px]">{row.type}</td>
+							<td class="px-4 py-3">{row.purpose}</td>
+							<td class="px-4 py-3">{row.notes}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<h3 class="mt-6 text-lg font-semibold text-stone-950">Common block usage fields</h3>
+		<div class="mt-3 overflow-x-auto rounded border border-stone-200">
+			<table class="min-w-full divide-y divide-stone-200 text-sm">
+				<thead class="bg-stone-50 text-left text-stone-700">
+					<tr>
+						<th class="px-4 py-3 font-medium">Field</th>
+						<th class="px-4 py-3 font-medium">Required</th>
+						<th class="px-4 py-3 font-medium">Type</th>
+						<th class="px-4 py-3 font-medium">Purpose</th>
+						<th class="px-4 py-3 font-medium">Notes</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-stone-200 bg-white text-stone-700">
+					{#each blockUsageRows as row}
+						<tr class="align-top">
+							<td class="px-4 py-3 font-mono text-[13px] text-stone-900">{row.field}</td>
+							<td class="px-4 py-3">{row.required}</td>
+							<td class="px-4 py-3 font-mono text-[13px]">{row.type}</td>
+							<td class="px-4 py-3">{row.purpose}</td>
+							<td class="px-4 py-3">{row.notes}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{blockConfigExample}</code></pre>
+		</div>
+	</section>
+
+	<section id="package-blocks" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Package Blocks</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			Package blocks let you ship reusable block configs from an installed package. The package must
+			export a named <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">blockPackage</code>
+			object.
+		</p>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{packageBlockExample}</code></pre>
+		</div>
+
+		<ul class="mt-4 list-disc space-y-2 pl-6 text-base leading-7 text-stone-700">
+			<li>Each entry in `blockPackage.blocks` is a definition object, not a raw block config.</li>
+			<li>The definition must include `config`, and that config must parse as `type: "block"`.</li>
+			<li>Package configs must not declare `config.adapter` directly.</li>
 			<li>
-				Old inferred top-level config types are replaced by explicit
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "content"</code> and
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code>.
-			</li>
-			<li>
-				Legacy <code class="rounded bg-gray-100 px-1.5 py-0.5">fields</code> definitions are replaced
-				by <code class="rounded bg-gray-100 px-1.5 py-0.5">blocks</code>.
-			</li>
-			<li>
-				Single-file repeatable content now uses
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">content.mode: "file"</code> plus
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">itemsPath</code>.
-			</li>
-			<li>
-				File-per-entry content now uses
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">content.mode: "directory"</code> with
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">template</code> and optional
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">filename</code>.
-			</li>
-			<li>
-				Reusable nested structures belong in block configs or inline
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">type: "block"</code> definitions.
-			</li>
-			<li>
-				When a reusable block needs custom adapter logic in local mode, declare
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">adapter</code> with a self-contained
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">.js</code> or
-				<code class="rounded bg-gray-100 px-1.5 py-0.5">.mjs</code> module path.
+				An optional `adapter` export may sit next to `config`, and its `type` must match the block
+				id.
 			</li>
 		</ul>
+	</section>
+
+	<section id="custom-adapters" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Custom Adapters</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			Most reusable block configs should use the generated structured adapter. Add a custom adapter
+			only when you need custom defaults or validation.
+		</p>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
+			<table class="min-w-full divide-y divide-stone-200 text-sm">
+				<thead class="bg-stone-50 text-left text-stone-700">
+					<tr>
+						<th class="px-4 py-3 font-medium">Export</th>
+						<th class="px-4 py-3 font-medium">Required</th>
+						<th class="px-4 py-3 font-medium">Type</th>
+						<th class="px-4 py-3 font-medium">Purpose</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-stone-200 bg-white text-stone-700">
+					{#each adapterRows as row}
+						<tr class="align-top">
+							<td class="px-4 py-3 font-mono text-[13px] text-stone-900">{row.exportName}</td>
+							<td class="px-4 py-3">{row.required}</td>
+							<td class="px-4 py-3 font-mono text-[13px]">{row.type}</td>
+							<td class="px-4 py-3">{row.purpose}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{customAdapterExample}</code></pre>
+		</div>
+	</section>
+
+	<section id="discovery" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Discovery and Paths</h2>
+		<ul class="mt-4 list-disc space-y-2 pl-6 text-base leading-7 text-stone-700">
+			{#each pathRules as rule}
+				<li>{rule}</li>
+			{/each}
+		</ul>
+	</section>
+
+	<section id="examples" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Examples</h2>
+		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
+			If you are starting from scratch, most projects only need one of these two shapes.
+		</p>
+
+		<div class="mt-6 space-y-6">
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">Directory-backed collection</h3>
+				<div class="mt-3 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentConfigExample}</code
+						></pre>
+				</div>
+			</div>
+
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">File-backed collection</h3>
+				<div class="mt-3 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{fileCollectionExample}</code
+						></pre>
+				</div>
+			</div>
+		</div>
 	</section>
 </div>

@@ -108,6 +108,14 @@ Open the registry up to npm-distributed block packages.
 
 This phase should only happen after the local registry and adapter APIs feel stable.
 
+For the current redesign push, Phase 5 is considered complete once:
+- `blockPackages` exists in the root config
+- the package export contract is defined
+- GitHub-backed/server mode can load structured package blocks
+- the runtime limits are documented clearly
+
+Broader package runtime support can wait until the redesigned content system has been tried on real content.
+
 ## Phase 6: Blueprints
 
 ### Objective
@@ -123,6 +131,7 @@ Introduce a higher-level scaffolding layer for generating content structures and
 ### Notes
 
 This is deliberately later. The config redesign should stand on its own even if blueprints take much longer to land.
+Blueprints/scaffolding should not block shipping or trialing the refactored core content system.
 
 ## Implementation Order Recommendation
 
@@ -132,7 +141,8 @@ This is deliberately later. The config redesign should stand on its own even if 
 4. Phase 4
 5. Pause and evaluate
 6. Phase 5
-7. Phase 6
+7. Pause and evaluate again
+8. Phase 6
 
 ## Why This Order
 
@@ -140,7 +150,8 @@ This is deliberately later. The config redesign should stand on its own even if 
 - Phase 2 restores ease of nested authoring and reusable structures.
 - Phase 3 makes persistence honest and robust.
 - Phase 4 opens the extension model without making it mandatory.
-- Phase 5 and 6 are valuable, but should only build on stable foundations.
+- Phase 5 is useful once the core block/adapter model is stable, but it can stop at a narrow first runtime.
+- Phase 6 is valuable, but should only start after the redesigned system has been used enough to justify scaffolding on top of it.
 
 ## Suggested Deliverables Per Phase
 

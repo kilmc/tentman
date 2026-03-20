@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
+	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import { get, writable } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { toasts } from '$lib/stores/toasts';
@@ -24,7 +25,8 @@
 	let blockConfigs = $state(data.blockConfigs ?? []);
 	let content = $state(data.content);
 	let contentError = $state(data.contentError);
-	let blockRegistryError = $state<string | null>(null);
+	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
+	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
 	let rootConfig = $state<RootConfig | null>(null);
 
@@ -43,9 +45,15 @@
 		return config.content.mode === 'directory' ? 'directory collection' : 'file collection';
 	});
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
-	const blockRegistry = $derived.by(() =>
-		isLocalMode ? localBlockRegistry : createBlockRegistry(blockConfigs)
-	);
+	const blockRegistry = $derived.by(() => {
+		if (blockRegistryError) {
+			return null;
+		}
+
+		return isLocalMode
+			? localBlockRegistry
+			: createBlockRegistry(blockConfigs, { packageBlocks });
+	});
 	const flashMessageKeys = ['saved', 'published', 'merged', 'cancelled', 'deleted', 'branch'] as const;
 
 	function getFlashMessageKey() {
@@ -122,6 +130,7 @@
 
 		rootConfig = contentState.rootConfig;
 		blockConfigs = contentState.blockConfigs;
+		packageBlocks = [];
 		blockRegistryError = contentState.blockRegistryError;
 		localBlockRegistry = contentState.blockRegistry;
 		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;

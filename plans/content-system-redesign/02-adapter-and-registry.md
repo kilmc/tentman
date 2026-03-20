@@ -199,12 +199,12 @@ Potential root config:
 }
 ```
 
-Potential package export:
+Current first package export contract:
 
 ```ts
 import type { TentmanBlockPackage } from '@tentman/core';
 
-const pkg: TentmanBlockPackage = {
+export const blockPackage: TentmanBlockPackage = {
   blocks: [
     {
       config: {
@@ -219,9 +219,23 @@ const pkg: TentmanBlockPackage = {
     }
   ]
 };
-
-export default pkg;
 ```
+
+Rules for this first contract:
+- `blockPackages` is a root-level string array of package names.
+- Each package module must export a named `blockPackage` object.
+- `blockPackage.blocks` is an array of reusable block definitions.
+- Each block definition must provide a `config` in the normal reusable `type: "block"` shape.
+- Package block definitions may provide an `adapter` object directly.
+- Package block configs do not use `config.adapter` file paths.
+- Package blocks merge after built-ins and local block configs.
+- Duplicate IDs across built-ins, local blocks, and package blocks are hard errors.
+
+Current first runtime boundary:
+- The first concrete runtime path is GitHub-backed/server mode loading installed package modules in the Tentman app runtime.
+- In that first path, package blocks must be structured-only. Direct package `adapter` exports are rejected because the current client-side form/display registry cannot serialize adapter functions across the server boundary.
+- Local browser-backed repository mode does not support `blockPackages` yet and should surface an explicit error instead of silently ignoring them.
+- This narrow boundary is the intended stopping point for Phase 5 for now. Broader package runtime support should wait until the redesigned core has been shipped and exercised on real content.
 
 ## Lifecycle
 

@@ -61,13 +61,18 @@ function createStore() {
 				let blockRegistry: BlockRegistry | null = null;
 				let blockRegistryError: string | null = null;
 
-				try {
-					blockRegistry = await createLoadedBlockRegistry(blockConfigs, {
-						loadLocalAdapterModule: repoState.backend.loadLocalAdapterModule
-					});
-				} catch (error) {
+				if ((rootConfig?.blockPackages?.length ?? 0) > 0) {
 					blockRegistryError =
-						error instanceof Error ? error.message : 'Failed to load local block adapters';
+						'Package-distributed blocks are not supported in local browser-backed mode yet. Remove root.blockPackages or switch to the GitHub-backed/server mode for now.';
+				} else {
+					try {
+						blockRegistry = await createLoadedBlockRegistry(blockConfigs, {
+							loadLocalAdapterModule: repoState.backend.loadLocalAdapterModule
+						});
+					} catch (error) {
+						blockRegistryError =
+							error instanceof Error ? error.message : 'Failed to load local block adapters';
+					}
 				}
 
 				set({

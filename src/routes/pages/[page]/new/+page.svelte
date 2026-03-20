@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData, ActionData } from './$types';
-	import type { BlockRegistry } from '$lib/blocks/registry';
+	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
+	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import KeyboardShortcutHelp from '$lib/components/KeyboardShortcutHelp.svelte';
 	import { enhance } from '$app/forms';
@@ -19,6 +20,7 @@
 
 	let discoveredConfig = $state(data.discoveredConfig);
 	let blockConfigs = $state(data.blockConfigs ?? []);
+	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
@@ -26,11 +28,18 @@
 	let hasUnsavedChanges = $state(false);
 	let filename = $state('');
 	let filenameError = $state('');
-	let blockRegistryError = $state<string | null>(null);
+	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localError = $state<string | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(discoveredConfig?.config.content.mode === 'directory');
+	const githubBlockRegistry = $derived.by(() => {
+		if (isLocalMode || blockRegistryError) {
+			return null;
+		}
+
+		return createBlockRegistry(blockConfigs, { packageBlocks });
+	});
 
 	function handleFieldsChanged() {
 		hasUnsavedChanges = true;
@@ -64,6 +73,7 @@
 				const contentState = get(localContent);
 				discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
 				blockConfigs = contentState.blockConfigs;
+				packageBlocks = [];
 				blockRegistry = contentState.blockRegistry;
 				blockRegistryError = contentState.blockRegistryError;
 			})();
@@ -285,11 +295,17 @@
 						</div>
 					{/if}
 
-					{#if config}
+					{#if blockRegistryError}
+						<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+							<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
+							<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+						</div>
+					{:else if config && githubBlockRegistry}
 						<FormGenerator
 							bind:this={formGenerator}
 							{config}
 							{blockConfigs}
+							blockRegistry={githubBlockRegistry}
 							initialData={{}}
 							existingItems={[]}
 							currentItemId={undefined}
@@ -300,7 +316,7 @@
 					<div class="mt-6 flex gap-3">
 						<button
 							type="submit"
-							disabled={saving}
+							disabled={saving || !githubBlockRegistry || !!blockRegistryError}
 							class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
 						>
 							{saving ? 'Creating...' : 'Create'}

@@ -59,6 +59,30 @@ function readOptionalBoolean(
 	return candidate;
 }
 
+function readOptionalStringArray(
+	value: Record<string, unknown>,
+	key: string,
+	context: string
+): string[] | undefined {
+	const candidate = value[key];
+
+	if (candidate === undefined) {
+		return undefined;
+	}
+
+	if (!Array.isArray(candidate)) {
+		throw new Error(`${context}.${key} must be an array of non-empty strings`);
+	}
+
+	return candidate.map((item, index) => {
+		if (typeof item !== 'string' || item.length === 0) {
+			throw new Error(`${context}.${key}[${index}] must be a non-empty string`);
+		}
+
+		return item;
+	});
+}
+
 function readRequiredString(value: Record<string, unknown>, key: string, context: string): string {
 	const candidate = readOptionalString(value, key, context);
 
@@ -234,6 +258,11 @@ function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
 	};
 }
 
+export function parseBlockConfigObject(input: unknown): ParsedBlockConfig {
+	assertObject(input, 'Block config must be an object');
+	return parseBlockConfig(input);
+}
+
 export function parseRootConfig(content: string): RootConfig {
 	const parsed = JSON.parse(content) as unknown;
 	assertObject(parsed, 'Root config must be an object');
@@ -245,6 +274,7 @@ export function parseRootConfig(content: string): RootConfig {
 	const blocksDir = readOptionalString(parsed, 'blocksDir', 'root');
 	const configsDir = readOptionalString(parsed, 'configsDir', 'root');
 	const assetsDir = readOptionalString(parsed, 'assetsDir', 'root');
+	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
 
 	if (blocksDir) {
 		rootConfig.blocksDir = blocksDir;
@@ -256,6 +286,10 @@ export function parseRootConfig(content: string): RootConfig {
 
 	if (assetsDir) {
 		rootConfig.assetsDir = assetsDir;
+	}
+
+	if (blockPackages) {
+		rootConfig.blockPackages = blockPackages;
 	}
 
 	if (netlify && typeof netlify === 'object') {

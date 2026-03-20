@@ -2,6 +2,7 @@ import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params, cookies, depends }) => {
@@ -12,8 +13,10 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 		return {
 			discoveredConfig: null,
 			blockConfigs: [],
+			packageBlocks: [],
 			content: null,
 			contentError: null,
+			blockRegistryError: null,
 			draftBranch: null,
 			draftChanges: null,
 			pageSlug: params.page,
@@ -83,9 +86,13 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 		const totalTime = performance.now() - startTime;
 		console.log(`✅ [VIEW ${params.page}] Total load time: ${totalTime.toFixed(2)}ms`);
 
+		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+
 		return {
 			discoveredConfig,
-			blockConfigs: await backend.discoverBlockConfigs(),
+			blockConfigs,
+			packageBlocks,
+			blockRegistryError,
 			content,
 			contentError,
 			draftBranch,

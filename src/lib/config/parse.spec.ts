@@ -81,13 +81,15 @@ describe('parseRootConfig', () => {
 		const parsed = parseRootConfig(`{
 			"blocksDir": "./tentman/blocks",
 			"configsDir": "./tentman/configs",
-			"assetsDir": "./static/images"
+			"assetsDir": "./static/images",
+			"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"]
 		}`);
 
 		expect(parsed).toEqual({
 			blocksDir: './tentman/blocks',
 			configsDir: './tentman/configs',
-			assetsDir: './static/images'
+			assetsDir: './static/images',
+			blockPackages: ['@tentman/blocks-media', '@acme/tentman-blocks']
 		});
 	});
 });

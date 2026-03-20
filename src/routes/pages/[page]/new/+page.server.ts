@@ -1,6 +1,7 @@
 import { redirect, error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
+import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -8,6 +9,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		return {
 			discoveredConfig: null,
 			blockConfigs: [],
+			packageBlocks: [],
+			blockRegistryError: null,
 			pageSlug: params.page,
 			mode: 'local' as const
 		};
@@ -22,9 +25,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			throw redirect(302, `/pages/${params.page}`);
 		}
 
+		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+
 		return {
 			discoveredConfig,
-			blockConfigs: await backend.discoverBlockConfigs(),
+			blockConfigs,
+			packageBlocks,
+			blockRegistryError,
 			pageSlug: params.page,
 			mode: 'github' as const
 		};

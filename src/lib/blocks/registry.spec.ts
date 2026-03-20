@@ -79,7 +79,10 @@ describe('createBlockRegistry', () => {
 });
 
 describe('loadBlockRegistry', () => {
-	function createBackend(blockConfigs: string[]): RepositoryBackend {
+	function createBackend(
+		blockConfigs: string[],
+		rootConfig: Record<string, unknown> | null = null
+	): RepositoryBackend {
 		return {
 			kind: 'local',
 			cacheKey: 'local:test',
@@ -94,7 +97,7 @@ describe('loadBlockRegistry', () => {
 				);
 			},
 			async readRootConfig() {
-				return null;
+				return rootConfig as Awaited<ReturnType<RepositoryBackend['readRootConfig']>>;
 			},
 			async readTextFile() {
 				return '';
@@ -147,6 +150,114 @@ describe('loadBlockRegistry', () => {
 		expect(registry.getAdapter('gallery')?.getDefaultValue({ id: 'gallery', type: 'gallery' })).toEqual([
 			'custom'
 		]);
+	});
+
+	it('loads package blocks after local blocks when blockPackages are configured', async () => {
+		const backend = createBackend(
+			[
+				`{
+					"type": "block",
+					"id": "seo",
+					"label": "SEO",
+					"blocks": [{ "id": "metaTitle", "type": "text" }]
+				}`
+			],
+			{
+				blockPackages: ['@acme/tentman-blocks']
+			}
+		);
+
+		const loadBlockPackageModule: NonNullable<LoadBlockRegistryOptions['loadBlockPackageModule']> = vi
+			.fn()
+			.mockResolvedValue({
+				blockPackage: {
+					blocks: [
+						{
+							config: {
+								type: 'block',
+								id: 'heroBanner',
+								label: 'Hero Banner',
+								blocks: [
+									{ id: 'title', type: 'text', required: true },
+									{ id: 'seo', type: 'seo' }
+								]
+							}
+						}
+					]
+				}
+			});
+
+		const registry = await loadBlockRegistry(backend, { loadBlockPackageModule });
+
+		expect(loadBlockPackageModule).toHaveBeenCalledWith('@acme/tentman-blocks');
+		expect(registry.get('heroBanner')).toMatchObject({
+			id: 'heroBanner',
+			kind: 'package',
+			packageName: '@acme/tentman-blocks'
+		});
+		expect(registry.getAdapter('heroBanner')?.getDefaultValue({ id: 'hero', type: 'heroBanner' })).toEqual({
+			title: '',
+			seo: {
+				metaTitle: ''
+			}
+		});
+	});
+
+	it('fails when blockPackages are configured without a package loader', async () => {
+		const backend = createBackend([], {
+			blockPackages: ['@acme/tentman-blocks']
+		});
+
+		await expect(loadBlockRegistry(backend)).rejects.toThrow(
+			/blockPackages, but no block package module loader/
+		);
+	});
+
+	it('fails when a block package does not export a named blockPackage object', async () => {
+		const backend = createBackend([], {
+			blockPackages: ['@acme/tentman-blocks']
+		});
+
+		await expect(
+			loadBlockRegistry(backend, {
+				loadBlockPackageModule: vi.fn().mockResolvedValue({})
+			})
+		).rejects.toThrow(/must export a named "blockPackage"/);
+	});
+
+	it('fails when a package block id duplicates a local block id', async () => {
+		const backend = createBackend(
+			[
+				`{
+					"type": "block",
+					"id": "seo",
+					"label": "SEO",
+					"blocks": [{ "id": "metaTitle", "type": "text" }]
+				}`
+			],
+			{
+				blockPackages: ['@acme/tentman-blocks']
+			}
+		);
+
+		await expect(
+			loadBlockRegistry(backend, {
+				loadBlockPackageModule: vi.fn().mockResolvedValue({
+					blockPackage: {
+						blocks: [
+							{
+								config: {
+									type: 'block',
+									id: 'seo',
+									label: 'Package SEO',
+									blocks: [{ id: 'description', type: 'text' }]
+								}
+							}
+						]
+					}
+				})
+			})
+		).rejects.toThrow(/Duplicate block id "seo"/);
 	});
 
 	it('fails when a custom adapter module does not export a named adapter', async () => {

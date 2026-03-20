@@ -4,6 +4,7 @@ import { deleteContentDocument } from '$lib/content/service';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { findContentItem } from '$lib/features/content-management/item';
+import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals, params, cookies }) => {
@@ -11,8 +12,10 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 		return {
 			discoveredConfig: null,
 			blockConfigs: [],
+			packageBlocks: [],
 			item: null,
 			contentError: null,
+			blockRegistryError: null,
 			itemId: params.itemId,
 			pageSlug: params.page,
 			mode: 'local' as const
@@ -74,9 +77,13 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 			contentError = formatErrorMessage(err);
 		}
 
+		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+
 		return {
 			discoveredConfig,
-			blockConfigs: await backend.discoverBlockConfigs(),
+			blockConfigs,
+			packageBlocks,
+			blockRegistryError,
 			item,
 			contentError,
 			itemId: params.itemId,

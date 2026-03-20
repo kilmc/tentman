@@ -5,6 +5,11 @@ import {
 } from '$lib/blocks/adapter-files';
 import { createStructuredBlockAdapter } from '$lib/blocks/adapters/structured';
 import { BUILT_IN_BLOCKS, type BuiltInBlockDefinition } from '$lib/blocks/builtins';
+import {
+	loadBlockPackage,
+	type LoadedPackageBlock,
+	type LoadBlockPackageModule
+} from '$lib/blocks/packages';
 import type { BlockAdapter } from '$lib/blocks/adapters/types';
 import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 import type { BlockUsage } from '$lib/config/types';
@@ -19,7 +24,15 @@ export interface LocalBlockDefinition {
 	adapter?: BlockAdapter;
 }
 
-export type BlockRegistryEntry = BuiltInBlockDefinition | LocalBlockDefinition;
+export interface PackageBlockDefinition {
+	id: string;
+	kind: 'package';
+	packageName: string;
+	config: LoadedPackageBlock['config'];
+	adapter?: BlockAdapter;
+}
+
+export type BlockRegistryEntry = BuiltInBlockDefinition | LocalBlockDefinition | PackageBlockDefinition;
 
 export interface BlockRegistry {
 	entries: BlockRegistryEntry[];
@@ -30,16 +43,29 @@ export interface BlockRegistry {
 
 interface CreateBlockRegistryOptions {
 	localAdapters?: Map<string, LoadedLocalBlockAdapter>;
+	packageBlocks?: LoadedPackageBlock[];
 }
 
 export interface LoadBlockRegistryOptions {
 	loadLocalAdapterModule?: LoadLocalBlockAdapterModule;
+	loadBlockPackageModule?: LoadBlockPackageModule;
+	blockPackages?: string[];
 }
 
-function failOnDuplicateId(id: string, existing: BlockRegistryEntry, nextPath?: string): never {
-	const existingSource =
-		existing.kind === 'built_in' ? `built-in block "${existing.id}"` : `block config at ${existing.path}`;
-	const nextSource = nextPath ? `block config at ${nextPath}` : `block "${id}"`;
+function getBlockSourceLabel(entry: BlockRegistryEntry): string {
+	if (entry.kind === 'built_in') {
+		return `built-in block "${entry.id}"`;
+	}
+
+	if (entry.kind === 'local') {
+		return `block config at ${entry.path}`;
+	}
+
+	return `package block "${entry.id}" from package "${entry.packageName}"`;
+}
+
+function failOnDuplicateId(id: string, existing: BlockRegistryEntry, nextSource: string): never {
+	const existingSource = getBlockSourceLabel(existing);
 
 	throw new Error(`Duplicate block id "${id}" between ${existingSource} and ${nextSource}`);
 }
@@ -72,7 +98,7 @@ export function getStructuredBlocksForUsage(
 	}
 
 	const entry = registry.get(usage.type);
-	if (entry?.kind !== 'local') {
+	if (!entry || (entry.kind !== 'local' && entry.kind !== 'package')) {
 		return null;
 	}
 
@@ -82,8 +108,8 @@ export function getStructuredBlocksForUsage(
 	};
 }
 
-function createStructuredLocalBlockAdapter(
-	entry: LocalBlockDefinition,
+function createStructuredBlockAdapterForEntry(
+	entry: LocalBlockDefinition | PackageBlockDefinition,
 	registry: BlockRegistry
 ): BlockAdapter {
 	return createStructuredBlockAdapter({
@@ -108,6 +134,17 @@ async function loadLocalBlockAdapters(
 	return new Map(adapters.filter((entry): entry is readonly [string, LoadedLocalBlockAdapter] => !!entry));
 }
 
+async function loadBlockPackages(
+	packageNames: string[],
+	loadModule: LoadBlockPackageModule
+): Promise<LoadedPackageBlock[]> {
+	const loadedPackages = await Promise.all(
+		packageNames.map(async (packageName) => loadBlockPackage(packageName, loadModule))
+	);
+
+	return loadedPackages.flat();
+}
+
 export function createBlockRegistry(
 	localBlocks: DiscoveredBlockConfig[],
 	options: CreateBlockRegistryOptions = {}
@@ -124,7 +161,7 @@ export function createBlockRegistry(
 		const existing = entriesById.get(block.id);
 
 		if (existing) {
-			failOnDuplicateId(block.id, existing, block.path);
+			failOnDuplicateId(block.id, existing, `block config at ${block.path}`);
 		}
 
 		const entry: LocalBlockDefinition = {
@@ -137,6 +174,31 @@ export function createBlockRegistry(
 
 		localEntries.push(entry);
 		entriesById.set(block.id, entry);
+	}
+
+	const packageEntries: PackageBlockDefinition[] = [];
+
+	for (const block of options.packageBlocks ?? []) {
+		const existing = entriesById.get(block.config.id);
+
+		if (existing) {
+			failOnDuplicateId(
+				block.config.id,
+				existing,
+				`package block "${block.config.id}" from package "${block.packageName}"`
+			);
+		}
+
+		const entry: PackageBlockDefinition = {
+			id: block.config.id,
+			kind: 'package',
+			packageName: block.packageName,
+			config: block.config,
+			adapter: block.adapter
+		};
+
+		packageEntries.push(entry);
+		entriesById.set(block.config.id, entry);
 	}
 
 	const entries = Array.from(entriesById.values());
@@ -157,7 +219,11 @@ export function createBlockRegistry(
 
 	for (const entry of localEntries) {
 		entry.adapter =
-			options.localAdapters?.get(entry.id)?.adapter ?? createStructuredLocalBlockAdapter(entry, registry);
+			options.localAdapters?.get(entry.id)?.adapter ?? createStructuredBlockAdapterForEntry(entry, registry);
+	}
+
+	for (const entry of packageEntries) {
+		entry.adapter = entry.adapter ?? createStructuredBlockAdapterForEntry(entry, registry);
 	}
 
 	return registry;
@@ -170,21 +236,36 @@ export async function createLoadedBlockRegistry(
 	const localAdapters = options.loadLocalAdapterModule
 		? await loadLocalBlockAdapters(localBlocks, options.loadLocalAdapterModule)
 		: undefined;
+	const hasBlockPackages = (options.blockPackages?.length ?? 0) > 0;
 
-	return createBlockRegistry(localBlocks, { localAdapters });
+	if (hasBlockPackages && !options.loadBlockPackageModule) {
+		throw new Error(
+			'Root config declares blockPackages, but no block package module loader is available'
+		);
+	}
+
+	const packageBlocks =
+		hasBlockPackages && options.loadBlockPackageModule
+			? await loadBlockPackages(options.blockPackages!, options.loadBlockPackageModule)
+			: undefined;
+
+	return createBlockRegistry(localBlocks, { localAdapters, packageBlocks });
 }
 
 export async function loadBlockRegistry(
 	backend: RepositoryBackend,
 	options: LoadBlockRegistryOptions = {}
 ): Promise<BlockRegistry> {
-	const localBlocks = await backend.discoverBlockConfigs();
+	const [localBlocks, rootConfig] = await Promise.all([
+		backend.discoverBlockConfigs(),
+		backend.readRootConfig()
+	]);
 
-	if (backend.kind !== 'local' || !options.loadLocalAdapterModule) {
-		return createBlockRegistry(localBlocks);
-	}
-
-	return createLoadedBlockRegistry(localBlocks, options);
+	return createLoadedBlockRegistry(localBlocks, {
+		...options,
+		loadLocalAdapterModule: backend.kind === 'local' ? options.loadLocalAdapterModule : undefined,
+		blockPackages: rootConfig?.blockPackages
+	});
 }
 
 export const DEFAULT_BLOCK_REGISTRY = createBlockRegistry([]);
