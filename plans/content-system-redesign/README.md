@@ -5,6 +5,7 @@
 Capture the next-generation Tentman content model in a form we can implement in phases without losing the broader architectural direction.
 
 This plan bundle covers:
+
 - The proposed config shape for top-level content and reusable blocks
 - The adapter and registry architecture
 - A phased rollout from the current `singleton` / `array` / `collection` model
@@ -13,11 +14,13 @@ This plan bundle covers:
 ## Current Direction
 
 The current Tentman model revolves around three inferred top-level content types:
+
 - `singleton`
 - `array`
 - `collection`
 
 The redesign moves toward:
+
 - `type: "content"` for top-level editable content definitions
 - `type: "block"` for reusable nested structures
 - `collection: true` as a shared concept for "many entries"
@@ -73,21 +76,21 @@ At the highest level, the emerging config shape is:
 
 ```json
 {
-  "type": "content",
-  "label": "Blog Posts",
-  "itemLabel": "Blog Post",
-  "collection": true,
-  "content": {
-    "mode": "directory",
-    "path": "./src/content/posts",
-    "template": "./templates/post.md",
-    "filename": "{{slug}}"
-  },
-  "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "required": true },
-    { "id": "body", "type": "markdown", "label": "Body", "required": true },
-    { "id": "gallery", "type": "imageGallery", "label": "Gallery" }
-  ]
+	"type": "content",
+	"label": "Blog Posts",
+	"itemLabel": "Blog Post",
+	"collection": true,
+	"content": {
+		"mode": "directory",
+		"path": "./src/content/posts",
+		"template": "./templates/post.md",
+		"filename": "{{slug}}"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true },
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true },
+		{ "id": "gallery", "type": "imageGallery", "label": "Gallery" }
+	]
 }
 ```
 

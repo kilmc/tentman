@@ -3,8 +3,7 @@
 
 	let showHelp = $state(false);
 
-	const isMac =
-		typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+	const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 	const shortcuts = [
 		{
@@ -26,7 +25,7 @@
 	<button
 		type="button"
 		onclick={toggleHelp}
-		class="flex items-center gap-2 rounded-full bg-gray-800 px-4 py-2 text-sm text-white shadow-lg hover:bg-gray-700 transition-colors"
+		class="flex items-center gap-2 rounded-full bg-gray-800 px-4 py-2 text-sm text-white shadow-lg transition-colors hover:bg-gray-700"
 		aria-label="Keyboard shortcuts"
 	>
 		<span class="text-lg">⌨️</span>
@@ -34,13 +33,15 @@
 	</button>
 
 	{#if showHelp}
-		<div class="absolute bottom-14 left-0 w-72 rounded-lg border border-gray-200 bg-white p-4 shadow-xl animate-scaleIn">
+		<div
+			class="animate-scaleIn absolute bottom-14 left-0 w-72 rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
+		>
 			<div class="mb-3 flex items-center justify-between">
 				<h3 class="font-semibold text-gray-900">Keyboard Shortcuts</h3>
 				<button
 					type="button"
 					onclick={toggleHelp}
-					class="text-gray-400 hover:text-gray-600 transition-colors"
+					class="text-gray-400 transition-colors hover:text-gray-600"
 					aria-label="Close"
 				>
 					×

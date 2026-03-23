@@ -29,7 +29,9 @@
 	// Character count state
 	let characterCount = $derived(value.length);
 	let isOverLimit = $derived(maxLength !== undefined && characterCount > maxLength);
-	let isUnderMin = $derived(minLength !== undefined && characterCount > 0 && characterCount < minLength);
+	let isUnderMin = $derived(
+		minLength !== undefined && characterCount > 0 && characterCount < minLength
+	);
 </script>
 
 <div class="mb-4">
@@ -48,18 +50,22 @@
 	</div>
 
 	<!-- Tab buttons -->
-	<div class="flex border-b border-gray-300 mb-2">
+	<div class="mb-2 flex border-b border-gray-300">
 		<button
 			type="button"
-			onclick={() => activeTab = 'edit'}
-			class="px-4 py-2 text-sm font-medium border-b-2 transition-colors {activeTab === 'edit' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'}"
+			onclick={() => (activeTab = 'edit')}
+			class="border-b-2 px-4 py-2 text-sm font-medium transition-colors {activeTab === 'edit'
+				? 'border-blue-600 text-blue-600'
+				: 'border-transparent text-gray-600 hover:text-gray-900'}"
 		>
 			Edit
 		</button>
 		<button
 			type="button"
-			onclick={() => activeTab = 'preview'}
-			class="px-4 py-2 text-sm font-medium border-b-2 transition-colors {activeTab === 'preview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'}"
+			onclick={() => (activeTab = 'preview')}
+			class="border-b-2 px-4 py-2 text-sm font-medium transition-colors {activeTab === 'preview'
+				? 'border-blue-600 text-blue-600'
+				: 'border-transparent text-gray-600 hover:text-gray-900'}"
 		>
 			Preview
 		</button>
@@ -76,7 +82,7 @@
 			minlength={minLength}
 			maxlength={maxLength}
 			oninput={() => onchange?.()}
-			class="w-full rounded border px-3 py-2 font-mono text-sm focus:outline-none focus:ring-1"
+			class="w-full rounded border px-3 py-2 font-mono text-sm focus:ring-1 focus:outline-none"
 			class:border-red-300={isOverLimit || isUnderMin}
 			class:focus:border-red-500={isOverLimit || isUnderMin}
 			class:focus:ring-red-500={isOverLimit || isUnderMin}
@@ -89,7 +95,7 @@
 
 	<!-- Preview tab -->
 	{#if activeTab === 'preview'}
-		<div class="w-full min-h-[200px] rounded border border-gray-300 px-3 py-2 bg-gray-50">
+		<div class="min-h-[200px] w-full rounded border border-gray-300 bg-gray-50 px-3 py-2">
 			<div class="prose prose-sm max-w-none dark:prose-invert">
 				{#if value}
 					<SvelteMarkdown source={value} />

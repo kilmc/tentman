@@ -2,10 +2,8 @@ import { JSONPath } from 'jsonpath-plus';
 import { findBlockById } from '$lib/config/blocks';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { generateCommitMessage } from '$lib/github/commit';
-import {
-	detectJsonIndent,
-	toJsonFileContent
-} from '$lib/features/content-management/transforms';
+import { detectJsonIndent, toJsonFileContent } from '$lib/features/content-management/transforms';
+import { getUtf8ByteLength } from '$lib/utils/text';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type {
@@ -120,7 +118,9 @@ async function previewFileContent(
 			if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
 				type = 'create';
 			} else {
-				type = (await context.backend.fileExists(filePath, { ref: options?.branch })) ? 'update' : 'create';
+				type = (await context.backend.fileExists(filePath, { ref: options?.branch }))
+					? 'update'
+					: 'create';
 				if (type === 'update') {
 					throw error;
 				}
@@ -136,7 +136,7 @@ async function previewFileContent(
 					type,
 					oldContent,
 					newContent,
-					size: Buffer.byteLength(newContent, 'utf-8')
+					size: getUtf8ByteLength(newContent)
 				}
 			],
 			totalChanges: 1
@@ -177,7 +177,7 @@ async function previewFileContent(
 				type: 'update' as const,
 				oldContent,
 				newContent,
-				size: Buffer.byteLength(newContent, 'utf-8')
+				size: getUtf8ByteLength(newContent)
 			}
 		],
 		totalChanges: 1

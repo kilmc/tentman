@@ -27,10 +27,12 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 	// Get configs from locals (already loaded by layout)
 	// Note: We'll get this from parent data via SvelteKit's automatic data flow
 	depends('app:content');
-	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+		locals,
+		params.page
+	);
 
 	try {
-
 		// Fetch the actual content based on config type
 		// Uses cache populated by layout prefetch
 		let content = null;
@@ -47,7 +49,9 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 				params.page // slug for cache key
 			);
 			const fetchEndTime = performance.now();
-			console.log(`🟢 [VIEW ${params.page}] Content retrieved in ${(fetchEndTime - fetchStartTime).toFixed(2)}ms`);
+			console.log(
+				`🟢 [VIEW ${params.page}] Content retrieved in ${(fetchEndTime - fetchStartTime).toFixed(2)}ms`
+			);
 		} catch (err) {
 			logError(err, 'Fetch content');
 			contentError = formatErrorMessage(err);
@@ -74,7 +78,9 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 					draftBranch
 				);
 				const draftEndTime = performance.now();
-				console.log(`🟢 [VIEW ${params.page}] Draft comparison completed in ${(draftEndTime - draftStartTime).toFixed(2)}ms`);
+				console.log(
+					`🟢 [VIEW ${params.page}] Draft comparison completed in ${(draftEndTime - draftStartTime).toFixed(2)}ms`
+				);
 			}
 		} catch (err) {
 			console.error(`[VIEW ${params.page}] Failed to check for draft:`, err);
@@ -86,7 +92,8 @@ export const load: PageServerLoad = async ({ locals, params, cookies, depends })
 		const totalTime = performance.now() - startTime;
 		console.log(`✅ [VIEW ${params.page}] Total load time: ${totalTime.toFixed(2)}ms`);
 
-		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+		const { blockConfigs, packageBlocks, blockRegistryError } =
+			await loadGitHubBlockRegistryData(backend);
 
 		return {
 			discoveredConfig,

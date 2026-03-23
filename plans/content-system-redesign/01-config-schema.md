@@ -3,6 +3,7 @@
 ## Goal
 
 Replace the current inferred `singleton` / `array` / `collection` model with a more explicit schema that:
+
 - keeps persistence understandable
 - allows inline and reusable nested structures
 - can be rendered cleanly by developers in Svelte or other frontends
@@ -15,7 +16,7 @@ Used for top-level editable content that Tentman discovers and manages directly.
 
 ```json
 {
-  "type": "content"
+	"type": "content"
 }
 ```
 
@@ -34,7 +35,7 @@ Used for reusable nested structures that can be referenced from content configs 
 
 ```json
 {
-  "type": "block"
+	"type": "block"
 }
 ```
 
@@ -75,9 +76,9 @@ Used for nested data that lives inside its parent.
 
 ```json
 {
-  "content": {
-    "mode": "embedded"
-  }
+	"content": {
+		"mode": "embedded"
+	}
 }
 ```
 
@@ -87,10 +88,10 @@ Used for data stored in a single file.
 
 ```json
 {
-  "content": {
-    "mode": "file",
-    "path": "./src/content/site.json"
-  }
+	"content": {
+		"mode": "file",
+		"path": "./src/content/site.json"
+	}
 }
 ```
 
@@ -98,11 +99,11 @@ If the file contains a collection within a larger JSON object:
 
 ```json
 {
-  "content": {
-    "mode": "file",
-    "path": "./src/content/site.json",
-    "itemsPath": "$.team"
-  }
+	"content": {
+		"mode": "file",
+		"path": "./src/content/site.json",
+		"itemsPath": "$.team"
+	}
 }
 ```
 
@@ -112,12 +113,12 @@ Used for file-per-entry content.
 
 ```json
 {
-  "content": {
-    "mode": "directory",
-    "path": "./src/content/posts",
-    "template": "./templates/post.md",
-    "filename": "{{slug}}"
-  }
+	"content": {
+		"mode": "directory",
+		"path": "./src/content/posts",
+		"template": "./templates/post.md",
+		"filename": "{{slug}}"
+	}
 }
 ```
 
@@ -127,10 +128,10 @@ One item in a config's `blocks` array.
 
 ```json
 {
-  "id": "title",
-  "type": "text",
-  "label": "Title",
-  "required": true
+	"id": "title",
+	"type": "text",
+	"label": "Title",
+	"required": true
 }
 ```
 
@@ -161,15 +162,15 @@ Built-in primitives are not necessarily standalone block config files. They can 
 
 ```json
 [
-  { "id": "title", "type": "text" },
-  { "id": "summary", "type": "textarea" },
-  { "id": "body", "type": "markdown" },
-  { "id": "email", "type": "email" },
-  { "id": "website", "type": "url" },
-  { "id": "price", "type": "number" },
-  { "id": "publishDate", "type": "date" },
-  { "id": "published", "type": "boolean" },
-  { "id": "coverImage", "type": "image" }
+	{ "id": "title", "type": "text" },
+	{ "id": "summary", "type": "textarea" },
+	{ "id": "body", "type": "markdown" },
+	{ "id": "email", "type": "email" },
+	{ "id": "website", "type": "url" },
+	{ "id": "price", "type": "number" },
+	{ "id": "publishDate", "type": "date" },
+	{ "id": "published", "type": "boolean" },
+	{ "id": "coverImage", "type": "image" }
 ]
 ```
 
@@ -177,17 +178,17 @@ Built-in primitives are not necessarily standalone block config files. They can 
 
 ```json
 {
-  "type": "block",
-  "id": "seo",
-  "label": "SEO",
-  "content": {
-    "mode": "embedded"
-  },
-  "blocks": [
-    { "id": "metaTitle", "type": "text", "label": "Meta Title" },
-    { "id": "metaDescription", "type": "textarea", "label": "Meta Description" },
-    { "id": "ogImage", "type": "image", "label": "OG Image", "assetsDir": "./static/images/seo" }
-  ]
+	"type": "block",
+	"id": "seo",
+	"label": "SEO",
+	"content": {
+		"mode": "embedded"
+	},
+	"blocks": [
+		{ "id": "metaTitle", "type": "text", "label": "Meta Title" },
+		{ "id": "metaDescription", "type": "textarea", "label": "Meta Description" },
+		{ "id": "ogImage", "type": "image", "label": "OG Image", "assetsDir": "./static/images/seo" }
+	]
 }
 ```
 
@@ -195,19 +196,25 @@ Built-in primitives are not necessarily standalone block config files. They can 
 
 ```json
 {
-  "type": "block",
-  "id": "imageGallery",
-  "label": "Image Gallery",
-  "itemLabel": "Image",
-  "collection": true,
-  "content": {
-    "mode": "embedded"
-  },
-  "blocks": [
-    { "id": "image", "type": "image", "label": "Image", "required": true, "assetsDir": "./static/images/galleries" },
-    { "id": "alt", "type": "text", "label": "Alt Text", "required": true },
-    { "id": "caption", "type": "text", "label": "Caption" }
-  ]
+	"type": "block",
+	"id": "imageGallery",
+	"label": "Image Gallery",
+	"itemLabel": "Image",
+	"collection": true,
+	"content": {
+		"mode": "embedded"
+	},
+	"blocks": [
+		{
+			"id": "image",
+			"type": "image",
+			"label": "Image",
+			"required": true,
+			"assetsDir": "./static/images/galleries"
+		},
+		{ "id": "alt", "type": "text", "label": "Alt Text", "required": true },
+		{ "id": "caption", "type": "text", "label": "Caption" }
+	]
 }
 ```
 
@@ -217,31 +224,37 @@ Inline nesting should be allowed for convenience, especially when a structure is
 
 ```json
 {
-  "type": "content",
-  "label": "Blog Posts",
-  "itemLabel": "Blog Post",
-  "collection": true,
-  "content": {
-    "mode": "directory",
-    "path": "./src/content/posts",
-    "template": "./templates/post.md",
-    "filename": "{{slug}}"
-  },
-  "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "required": true },
-    { "id": "body", "type": "markdown", "label": "Body", "required": true },
-    {
-      "id": "gallery",
-      "type": "block",
-      "label": "Gallery",
-      "collection": true,
-      "blocks": [
-        { "id": "image", "type": "image", "label": "Image", "required": true, "assetsDir": "./static/images/galleries" },
-        { "id": "alt", "type": "text", "label": "Alt Text", "required": true },
-        { "id": "caption", "type": "text", "label": "Caption" }
-      ]
-    }
-  ]
+	"type": "content",
+	"label": "Blog Posts",
+	"itemLabel": "Blog Post",
+	"collection": true,
+	"content": {
+		"mode": "directory",
+		"path": "./src/content/posts",
+		"template": "./templates/post.md",
+		"filename": "{{slug}}"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true },
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true },
+		{
+			"id": "gallery",
+			"type": "block",
+			"label": "Gallery",
+			"collection": true,
+			"blocks": [
+				{
+					"id": "image",
+					"type": "image",
+					"label": "Image",
+					"required": true,
+					"assetsDir": "./static/images/galleries"
+				},
+				{ "id": "alt", "type": "text", "label": "Alt Text", "required": true },
+				{ "id": "caption", "type": "text", "label": "Caption" }
+			]
+		}
+	]
 }
 ```
 

@@ -124,9 +124,8 @@ describe('loadBlockRegistry', () => {
 			}`
 		]);
 
-		const loadLocalAdapterModule: NonNullable<LoadBlockRegistryOptions['loadLocalAdapterModule']> = vi
-			.fn()
-			.mockResolvedValue({
+		const loadLocalAdapterModule: NonNullable<LoadBlockRegistryOptions['loadLocalAdapterModule']> =
+			vi.fn().mockResolvedValue({
 				adapter: {
 					type: 'gallery',
 					getDefaultValue() {
@@ -147,9 +146,9 @@ describe('loadBlockRegistry', () => {
 			path: 'tentman/blocks/block-1.tentman.json',
 			adapterPath: 'tentman/blocks/gallery.adapter.js'
 		});
-		expect(registry.getAdapter('gallery')?.getDefaultValue({ id: 'gallery', type: 'gallery' })).toEqual([
-			'custom'
-		]);
+		expect(
+			registry.getAdapter('gallery')?.getDefaultValue({ id: 'gallery', type: 'gallery' })
+		).toEqual(['custom']);
 	});
 
 	it('loads package blocks after local blocks when blockPackages are configured', async () => {
@@ -167,9 +166,8 @@ describe('loadBlockRegistry', () => {
 			}
 		);
 
-		const loadBlockPackageModule: NonNullable<LoadBlockRegistryOptions['loadBlockPackageModule']> = vi
-			.fn()
-			.mockResolvedValue({
+		const loadBlockPackageModule: NonNullable<LoadBlockRegistryOptions['loadBlockPackageModule']> =
+			vi.fn().mockResolvedValue({
 				blockPackage: {
 					blocks: [
 						{
@@ -195,7 +193,9 @@ describe('loadBlockRegistry', () => {
 			kind: 'package',
 			packageName: '@acme/tentman-blocks'
 		});
-		expect(registry.getAdapter('heroBanner')?.getDefaultValue({ id: 'hero', type: 'heroBanner' })).toEqual({
+		expect(
+			registry.getAdapter('heroBanner')?.getDefaultValue({ id: 'hero', type: 'heroBanner' })
+		).toEqual({
 			title: '',
 			seo: {
 				metaTitle: ''

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
+import {
+	isParsedContentConfig,
+	parseConfigFile,
+	type ParsedContentConfig
+} from '$lib/config/parse';
 import { buildFormData, getCardFields, normalizeFields } from './helpers';
 
 function parseContentConfigFixture(content: string): ParsedContentConfig {

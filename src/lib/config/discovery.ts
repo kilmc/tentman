@@ -171,10 +171,10 @@ export async function discoverGitHubConfigs(
 
 		const configPaths = getDiscoverableContentConfigPaths(
 			treeData.tree
-			.filter((item) => {
-				return item.type === 'blob' && !!item.path;
-			})
-			.map((item) => item.path!),
+				.filter((item) => {
+					return item.type === 'blob' && !!item.path;
+				})
+				.map((item) => item.path!),
 			rootConfig
 		);
 

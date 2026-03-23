@@ -10,10 +10,10 @@ Optional.
 
 ```json
 {
-  "blocksDir": "./tentman/blocks",
-  "configsDir": "./tentman/configs",
-  "assetsDir": "./static/images",
-  "blockPackages": ["@tentman/blocks-media"]
+	"blocksDir": "./tentman/blocks",
+	"configsDir": "./tentman/configs",
+	"assetsDir": "./static/images",
+	"blockPackages": ["@tentman/blocks-media"]
 }
 ```
 
@@ -28,20 +28,20 @@ Optional.
 
 ```json
 {
-  "type": "content",
-  "label": "Blog Posts",
-  "itemLabel": "Blog Post",
-  "collection": true,
-  "content": {
-    "mode": "directory",
-    "path": "./src/content/posts",
-    "template": "./templates/post.md",
-    "filename": "{{slug}}"
-  },
-  "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "required": true },
-    { "id": "body", "type": "markdown", "label": "Body", "required": true }
-  ]
+	"type": "content",
+	"label": "Blog Posts",
+	"itemLabel": "Blog Post",
+	"collection": true,
+	"content": {
+		"mode": "directory",
+		"path": "./src/content/posts",
+		"template": "./templates/post.md",
+		"filename": "{{slug}}"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true },
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true }
+	]
 }
 ```
 
@@ -65,12 +65,10 @@ Optional.
 
 ```json
 {
-  "type": "block",
-  "id": "seo",
-  "label": "SEO",
-  "blocks": [
-    { "id": "metaTitle", "type": "text", "label": "Meta Title" }
-  ]
+	"type": "block",
+	"id": "seo",
+	"label": "SEO",
+	"blocks": [{ "id": "metaTitle", "type": "text", "label": "Meta Title" }]
 }
 ```
 
@@ -114,15 +112,15 @@ Optional.
 
 ```json
 {
-  "id": "gallery",
-  "type": "block",
-  "label": "Gallery",
-  "collection": true,
-  "blocks": [
-    { "id": "image", "type": "image", "required": true },
-    { "id": "alt", "type": "text", "required": true },
-    { "id": "caption", "type": "text" }
-  ]
+	"id": "gallery",
+	"type": "block",
+	"label": "Gallery",
+	"collection": true,
+	"blocks": [
+		{ "id": "image", "type": "image", "required": true },
+		{ "id": "alt", "type": "text", "required": true },
+		{ "id": "caption", "type": "text" }
+	]
 }
 ```
 
@@ -150,9 +148,9 @@ Used for content stored in one file.
 
 ```json
 {
-  "mode": "file",
-  "path": "./src/content/site.json",
-  "itemsPath": "$.team"
+	"mode": "file",
+	"path": "./src/content/site.json",
+	"itemsPath": "$.team"
 }
 ```
 
@@ -162,10 +160,10 @@ Used for file-per-entry content.
 
 ```json
 {
-  "mode": "directory",
-  "path": "./src/content/posts",
-  "template": "./templates/post.md",
-  "filename": "{{slug}}"
+	"mode": "directory",
+	"path": "./src/content/posts",
+	"template": "./templates/post.md",
+	"filename": "{{slug}}"
 }
 ```
 

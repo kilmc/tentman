@@ -35,6 +35,8 @@ describe('loadJavaScriptModuleFromText', () => {
 
 		const moduleBlob = createObjectURL.mock.calls[0]?.[0];
 		expect(moduleBlob).toBeInstanceOf(Blob);
-		await expect(moduleBlob.text()).resolves.toContain('//# sourceURL=tentman/blocks/gallery.adapter.js');
+		await expect(moduleBlob.text()).resolves.toContain(
+			'//# sourceURL=tentman/blocks/gallery.adapter.js'
+		);
 	});
 });

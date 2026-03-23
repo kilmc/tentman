@@ -30,8 +30,7 @@ export function parseGitHubError(error: unknown): AppError {
 					return {
 						message,
 						code: 'RATE_LIMIT',
-						userFriendly:
-							'GitHub API rate limit exceeded. Please wait a few minutes and try again.'
+						userFriendly: 'GitHub API rate limit exceeded. Please wait a few minutes and try again.'
 					};
 				}
 				return {

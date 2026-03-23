@@ -40,10 +40,7 @@ describe('getDiscoverableBlockConfigPaths', () => {
 			getDiscoverableBlockConfigPaths(paths, {
 				blocksDir: './tentman/blocks'
 			})
-		).toEqual([
-			'tentman/blocks/seo.tentman.json',
-			'tentman/blocks/media/gallery.tentman.json'
-		]);
+		).toEqual(['tentman/blocks/seo.tentman.json', 'tentman/blocks/media/gallery.tentman.json']);
 	});
 });
 

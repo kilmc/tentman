@@ -44,7 +44,11 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 		return content;
 	}
 
-	async writeTextFile(_path: string, _content: string, _options?: RepositoryWriteOptions): Promise<void> {
+	async writeTextFile(
+		_path: string,
+		_content: string,
+		_options?: RepositoryWriteOptions
+	): Promise<void> {
 		throw new Error('Not implemented');
 	}
 

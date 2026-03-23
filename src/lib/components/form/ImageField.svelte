@@ -1,5 +1,7 @@
 <script lang="ts">
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+	import { localContent } from '$lib/stores/local-content';
+	import { resolveAssetValue } from '$lib/utils/assets';
 
 	interface Props {
 		label: string;
@@ -7,6 +9,7 @@
 		required?: boolean;
 		onchange?: () => void;
 		storagePath?: string; // Optional custom storage path (defaults to 'static/images/')
+		assetsDir?: string;
 	}
 
 	let {
@@ -14,7 +17,8 @@
 		value = $bindable(''),
 		required = false,
 		onchange,
-		storagePath = 'static/images/'
+		storagePath = 'static/images/',
+		assetsDir
 	}: Props = $props();
 
 	const inputId = `image-field-${Math.random().toString(36).substring(2, 9)}`;
@@ -27,13 +31,19 @@
 	let uploadSpeed = $state<number | null>(null); // bytes per second
 	let uploadedBytes = $state(0);
 	let startTime = $state<number | null>(null);
+	const resolvedValueSrc = $derived(
+		resolveAssetValue(value, {
+			assetsDir,
+			previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
+		})
+	);
 
 	function formatBytes(bytes: number): string {
 		if (bytes === 0) return '0 Bytes';
 		const k = 1024;
 		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+		return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 	}
 
 	function formatSpeed(bytesPerSecond: number): string {
@@ -174,22 +184,24 @@
 	{#if value || previewUrl}
 		<div class="mb-2 flex items-start gap-3">
 			<div class="relative flex-shrink-0">
-				<img
-					src={previewUrl || value}
-					alt={label}
-					class="h-32 w-32 rounded border border-gray-300 object-cover"
-				/>
+				{#if previewUrl || resolvedValueSrc}
+					<img
+						src={previewUrl || resolvedValueSrc}
+						alt={label}
+						class="h-32 w-32 rounded border border-gray-300 object-cover"
+					/>
+				{/if}
 				{#if uploading}
 					<div
-						class="absolute inset-0 flex items-center justify-center rounded bg-black bg-opacity-50"
+						class="bg-opacity-50 absolute inset-0 flex items-center justify-center rounded bg-black"
 					>
 						<LoadingSpinner size="sm" variant="white" />
 					</div>
 				{/if}
 			</div>
-			<div class="flex flex-col gap-2 flex-1 min-w-0">
+			<div class="flex min-w-0 flex-1 flex-col gap-2">
 				{#if value}
-					<p class="text-xs text-gray-600 font-mono break-all">{value}</p>
+					<p class="font-mono text-xs break-all text-gray-600">{value}</p>
 				{/if}
 
 				{#if uploading}
@@ -201,9 +213,9 @@
 						</div>
 
 						<!-- Progress bar -->
-						<div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+						<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
 							<div
-								class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+								class="h-2 rounded-full bg-blue-600 transition-all duration-300"
 								style="width: {uploadProgress}%"
 							></div>
 						</div>
@@ -226,7 +238,7 @@
 					<button
 						type="button"
 						onclick={removeImage}
-						class="text-sm text-red-600 hover:underline self-start"
+						class="self-start text-sm text-red-600 hover:underline"
 					>
 						Remove image
 					</button>
@@ -242,7 +254,7 @@
 		required={required && !value}
 		onchange={handleChange}
 		disabled={uploading}
-		class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+		class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
 	/>
 
 	<p class="mt-1 text-xs text-gray-500">

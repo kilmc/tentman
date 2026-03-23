@@ -7,10 +7,7 @@ import {
 	SELECTED_LOCAL_REPO_COOKIE,
 	type LocalRepositoryIdentity
 } from '$lib/repository/selection';
-import {
-	createLocalRepositoryBackend,
-	type LocalRepositoryBackend
-} from '$lib/repository/local';
+import { createLocalRepositoryBackend, type LocalRepositoryBackend } from '$lib/repository/local';
 
 const DATABASE_NAME = 'tentman-local-repo';
 const STORE_NAME = 'handles';
@@ -56,7 +53,8 @@ async function loadHandle(): Promise<FileSystemDirectoryHandle | null> {
 	return new Promise((resolve, reject) => {
 		const transaction = database.transaction(STORE_NAME, 'readonly');
 		const request = transaction.objectStore(STORE_NAME).get(HANDLE_KEY);
-		request.onsuccess = () => resolve((request.result as FileSystemDirectoryHandle | undefined) || null);
+		request.onsuccess = () =>
+			resolve((request.result as FileSystemDirectoryHandle | undefined) || null);
 		request.onerror = () => reject(request.error);
 	});
 }
@@ -164,7 +162,9 @@ function createStore() {
 
 			try {
 				if (!window.showDirectoryPicker) {
-					throw new Error('Local repository mode requires a Chromium browser with File System Access support.');
+					throw new Error(
+						'Local repository mode requires a Chromium browser with File System Access support.'
+					);
 				}
 
 				const handle = await window.showDirectoryPicker({ mode: 'readwrite' });

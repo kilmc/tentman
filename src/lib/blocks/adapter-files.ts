@@ -94,6 +94,8 @@ export async function loadLocalBlockAdapter(
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'Unknown adapter loading error';
-		throw new Error(`Failed to load adapter for ${getBlockContextLabel(block)} from ${resolvedPath}: ${message}`);
+		throw new Error(
+			`Failed to load adapter for ${getBlockContextLabel(block)} from ${resolvedPath}: ${message}`
+		);
 	}
 }

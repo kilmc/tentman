@@ -1,5 +1,7 @@
 import type { LoadLocalBlockAdapterModule } from '$lib/blocks/adapter-files';
 import {
+	type DiscoveredBlockConfig,
+	type DiscoveredConfig,
 	getDiscoverableBlockConfigPaths,
 	getDiscoverableContentConfigPaths,
 	parseDiscoveredBlockConfig,
@@ -102,7 +104,8 @@ async function getFileHandle(
 		throw new Error(`Expected file path, received "${path}"`);
 	}
 
-	const directory = segments.length > 0 ? await getDirectoryHandle(root, segments.join('/'), create) : root;
+	const directory =
+		segments.length > 0 ? await getDirectoryHandle(root, segments.join('/'), create) : root;
 	return directory.getFileHandle(fileName, { create });
 }
 
@@ -112,7 +115,11 @@ async function readFileText(root: FileSystemDirectoryHandle, path: string): Prom
 	return file.text();
 }
 
-async function writeFileText(root: FileSystemDirectoryHandle, path: string, content: string): Promise<void> {
+async function writeFileText(
+	root: FileSystemDirectoryHandle,
+	path: string,
+	content: string
+): Promise<void> {
 	const handle = await getFileHandle(root, path, true);
 	const writable = await handle.createWritable();
 	await writable.write(content);
@@ -153,10 +160,7 @@ async function listDirectoryEntries(
 	return entries.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function findTentmanFiles(
-	root: FileSystemDirectoryHandle,
-	path = '.'
-): Promise<string[]> {
+async function findTentmanFiles(root: FileSystemDirectoryHandle, path = '.'): Promise<string[]> {
 	const entries = await listDirectoryEntries(root, path);
 	const configPaths: string[] = [];
 
@@ -193,6 +197,7 @@ export interface LocalRepositoryBackend extends RepositoryBackend {
 	kind: 'local';
 	rootHandle: FileSystemDirectoryHandle;
 	repo: LocalRepositoryIdentity;
+	invalidateDiscoveryCache(): void;
 	loadLocalAdapterModule(path: string): Promise<unknown>;
 }
 
@@ -200,6 +205,60 @@ export function createLocalRepositoryBackend(
 	rootHandle: FileSystemDirectoryHandle,
 	repo: LocalRepositoryIdentity
 ): LocalRepositoryBackend {
+	let discoveryCache: Promise<{
+		rootConfig: RootConfig | null;
+		configs: DiscoveredConfig[];
+		blockConfigs: DiscoveredBlockConfig[];
+	}> | null = null;
+
+	function shouldInvalidateDiscovery(path: string): boolean {
+		const normalizedPath = path.replace(/^\.\//, '');
+		return normalizedPath === '.tentman.json' || normalizedPath.endsWith('.tentman.json');
+	}
+
+	async function readRootConfigFromDisk(): Promise<RootConfig | null> {
+		try {
+			const content = await readFileText(rootHandle, '.tentman.json');
+			return parseRootConfig(content);
+		} catch {
+			return null;
+		}
+	}
+
+	async function loadDiscoveryData() {
+		if (!discoveryCache) {
+			discoveryCache = (async () => {
+				const rootConfig = await readRootConfigFromDisk();
+				const tentmanFiles = await findTentmanFiles(rootHandle);
+				const contentPaths = getDiscoverableContentConfigPaths(tentmanFiles, rootConfig);
+				const blockPaths = getDiscoverableBlockConfigPaths(tentmanFiles, rootConfig);
+				const [configs, blockConfigs] = await Promise.all([
+					Promise.all(
+						contentPaths.map(async (path) =>
+							parseDiscoveredConfig(path, await readFileText(rootHandle, path))
+						)
+					),
+					Promise.all(
+						blockPaths.map(async (path) =>
+							parseDiscoveredBlockConfig(path, await readFileText(rootHandle, path))
+						)
+					)
+				]);
+
+				return {
+					rootConfig,
+					configs,
+					blockConfigs
+				};
+			})().catch((error) => {
+				discoveryCache = null;
+				throw error;
+			});
+		}
+
+		return discoveryCache;
+	}
+
 	return {
 		kind: 'local',
 		cacheKey: `local:${repo.pathLabel}`,
@@ -208,37 +267,23 @@ export function createLocalRepositoryBackend(
 		rootHandle,
 		repo,
 
+		invalidateDiscoveryCache() {
+			discoveryCache = null;
+		},
+
 		async discoverConfigs() {
-			const [rootConfig, tentmanFiles] = await Promise.all([
-				this.readRootConfig(),
-				findTentmanFiles(rootHandle)
-			]);
-			const configPaths = getDiscoverableContentConfigPaths(tentmanFiles, rootConfig);
-			return Promise.all(
-				configPaths.map(async (path) => parseDiscoveredConfig(path, await readFileText(rootHandle, path)))
-			);
+			const discoveryData = await loadDiscoveryData();
+			return discoveryData.configs;
 		},
 
 		async discoverBlockConfigs() {
-			const [rootConfig, tentmanFiles] = await Promise.all([
-				this.readRootConfig(),
-				findTentmanFiles(rootHandle)
-			]);
-			const configPaths = getDiscoverableBlockConfigPaths(tentmanFiles, rootConfig);
-			return Promise.all(
-				configPaths.map(async (path) =>
-					parseDiscoveredBlockConfig(path, await readFileText(rootHandle, path))
-				)
-			);
+			const discoveryData = await loadDiscoveryData();
+			return discoveryData.blockConfigs;
 		},
 
 		async readRootConfig(): Promise<RootConfig | null> {
-			try {
-				const content = await readFileText(rootHandle, '.tentman.json');
-				return parseRootConfig(content);
-			} catch {
-				return null;
-			}
+			const discoveryData = await loadDiscoveryData();
+			return discoveryData.rootConfig;
 		},
 
 		readTextFile(path: string, _options?: RepositoryReadOptions) {
@@ -252,18 +297,21 @@ export function createLocalRepositoryBackend(
 				);
 			}
 
-			return loadJavaScriptModuleFromText(
-				await readFileText(rootHandle, path),
-				path
-			);
+			return loadJavaScriptModuleFromText(await readFileText(rootHandle, path), path);
 		},
 
-		writeTextFile(path: string, content: string, _options?: RepositoryWriteOptions) {
-			return writeFileText(rootHandle, path, content);
+		async writeTextFile(path: string, content: string, _options?: RepositoryWriteOptions) {
+			await writeFileText(rootHandle, path, content);
+			if (shouldInvalidateDiscovery(path)) {
+				discoveryCache = null;
+			}
 		},
 
-		deleteFile(path: string, _options?: RepositoryWriteOptions) {
-			return deletePath(rootHandle, path);
+		async deleteFile(path: string, _options?: RepositoryWriteOptions) {
+			await deletePath(rootHandle, path);
+			if (shouldInvalidateDiscovery(path)) {
+				discoveryCache = null;
+			}
 		},
 
 		listDirectory(path: string, _options?: RepositoryReadOptions) {

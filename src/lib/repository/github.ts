@@ -83,7 +83,11 @@ export function createGitHubRepositoryBackend(
 			return decodeGitHubContent(data.content);
 		},
 
-		async writeTextFile(path: string, content: string, options?: RepositoryWriteOptions): Promise<void> {
+		async writeTextFile(
+			path: string,
+			content: string,
+			options?: RepositoryWriteOptions
+		): Promise<void> {
 			let sha: string | undefined;
 
 			try {

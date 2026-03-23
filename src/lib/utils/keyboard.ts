@@ -31,11 +31,7 @@ export function registerKeyboardShortcuts(shortcuts: KeyboardShortcut[]): () => 
 	const handler = (event: KeyboardEvent) => {
 		// Ignore keyboard shortcuts when typing in inputs
 		const target = event.target as HTMLElement;
-		if (
-			target.tagName === 'INPUT' ||
-			target.tagName === 'TEXTAREA' ||
-			target.isContentEditable
-		) {
+		if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
 			return;
 		}
 

@@ -1,9 +1,6 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import {
-	SELECTED_BACKEND_COOKIE,
-	SELECTED_LOCAL_REPO_COOKIE
-} from '$lib/repository/selection';
+import { SELECTED_BACKEND_COOKIE, SELECTED_LOCAL_REPO_COOKIE } from '$lib/repository/selection';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.isAuthenticated || !locals.octokit) {

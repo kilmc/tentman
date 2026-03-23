@@ -86,6 +86,7 @@ Before ending due to context limits or natural stopping point:
 ## Success Criteria
 
 This protocol is working if:
+
 - the current slice always lives in the repo, not only in chat
 - the next slice is always recorded when appropriate
 - plan changes are documented when discovered

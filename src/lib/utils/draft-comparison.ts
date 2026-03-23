@@ -57,7 +57,9 @@ export async function compareDraftToBranch(
 		const metadata = await getBranchMetadata(octokit, owner, repo, draftBranch);
 
 		if (!metadata.branchExists) {
-			console.log(`[DRAFT COMPARISON] Branch ${draftBranch} does not exist, returning empty comparison`);
+			console.log(
+				`[DRAFT COMPARISON] Branch ${draftBranch} does not exist, returning empty comparison`
+			);
 			return { ...emptyComparison(), metadata };
 		}
 
@@ -317,9 +319,7 @@ function emptyComparison(): DraftComparison {
  */
 export function hasChanges(comparison: DraftComparison): boolean {
 	return (
-		comparison.modified.length > 0 ||
-		comparison.created.length > 0 ||
-		comparison.deleted.length > 0
+		comparison.modified.length > 0 || comparison.created.length > 0 || comparison.deleted.length > 0
 	);
 }
 

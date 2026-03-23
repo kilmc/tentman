@@ -7,6 +7,7 @@ import {
 	processTemplate,
 	serializeCollectionItem
 } from '$lib/features/content-management/transforms';
+import { ensureBufferGlobal, getUtf8ByteLength } from '$lib/utils/text';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type {
@@ -37,9 +38,7 @@ interface DirectoryInfo {
 	isMarkdown: boolean;
 }
 
-function getDirectoryInfo(
-	context: ContentOperationContext
-): DirectoryInfo {
+function getDirectoryInfo(context: ContentOperationContext): DirectoryInfo {
 	const config = asDirectoryBackedConfig(context);
 	const resolvedDirectoryPath = resolveConfigPath(context.configPath, config.content.path);
 	const resolvedTemplatePath = resolveConfigPath(context.configPath, config.content.template);
@@ -84,8 +83,10 @@ async function buildCreatedContent(
 		return processTemplate(template, data);
 	}
 
+	ensureBufferGlobal();
 	const { data: templateFrontmatter, content: templateBody } = matter(template);
-	const { _body, _filename, ...frontmatterData } = data;
+	const { _body, ...frontmatterData } = data;
+	delete frontmatterData._filename;
 	const body = _body !== undefined ? _body : processTemplate(templateBody, data);
 	const mergedFrontmatter = { ...templateFrontmatter, ...frontmatterData };
 	const processedFrontmatter: Record<string, unknown> = {};
@@ -115,7 +116,7 @@ async function previewDirectoryContent(
 					path: filePath,
 					type: 'create',
 					newContent,
-					size: Buffer.byteLength(newContent, 'utf-8')
+					size: getUtf8ByteLength(newContent)
 				}
 			],
 			totalChanges: 1
@@ -140,13 +141,13 @@ async function previewDirectoryContent(
 					path: newFilePath,
 					type: 'create',
 					newContent,
-					size: Buffer.byteLength(newContent, 'utf-8')
+					size: getUtf8ByteLength(newContent)
 				},
 				{
 					path: oldFilePath,
 					type: 'delete',
 					oldContent,
-					size: Buffer.byteLength(oldContent, 'utf-8')
+					size: getUtf8ByteLength(oldContent)
 				}
 			],
 			totalChanges: 2
@@ -160,7 +161,7 @@ async function previewDirectoryContent(
 				type: 'update',
 				oldContent,
 				newContent,
-				size: Buffer.byteLength(newContent, 'utf-8')
+				size: getUtf8ByteLength(newContent)
 			}
 		],
 		totalChanges: 1
@@ -227,13 +228,21 @@ async function saveDirectoryContent(
 			`${options.filename} → ${newFilename}`
 		);
 
-		await context.backend.writeTextFile(newFilePath, content, getWriteOptions(options.branch, message));
+		await context.backend.writeTextFile(
+			newFilePath,
+			content,
+			getWriteOptions(options.branch, message)
+		);
 		await context.backend.deleteFile(oldFilePath, getWriteOptions(options.branch, message));
 		return;
 	}
 
 	const message = generateCommitMessage('update', config.label, itemIdentifier);
-	await context.backend.writeTextFile(oldFilePath, content, getWriteOptions(options?.branch, message));
+	await context.backend.writeTextFile(
+		oldFilePath,
+		content,
+		getWriteOptions(options?.branch, message)
+	);
 }
 
 async function createDirectoryContent(
@@ -263,7 +272,11 @@ async function deleteDirectoryContent(
 	const info = getDirectoryInfo(context);
 	const filePath = buildCollectionFilePath(info.resolvedDirectoryPath, options.filename);
 	const itemIdentifier = options.itemId || options.filename;
-	const message = generateCommitMessage('delete', asDirectoryBackedConfig(context).label, itemIdentifier);
+	const message = generateCommitMessage(
+		'delete',
+		asDirectoryBackedConfig(context).label,
+		itemIdentifier
+	);
 
 	await context.backend.deleteFile(filePath, getWriteOptions(options.branch, message));
 }

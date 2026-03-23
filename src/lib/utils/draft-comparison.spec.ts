@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
+import {
+	isParsedContentConfig,
+	parseConfigFile,
+	type ParsedContentConfig
+} from '$lib/config/parse';
 import type { ContentRecord } from '$lib/features/content-management/types';
 import { compareLoadedDraftContent, getChangeCount, hasChanges } from './draft-comparison';
 
@@ -62,7 +66,11 @@ const directoryConfig = parseContentConfigFixture(`{
 
 describe('utils/draft-comparison', () => {
 	it('compares singleton documents as a single modified record', () => {
-		const comparison = compareLoadedDraftContent(singletonConfig, { title: 'Before' }, { title: 'After' });
+		const comparison = compareLoadedDraftContent(
+			singletonConfig,
+			{ title: 'Before' },
+			{ title: 'After' }
+		);
 
 		expect(comparison.modified).toHaveLength(1);
 		expect(comparison.modified[0]?.itemId).toBe('_singleton');

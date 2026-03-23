@@ -35,7 +35,9 @@
 		<div class="mb-8 rounded-lg bg-white p-8 shadow-md">
 			<h2 class="mb-4 text-2xl font-semibold">Local Repository Ready</h2>
 			<p class="mb-6 text-gray-600">
-				Editing files directly inside <span class="font-semibold">{data.selectedBackend.repo.name}</span>
+				Editing files directly inside <span class="font-semibold"
+					>{data.selectedBackend.repo.name}</span
+				>
 			</p>
 			<a
 				href="/pages"

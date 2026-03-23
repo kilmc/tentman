@@ -62,7 +62,7 @@
 
 {#if visible}
 	<div
-		class="pointer-events-auto flex min-w-80 max-w-md flex-col gap-3 rounded-lg border-2 p-5 shadow-2xl {closing
+		class="pointer-events-auto flex max-w-md min-w-80 flex-col gap-3 rounded-lg border-2 p-5 shadow-2xl {closing
 			? 'animate-slideOutRight'
 			: 'animate-slideInRight'} {typeStyles[type]}"
 		role="alert"
@@ -70,7 +70,7 @@
 		<div class="flex items-start gap-3">
 			<span class="text-xl font-bold" aria-hidden="true">{icons[type]}</span>
 			<div class="flex-1">
-				<p class="font-medium leading-relaxed">{message}</p>
+				<p class="leading-relaxed font-medium">{message}</p>
 			</div>
 			<button
 				type="button"

@@ -22,10 +22,12 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 		};
 	}
 
-	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+		locals,
+		params.page
+	);
 
 	try {
-
 		// Only allow collection content on this route
 		if (!discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}/edit`);
@@ -77,7 +79,8 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 			contentError = formatErrorMessage(err);
 		}
 
-		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+		const { blockConfigs, packageBlocks, blockRegistryError } =
+			await loadGitHubBlockRegistryData(backend);
 
 		return {
 			discoveredConfig,
@@ -91,7 +94,12 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 			mode: 'github' as const
 		};
 	} catch (err) {
-		if (err && typeof err === 'object' && 'status' in err && (err.status === 404 || err.status === 302)) {
+		if (
+			err &&
+			typeof err === 'object' &&
+			'status' in err &&
+			(err.status === 404 || err.status === 302)
+		) {
 			throw err;
 		}
 		console.error('Failed to load config:', err);
@@ -102,7 +110,10 @@ export const load: PageServerLoad = async ({ locals, params, cookies }) => {
 export const actions: Actions = {
 	delete: async ({ locals, params }) => {
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+				locals,
+				params.page
+			);
 
 			const itemId = params.itemId;
 

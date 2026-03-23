@@ -15,19 +15,23 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 ## 🐛 Issues Identified
 
 ### Critical (Causing Current Bug)
+
 1. **Infinite loop in FormGenerator** - `$effect` calls `onchange` callback which updates parent state, triggering effect again
 
 ### High Severity
+
 2. **XSS vulnerability in MarkdownField** - No HTML sanitization in preview
 3. **Memory leak in ImageField** - Object URLs never revoked
 4. **Missing keys in ArrayField** - Uses index instead of unique keys
 
 ### Medium Severity
+
 5. **Unnecessary parent-child state sync** - Parent tracks `editingItem` in real-time for no reason
 6. **Dual notification pattern** - Both `bind:value` AND callbacks (redundant)
 7. **Inconsistent callback names** - Mix of `oninput` and `onchange`
 
 ### Low Severity
+
 8. **ImageField input not reset** - Can't re-upload same file
 9. **MarkdownField tab state loss** - Tab selection not persisted
 10. **NumberField silent failure** - Invalid input becomes `0`
@@ -41,6 +45,7 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 **THE PROBLEM:** Parent doesn't need to track form state at all!
 
 **Current (Wrong):**
+
 - Parent maintains `editingItem` state
 - Passes to FormGenerator as `initialData`
 - FormGenerator notifies parent via `onchange` on every keystroke
@@ -48,6 +53,7 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 - Creates circular dependency → infinite loop
 
 **New (Correct):**
+
 - User clicks "Edit" → Show FormGenerator with initial data
 - FormGenerator owns ALL state internally
 - User edits → Changes stay in FormGenerator
@@ -98,12 +104,12 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 ```svelte
 <!-- TextField.svelte -->
 <script lang="ts">
-    let { label, value = $bindable(''), required = false } = $props();
+	let { label, value = $bindable(''), required = false } = $props();
 </script>
 
 <label>
-    {label}
-    <input type="text" bind:value {required} />
+	{label}
+	<input type="text" bind:value {required} />
 </label>
 ```
 
@@ -120,6 +126,7 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 **Actual Time:** ~2 hours
 
 #### Task 1.1: Refactor FormGenerator (1.5 hours) ✅
+
 **File:** `src/lib/components/form/FormGenerator.svelte`
 
 - [x] Remove `onchange` prop entirely
@@ -133,6 +140,7 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 **Note:** We kept a minimal `onchange` callback on fields for validation error clearing only, not for data propagation.
 
 #### Task 1.2: Refactor Parent Page Component (1 hour) ✅
+
 **File:** `src/routes/pages/[page]/+page.svelte`
 
 - [x] Removed `editingItem` state (replaced with `formDataToSubmit`)
@@ -145,9 +153,11 @@ Fix the infinite loop bug in edit mode AND refactor the entire form architecture
 - [x] Tested that edit mode works without infinite loops ✓
 
 #### Task 1.3: Simplify Field Components (30 min) ✅
+
 **Files:** All `src/lib/components/form/*Field.svelte`
 
 For each field component:
+
 - [x] TextField.svelte - Changed to `onchange?: () => void`, use `bind:value`
 - [x] TextareaField.svelte - Changed to `onchange?: () => void`, use `bind:value`
 - [x] NumberField.svelte - Changed to `onchange?: () => void`, use `bind:value`
@@ -162,6 +172,7 @@ For each field component:
 Pattern: All fields now use `onchange?: () => void` (no value parameter), rely on `bind:value` for data flow.
 
 #### Task 1.4: Update FormField Dispatcher (30 min) ✅
+
 **File:** `src/lib/components/form/FormField.svelte`
 
 - [x] Updated `onchange` prop signature to `() => void` (no value parameter)
@@ -174,6 +185,7 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 ### 🎯 Phase 1 Results
 
 **What was fixed:**
+
 1. ✅ Infinite loop bug is resolved - removed circular reactive dependency
 2. ✅ Simplified state management - parent no longer tracks intermediate form changes
 3. ✅ All field components now use consistent `onchange?: () => void` signature
@@ -181,6 +193,7 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 5. ✅ Parent only receives data when user explicitly submits (via `onsubmit` callback)
 
 **Key architectural changes:**
+
 - FormGenerator initializes state once with `structuredClone(initialData)`
 - No `$effect` watching initialData changes
 - Parent uses `formDataToSubmit` that's only updated on submit
@@ -188,6 +201,7 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 - ArrayField fixed for Svelte 5 runes mode with proper index-based binding
 
 **Testing:**
+
 - ✅ Dev server starts without errors
 - ✅ No TypeScript compilation errors (except pre-existing unrelated errors)
 - ✅ Code follows Svelte 5 runes mode patterns
@@ -199,6 +213,7 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 ### ✅ Phase 2: Fix Critical Issues (1.5 hours)
 
 #### Task 2.1: Fix XSS in MarkdownField (30 min)
+
 **File:** `src/lib/components/form/MarkdownField.svelte`
 
 - [ ] Run: `pnpm add isomorphic-dompurify`
@@ -208,22 +223,24 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 - [ ] Verify script doesn't execute in preview
 
 #### Task 2.2: Fix Memory Leak in ImageField (30 min)
+
 **File:** `src/lib/components/form/ImageField.svelte`
 
 - [ ] Add cleanup effect:
   ```typescript
   $effect(() => {
-      return () => {
-          if (previewUrl) {
-              URL.revokeObjectURL(previewUrl);
-          }
-      };
+  	return () => {
+  		if (previewUrl) {
+  			URL.revokeObjectURL(previewUrl);
+  		}
+  	};
   });
   ```
 - [ ] Revoke old URL before creating new one in upload handler
 - [ ] Test multiple uploads don't leak memory (check browser dev tools)
 
 #### Task 2.3: Add Keys to ArrayField (15 min)
+
 **File:** `src/lib/components/form/ArrayField.svelte`
 
 - [ ] Update `{#each}` to include unique key:
@@ -321,6 +338,7 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 ## 📁 Critical Files to Modify
 
 ### Phase 1 (Core Architecture)
+
 - `src/lib/components/form/FormGenerator.svelte` ⭐ MOST IMPORTANT
 - `src/routes/pages/[page]/+page.svelte` ⭐ MOST IMPORTANT
 - `src/lib/components/form/FormField.svelte`
@@ -333,11 +351,13 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 - `src/lib/components/form/UrlField.svelte`
 
 ### Phase 2 (Critical Fixes)
+
 - `src/lib/components/form/MarkdownField.svelte`
 - `src/lib/components/form/ImageField.svelte`
 - `src/lib/components/form/ArrayField.svelte`
 
 ### Phase 3 & 4 (Polish & Cleanup)
+
 - All of the above plus documentation files
 
 ---
@@ -347,6 +367,7 @@ Pattern: All fields now use `onchange?: () => void` (no value parameter), rely o
 After each phase, verify:
 
 ### Core Functionality
+
 - [ ] Can enter edit mode without app freezing
 - [ ] Can edit singleton content and save
 - [ ] Can edit array items and save
@@ -357,6 +378,7 @@ After each phase, verify:
 - [ ] Navigation warning works
 
 ### Form Fields
+
 - [ ] Text fields accept input
 - [ ] Number fields validate properly
 - [ ] Date fields show date picker
@@ -367,6 +389,7 @@ After each phase, verify:
 - [ ] Array fields can add/remove items
 
 ### Security & Performance
+
 - [ ] Markdown preview doesn't execute scripts
 - [ ] Image uploads don't leak memory
 - [ ] No console errors

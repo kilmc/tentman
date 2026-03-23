@@ -16,7 +16,7 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const isLocalMode = data.mode === 'local';
+	const isLocalMode = $derived(data.mode === 'local');
 
 	let discoveredConfig = $state(data.discoveredConfig);
 	let blockConfigs = $state(data.blockConfigs ?? []);
@@ -30,6 +30,7 @@
 	let filenameError = $state('');
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localError = $state<string | null>(null);
+	let localLoadRequest = 0;
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(discoveredConfig?.config.content.mode === 'directory');
@@ -43,6 +44,18 @@
 
 	function handleFieldsChanged() {
 		hasUnsavedChanges = true;
+	}
+
+	function applyRemoteData() {
+		discoveredConfig = data.discoveredConfig;
+		blockConfigs = data.blockConfigs ?? [];
+		packageBlocks = data.packageBlocks ?? [];
+		blockRegistry = null;
+		blockRegistryError = data.blockRegistryError ?? null;
+		hasUnsavedChanges = false;
+		localError = null;
+		filename = '';
+		filenameError = '';
 	}
 
 	beforeNavigate(({ cancel }) => {
@@ -67,19 +80,38 @@
 			}
 		]);
 
-		if (isLocalMode) {
-			void (async () => {
-				await localContent.refresh();
-				const contentState = get(localContent);
-				discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
-				blockConfigs = contentState.blockConfigs;
-				packageBlocks = [];
-				blockRegistry = contentState.blockRegistry;
-				blockRegistryError = contentState.blockRegistryError;
-			})();
+		return cleanup;
+	});
+
+	async function loadLocalConfig(pageSlug: string) {
+		const requestId = ++localLoadRequest;
+
+		await localContent.refresh();
+		const contentState = get(localContent);
+
+		if (requestId !== localLoadRequest) {
+			return;
 		}
 
-		return cleanup;
+		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
+		blockConfigs = contentState.blockConfigs;
+		packageBlocks = [];
+		blockRegistry = contentState.blockRegistry;
+		blockRegistryError = contentState.blockRegistryError;
+		hasUnsavedChanges = false;
+		localError = null;
+		filename = '';
+		filenameError = '';
+	}
+
+	$effect(() => {
+		if (isLocalMode) {
+			void loadLocalConfig(data.pageSlug);
+			return;
+		}
+
+		localLoadRequest += 1;
+		applyRemoteData();
 	});
 
 	function validateLocalForm(event?: SubmitEvent) {
@@ -191,7 +223,7 @@
 										hasUnsavedChanges = true;
 									}}
 									placeholder="e.g., 2025-11-30 or my-update"
-									class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+									class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 									class:border-red-500={filenameError}
 									required
 								/>
@@ -201,7 +233,8 @@
 								<p class="mt-1 text-sm text-red-600">{filenameError}</p>
 							{:else}
 								<p class="mt-1 text-xs text-gray-500">
-									Enter a filename without the extension. Use lowercase letters, numbers, and hyphens.
+									Enter a filename without the extension. Use lowercase letters, numbers, and
+									hyphens.
 								</p>
 							{/if}
 						</div>
@@ -279,7 +312,7 @@
 										hasUnsavedChanges = true;
 									}}
 									placeholder="e.g., 2025-11-30 or my-update"
-									class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+									class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 									class:border-red-500={filenameError}
 									required
 								/>
@@ -289,7 +322,8 @@
 								<p class="mt-1 text-sm text-red-600">{filenameError}</p>
 							{:else}
 								<p class="mt-1 text-xs text-gray-500">
-									Enter a filename without the extension. Use lowercase letters, numbers, and hyphens.
+									Enter a filename without the extension. Use lowercase letters, numbers, and
+									hyphens.
 								</p>
 							{/if}
 						</div>

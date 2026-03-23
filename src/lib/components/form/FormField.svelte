@@ -37,7 +37,11 @@
 	const minLength = block.minLength;
 	const maxLength = block.maxLength;
 	const structuredBlocks = getStructuredBlocksForUsage(block, blockRegistry);
-	const fieldType = structuredBlocks ? (structuredBlocks.collection ? 'array' : 'object') : block.type;
+	const fieldType = structuredBlocks
+		? structuredBlocks.collection
+			? 'array'
+			: 'object'
+		: block.type;
 </script>
 
 {#if fieldType === 'text'}
@@ -57,7 +61,14 @@
 {:else if fieldType === 'boolean'}
 	<BooleanField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'image'}
-	<ImageField {label} bind:value {required} {onchange} storagePath={imagePath} />
+	<ImageField
+		{label}
+		bind:value
+		{required}
+		{onchange}
+		storagePath={block.assetsDir ?? imagePath}
+		assetsDir={block.assetsDir}
+	/>
 {:else if fieldType === 'array'}
 	<ArrayField
 		{label}

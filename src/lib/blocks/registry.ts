@@ -32,7 +32,10 @@ export interface PackageBlockDefinition {
 	adapter?: BlockAdapter;
 }
 
-export type BlockRegistryEntry = BuiltInBlockDefinition | LocalBlockDefinition | PackageBlockDefinition;
+export type BlockRegistryEntry =
+	| BuiltInBlockDefinition
+	| LocalBlockDefinition
+	| PackageBlockDefinition;
 
 export interface BlockRegistry {
 	entries: BlockRegistryEntry[];
@@ -131,7 +134,9 @@ async function loadLocalBlockAdapters(
 		})
 	);
 
-	return new Map(adapters.filter((entry): entry is readonly [string, LoadedLocalBlockAdapter] => !!entry));
+	return new Map(
+		adapters.filter((entry): entry is readonly [string, LoadedLocalBlockAdapter] => !!entry)
+	);
 }
 
 async function loadBlockPackages(
@@ -219,7 +224,8 @@ export function createBlockRegistry(
 
 	for (const entry of localEntries) {
 		entry.adapter =
-			options.localAdapters?.get(entry.id)?.adapter ?? createStructuredBlockAdapterForEntry(entry, registry);
+			options.localAdapters?.get(entry.id)?.adapter ??
+			createStructuredBlockAdapterForEntry(entry, registry);
 	}
 
 	for (const entry of packageEntries) {

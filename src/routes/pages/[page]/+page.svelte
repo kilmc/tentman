@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
-	import { get, writable } from 'svelte/store';
+	import { get } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { toasts } from '$lib/stores/toasts';
 	import ItemCard from '$lib/components/ItemCard.svelte';
@@ -19,7 +19,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const isLocalMode = data.mode === 'local';
+	const isLocalMode = $derived(data.mode === 'local');
 
 	let discoveredConfig = $state(data.discoveredConfig);
 	let blockConfigs = $state(data.blockConfigs ?? []);
@@ -50,11 +50,28 @@
 			return null;
 		}
 
-		return isLocalMode
-			? localBlockRegistry
-			: createBlockRegistry(blockConfigs, { packageBlocks });
+		return isLocalMode ? localBlockRegistry : createBlockRegistry(blockConfigs, { packageBlocks });
 	});
-	const flashMessageKeys = ['saved', 'published', 'merged', 'cancelled', 'deleted', 'branch'] as const;
+	const flashMessageKeys = [
+		'saved',
+		'published',
+		'merged',
+		'cancelled',
+		'deleted',
+		'branch'
+	] as const;
+	let localLoadRequest = 0;
+
+	function applyRemoteData() {
+		discoveredConfig = data.discoveredConfig;
+		blockConfigs = data.blockConfigs ?? [];
+		content = data.content;
+		contentError = data.contentError;
+		packageBlocks = data.packageBlocks ?? [];
+		blockRegistryError = data.blockRegistryError ?? null;
+		localBlockRegistry = null;
+		rootConfig = null;
+	}
 
 	function getFlashMessageKey() {
 		const url = new URL(window.location.href);
@@ -87,11 +104,17 @@
 		}
 
 		if (urlParams.get('saved') === 'true') {
-			toasts.add(isLocalMode ? 'Changes saved to local files.' : 'Changes saved to draft!', 'success');
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes saved to draft!',
+				'success'
+			);
 		}
 
 		if (urlParams.get('published') === 'true') {
-			toasts.add(isLocalMode ? 'Changes saved to local files.' : 'Changes published successfully!', 'success');
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes published successfully!',
+				'success'
+			);
 		}
 
 		if (urlParams.get('merged') === 'true') {
@@ -113,15 +136,21 @@
 
 	onMount(async () => {
 		handleUrlMessages();
+	});
 
-		if (!isLocalMode) {
-			return;
-		}
+	async function loadLocalPage(pageSlug: string) {
+		const requestId = ++localLoadRequest;
 
+		content = null;
+		contentError = null;
 		await localContent.refresh();
 
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
+
+		if (requestId !== localLoadRequest) {
+			return;
+		}
 
 		if (!repoState.backend) {
 			contentError = 'No local repository is open.';
@@ -133,7 +162,7 @@
 		packageBlocks = [];
 		blockRegistryError = contentState.blockRegistryError;
 		localBlockRegistry = contentState.blockRegistry;
-		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
 
 		if (!discoveredConfig) {
 			contentError = 'Configuration not found';
@@ -146,14 +175,34 @@
 		}
 
 		try {
-			content = await fetchContentDocument(
+			const loadedContent = await fetchContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
 				discoveredConfig.path
 			);
+
+			if (requestId !== localLoadRequest) {
+				return;
+			}
+
+			content = loadedContent;
 		} catch (error) {
+			if (requestId !== localLoadRequest) {
+				return;
+			}
+
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
 		}
+	}
+
+	$effect(() => {
+		if (isLocalMode) {
+			void loadLocalPage(data.pageSlug);
+			return;
+		}
+
+		localLoadRequest += 1;
+		applyRemoteData();
 	});
 
 	function hasDraftChanges(itemId: string | undefined): 'modified' | 'created' | 'deleted' | null {
@@ -228,7 +277,7 @@
 		</div>
 
 		<div class="mb-4 sm:mb-6">
-			<h1 class="text-2xl sm:text-3xl font-bold">{config.label}</h1>
+			<h1 class="text-2xl font-bold sm:text-3xl">{config.label}</h1>
 			<div class="mt-2 flex flex-wrap gap-2 text-sm text-gray-600 sm:gap-3">
 				<span class="capitalize">Type: {contentKind}</span>
 				<span class="hidden sm:inline">•</span>
@@ -331,7 +380,7 @@
 								<ItemCard
 									{item}
 									{cardFields}
-									badge={badge}
+									{badge}
 									href={`/pages/${discoveredConfig.slug}/${itemId}/edit`}
 								/>
 							{/each}
@@ -339,12 +388,12 @@
 					</div>
 				{/if}
 
-					<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-						{#each regularItems as item}
-							{@const itemId = getContentItemId(config, item as ContentRecord)}
-							<ItemCard {item} {cardFields} href={`/pages/${discoveredConfig.slug}/${itemId}/edit`} />
-						{/each}
-					</div>
+				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+					{#each regularItems as item}
+						{@const itemId = getContentItemId(config, item as ContentRecord)}
+						<ItemCard {item} {cardFields} href={`/pages/${discoveredConfig.slug}/${itemId}/edit`} />
+					{/each}
+				</div>
 			{:else}
 				<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
 					<h3 class="mb-2 text-lg font-semibold text-gray-900">No items yet</h3>

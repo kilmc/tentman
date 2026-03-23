@@ -14,9 +14,7 @@
 			return 'single entry';
 		}
 
-		return config.config.content.mode === 'directory'
-			? 'directory collection'
-			: 'file collection';
+		return config.config.content.mode === 'directory' ? 'directory collection' : 'file collection';
 	}
 
 	onMount(async () => {
@@ -46,12 +44,10 @@
 					</a>
 				</p>
 			{/if}
-		{:else}
-			{#if 'full_name' in data.repo}
-				<p class="mt-2 text-gray-600">
-					Repository: <span class="font-semibold">{data.repo.full_name}</span>
-				</p>
-			{/if}
+		{:else if 'full_name' in data.repo}
+			<p class="mt-2 text-gray-600">
+				Repository: <span class="font-semibold">{data.repo.full_name}</span>
+			</p>
 		{/if}
 	</div>
 

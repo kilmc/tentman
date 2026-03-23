@@ -9,7 +9,15 @@
 		onchange?: () => void;
 	}
 
-	let { label, value = $bindable(''), required = false, placeholder = '', minLength, maxLength, onchange }: Props = $props();
+	let {
+		label,
+		value = $bindable(''),
+		required = false,
+		placeholder = '',
+		minLength,
+		maxLength,
+		onchange
+	}: Props = $props();
 
 	// Generate unique ID for accessibility
 	const inputId = `text-field-${Math.random().toString(36).substring(2, 9)}`;
@@ -17,7 +25,9 @@
 	// Character count state
 	let characterCount = $derived(value.length);
 	let isOverLimit = $derived(maxLength !== undefined && characterCount > maxLength);
-	let isUnderMin = $derived(minLength !== undefined && characterCount > 0 && characterCount < minLength);
+	let isUnderMin = $derived(
+		minLength !== undefined && characterCount > 0 && characterCount < minLength
+	);
 </script>
 
 <div class="mb-4">
@@ -43,7 +53,7 @@
 		minlength={minLength}
 		maxlength={maxLength}
 		oninput={() => onchange?.()}
-		class="w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+		class="w-full rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
 		class:border-red-300={isOverLimit || isUnderMin}
 		class:focus:border-red-500={isOverLimit || isUnderMin}
 		class:focus:ring-red-500={isOverLimit || isUnderMin}

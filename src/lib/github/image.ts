@@ -47,7 +47,9 @@ export async function uploadImage(
 		return `/${fullPath}`;
 	} catch (err) {
 		console.error('Failed to upload image:', err);
-		throw new Error(`Failed to upload image: ${err instanceof Error ? err.message : 'Unknown error'}`);
+		throw new Error(
+			`Failed to upload image: ${err instanceof Error ? err.message : 'Unknown error'}`
+		);
 	}
 }
 
@@ -107,6 +109,8 @@ export async function deleteImage(
 		}
 	} catch (err) {
 		console.error('Failed to delete image:', err);
-		throw new Error(`Failed to delete image: ${err instanceof Error ? err.message : 'Unknown error'}`);
+		throw new Error(
+			`Failed to delete image: ${err instanceof Error ? err.message : 'Unknown error'}`
+		);
 	}
 }

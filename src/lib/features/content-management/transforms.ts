@@ -1,5 +1,6 @@
 import matter from 'gray-matter';
 import type { ParsedContentConfig } from '$lib/config/parse';
+import { decodeBase64ToUtf8, ensureBufferGlobal } from '$lib/utils/text';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type { ContentRecord, TemplateInfo, ContentValue } from './types';
 
@@ -26,12 +27,13 @@ export function toJsonFileContent(data: ContentValue, indent: string | number = 
 }
 
 export function decodeBase64Content(content: string): string {
-	return Buffer.from(content, 'base64').toString('utf-8');
+	return decodeBase64ToUtf8(content);
 }
 
 export function getTemplateInfo(configPath: string, config: DirectoryBackedConfig): TemplateInfo {
 	const resolvedTemplatePath = resolveConfigPath(configPath, config.content.template);
-	const templateDir = resolvedTemplatePath.substring(0, resolvedTemplatePath.lastIndexOf('/')) || '';
+	const templateDir =
+		resolvedTemplatePath.substring(0, resolvedTemplatePath.lastIndexOf('/')) || '';
 	const templateFilename = resolvedTemplatePath.split('/').pop() ?? resolvedTemplatePath;
 	const templateExt = config.content.template.substring(config.content.template.lastIndexOf('.'));
 
@@ -44,8 +46,13 @@ export function getTemplateInfo(configPath: string, config: DirectoryBackedConfi
 	};
 }
 
-export function parseCollectionItem(content: string, isMarkdown: boolean, filename: string): ContentRecord {
+export function parseCollectionItem(
+	content: string,
+	isMarkdown: boolean,
+	filename: string
+): ContentRecord {
 	if (isMarkdown) {
+		ensureBufferGlobal();
 		const { data, content: body } = matter(content);
 		return {
 			...(data as Record<string, ContentValue>),
@@ -63,11 +70,14 @@ export function parseCollectionItem(content: string, isMarkdown: boolean, filena
 
 export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean): string {
 	if (isMarkdown) {
-		const { _body, _filename, ...frontmatterData } = item;
+		ensureBufferGlobal();
+		const { _body, ...frontmatterData } = item;
+		delete frontmatterData._filename;
 		return matter.stringify(_body || '', frontmatterData);
 	}
 
-	const { _filename, ...jsonData } = item;
+	const jsonData = { ...item };
+	delete jsonData._filename;
 	return toJsonFileContent(jsonData);
 }
 

@@ -11,7 +11,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		throw redirect(302, `/pages/${params.page}/edit`);
 	}
 
-	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+		locals,
+		params.page
+	);
 
 	// Only allow single-entry content on this route
 	if (discoveredConfig.config.collection) {
@@ -60,7 +63,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 export const actions: Actions = {
 	createPreview: async ({ locals, params, request, cookies }) => {
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+				locals,
+				params.page
+			);
 
 			// Parse form data
 			const formData = await request.formData();
@@ -87,7 +93,10 @@ export const actions: Actions = {
 			console.log(`✅ Saved content to ${branchName}`);
 
 			// Redirect back to index page
-			throw redirect(303, `/pages/${params.page}?saved=true&branch=${encodeURIComponent(branchName)}`);
+			throw redirect(
+				303,
+				`/pages/${params.page}?saved=true&branch=${encodeURIComponent(branchName)}`
+			);
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
@@ -103,7 +112,10 @@ export const actions: Actions = {
 
 	publishNow: async ({ locals, params, request }) => {
 		try {
-			const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+				locals,
+				params.page
+			);
 
 			// Parse form data
 			const formData = await request.formData();

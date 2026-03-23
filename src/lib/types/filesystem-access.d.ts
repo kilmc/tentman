@@ -7,8 +7,12 @@ declare global {
 	}
 
 	interface FileSystemHandlePermissionMixin {
-		queryPermission?(descriptor?: FileSystemPermissionDescriptor): Promise<FileSystemPermissionState>;
-		requestPermission?(descriptor?: FileSystemPermissionDescriptor): Promise<FileSystemPermissionState>;
+		queryPermission?(
+			descriptor?: FileSystemPermissionDescriptor
+		): Promise<FileSystemPermissionState>;
+		requestPermission?(
+			descriptor?: FileSystemPermissionDescriptor
+		): Promise<FileSystemPermissionState>;
 	}
 
 	interface FileSystemHandle extends FileSystemHandlePermissionMixin {}
@@ -26,4 +30,3 @@ declare global {
 }
 
 export {};
-

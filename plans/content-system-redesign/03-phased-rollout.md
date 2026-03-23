@@ -11,6 +11,7 @@ The idea is to build the lowest-risk foundational pieces first, while preserving
 ### Objective
 
 Replace the current inferred top-level type system with the explicit config language:
+
 - `type: "content"`
 - `type: "block"`
 - `collection: true`
@@ -109,6 +110,7 @@ Open the registry up to npm-distributed block packages.
 This phase should only happen after the local registry and adapter APIs feel stable.
 
 For the current redesign push, Phase 5 is considered complete once:
+
 - `blockPackages` exists in the root config
 - the package export contract is defined
 - GitHub-backed/server mode can load structured package blocks

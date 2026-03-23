@@ -3,7 +3,7 @@
 	import { toasts } from '$lib/stores/toasts';
 </script>
 
-<div class="pointer-events-none fixed bottom-0 right-0 z-50 p-6">
+<div class="pointer-events-none fixed right-0 bottom-0 z-50 p-6">
 	<div class="flex flex-col gap-4">
 		{#each $toasts as toast (toast.id)}
 			<Toast

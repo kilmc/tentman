@@ -12,7 +12,11 @@ import type {
 	ContentSaveOptions
 } from './adapters/types';
 
-function createContext(backend: RepositoryBackend, config: ParsedContentConfig, configPath: string) {
+function createContext(
+	backend: RepositoryBackend,
+	config: ParsedContentConfig,
+	configPath: string
+) {
 	return {
 		backend,
 		config,
@@ -45,7 +49,11 @@ export async function saveContentDocument(
 		case 'file':
 			return fileContentAdapter.save(createContext(backend, config, configPath), data, options);
 		case 'directory':
-			return directoryContentAdapter.save(createContext(backend, config, configPath), data, options);
+			return directoryContentAdapter.save(
+				createContext(backend, config, configPath),
+				data,
+				options
+			);
 	}
 }
 
@@ -60,7 +68,11 @@ export async function createContentDocument(
 		case 'file':
 			return fileContentAdapter.create!(createContext(backend, config, configPath), data, options);
 		case 'directory':
-			return directoryContentAdapter.create!(createContext(backend, config, configPath), data, options);
+			return directoryContentAdapter.create!(
+				createContext(backend, config, configPath),
+				data,
+				options
+			);
 	}
 }
 
@@ -89,6 +101,10 @@ export async function previewContentChanges(
 		case 'file':
 			return fileContentAdapter.preview!(createContext(backend, config, configPath), data, options);
 		case 'directory':
-			return directoryContentAdapter.preview!(createContext(backend, config, configPath), data, options);
+			return directoryContentAdapter.preview!(
+				createContext(backend, config, configPath),
+				data,
+				options
+			);
 	}
 }

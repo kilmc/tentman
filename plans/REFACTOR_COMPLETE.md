@@ -9,12 +9,14 @@ Successfully refactored the draft/preview system from a complex cookie-based ses
 ### ✅ New Architecture
 
 **Before:**
+
 - Multiple draft branches per config per user (`preview/{config}/{user}-{timestamp}`)
 - Cookie-based sessions (24-hour expiry)
 - Manual "resume draft" flow for orphaned branches
 - Complex session management across server/client
 
 **After:**
+
 - Single draft branch per repo (`preview-{yyyy-mm-dd}`)
 - Client-side store + localStorage persistence
 - Automatic draft detection on page load
@@ -41,20 +43,24 @@ Successfully refactored the draft/preview system from a complex cookie-based ses
 ### ✅ Files Modified
 
 **Core Infrastructure:**
+
 - `src/lib/github/branch.ts` - Updated for new branch pattern, removed orphaned drafts
 - `src/routes/+layout.svelte` - Added store initialization + publish button
 
 **Preview/Save Flow:**
+
 - `src/routes/pages/[page]/preview-changes/+page.server.ts` - New branch logic
 - `src/routes/pages/[page]/preview-changes/+page.svelte` - Store integration
 - `src/routes/pages/[page]/[itemId]/preview-changes/+page.server.ts` - New branch logic
 - `src/routes/pages/[page]/[itemId]/preview-changes/+page.svelte` - Store integration
 
 **Index Pages:**
+
 - `src/routes/pages/[page]/+page.server.ts` - Auto-discover drafts
 - `src/routes/pages/[page]/+page.svelte` - Simplified draft banner + toast handling
 
 **Edit Pages:**
+
 - `src/routes/pages/[page]/edit/+page.server.ts` - Load from draft if exists
 - `src/routes/pages/[page]/[itemId]/edit/+page.server.ts` - Load from draft if exists
 - `src/routes/pages/[page]/new/+page.server.ts` - Removed session logic
@@ -110,16 +116,19 @@ Ready to test the following flow:
 ## Build Status
 
 ✅ **Build successful** - No TypeScript errors
+
 - Warnings are pre-existing (a11y issues, unrelated to refactor)
 
 ## Migration Notes
 
 ### Breaking Changes
+
 - Old preview branches with format `preview/user-timestamp` won't be auto-discovered
 - Users with active sessions (cookies) will need to restart their drafts
 - The `/pages/[page]/draft` route is removed (use `/publish` instead)
 
 ### Backwards Compatibility
+
 - Old preview branches can still be manually accessed if needed
 - The new branch naming convention prevents conflicts with old branches
 
@@ -132,6 +141,7 @@ Ready to test the following flow:
 ## Next Steps
 
 User should now test the complete flow:
+
 1. Create draft
 2. Make multiple edits
 3. Test browser refresh

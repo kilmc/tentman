@@ -1,9 +1,11 @@
 # Tentman UX/UI Improvement Plan
 
 ## Objective
+
 Enhance user experience and visual polish of Tentman CMS by tackling low-hanging fruit improvements and adding additional TODOs to the roadmap.
 
 ## Priority Focus
+
 - Polish existing UX/UI (not new features)
 - Quick wins that provide immediate value
 - Better visual feedback for user actions
@@ -79,12 +81,14 @@ Enhance user experience and visual polish of Tentman CMS by tackling low-hanging
 **Current Issue**: Markdown preview uses basic regex replacement and has poor typography
 
 **Solution**:
+
 - Install `svelte-markdown` (Svelte-native, uses `marked` internally, SSR-safe)
 - Install `@tailwindcss/typography` for prose styling
 - Replace current regex-based preview with Svelte component
 - Apply prose classes to preview container
 
 **Why svelte-markdown?**
+
 - Designed specifically for Svelte
 - Uses battle-tested `marked` parser internally
 - Avoids unsafe `@html` directive (renders to Svelte components)
@@ -92,16 +96,19 @@ Enhance user experience and visual polish of Tentman CMS by tackling low-hanging
 - Simple to use for preview rendering
 
 **Implementation**:
+
 ```bash
 pnpm add svelte-markdown @tailwindcss/typography
 ```
 
 **Files to Modify**:
+
 - `src/lib/components/form/MarkdownField.svelte` - Replace with SvelteMarkdown component
 - `package.json` - Add dependencies
 - `tailwind.config.ts` - Add typography plugin
 
 **Code Changes**:
+
 ```typescript
 // In MarkdownField.svelte
 import SvelteMarkdown from 'svelte-markdown';
@@ -117,6 +124,7 @@ import SvelteMarkdown from 'svelte-markdown';
 ```
 
 **Benefits**:
+
 - Professional markdown rendering with proper typography
 - SSR-safe (important for SvelteKit)
 - Better security (no @html)
@@ -129,17 +137,20 @@ import SvelteMarkdown from 'svelte-markdown';
 **Current Issue**: Toasts are small, fade quickly, lack visual prominence
 
 **Solution**:
+
 - Add slide-in animation from right edge
 - Increase size and visibility
 - Add optional action buttons
 - Support toast stacking
 
 **Files to Modify**:
+
 - `src/lib/components/Toast.svelte` - Add animations, action buttons
 - `src/lib/stores/toasts.ts` - Add action support to interface
 - `src/app.css` - Add slide-in animation keyframes
 
 **Code Changes**:
+
 ```typescript
 // In toasts.ts - add action support
 export interface Toast {
@@ -187,16 +198,19 @@ export interface Toast {
 **Current Issue**: Generic spinner doesn't show structure, feels slow
 
 **Solution**:
+
 - Create ItemCardSkeleton component matching ItemCard layout
 - Replace loading spinner with skeleton grid
 - Add pulse animation
 
 **Files to Modify**:
+
 - `src/lib/components/ItemCardSkeleton.svelte` - NEW FILE
 - `src/routes/pages/[page]/+page.svelte` - Replace spinner with skeleton grid
 - `src/routes/pages/[page]/[itemId]/edit/+page.svelte` - Add form skeleton (optional)
 
 **Code Changes**:
+
 ```typescript
 // New file: ItemCardSkeleton.svelte
 <div class="block rounded-lg border border-gray-200 bg-white p-6 animate-pulse">
@@ -234,16 +248,19 @@ export interface Toast {
 **Current Issue**: Delete confirmation is generic, doesn't show what's being deleted, and deleted items don't appear in draft changes section
 
 **Solution**:
+
 - Show item preview in delete confirmation modal
 - Display primary/secondary fields from ItemCard
 - Add explanatory text about draft staging
 - Consider adding immediate visual feedback in draft changes section
 
 **Files to Modify**:
+
 - `src/routes/pages/[page]/[itemId]/edit/+page.svelte` - Enhance delete modal with item preview
 - Potentially `src/routes/pages/[page]/+page.svelte` - Show deleted items in draft section
 
 **Code Changes**:
+
 ```typescript
 // In [itemId]/edit/+page.svelte delete confirmation
 <div class="mb-4 rounded border border-gray-200 bg-gray-50 p-4">
@@ -274,11 +291,13 @@ export interface Toast {
 ## Implementation Order (User Selected)
 
 ### Step 1: Update TODOS.md ✅ COMPLETE FIRST
+
 - Add all new TODOs identified in this plan
 - Categorize by effort level (Low/Medium/High)
 - Keep existing TODOs and mark any that overlap
 
 ### Step 2: Enhanced Markdown Preview Styling ⭐ ✅ COMPLETED
+
 - ✅ Installed `@humanspeak/svelte-markdown` (Svelte 5 compatible) and `@tailwindcss/typography` packages
 - ✅ Updated MarkdownField.svelte to use SvelteMarkdown component with prose classes
 - ✅ Configured Tailwind typography plugin using `@plugin` directive in app.css (Tailwind v4)
@@ -286,6 +305,7 @@ export interface Toast {
 - **Note**: Used `@humanspeak/svelte-markdown` instead of `svelte-markdown` due to Svelte 5 compatibility
 
 ### Step 3: Better Toast Notifications ⭐ ✅ COMPLETED
+
 - ✅ Added slide-in and slide-out animations (slideInRight, slideOutRight)
 - ✅ Added ToastAction interface and action button support throughout the stack
 - ✅ Fixed bug where convenience methods (success, error, etc.) created new store instances
@@ -299,6 +319,7 @@ export interface Toast {
   - `src/lib/components/ToastContainer.svelte` - Added action prop passing
 
 ### Step 4: Skeleton Loading Screens ⭐ ✅ COMPLETED
+
 - ✅ Created ItemCardSkeleton component matching ItemCard structure
 - ✅ Added pulse animation using Tailwind's built-in animate-pulse utility
 - ✅ Updated pages/[page]/+page.svelte to replace spinner with skeleton grid
@@ -309,6 +330,7 @@ export interface Toast {
   - `src/routes/pages/[page]/+page.svelte` - Replaced loading spinner with skeleton cards
 
 ### Step 5: Enhanced Delete Confirmation ⭐ ✅ COMPLETED
+
 - ✅ Updated delete modal to show item preview in a highlighted red box
 - ✅ Display primary/secondary fields matching ItemCard layout
 - ✅ Added explanatory text about draft staging with link to page
@@ -318,6 +340,7 @@ export interface Toast {
   - `src/routes/pages/[page]/[itemId]/edit/+page.svelte` - Added formatFieldValue(), getCardFields(), enhanced delete modal UI
 
 ### Step 6: Loading State Consistency ⭐ ✅ COMPLETED
+
 - ✅ Created reusable LoadingSpinner component with size and variant props
 - ✅ Replaced inline spinners in edit pages with LoadingSpinner component
 - ✅ Replaced inline spinner in ImageField upload overlay with LoadingSpinner
@@ -330,6 +353,7 @@ export interface Toast {
   - `src/lib/components/form/ImageField.svelte` - Import and use LoadingSpinner for upload overlay
 
 ### Step 7: Empty State Icons & Copy ⭐ ✅ COMPLETED
+
 - ✅ Added SVG document icon to empty content items list state
 - ✅ Improved messaging with heading, description, and clear CTA
 - ✅ Enhanced button with plus icon for visual clarity
@@ -346,6 +370,7 @@ export interface Toast {
   - Pages list: Already had good messaging (yellow banner) - no changes needed
 
 ### Step 8: Form Validation Improvements ⭐ ✅ COMPLETED
+
 - ✅ Added minLength and maxLength properties to FieldOptions and FieldArrayItem interfaces
 - ✅ Implemented length validation in validation utility for text/textarea/markdown/email/url fields
 - ✅ Added character counters to TextField, TextareaField, and MarkdownField components
@@ -368,6 +393,7 @@ export interface Toast {
   - `src/lib/examples/posts.tentman.json` - Added validation constraints for testing
 
 ### Step 9: Image Upload Progress ⭐ ✅ COMPLETED
+
 - ✅ Replaced fetch() with XMLHttpRequest for upload progress tracking
 - ✅ Added state management for progress (0-100%), file size, upload speed, and uploaded bytes
 - ✅ Implemented real-time progress bar with smooth transitions
@@ -388,6 +414,7 @@ export interface Toast {
 ## Critical Files Reference
 
 **Component Files**:
+
 - `src/lib/components/form/MarkdownField.svelte` - Markdown editor with preview
 - `src/lib/components/Toast.svelte` - Toast notification component
 - `src/lib/components/ItemCard.svelte` - Content item display card
@@ -396,11 +423,13 @@ export interface Toast {
 - `src/lib/stores/toasts.ts` - Toast state management
 
 **Route Files**:
+
 - `src/routes/pages/[page]/+page.svelte` - Content list view with draft changes
 - `src/routes/pages/[page]/[itemId]/edit/+page.svelte` - Edit form with delete
 - `src/routes/publish/+page.svelte` - Publish draft changes view
 
 **Config Files**:
+
 - `package.json` - Dependencies
 - `tailwind.config.ts` - Tailwind configuration
 - `src/app.css` - Global styles and animations
@@ -410,6 +439,7 @@ export interface Toast {
 ## Success Criteria
 
 After implementing low-hanging fruit, validation improvements, and image upload progress:
+
 - ✅ Markdown preview looks professional with proper typography
 - ✅ Toast notifications are visible and provide clear feedback
 - ✅ Loading states show content structure (skeletons) instead of spinners
@@ -432,6 +462,7 @@ After implementing low-hanging fruit, validation improvements, and image upload 
 ## Research Notes
 
 **Markdown Parser Selection**:
+
 - Chose `svelte-markdown` over raw `marked` or `markdown-it`
 - Rationale: Svelte-native, SSR-safe, uses proven `marked` internally
 - Avoids unsafe `@html` directive
@@ -440,6 +471,7 @@ After implementing low-hanging fruit, validation improvements, and image upload 
   - [Parse markdown inside a svelte component - Stack Overflow](https://stackoverflow.com/questions/60857589/parse-markdown-inside-a-svelte-component)
 
 **Tailwind Typography**:
+
 - @tailwindcss/typography confirmed as best-in-class for prose styling
 - Works seamlessly with SvelteKit
 - No compatibility concerns

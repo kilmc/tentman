@@ -38,9 +38,7 @@ function isValid(entry: CacheEntry | undefined): boolean {
 /**
  * Get cached configs for a repository, or fetch if not cached/stale
  */
-export async function getCachedConfigs(
-	backend: RepositoryBackend
-): Promise<DiscoveredConfig[]> {
+export async function getCachedConfigs(backend: RepositoryBackend): Promise<DiscoveredConfig[]> {
 	const repoKey = backend.cacheKey;
 	const cachedEntry = cache.get(repoKey);
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
+import {
+	isParsedContentConfig,
+	parseConfigFile,
+	type ParsedContentConfig
+} from '$lib/config/parse';
 import {
 	getTemplateInfo,
 	parseCollectionItem,
@@ -44,6 +48,40 @@ describe('content-management/transforms', () => {
 			_filename: 'hello.md'
 		});
 		expect(parsed._body?.trim()).toBe('Body copy');
+	});
+
+	it('handles markdown collection items without a native Buffer global', () => {
+		const originalBuffer = globalThis.Buffer;
+		Object.defineProperty(globalThis, 'Buffer', {
+			value: undefined,
+			configurable: true,
+			writable: true
+		});
+
+		try {
+			const serialized = serializeCollectionItem(
+				{
+					title: 'Hello',
+					slug: 'hello',
+					_body: 'Body copy'
+				},
+				true
+			);
+			const parsed = parseCollectionItem(serialized, true, 'hello.md');
+
+			expect(parsed).toMatchObject({
+				title: 'Hello',
+				slug: 'hello',
+				_filename: 'hello.md'
+			});
+			expect(parsed._body?.trim()).toBe('Body copy');
+		} finally {
+			Object.defineProperty(globalThis, 'Buffer', {
+				value: originalBuffer,
+				configurable: true,
+				writable: true
+			});
+		}
 	});
 
 	it('renders template placeholders from item data', () => {

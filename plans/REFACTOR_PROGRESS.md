@@ -3,6 +3,7 @@
 ## ✅ Completed (Phases 1-2)
 
 ### Phase 1: Core Store & Branch Management
+
 1. ✅ Created `src/lib/stores/draft-branch.ts`
    - Global store with localStorage persistence
    - Automatic GitHub branch discovery on app load
@@ -18,6 +19,7 @@
    - Added "Publish Changes" button to header (visible when draft exists)
 
 ### Phase 2: Updated Existing Flows
+
 4. ✅ Updated `src/routes/pages/[page]/preview-changes/+page.server.ts`
    - Removed preview session logic
    - Added branch name handling from form data
@@ -69,11 +71,13 @@
 ## Key Implementation Details
 
 ### Branch Naming Convention
+
 - Format: `preview-{yyyy-mm-dd}` (e.g., `preview-2024-11-30`)
 - If exists: `preview-{yyyy-mm-dd}-2`, `preview-{yyyy-mm-dd}-3`, etc.
 - One active draft branch per repo at a time
 
 ### Storage Strategy
+
 - **Primary**: Client-side Svelte store (reactive, in-memory)
 - **Backup**: localStorage (`tentman_draft_branch` key)
 - **On load**: Check localStorage → verify on GitHub → populate store
@@ -81,6 +85,7 @@
 - **On publish**: Clear both store and localStorage
 
 ### User Flow
+
 1. User edits content → clicks "Save to Draft"
 2. System creates/uses `preview-{date}` branch
 3. Redirects to index with `?saved=true&branch=...`
@@ -92,12 +97,14 @@
 ## Next Steps
 
 Continue with Phase 3:
+
 1. Update index page (server + client)
 2. Create publish route
 3. Clean up old files
 4. End-to-end testing
 
 ## Notes
+
 - Build succeeded with warnings (existing a11y issues, unrelated to refactor)
 - TypeScript compilation successful
 - All changes maintain backward compatibility during transition

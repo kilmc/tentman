@@ -12,6 +12,7 @@
 Use the refactored core in practice before opening larger new architecture tracks.
 
 This slice should:
+
 - exercise the redesigned config/block/content system against real content
 - capture adoption blockers and sharp edges worth fixing next
 - keep broader package-runtime work and blueprints/scaffolding deferred unless real usage shows a clear need
@@ -373,6 +374,7 @@ Run the redesigned system against real configs/content, note any adoption blocke
 Continue working on the Tentman content-system redesign.
 
 Start by reading these files:
+
 - /Users/kilmc/code/tentman/plans/content-system-redesign/README.md
 - /Users/kilmc/code/tentman/plans/content-system-redesign/03-phased-rollout.md
 - /Users/kilmc/code/tentman/plans/content-system-redesign/04-v1-spec.md
@@ -381,6 +383,7 @@ Start by reading these files:
 - /Users/kilmc/code/tentman/plans/content-system-redesign/07-implementation-status.md
 
 Then follow the protocol exactly:
+
 1. Summarize the current slice from the status doc.
 2. State the exact next step you are taking.
 3. Implement only that slice.

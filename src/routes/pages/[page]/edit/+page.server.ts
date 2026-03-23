@@ -19,10 +19,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		};
 	}
 
-	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+	const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+		locals,
+		params.page
+	);
 
 	try {
-
 		// Only allow single-entry content on this route
 		if (discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}`);
@@ -54,7 +56,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			contentError = formatErrorMessage(err);
 		}
 
-		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+		const { blockConfigs, packageBlocks, blockRegistryError } =
+			await loadGitHubBlockRegistryData(backend);
 
 		return {
 			discoveredConfig,

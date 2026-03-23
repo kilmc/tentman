@@ -222,11 +222,11 @@ export async function getCommitsSince(
  * Represents a preview branch with metadata
  */
 export interface PreviewBranch {
-	name: string;              // Full branch name: preview-yyyy-mm-dd or preview-yyyy-mm-dd-2
-	date: string;              // Extracted date: yyyy-mm-dd
-	sequence: number;          // Sequence number if multiple branches same day (1, 2, 3...)
-	lastCommitDate: string;    // Date of last commit
-	lastCommitSha: string;     // SHA of last commit
+	name: string; // Full branch name: preview-yyyy-mm-dd or preview-yyyy-mm-dd-2
+	date: string; // Extracted date: yyyy-mm-dd
+	sequence: number; // Sequence number if multiple branches same day (1, 2, 3...)
+	lastCommitDate: string; // Date of last commit
+	lastCommitSha: string; // SHA of last commit
 }
 
 /**
@@ -290,4 +290,3 @@ export async function listPreviewBranches(
 		throw new Error(`Failed to list preview branches: ${errorMessage}`);
 	}
 }
-

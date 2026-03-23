@@ -5,8 +5,12 @@ describe('BUILT_IN_BLOCK_ADAPTERS', () => {
 	it('provides the expected default values for primitive blocks', () => {
 		expect(BUILT_IN_BLOCK_ADAPTERS.text.getDefaultValue({ id: 'title', type: 'text' })).toBe('');
 		expect(BUILT_IN_BLOCK_ADAPTERS.number.getDefaultValue({ id: 'order', type: 'number' })).toBe(0);
-		expect(BUILT_IN_BLOCK_ADAPTERS.boolean.getDefaultValue({ id: 'published', type: 'boolean' })).toBe(false);
-		expect(BUILT_IN_BLOCK_ADAPTERS.image.getDefaultValue({ id: 'heroImage', type: 'image' })).toBe('');
+		expect(
+			BUILT_IN_BLOCK_ADAPTERS.boolean.getDefaultValue({ id: 'published', type: 'boolean' })
+		).toBe(false);
+		expect(BUILT_IN_BLOCK_ADAPTERS.image.getDefaultValue({ id: 'heroImage', type: 'image' })).toBe(
+			''
+		);
 	});
 
 	it('validates built-in primitive values with usage metadata', () => {

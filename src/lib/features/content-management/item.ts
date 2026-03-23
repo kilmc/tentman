@@ -2,7 +2,10 @@ import type { ParsedContentConfig } from '$lib/config/parse';
 import type { BlockUsage } from '$lib/config/types';
 import type { ContentRecord, ContentValue } from './types';
 
-export function getContentItemId(config: ParsedContentConfig, item: ContentRecord): string | undefined {
+export function getContentItemId(
+	config: ParsedContentConfig,
+	item: ContentRecord
+): string | undefined {
 	if (config.content.mode === 'directory' && item._filename) {
 		return item._filename.replace(/\.[^/.]+$/, '');
 	}

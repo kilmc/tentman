@@ -2,6 +2,8 @@
 	import type { BlockUsage } from '$lib/config/types';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { localContent } from '$lib/stores/local-content';
+	import { resolveAssetValue } from '$lib/utils/assets';
 
 	interface Props {
 		item: ContentRecord;
@@ -15,8 +17,36 @@
 
 	let { item, href, cardFields, badge }: Props = $props();
 
+	const allFields = $derived([...cardFields.primary, ...cardFields.secondary]);
+	const heroImageBlock = $derived(
+		allFields.find(
+			(block) => block.type === 'image' && typeof item[block.id] === 'string' && item[block.id]
+		)
+	);
+	const heroImageSrc = $derived(
+		heroImageBlock
+			? resolveAssetValue(String(item[heroImageBlock.id]), {
+					assetsDir: heroImageBlock.assetsDir,
+					previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
+				})
+			: null
+	);
+	const visiblePrimaryFields = $derived(
+		cardFields.primary.filter((block) => block !== heroImageBlock)
+	);
+	const visibleSecondaryFields = $derived(
+		cardFields.secondary.filter((block) => block !== heroImageBlock)
+	);
+
 	function getBlockLabel(block: BlockUsage) {
-		return block.label ?? block.id.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, (str) => str.toUpperCase()).trim();
+		return (
+			block.label ??
+			block.id
+				.replace(/([A-Z])/g, ' $1')
+				.replace(/_/g, ' ')
+				.replace(/^./, (str) => str.toUpperCase())
+				.trim()
+		);
 	}
 
 	function getBadgeStyles(badgeType: 'draft' | 'new' | 'deleted') {
@@ -33,26 +63,59 @@
 	function getBadgeLabel(badgeType: 'draft' | 'new' | 'deleted') {
 		switch (badgeType) {
 			case 'draft':
-				return '📝 Draft';
+				return 'Draft change';
 			case 'new':
-				return '✨ New';
+				return 'New';
 			case 'deleted':
-				return '🗑️ Deleted';
+				return 'Deleted';
 		}
 	}
+
+	function getStatusBadges() {
+		const badges: Array<{ label: string; className: string }> = [];
+
+		if (typeof item.published === 'boolean' && !item.published) {
+			badges.push({
+				label: 'Unpublished',
+				className: 'border-amber-200 bg-amber-50 text-amber-800'
+			});
+		}
+
+		if (badge) {
+			badges.push({
+				label: getBadgeLabel(badge),
+				className: getBadgeStyles(badge)
+			});
+		}
+
+		return badges;
+	}
+
+	const statusBadges = $derived(getStatusBadges());
 </script>
 
 <a
 	{href}
-	class="block rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:border-gray-300 cursor-pointer"
+	class="block cursor-pointer rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md"
 >
+	{#if heroImageBlock && heroImageSrc}
+		<div class="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+			<img
+				src={heroImageSrc}
+				alt={heroImageBlock.label ?? 'Content image'}
+				class="h-44 w-full object-cover"
+				loading="lazy"
+			/>
+		</div>
+	{/if}
+
 	<div class="flex items-start justify-between gap-4">
-		<div class="flex-1 min-w-0">
+		<div class="min-w-0 flex-1">
 			<!-- Primary fields (titles) -->
-			{#if cardFields.primary.length > 0}
+			{#if visiblePrimaryFields.length > 0}
 				<div class="space-y-1">
-					{#each cardFields.primary as block}
-						<h3 class="text-lg font-semibold text-gray-900 break-words">
+					{#each visiblePrimaryFields as block}
+						<h3 class="text-lg font-semibold break-words text-gray-900">
 							{formatContentValue(item[block.id])}
 						</h3>
 					{/each}
@@ -60,30 +123,53 @@
 			{/if}
 
 			<!-- Secondary fields (metadata) -->
-			{#if cardFields.secondary.length > 0}
+			{#if visibleSecondaryFields.length > 0}
 				<div class="mt-2 space-y-1">
-					{#each cardFields.secondary as block}
-						<p class="text-sm text-gray-600">
-							<span class="font-medium">{getBlockLabel(block)}:</span>
-							{formatContentValue(item[block.id])}
-						</p>
+					{#each visibleSecondaryFields as block}
+						{#if block.type === 'image' && typeof item[block.id] === 'string' && item[block.id]}
+							{@const imageSrc = resolveAssetValue(String(item[block.id]), {
+								assetsDir: block.assetsDir,
+								previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
+							})}
+							<div class="flex items-center gap-3 text-sm text-gray-600">
+								{#if imageSrc}
+									<img
+										src={imageSrc}
+										alt={getBlockLabel(block)}
+										class="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+										loading="lazy"
+									/>
+								{/if}
+								<div class="min-w-0">
+									<p class="font-medium text-gray-700">{getBlockLabel(block)}</p>
+									<p class="truncate text-xs text-gray-500">{String(item[block.id])}</p>
+								</div>
+							</div>
+						{:else}
+							<p class="text-sm text-gray-600">
+								<span class="font-medium">{getBlockLabel(block)}:</span>
+								{formatContentValue(item[block.id])}
+							</p>
+						{/if}
 					{/each}
 				</div>
 			{/if}
 
 			{#if item._filename}
-				<p class="mt-3 text-xs text-gray-400 font-mono">{item._filename}</p>
+				<p class="mt-3 font-mono text-xs text-gray-400">{item._filename}</p>
 			{/if}
 		</div>
 
 		<!-- Badge -->
-		{#if badge}
-			<div class="flex-shrink-0">
-				<span
-					class="inline-block rounded-full border px-3 py-1 text-xs font-medium {getBadgeStyles(badge)}"
-				>
-					{getBadgeLabel(badge)}
-				</span>
+		{#if statusBadges.length > 0}
+			<div class="flex flex-shrink-0 flex-col gap-2">
+				{#each statusBadges as statusBadge}
+					<span
+						class="inline-block rounded-full border px-3 py-1 text-center text-xs font-medium {statusBadge.className}"
+					>
+						{statusBadge.label}
+					</span>
+				{/each}
 			</div>
 		{/if}
 	</div>

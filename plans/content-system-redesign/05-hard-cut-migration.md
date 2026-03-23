@@ -3,6 +3,7 @@
 ## Purpose
 
 This migration plan assumes:
+
 - no backwards compatibility
 - no dual-schema support
 - no legacy code retained just to ease rollout
@@ -37,6 +38,7 @@ This is intentionally disruptive but keeps the implementation honest.
 #### [src/lib/types/config.ts](/Users/kilmc/code/tentman/src/lib/types/config.ts)
 
 Replace:
+
 - `SingletonConfig`
 - `SingleFileArrayConfig`
 - `MultiFileCollectionConfig`
@@ -44,6 +46,7 @@ Replace:
 - field normalization centered around legacy `fields`
 
 With:
+
 - new `ContentConfig`
 - new `BlockConfig`
 - new `BlockUsage`
@@ -52,10 +55,12 @@ With:
 #### [src/lib/config/discovery.ts](/Users/kilmc/code/tentman/src/lib/config/discovery.ts)
 
 Replace:
+
 - `inferConfigType`
 - implicit type detection from `contentFile`, `collectionPath`, and `template`
 
 With:
+
 - explicit parsing of `type: "content"` and `type: "block"`
 - content config discovery
 - block config loading from `blocksDir`
@@ -63,12 +68,14 @@ With:
 #### [src/lib/content/fetcher.ts](/Users/kilmc/code/tentman/src/lib/content/fetcher.ts)
 
 Replace:
+
 - `fetchSingleton`
 - `fetchArrayItems`
 - `fetchCollectionItems`
 - `ConfigType`-driven branching
 
 With:
+
 - content adapter dispatch by `content.mode`
 - file content adapter
 - directory content adapter
@@ -77,6 +84,7 @@ With:
 #### [src/lib/content/writer.ts](/Users/kilmc/code/tentman/src/lib/content/writer.ts)
 
 Replace:
+
 - `saveSingleton`
 - `saveArrayItem`
 - `saveCollectionItem`
@@ -87,26 +95,31 @@ Replace:
 - `configType === 'singleton' | 'array' | 'collection'` branching
 
 With:
+
 - content adapter write pipeline
 - explicit create/update/delete behavior from `content.mode`
 
 #### [src/lib/features/forms/helpers.ts](/Users/kilmc/code/tentman/src/lib/features/forms/helpers.ts)
 
 Replace:
+
 - assumptions built around `FieldDefinition`
 - default value logic centered on primitive field types plus legacy `array`
 
 With:
+
 - block usage default value resolution through block adapters
 
 #### [src/lib/components/form/FormField.svelte](/Users/kilmc/code/tentman/src/lib/components/form/FormField.svelte)
 
 Replace:
+
 - `fieldDef` branching
 - direct switch on old `fieldType`
 - special-case `array`
 
 With:
+
 - adapter-aware block rendering pipeline
 - block usage rendering based on `type`
 
@@ -115,6 +128,7 @@ With:
 Likely remove or heavily repurpose.
 
 Its responsibility should be absorbed into:
+
 - generic collection block editing
 - inline nested block handling
 
@@ -152,6 +166,7 @@ These names are suggestive, not final, but the feature/domain split is important
 ### Step 1: Freeze The New Types
 
 Implement the new TypeScript types first:
+
 - content config
 - block config
 - block usage
@@ -165,12 +180,14 @@ This gives the rest of the rewrite stable boundaries.
 Switch parsing from inferred legacy shape to explicit `type`.
 
 After this point:
+
 - old config files should no longer load
 - new config examples should be the only supported shape
 
 ### Step 3: Build The Block Registry
 
 Introduce:
+
 - built-in block adapters
 - block config loading from `blocksDir`
 - generated structured adapters for reusable blocks
@@ -182,6 +199,7 @@ This should happen before form rendering is rewritten so the UI can resolve bloc
 Replace legacy field handling with block usage handling.
 
 Key goals:
+
 - one rendering path for built-in and custom block usages
 - support for inline nested block definitions
 - support for collection blocks
@@ -193,6 +211,7 @@ Introduce content adapters and replace legacy fetch/write modules.
 Do not preserve wrapper compatibility around the old `fetchContent` and `writer` APIs if that creates muddy abstractions.
 
 Prefer:
+
 - new service API
 - new adapter interfaces
 - hard replacement of the old modules
@@ -200,6 +219,7 @@ Prefer:
 ### Step 6: Update Routes And Pages
 
 Replace references to:
+
 - `config.type`
 - `singleton`
 - `array`
@@ -207,6 +227,7 @@ Replace references to:
 - `fields`
 
 With:
+
 - top-level config `type`
 - `collection: true`
 - `blocks`
@@ -215,6 +236,7 @@ With:
 ### Step 7: Delete Legacy Code
 
 Once the new pipeline is wired through:
+
 - remove old config inference
 - remove old field normalization logic that only exists for the legacy format
 - remove `ArrayField` if it no longer serves a clear purpose
@@ -250,6 +272,7 @@ Since this is a hard cutover, testing should focus on the new model only.
 We do not need automatic migration tooling first.
 
 For the test/demo site:
+
 - manually rewrite existing `*.tentman.json` files to the new format
 - create initial reusable blocks under `blocksDir`
 - verify the new shape against real content
@@ -261,6 +284,7 @@ If manual migration becomes annoying later, we can build a one-off transform scr
 ### Risk 1: Too Much Compatibility Thinking Leaks Back In
 
 Avoid:
+
 - keeping `ConfigType`
 - preserving `inferConfigType`
 - accepting both `fields` and `blocks`
@@ -269,15 +293,18 @@ Avoid:
 ### Risk 2: Block Adapters And Content Adapters Collapse Together
 
 Avoid:
+
 - putting frontmatter/JSON persistence logic into block adapters
 - putting image upload logic into content adapters
 
 ### Risk 3: Inline Nested Blocks Become A Special Case
 
 Avoid:
+
 - separate rendering and validation paths for inline nested blocks if possible
 
 Instead:
+
 - normalize them into generated structured adapters early
 
 ## Suggested First Implementation Slice
@@ -291,6 +318,7 @@ If we want the smallest meaningful vertical slice:
 5. one single-record content config working end-to-end
 
 After that:
+
 - add directory mode
 - add reusable block configs
 - add inline nested block definitions
@@ -301,6 +329,7 @@ After that:
 The migration should be a replacement, not a reconciliation.
 
 The cleanest codebase outcome comes from:
+
 - replacing the schema fully
 - replacing the runtime branching fully
 - updating the test configs manually

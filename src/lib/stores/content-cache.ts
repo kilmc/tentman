@@ -117,11 +117,7 @@ export async function prefetchAllContent(
  * If branch is specified, only invalidates that branch's cache
  * If no branch specified, invalidates both main and any draft branches
  */
-export function invalidateContent(
-	cacheKey: string,
-	configSlug?: string,
-	branch?: string
-): void {
+export function invalidateContent(cacheKey: string, configSlug?: string, branch?: string): void {
 	if (branch) {
 		if (!configSlug) {
 			throw new Error('configSlug is required when invalidating a specific branch cache entry');
@@ -142,8 +138,10 @@ export function invalidateContent(
 			}
 		}
 
-		console.log(`🗑️ [CONTENT CACHE] Invalidating ${keysToDelete.length} cache entries for ${prefix}*`);
-		keysToDelete.forEach(key => cache.delete(key));
+		console.log(
+			`🗑️ [CONTENT CACHE] Invalidating ${keysToDelete.length} cache entries for ${prefix}*`
+		);
+		keysToDelete.forEach((key) => cache.delete(key));
 	}
 }
 

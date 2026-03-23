@@ -23,7 +23,7 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const isLocalMode = data.mode === 'local';
+	const isLocalMode = $derived(data.mode === 'local');
 
 	let discoveredConfig = $state(data.discoveredConfig);
 	let blockConfigs = $state(data.blockConfigs ?? []);
@@ -39,6 +39,7 @@
 	let deleting = $state(false);
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localError = $state<string | null>(null);
+	let localLoadRequest = 0;
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
@@ -52,6 +53,18 @@
 
 	function handleFieldsChanged() {
 		hasUnsavedChanges = true;
+	}
+
+	function applyRemoteData() {
+		discoveredConfig = data.discoveredConfig;
+		blockConfigs = data.blockConfigs ?? [];
+		packageBlocks = data.packageBlocks ?? [];
+		blockRegistry = null;
+		item = data.item;
+		contentError = data.contentError;
+		blockRegistryError = data.blockRegistryError ?? null;
+		hasUnsavedChanges = false;
+		localError = null;
 	}
 
 	beforeNavigate(({ cancel }) => {
@@ -68,23 +81,28 @@
 			{ key: 'Escape', callback: () => window.history.back() }
 		]);
 
-		if (isLocalMode) {
-			void loadLocalItem();
-		}
-
 		return cleanup;
 	});
 
-	async function loadLocalItem() {
+	async function loadLocalItem(pageSlug: string, itemId: string) {
+		const requestId = ++localLoadRequest;
+
+		item = null;
+		contentError = null;
 		await localContent.refresh();
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
 
-		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+		if (requestId !== localLoadRequest) {
+			return;
+		}
+
+		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
 		blockConfigs = contentState.blockConfigs;
 		packageBlocks = [];
 		blockRegistry = contentState.blockRegistry;
 		blockRegistryError = contentState.blockRegistryError;
+		hasUnsavedChanges = false;
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
 			return;
@@ -97,18 +115,31 @@
 				discoveredConfig.path
 			);
 
+			if (requestId !== localLoadRequest) {
+				return;
+			}
+
 			if (Array.isArray(loadedContent)) {
-				item =
-					findContentItem(
-						loadedContent,
-						discoveredConfig.config,
-						data.itemId
-					) ?? null;
+				item = findContentItem(loadedContent, discoveredConfig.config, itemId) ?? null;
 			}
 		} catch (error) {
+			if (requestId !== localLoadRequest) {
+				return;
+			}
+
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
 		}
 	}
+
+	$effect(() => {
+		if (isLocalMode) {
+			void loadLocalItem(data.pageSlug, data.itemId);
+			return;
+		}
+
+		localLoadRequest += 1;
+		applyRemoteData();
+	});
 
 	function validateForm(event?: SubmitEvent) {
 		if (!formGenerator) return false;
@@ -209,7 +240,9 @@
 	</div>
 
 	<div class="mb-4 sm:mb-6">
-		<h1 class="text-2xl font-bold sm:text-3xl">Edit {config?.label?.replace(/s$/, '') ?? 'Item'}</h1>
+		<h1 class="text-2xl font-bold sm:text-3xl">
+			Edit {config?.label?.replace(/s$/, '') ?? 'Item'}
+		</h1>
 		<p class="mt-1 text-gray-600">{getItemTitle()}</p>
 	</div>
 
@@ -234,105 +267,105 @@
 			<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
 				<h2 class="font-semibold">Edit Item</h2>
 			</div>
-				<div class="p-6">
-					{#if isLocalMode}
-						<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
-							<input type="hidden" name="data" value="" />
-							{#if item?._filename}
-								<input type="hidden" name="filename" value={item._filename} />
-							{/if}
-							{#if blockRegistryError}
-								<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-									<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
-									<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
-								</div>
-							{:else if !blockRegistry}
-								<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
-									Loading block registry...
-								</div>
-							{:else}
-								<FormGenerator
-									bind:this={formGenerator}
-									{config}
-									{blockConfigs}
-									{blockRegistry}
-									initialData={item}
-									existingItems={[]}
-									currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
-									onvalidate={handleFieldsChanged}
-								/>
-							{/if}
-							<div class="mt-6 flex gap-3">
-								<button
-									type="button"
-									onclick={() => void handleLocalSave()}
-									disabled={saving || !blockRegistry || !!blockRegistryError}
-									class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-								>
-									{saving ? 'Saving...' : 'Save Changes'}
-								</button>
-								<a
-									href="/pages/{data.pageSlug}"
-									class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-								>
-									Cancel
-								</a>
+			<div class="p-6">
+				{#if isLocalMode}
+					<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
+						<input type="hidden" name="data" value="" />
+						{#if item?._filename}
+							<input type="hidden" name="filename" value={item._filename} />
+						{/if}
+						{#if blockRegistryError}
+							<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+								<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
+								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
 							</div>
-						</form>
-					{:else}
-						<form
-							bind:this={currentForm}
-							method="POST"
-							action="?/saveToPreview"
-							onsubmit={validateForm}
-							use:enhance={() => {
-								saving = true;
-								hasUnsavedChanges = false;
-								return async ({ update }) => {
-									await update();
-									saving = false;
-								};
-							}}
-						>
-							<input type="hidden" name="data" value="" />
-							{#if item?._filename}
-								<input type="hidden" name="filename" value={item._filename} />
-							{/if}
-							{#if blockRegistryError}
-								<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-									<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
-									<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
-								</div>
-							{:else if githubBlockRegistry}
-								<FormGenerator
-									bind:this={formGenerator}
-									{config}
-									{blockConfigs}
-									blockRegistry={githubBlockRegistry}
-									initialData={item}
-									existingItems={[]}
-									currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
-									onvalidate={handleFieldsChanged}
-								/>
-							{/if}
-							<div class="mt-6 flex gap-3">
-								<button
-									type="submit"
-									disabled={saving || !githubBlockRegistry || !!blockRegistryError}
-									class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-								>
-									{saving ? 'Saving...' : 'Continue'}
-								</button>
-								<a
-									href="/pages/{data.pageSlug}"
-									class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-								>
-									Cancel
-								</a>
+						{:else if !blockRegistry}
+							<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+								Loading block registry...
 							</div>
-						</form>
-					{/if}
-				</div>
+						{:else}
+							<FormGenerator
+								bind:this={formGenerator}
+								{config}
+								{blockConfigs}
+								{blockRegistry}
+								initialData={item}
+								existingItems={[]}
+								currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
+								onvalidate={handleFieldsChanged}
+							/>
+						{/if}
+						<div class="mt-6 flex gap-3">
+							<button
+								type="button"
+								onclick={() => void handleLocalSave()}
+								disabled={saving || !blockRegistry || !!blockRegistryError}
+								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+							>
+								{saving ? 'Saving...' : 'Save Changes'}
+							</button>
+							<a
+								href="/pages/{data.pageSlug}"
+								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							>
+								Cancel
+							</a>
+						</div>
+					</form>
+				{:else}
+					<form
+						bind:this={currentForm}
+						method="POST"
+						action="?/saveToPreview"
+						onsubmit={validateForm}
+						use:enhance={() => {
+							saving = true;
+							hasUnsavedChanges = false;
+							return async ({ update }) => {
+								await update();
+								saving = false;
+							};
+						}}
+					>
+						<input type="hidden" name="data" value="" />
+						{#if item?._filename}
+							<input type="hidden" name="filename" value={item._filename} />
+						{/if}
+						{#if blockRegistryError}
+							<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+								<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
+								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+							</div>
+						{:else if githubBlockRegistry}
+							<FormGenerator
+								bind:this={formGenerator}
+								{config}
+								{blockConfigs}
+								blockRegistry={githubBlockRegistry}
+								initialData={item}
+								existingItems={[]}
+								currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
+								onvalidate={handleFieldsChanged}
+							/>
+						{/if}
+						<div class="mt-6 flex gap-3">
+							<button
+								type="submit"
+								disabled={saving || !githubBlockRegistry || !!blockRegistryError}
+								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+							>
+								{saving ? 'Saving...' : 'Continue'}
+							</button>
+							<a
+								href="/pages/{data.pageSlug}"
+								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							>
+								Cancel
+							</a>
+						</div>
+					</form>
+				{/if}
+			</div>
 
 			<div class="border-t border-gray-200 bg-gray-50 px-6 py-4">
 				<h3 class="mb-2 text-sm font-semibold text-gray-900">Danger Zone</h3>
@@ -358,7 +391,9 @@
 				aria-label="Close delete confirmation"
 				onclick={() => (showDeleteConfirm = false)}
 			></button>
-			<div class="relative mx-4 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-2xl">
+			<div
+				class="relative mx-4 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-2xl"
+			>
 				<h3 class="mb-4 text-lg font-semibold text-gray-900">Confirm Delete</h3>
 				{#if item}
 					<div class="mb-4 rounded-lg border-2 border-red-200 bg-red-50 p-4">
@@ -367,7 +402,7 @@
 							{#if cardFields.primary.length > 0}
 								<div class="space-y-1">
 									{#each cardFields.primary as block}
-										<p class="break-words text-lg font-semibold text-gray-900">
+										<p class="text-lg font-semibold break-words text-gray-900">
 											{formatContentValue((item as ContentRecord)[block.id])}
 										</p>
 									{/each}

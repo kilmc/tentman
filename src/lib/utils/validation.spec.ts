@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isParsedContentConfig, parseConfigFile, type ParsedContentConfig } from '$lib/config/parse';
+import {
+	isParsedContentConfig,
+	parseConfigFile,
+	type ParsedContentConfig
+} from '$lib/config/parse';
 import { validateFormData } from './validation';
 
 function parseContentConfigFixture(content: string): ParsedContentConfig {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { isParsedContentConfig, parseConfigFile } from '$lib/config/parse';
-import type { RepositoryBackend, RepositoryReadOptions, RepositoryWriteOptions } from '$lib/repository/types';
+import type {
+	RepositoryBackend,
+	RepositoryReadOptions,
+	RepositoryWriteOptions
+} from '$lib/repository/types';
 import {
 	createContentDocument,
 	deleteContentDocument,
@@ -45,7 +49,11 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 		return content;
 	}
 
-	async writeTextFile(path: string, content: string, options?: RepositoryWriteOptions): Promise<void> {
+	async writeTextFile(
+		path: string,
+		content: string,
+		options?: RepositoryWriteOptions
+	): Promise<void> {
 		this.files.set(path, content);
 		this.writes.push({ path, content, options });
 	}
@@ -55,7 +63,9 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 		this.deletes.push({ path, options });
 	}
 
-	async listDirectory(path: string): Promise<{ name: string; path: string; kind: 'file' | 'directory' }[]> {
+	async listDirectory(
+		path: string
+	): Promise<{ name: string; path: string; kind: 'file' | 'directory' }[]> {
 		const prefix = path ? `${path}/` : '';
 		const entries = new Map<string, { name: string; path: string; kind: 'file' | 'directory' }>();
 
@@ -169,7 +179,11 @@ describe('content/service', () => {
 			'content/site.json': '{\n  "title": "Before"\n}\n'
 		});
 
-		const fetched = await fetchContentDocument(backend, singletonConfig, 'content/settings.tentman.json');
+		const fetched = await fetchContentDocument(
+			backend,
+			singletonConfig,
+			'content/settings.tentman.json'
+		);
 		expect(fetched).toEqual({ title: 'Before' });
 
 		await saveContentDocument(
@@ -204,14 +218,14 @@ describe('content/service', () => {
 			{ itemId: 'bob' }
 		);
 
-		await createContentDocument(
-			backend,
-			arrayConfig,
-			'content/team.tentman.json',
-			{ slug: 'carol', name: 'Carol' }
-		);
+		await createContentDocument(backend, arrayConfig, 'content/team.tentman.json', {
+			slug: 'carol',
+			name: 'Carol'
+		});
 
-		await deleteContentDocument(backend, arrayConfig, 'content/team.tentman.json', { itemId: 'alice' });
+		await deleteContentDocument(backend, arrayConfig, 'content/team.tentman.json', {
+			itemId: 'alice'
+		});
 
 		expect(JSON.parse(backend.files.get('content/team.json') ?? '{}')).toEqual({
 			members: [
@@ -249,7 +263,11 @@ describe('content/service', () => {
 			'content/templates/post.md': '---\nslug: "{{slug}}"\ntitle: "{{title}}"\n---\nTemplate body'
 		});
 
-		const fetched = await fetchContentDocument(backend, directoryConfig, 'content/posts.tentman.json');
+		const fetched = await fetchContentDocument(
+			backend,
+			directoryConfig,
+			'content/posts.tentman.json'
+		);
 		expect(fetched).toEqual([
 			{
 				slug: 'hello-world',
@@ -287,8 +305,7 @@ describe('content/service', () => {
 
 	it('previews file-mode collection updates through the service', async () => {
 		const backend = new MemoryRepositoryBackend({
-			'content/team.json':
-				'{\n  "members": [\n    { "slug": "alice", "name": "Alice" }\n  ]\n}\n'
+			'content/team.json': '{\n  "members": [\n    { "slug": "alice", "name": "Alice" }\n  ]\n}\n'
 		});
 
 		const changes = await previewContentChanges(

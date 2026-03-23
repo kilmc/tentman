@@ -11,12 +11,34 @@
 		"filename": "{{slug}}"
 	},
 	"blocks": [
-		{ "id": "title", "label": "Title", "type": "text", "required": true, "minLength": 5, "maxLength": 100, "show": "primary" },
+		{
+			"id": "title",
+			"label": "Title",
+			"type": "text",
+			"required": true,
+			"minLength": 5,
+			"maxLength": 100,
+			"show": "primary"
+		},
 		{ "id": "slug", "label": "Slug", "type": "text", "required": true, "maxLength": 50 },
 		{ "id": "date", "label": "Date", "type": "date", "required": true, "show": "secondary" },
-		{ "id": "author", "label": "Author", "type": "text", "required": true, "maxLength": 50, "show": "secondary" },
+		{
+			"id": "author",
+			"label": "Author",
+			"type": "text",
+			"required": true,
+			"maxLength": 50,
+			"show": "secondary"
+		},
 		{ "id": "coverImage", "label": "Cover Image", "type": "image" },
-		{ "id": "excerpt", "label": "Excerpt", "type": "textarea", "required": true, "minLength": 20, "maxLength": 300 },
+		{
+			"id": "excerpt",
+			"label": "Excerpt",
+			"type": "textarea",
+			"required": true,
+			"minLength": 20,
+			"maxLength": 300
+		},
 		{ "id": "content", "label": "Content", "type": "markdown", "required": true, "minLength": 50 },
 		{ "id": "published", "label": "Published", "type": "boolean" }
 	]

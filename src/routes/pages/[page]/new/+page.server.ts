@@ -19,13 +19,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { backend, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
 
 	try {
-
 		// Only allow collection content on this route
 		if (!discoveredConfig.config.collection) {
 			throw redirect(302, `/pages/${params.page}`);
 		}
 
-		const { blockConfigs, packageBlocks, blockRegistryError } = await loadGitHubBlockRegistryData(backend);
+		const { blockConfigs, packageBlocks, blockRegistryError } =
+			await loadGitHubBlockRegistryData(backend);
 
 		return {
 			discoveredConfig,
@@ -36,7 +36,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			mode: 'github' as const
 		};
 	} catch (err) {
-		if (err && typeof err === 'object' && 'status' in err && (err.status === 404 || err.status === 302)) {
+		if (
+			err &&
+			typeof err === 'object' &&
+			'status' in err &&
+			(err.status === 404 || err.status === 302)
+		) {
 			throw err;
 		}
 		console.error('Failed to load config:', err);
@@ -80,7 +85,10 @@ export const actions: Actions = {
 			}
 
 			// Redirect to preview-changes page
-			throw redirect(303, `/pages/${params.page}/${itemId}/preview-changes?${urlParams.toString()}`);
+			throw redirect(
+				303,
+				`/pages/${params.page}/${itemId}/preview-changes?${urlParams.toString()}`
+			);
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {

@@ -17,36 +17,36 @@
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	<div class="mb-6">
-		<a href={editUrl} class="text-blue-600 hover:text-blue-800 text-sm"> ← Back to Edit </a>
+		<a href={editUrl} class="text-sm text-blue-600 hover:text-blue-800"> ← Back to Edit </a>
 	</div>
 
 	<div class="mb-8">
-		<h1 class="text-3xl font-bold mb-2">Preview Changes</h1>
+		<h1 class="mb-2 text-3xl font-bold">Preview Changes</h1>
 		<p class="text-gray-600">
 			Review the changes that will be made to <strong>{data.discoveredConfig.config.label}</strong>
 		</p>
 		{#if data.isNew}
-			<p class="text-sm text-blue-600 mt-1">Creating new item</p>
+			<p class="mt-1 text-sm text-blue-600">Creating new item</p>
 		{:else}
-			<p class="text-sm text-blue-600 mt-1">Editing: {data.itemId}</p>
+			<p class="mt-1 text-sm text-blue-600">Editing: {data.itemId}</p>
 		{/if}
 	</div>
 
 	{#if form?.error}
-		<div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
+		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
 			<p class="font-semibold">Error</p>
 			<p>{form.error}</p>
 		</div>
 	{/if}
 
 	{#if data.changesError}
-		<div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
+		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
 			<p class="font-semibold">Error calculating changes</p>
 			<p>{data.changesError}</p>
 		</div>
 	{:else if data.changesSummary}
-		<div class="bg-white border border-gray-200 rounded-lg shadow-sm mb-8">
-			<div class="px-6 py-4 border-b border-gray-200">
+		<div class="mb-8 rounded-lg border border-gray-200 bg-white shadow-sm">
+			<div class="border-b border-gray-200 px-6 py-4">
 				<h2 class="text-xl font-semibold">
 					{data.changesSummary.totalChanges}
 					{data.changesSummary.totalChanges === 1 ? 'file' : 'files'} will be changed
@@ -56,32 +56,32 @@
 			<div class="divide-y divide-gray-200">
 				{#each data.changesSummary.files as file}
 					<div class="px-6 py-4">
-						<div class="flex items-start justify-between mb-2">
+						<div class="mb-2 flex items-start justify-between">
 							<div class="flex-1">
 								<div class="flex items-center gap-2">
 									{#if file.type === 'create'}
 										<span
-											class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800"
+											class="inline-flex items-center rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800"
 										>
 											Create
 										</span>
 									{:else if file.type === 'update'}
 										<span
-											class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+											class="inline-flex items-center rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800"
 										>
 											Update
 										</span>
 									{:else if file.type === 'delete'}
 										<span
-											class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800"
+											class="inline-flex items-center rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-800"
 										>
 											Delete
 										</span>
 									{/if}
-									<code class="text-sm font-mono text-gray-700">{file.path}</code>
+									<code class="font-mono text-sm text-gray-700">{file.path}</code>
 								</div>
 								{#if file.size}
-									<p class="text-xs text-gray-500 mt-1">
+									<p class="mt-1 text-xs text-gray-500">
 										Size: {(file.size / 1024).toFixed(2)} KB
 									</p>
 								{/if}
@@ -94,7 +94,7 @@
 									View content
 								</summary>
 								<pre
-									class="mt-2 p-3 bg-gray-50 rounded text-xs overflow-x-auto border border-gray-200">{file.newContent}</pre>
+									class="mt-2 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">{file.newContent}</pre>
 							</details>
 						{:else if file.type === 'update' && file.oldContent && file.newContent}
 							<details class="mt-3">
@@ -103,14 +103,14 @@
 								</summary>
 								<div class="mt-2 grid grid-cols-2 gap-4">
 									<div>
-										<p class="text-xs font-semibold text-gray-600 mb-1">Before</p>
+										<p class="mb-1 text-xs font-semibold text-gray-600">Before</p>
 										<pre
-											class="p-3 bg-gray-50 rounded text-xs overflow-x-auto border border-gray-200 max-h-96">{file.oldContent}</pre>
+											class="max-h-96 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">{file.oldContent}</pre>
 									</div>
 									<div>
-										<p class="text-xs font-semibold text-gray-600 mb-1">After</p>
+										<p class="mb-1 text-xs font-semibold text-gray-600">After</p>
 										<pre
-											class="p-3 bg-gray-50 rounded text-xs overflow-x-auto border border-gray-200 max-h-96">{file.newContent}</pre>
+											class="max-h-96 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">{file.newContent}</pre>
 									</div>
 								</div>
 							</details>
@@ -120,7 +120,7 @@
 			</div>
 		</div>
 
-		<div class="flex flex-col sm:flex-row gap-4">
+		<div class="flex flex-col gap-4 sm:flex-row">
 			<form
 				method="POST"
 				action="?/createPreview"
@@ -155,7 +155,7 @@
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+					class="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
 						Saving to Draft...
@@ -187,7 +187,7 @@
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+					class="w-full rounded-lg bg-green-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
 						Publishing...
@@ -199,22 +199,21 @@
 
 			<a
 				href={editUrl}
-				class="w-full sm:w-auto px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 text-center transition-colors"
+				class="w-full rounded-lg bg-gray-100 px-6 py-3 text-center font-semibold text-gray-700 transition-colors hover:bg-gray-200 sm:w-auto"
 			>
 				Back to Edit
 			</a>
 		</div>
 
-		<div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-			<h3 class="font-semibold text-blue-900 mb-2">What happens next?</h3>
-			<ul class="text-sm text-blue-800 space-y-1 list-disc list-inside">
+		<div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+			<h3 class="mb-2 font-semibold text-blue-900">What happens next?</h3>
+			<ul class="list-inside list-disc space-y-1 text-sm text-blue-800">
 				<li>
-					<strong>Save to Draft:</strong> Saves your changes to a draft, then shows you
-					the Netlify preview URL (builds in 2-3 minutes)
+					<strong>Save to Draft:</strong> Saves your changes to a draft, then shows you the Netlify preview
+					URL (builds in 2-3 minutes)
 				</li>
 				<li>
-					<strong>Publish Now:</strong> Commits directly to the main branch (may fail if branch is
-					protected)
+					<strong>Publish Now:</strong> Commits directly to the main branch (may fail if branch is protected)
 				</li>
 			</ul>
 		</div>

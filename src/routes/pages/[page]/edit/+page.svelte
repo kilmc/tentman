@@ -18,7 +18,7 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const isLocalMode = data.mode === 'local';
+	const isLocalMode = $derived(data.mode === 'local');
 
 	let discoveredConfig = $state(data.discoveredConfig);
 	let blockConfigs = $state(data.blockConfigs ?? []);
@@ -32,6 +32,7 @@
 	let hasUnsavedChanges = $state(false);
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localError = $state<string | null>(null);
+	let localLoadRequest = 0;
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const githubBlockRegistry = $derived.by(() => {
@@ -44,6 +45,18 @@
 
 	function handleFieldsChanged() {
 		hasUnsavedChanges = true;
+	}
+
+	function applyRemoteData() {
+		discoveredConfig = data.discoveredConfig;
+		blockConfigs = data.blockConfigs ?? [];
+		packageBlocks = data.packageBlocks ?? [];
+		blockRegistry = null;
+		content = data.content;
+		contentError = data.contentError;
+		blockRegistryError = data.blockRegistryError ?? null;
+		hasUnsavedChanges = false;
+		localError = null;
 	}
 
 	beforeNavigate(({ cancel }) => {
@@ -68,23 +81,28 @@
 			}
 		]);
 
-		if (isLocalMode) {
-			void loadLocalContent();
-		}
-
 		return cleanup;
 	});
 
-	async function loadLocalContent() {
+	async function loadLocalContent(pageSlug: string) {
+		const requestId = ++localLoadRequest;
+
+		content = null;
+		contentError = null;
 		await localContent.refresh();
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
 
-		discoveredConfig = contentState.configs.find((entry) => entry.slug === data.pageSlug) ?? null;
+		if (requestId !== localLoadRequest) {
+			return;
+		}
+
+		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
 		blockConfigs = contentState.blockConfigs;
 		packageBlocks = [];
 		blockRegistry = contentState.blockRegistry;
 		blockRegistryError = contentState.blockRegistryError;
+		hasUnsavedChanges = false;
 
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
@@ -92,15 +110,35 @@
 		}
 
 		try {
-			content = await fetchContentDocument(
+			const loadedContent = await fetchContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
 				discoveredConfig.path
 			);
+
+			if (requestId !== localLoadRequest) {
+				return;
+			}
+
+			content = loadedContent;
 		} catch (error) {
+			if (requestId !== localLoadRequest) {
+				return;
+			}
+
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
 		}
 	}
+
+	$effect(() => {
+		if (isLocalMode) {
+			void loadLocalContent(data.pageSlug);
+			return;
+		}
+
+		localLoadRequest += 1;
+		applyRemoteData();
+	});
 
 	async function handleLocalSave() {
 		if (!formGenerator || !discoveredConfig || !config) {

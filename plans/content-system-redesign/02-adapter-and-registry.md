@@ -5,6 +5,7 @@
 Make built-in and custom blocks use one extensible system without forcing every custom block to ship custom code.
 
 The current direction uses two adapter layers:
+
 - block adapters
 - content adapters
 
@@ -13,6 +14,7 @@ The current direction uses two adapter layers:
 Block behavior and content persistence are different concerns.
 
 Examples of block concerns:
+
 - default values
 - validation
 - normalization
@@ -20,6 +22,7 @@ Examples of block concerns:
 - serialization of a single value
 
 Examples of content concerns:
+
 - loading JSON files
 - updating JSON arrays by path
 - parsing markdown frontmatter
@@ -31,36 +34,32 @@ Keeping these separate is important for clarity and maintainability.
 
 ```ts
 export type BlockUsage = {
-  id: string;
-  type: string;
-  label?: string;
-  required?: boolean;
-  collection?: boolean;
-  assetsDir?: string;
-  blocks?: BlockUsage[];
+	id: string;
+	type: string;
+	label?: string;
+	required?: boolean;
+	collection?: boolean;
+	assetsDir?: string;
+	blocks?: BlockUsage[];
 };
 
 export type BlockAdapterContext = {
-  rootConfig: {
-    assetsDir?: string;
-  };
-  repo: {
-    writeBinaryFile(path: string, data: Uint8Array): Promise<void>;
-  };
-  configPath: string;
+	rootConfig: {
+		assetsDir?: string;
+	};
+	repo: {
+		writeBinaryFile(path: string, data: Uint8Array): Promise<void>;
+	};
+	configPath: string;
 };
 
 export type BlockAdapter = {
-  type: string;
-  getDefaultValue(usage: BlockUsage): unknown;
-  normalize?(value: unknown, usage: BlockUsage): unknown;
-  validate?(value: unknown, usage: BlockUsage): string[];
-  serialize?(value: unknown, usage: BlockUsage): unknown;
-  upload?(
-    file: File,
-    usage: BlockUsage,
-    ctx: BlockAdapterContext
-  ): Promise<string>;
+	type: string;
+	getDefaultValue(usage: BlockUsage): unknown;
+	normalize?(value: unknown, usage: BlockUsage): unknown;
+	validate?(value: unknown, usage: BlockUsage): string[];
+	serialize?(value: unknown, usage: BlockUsage): unknown;
+	upload?(file: File, usage: BlockUsage, ctx: BlockAdapterContext): Promise<string>;
 };
 ```
 
@@ -75,21 +74,23 @@ export type BlockAdapter = {
 
 ```ts
 export type ContentAdapterContext = {
-  repo: {
-    readTextFile(path: string): Promise<string>;
-    writeTextFile(path: string, content: string): Promise<void>;
-    deleteFile(path: string): Promise<void>;
-    listDirectory(path: string): Promise<Array<{ path: string; name: string; kind: 'file' | 'directory' }>>;
-  };
-  configPath: string;
+	repo: {
+		readTextFile(path: string): Promise<string>;
+		writeTextFile(path: string, content: string): Promise<void>;
+		deleteFile(path: string): Promise<void>;
+		listDirectory(
+			path: string
+		): Promise<Array<{ path: string; name: string; kind: 'file' | 'directory' }>>;
+	};
+	configPath: string;
 };
 
 export type ContentAdapter = {
-  mode: 'embedded' | 'file' | 'directory';
-  load(config: unknown, ctx: ContentAdapterContext): Promise<unknown>;
-  save(config: unknown, value: unknown, ctx: ContentAdapterContext): Promise<void>;
-  create?(config: unknown, value: unknown, ctx: ContentAdapterContext): Promise<void>;
-  remove?(config: unknown, identity: string, ctx: ContentAdapterContext): Promise<void>;
+	mode: 'embedded' | 'file' | 'directory';
+	load(config: unknown, ctx: ContentAdapterContext): Promise<unknown>;
+	save(config: unknown, value: unknown, ctx: ContentAdapterContext): Promise<void>;
+	create?(config: unknown, value: unknown, ctx: ContentAdapterContext): Promise<void>;
+	remove?(config: unknown, identity: string, ctx: ContentAdapterContext): Promise<void>;
 };
 ```
 
@@ -111,12 +112,14 @@ That means Tentman dog-foods its own extension points instead of hardcoding one 
 Most custom blocks should not need a custom adapter file.
 
 A generic structured adapter can be generated automatically for any block config:
+
 - if `collection: true`, default to `[]`
 - otherwise default to an object of child values
 - child defaults come from each referenced child block adapter
 - validation should recurse through child blocks in v1 where practical
 
 For v1, "where practical" should mean:
+
 - recurse through all child usages for inline nested blocks and reusable custom blocks
 - use built-in child adapters for normalization and validation
 - aggregate child errors into the parent error list
@@ -136,6 +139,7 @@ This gives us a stable future path without making phase 1 depend on package dist
 Local block configs live in `blocksDir`.
 
 Each block config may optionally define:
+
 - an `adapter` file path
 - otherwise it uses the generic structured adapter
 
@@ -147,19 +151,19 @@ Example:
 
 ```json
 {
-  "type": "block",
-  "id": "imageGallery",
-  "label": "Image Gallery",
-  "collection": true,
-  "content": {
-    "mode": "embedded"
-  },
-  "adapter": "./image-gallery.adapter.js",
-  "blocks": [
-    { "id": "image", "type": "image", "required": true },
-    { "id": "alt", "type": "text", "required": true },
-    { "id": "caption", "type": "text" }
-  ]
+	"type": "block",
+	"id": "imageGallery",
+	"label": "Image Gallery",
+	"collection": true,
+	"content": {
+		"mode": "embedded"
+	},
+	"adapter": "./image-gallery.adapter.js",
+	"blocks": [
+		{ "id": "image", "type": "image", "required": true },
+		{ "id": "alt", "type": "text", "required": true },
+		{ "id": "caption", "type": "text" }
+	]
 }
 ```
 
@@ -169,19 +173,19 @@ Adapter module shape:
 import type { BlockAdapter } from '@tentman/core';
 
 export const adapter: BlockAdapter = {
-  type: 'imageGallery',
-  getDefaultValue() {
-    return [];
-  },
-  normalize(value) {
-    return Array.isArray(value) ? value : [];
-  },
-  validate(value) {
-    return Array.isArray(value) ? [] : ['Image Gallery must be a collection.'];
-  },
-  serialize(value) {
-    return value;
-  }
+	type: 'imageGallery',
+	getDefaultValue() {
+		return [];
+	},
+	normalize(value) {
+		return Array.isArray(value) ? value : [];
+	},
+	validate(value) {
+		return Array.isArray(value) ? [] : ['Image Gallery must be a collection.'];
+	},
+	serialize(value) {
+		return value;
+	}
 };
 ```
 
@@ -193,9 +197,9 @@ Potential root config:
 
 ```json
 {
-  "blocksDir": "./tentman/blocks",
-  "assetsDir": "./static/images",
-  "blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"]
+	"blocksDir": "./tentman/blocks",
+	"assetsDir": "./static/images",
+	"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"]
 }
 ```
 
@@ -205,23 +209,24 @@ Current first package export contract:
 import type { TentmanBlockPackage } from '@tentman/core';
 
 export const blockPackage: TentmanBlockPackage = {
-  blocks: [
-    {
-      config: {
-        type: 'block',
-        id: 'heroBanner',
-        label: 'Hero Banner',
-        blocks: [
-          { id: 'title', type: 'text' },
-          { id: 'image', type: 'image' }
-        ]
-      }
-    }
-  ]
+	blocks: [
+		{
+			config: {
+				type: 'block',
+				id: 'heroBanner',
+				label: 'Hero Banner',
+				blocks: [
+					{ id: 'title', type: 'text' },
+					{ id: 'image', type: 'image' }
+				]
+			}
+		}
+	]
 };
 ```
 
 Rules for this first contract:
+
 - `blockPackages` is a root-level string array of package names.
 - Each package module must export a named `blockPackage` object.
 - `blockPackage.blocks` is an array of reusable block definitions.
@@ -232,6 +237,7 @@ Rules for this first contract:
 - Duplicate IDs across built-ins, local blocks, and package blocks are hard errors.
 
 Current first runtime boundary:
+
 - The first concrete runtime path is GitHub-backed/server mode loading installed package modules in the Tentman app runtime.
 - In that first path, package blocks must be structured-only. Direct package `adapter` exports are rejected because the current client-side form/display registry cannot serialize adapter functions across the server boundary.
 - Local browser-backed repository mode does not support `blockPackages` yet and should surface an explicit error instead of silently ignoring them.
