@@ -7,10 +7,12 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { enhance } from '$app/forms';
 	import { goto, beforeNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { getCardFields } from '$lib/features/forms/helpers';
+	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import { findContentItem, formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { localContent } from '$lib/stores/local-content';
@@ -184,7 +186,8 @@
 					: { itemId: data.itemId }
 			);
 			await localContent.refresh();
-			await goto(`/pages/${discoveredConfig.slug}?published=true`);
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
 		} catch (error) {
 			localError = error instanceof Error ? error.message : 'Failed to save changes';
 		} finally {
@@ -214,7 +217,8 @@
 					: { itemId: data.itemId }
 			);
 			await localContent.refresh();
-			await goto(`/pages/${discoveredConfig.slug}?deleted=true`);
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?deleted=true`);
 		} catch (error) {
 			localError = error instanceof Error ? error.message : 'Failed to delete item';
 		} finally {
@@ -236,12 +240,14 @@
 
 <div class="container mx-auto p-4 sm:p-6">
 	<div class="mb-4 sm:mb-6">
-		<a href="/pages/{data.pageSlug}" class="text-sm text-blue-600 hover:underline">&larr; Back</a>
+		<a href={resolve(`/pages/${data.pageSlug}`)} class="text-sm text-blue-600 hover:underline">
+			&larr; Back
+		</a>
 	</div>
 
 	<div class="mb-4 sm:mb-6">
 		<h1 class="text-2xl font-bold sm:text-3xl">
-			Edit {config?.label?.replace(/s$/, '') ?? 'Item'}
+			Edit {config ? getConfigItemLabel(config) : 'Item'}
 		</h1>
 		<p class="mt-1 text-gray-600">{getItemTitle()}</p>
 	</div>
@@ -305,7 +311,7 @@
 								{saving ? 'Saving...' : 'Save Changes'}
 							</button>
 							<a
-								href="/pages/{data.pageSlug}"
+								href={resolve(`/pages/${data.pageSlug}`)}
 								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
@@ -357,7 +363,7 @@
 								{saving ? 'Saving...' : 'Continue'}
 							</button>
 							<a
-								href="/pages/{data.pageSlug}"
+								href={resolve(`/pages/${data.pageSlug}`)}
 								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
@@ -377,7 +383,7 @@
 					onclick={() => (showDeleteConfirm = true)}
 					class="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
 				>
-					Delete {config.label.replace(/s$/, '')}
+					Delete {getConfigItemLabel(config)}
 				</button>
 			</div>
 		</div>
@@ -401,7 +407,7 @@
 						<div class="rounded-md border border-red-100 bg-white p-4">
 							{#if cardFields.primary.length > 0}
 								<div class="space-y-1">
-									{#each cardFields.primary as block}
+									{#each cardFields.primary as block (block.id)}
 										<p class="text-lg font-semibold break-words text-gray-900">
 											{formatContentValue((item as ContentRecord)[block.id])}
 										</p>
@@ -411,7 +417,7 @@
 
 							{#if cardFields.secondary.length > 0}
 								<div class="mt-3 space-y-1">
-									{#each cardFields.secondary as block}
+									{#each cardFields.secondary as block (block.id)}
 										<p class="text-sm text-gray-600">
 											<span class="font-medium">{block.label ?? block.id}:</span>
 											{formatContentValue((item as ContentRecord)[block.id])}

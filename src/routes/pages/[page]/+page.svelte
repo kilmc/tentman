@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { resolve } from '$app/paths';
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import { get } from 'svelte/store';
@@ -10,7 +11,8 @@
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { getCardFields } from '$lib/features/forms/helpers';
-	import { formatContentValue, getContentItemId } from '$lib/features/content-management/item';
+	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
+	import { getContentItemId } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { RootConfig } from '$lib/config/root-config';
 	import { localContent } from '$lib/stores/local-content';
@@ -31,19 +33,7 @@
 	let rootConfig = $state<RootConfig | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const path = $derived(discoveredConfig?.path ?? null);
 	const isSingletonContent = $derived(!config?.collection);
-	const contentKind = $derived.by(() => {
-		if (!config) {
-			return null;
-		}
-
-		if (!config.collection) {
-			return 'single entry';
-		}
-
-		return config.content.mode === 'directory' ? 'directory collection' : 'file collection';
-	});
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
@@ -60,6 +50,7 @@
 		'deleted',
 		'branch'
 	] as const;
+	const loadingSkeletons = [0, 1, 2, 3, 4, 5];
 	let localLoadRequest = 0;
 
 	function applyRemoteData() {
@@ -261,39 +252,37 @@
 	);
 </script>
 
-{#if !discoveredConfig || !config || !contentKind || !path || !blockRegistry}
+{#if !discoveredConfig || !config || !blockRegistry}
 	<div class="container mx-auto p-4 sm:p-6">
-		<div class="mb-4 sm:mb-6">
-			<a href="/pages" class="text-sm text-blue-600 hover:underline">&larr; Back to all content</a>
-		</div>
 		<div class="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
 			{blockRegistryError || contentError || 'Loading content...'}
 		</div>
 	</div>
 {:else}
 	<div class="container mx-auto p-4 sm:p-6">
-		<div class="mb-4 sm:mb-6">
-			<a href="/pages" class="text-sm text-blue-600 hover:underline">&larr; Back to all content</a>
-		</div>
-
-		<div class="mb-4 sm:mb-6">
-			<h1 class="text-2xl font-bold sm:text-3xl">{config.label}</h1>
-			<div class="mt-2 flex flex-wrap gap-2 text-sm text-gray-600 sm:gap-3">
-				<span class="capitalize">Type: {contentKind}</span>
-				<span class="hidden sm:inline">•</span>
-				<span class="font-mono text-xs break-all">{path}</span>
+		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+			<div>
+				<h1 class="text-2xl font-bold sm:text-3xl">{config.label}</h1>
 				{#if isLocalMode && rootConfig?.local?.previewUrl}
-					<span class="hidden sm:inline">•</span>
-					<a
-						href={rootConfig.local.previewUrl}
-						target="_blank"
-						rel="noreferrer"
-						class="text-blue-600 hover:underline"
+					<button
+						type="button"
+						onclick={() =>
+							window.open(rootConfig?.local?.previewUrl, '_blank', 'noopener,noreferrer')}
+						class="mt-2 inline-block text-sm text-blue-600 hover:underline"
 					>
 						Open Local Preview
-					</a>
+					</button>
 				{/if}
 			</div>
+
+			{#if !isSingletonContent}
+				<a
+					href={resolve(`/pages/${discoveredConfig.slug}/new`)}
+					class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+				>
+					New {getConfigItemLabel(config)}
+				</a>
+			{/if}
 		</div>
 
 		{#if !isLocalMode && data.draftBranch && data.draftChanges}
@@ -319,7 +308,7 @@
 			</div>
 		{:else if content === null}
 			<div class="space-y-4">
-				{#each Array(6) as _}
+				{#each loadingSkeletons as skeleton (skeleton)}
 					<ItemCardSkeleton />
 				{/each}
 			</div>
@@ -330,7 +319,7 @@
 				</div>
 				<div class="p-4 sm:p-6">
 					<dl class="space-y-6">
-						{#each config.blocks as block}
+						{#each config.blocks as block (block.id)}
 							<div class="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
 								<dt class="mb-2 text-sm font-semibold text-gray-700">
 									{block.label ?? block.id}
@@ -348,7 +337,7 @@
 				</div>
 				<div class="flex gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
 					<a
-						href="/pages/{discoveredConfig.slug}/edit"
+						href={resolve(`/pages/${discoveredConfig.slug}/edit`)}
 						class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
 					>
 						Edit Content
@@ -363,25 +352,18 @@
 			{#if totalItems > 0 || hasDrafts}
 				<div class="mb-4 flex items-center justify-between">
 					<p class="text-sm text-gray-600">{totalItems} {totalItems === 1 ? 'item' : 'items'}</p>
-					<a
-						href="/pages/{discoveredConfig.slug}/new"
-						class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
-					>
-						New {config.label.replace(/s$/, '')}
-					</a>
 				</div>
 
 				{#if !isLocalMode && hasDrafts}
 					<div class="mb-6">
 						<h2 class="mb-3 text-lg font-semibold text-gray-900">Draft Changes</h2>
 						<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-							{#each draftItems as { item, badge }}
-								{@const itemId = getContentItemId(config, item)}
+							{#each draftItems as { item, badge, itemId } (itemId)}
 								<ItemCard
 									{item}
 									{cardFields}
 									{badge}
-									href={`/pages/${discoveredConfig.slug}/${itemId}/edit`}
+									href={resolve(`/pages/${discoveredConfig.slug}/${itemId}`)}
 								/>
 							{/each}
 						</div>
@@ -389,22 +371,26 @@
 				{/if}
 
 				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-					{#each regularItems as item}
+					{#each regularItems as item (getContentItemId(config, item as ContentRecord) ?? item._filename ?? '')}
 						{@const itemId = getContentItemId(config, item as ContentRecord)}
-						<ItemCard {item} {cardFields} href={`/pages/${discoveredConfig.slug}/${itemId}/edit`} />
+						<ItemCard
+							{item}
+							{cardFields}
+							href={resolve(`/pages/${discoveredConfig.slug}/${itemId}`)}
+						/>
 					{/each}
 				</div>
 			{:else}
 				<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
 					<h3 class="mb-2 text-lg font-semibold text-gray-900">No items yet</h3>
 					<p class="mb-4 text-sm text-gray-600">
-						Create the first {config.label.replace(/s$/, '')} to get started.
+						Create the first {getConfigItemLabel(config).toLowerCase()} to get started.
 					</p>
 					<a
-						href="/pages/{discoveredConfig.slug}/new"
+						href={resolve(`/pages/${discoveredConfig.slug}/new`)}
 						class="inline-flex rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
 					>
-						New {config.label.replace(/s$/, '')}
+						New {getConfigItemLabel(config)}
 					</a>
 				</div>
 			{/if}

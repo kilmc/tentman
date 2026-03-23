@@ -85,6 +85,7 @@ export interface BlockConfig {
 export type TentmanConfigFile = ContentConfig | BlockConfig;
 
 export interface RootConfig {
+	siteName?: string;
 	blocksDir?: string;
 	configsDir?: string;
 	assetsDir?: string;

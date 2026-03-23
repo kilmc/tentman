@@ -25,6 +25,13 @@
 
 	const rootRows = [
 		{
+			field: 'siteName',
+			required: 'No',
+			type: 'string',
+			purpose: 'Set the site name shown in the Tentman header.',
+			notes: 'Useful when the repository name differs from the site name.'
+		},
+		{
 			field: 'blocksDir',
 			required: 'No',
 			type: 'string',
@@ -302,6 +309,7 @@
 	];
 
 	const rootConfigExample = `{
+  "siteName": "Field Notes",
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
   "assetsDir": "./static/images",

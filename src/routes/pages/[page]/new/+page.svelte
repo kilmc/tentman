@@ -6,10 +6,12 @@
 	import KeyboardShortcutHelp from '$lib/components/KeyboardShortcutHelp.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
+	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { createContentDocument } from '$lib/content/service';
@@ -171,7 +173,8 @@
 				requiresFilename ? { filename: filename.trim() } : undefined
 			);
 			await localContent.refresh();
-			await goto(`/pages/${discoveredConfig.slug}?published=true`);
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
 		} catch (error) {
 			localError = error instanceof Error ? error.message : 'Failed to create item';
 		} finally {
@@ -182,12 +185,14 @@
 
 <div class="container mx-auto p-4 sm:p-6">
 	<div class="mb-4 sm:mb-6">
-		<a href="/pages/{data.pageSlug}" class="text-sm text-blue-600 hover:underline">&larr; Back</a>
+		<a href={resolve(`/pages/${data.pageSlug}`)} class="text-sm text-blue-600 hover:underline">
+			&larr; Back
+		</a>
 	</div>
 
 	<div class="mb-4 sm:mb-6">
 		<h1 class="text-2xl font-bold sm:text-3xl">
-			New {config?.label?.replace(/s$/, '') ?? 'Item'}
+			New {config ? getConfigItemLabel(config) : 'Item'}
 		</h1>
 	</div>
 
@@ -272,7 +277,7 @@
 							{saving ? 'Creating...' : 'Create Item'}
 						</button>
 						<a
-							href="/pages/{data.pageSlug}"
+							href={resolve(`/pages/${data.pageSlug}`)}
 							class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 						>
 							Cancel
@@ -356,7 +361,7 @@
 							{saving ? 'Creating...' : 'Create'}
 						</button>
 						<a
-							href="/pages/{data.pageSlug}"
+							href={resolve(`/pages/${data.pageSlug}`)}
 							class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 						>
 							Cancel

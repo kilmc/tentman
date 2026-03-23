@@ -4,8 +4,7 @@ import type {
 	ContentConfig,
 	DirectoryContentMode,
 	FileContentMode,
-	RootConfig,
-	TentmanConfigFile
+	RootConfig
 } from '$lib/config/types';
 
 export interface ParsedContentConfig extends ContentConfig {
@@ -13,7 +12,7 @@ export interface ParsedContentConfig extends ContentConfig {
 	imagePath?: string;
 }
 
-export interface ParsedBlockConfig extends BlockConfig {}
+export type ParsedBlockConfig = BlockConfig;
 
 export type ParsedConfigFile = ParsedContentConfig | ParsedBlockConfig;
 
@@ -271,10 +270,15 @@ export function parseRootConfig(content: string): RootConfig {
 	const local = parsed.local;
 	const rootConfig: RootConfig = {};
 
+	const siteName = readOptionalString(parsed, 'siteName', 'root');
 	const blocksDir = readOptionalString(parsed, 'blocksDir', 'root');
 	const configsDir = readOptionalString(parsed, 'configsDir', 'root');
 	const assetsDir = readOptionalString(parsed, 'assetsDir', 'root');
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
+
+	if (siteName) {
+		rootConfig.siteName = siteName;
+	}
 
 	if (blocksDir) {
 		rootConfig.blocksDir = blocksDir;

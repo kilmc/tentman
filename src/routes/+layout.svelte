@@ -5,14 +5,29 @@
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { draftBranch } from '$lib/stores/draft-branch';
+	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
+	const appHomeHref = $derived(data.selectedBackend ? '/pages' : '/');
+	const siteName = $derived.by(() => {
+		if (data.selectedBackend?.kind === 'local') {
+			return $localContent.rootConfig?.siteName ?? data.selectedBackend.repo.name;
+		}
+
+		return data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman';
+	});
+
 	onMount(async () => {
 		await localRepo.hydrate();
+
+		if (data.selectedBackend?.kind === 'local') {
+			await localContent.refresh();
+		}
 	});
 </script>
 
@@ -26,25 +41,14 @@
 		<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 			<div class="flex h-16 items-center justify-between">
 				<div class="flex items-center gap-8">
-					<a href="/" class="text-xl font-bold text-gray-900">Tentman CMS</a>
-
-					<nav class="flex items-center gap-4">
-						<a href="/docs" class="text-sm text-gray-700 hover:text-gray-900 hover:underline">
-							Docs
-						</a>
-						{#if data.selectedBackend}
-							<a href="/pages" class="text-sm text-gray-700 hover:text-gray-900 hover:underline">
-								Content
-							</a>
-						{/if}
-					</nav>
+					<a href={resolve(appHomeHref)} class="text-xl font-bold text-gray-900">{siteName}</a>
 
 					{#if data.selectedBackend?.kind === 'github' && data.selectedRepo}
 						<div class="flex items-center gap-2 text-sm">
 							<span class="text-gray-500">Repository:</span>
 							<span class="font-medium text-gray-900">{data.selectedRepo.full_name}</span>
 							<a
-								href="/repos"
+								href={resolve('/repos')}
 								class="ml-2 text-xs text-blue-600 hover:text-blue-800 hover:underline"
 								title="Change repository"
 							>
@@ -79,7 +83,7 @@
 					{:else if data.isAuthenticated && data.user}
 						{#if $draftBranch.branchName}
 							<a
-								href="/publish"
+								href={resolve('/publish')}
 								class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
 							>
 								Publish Changes
@@ -90,7 +94,7 @@
 							<img src={data.user.avatar_url} alt={data.user.login} class="h-8 w-8 rounded-full" />
 							<span class="text-sm font-medium text-gray-700">{data.user.login}</span>
 							<a
-								href="/auth/logout"
+								href={resolve('/auth/logout')}
 								class="text-sm text-gray-600 hover:text-gray-900 hover:underline"
 							>
 								Logout
@@ -102,7 +106,7 @@
 								class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
 							/>
 							<a
-								href="/auth/login"
+								href={resolve('/auth/login')}
 								class="rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
 							>
 								Login with GitHub
@@ -117,6 +121,17 @@
 	<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 		{@render children?.()}
 	</main>
+
+	<footer class="border-t border-gray-200 bg-white">
+		<div class="mx-auto flex max-w-7xl items-center justify-end px-4 py-4 sm:px-6 lg:px-8">
+			<a
+				href={resolve('/docs')}
+				class="text-sm text-gray-600 transition-colors hover:text-gray-900 hover:underline"
+			>
+				Docs
+			</a>
+		</div>
+	</footer>
 
 	<ToastContainer />
 </div>

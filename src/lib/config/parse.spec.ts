@@ -79,6 +79,7 @@ describe('parseConfigFile', () => {
 describe('parseRootConfig', () => {
 	it('parses root discovery settings', () => {
 		const parsed = parseRootConfig(`{
+			"siteName": "Field Notes",
 			"blocksDir": "./tentman/blocks",
 			"configsDir": "./tentman/configs",
 			"assetsDir": "./static/images",
@@ -86,6 +87,7 @@ describe('parseRootConfig', () => {
 		}`);
 
 		expect(parsed).toEqual({
+			siteName: 'Field Notes',
 			blocksDir: './tentman/blocks',
 			configsDir: './tentman/configs',
 			assetsDir: './static/images',

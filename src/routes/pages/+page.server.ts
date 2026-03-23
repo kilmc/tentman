@@ -1,18 +1,18 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { isLocalMode } from '$lib/server/page-context';
+import { getCachedConfigs } from '$lib/stores/config-cache';
+import { isLocalMode, requireGitHubRepository } from '$lib/server/page-context';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (isLocalMode(locals)) {
 		return {};
 	}
 
-	if (!locals.isAuthenticated || !locals.octokit) {
-		throw redirect(302, '/auth/login?redirect=/pages');
-	}
+	const { backend } = requireGitHubRepository(locals, '/pages');
+	const [firstConfig] = await getCachedConfigs(backend);
 
-	if (!locals.selectedRepo) {
-		throw redirect(302, '/repos');
+	if (firstConfig) {
+		throw redirect(302, `/pages/${firstConfig.slug}`);
 	}
 
 	return {};
