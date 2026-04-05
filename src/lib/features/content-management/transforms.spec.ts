@@ -36,7 +36,7 @@ describe('content-management/transforms', () => {
 		const item = {
 			title: 'Hello',
 			slug: 'hello',
-			_body: 'Body copy'
+			body: 'Body copy'
 		};
 
 		const serialized = serializeCollectionItem(item, true);
@@ -47,7 +47,8 @@ describe('content-management/transforms', () => {
 			slug: 'hello',
 			_filename: 'hello.md'
 		});
-		expect(parsed._body?.trim()).toBe('Body copy');
+		expect(typeof parsed.body === 'string' ? parsed.body.trim() : parsed.body).toBe('Body copy');
+		expect(serialized).not.toContain('body: Body copy');
 	});
 
 	it('handles markdown collection items without a native Buffer global', () => {
@@ -63,7 +64,7 @@ describe('content-management/transforms', () => {
 				{
 					title: 'Hello',
 					slug: 'hello',
-					_body: 'Body copy'
+					body: 'Body copy'
 				},
 				true
 			);
@@ -74,7 +75,8 @@ describe('content-management/transforms', () => {
 				slug: 'hello',
 				_filename: 'hello.md'
 			});
-			expect(parsed._body?.trim()).toBe('Body copy');
+			expect(typeof parsed.body === 'string' ? parsed.body.trim() : parsed.body).toBe('Body copy');
+			expect(serialized).not.toContain('body: Body copy');
 		} finally {
 			Object.defineProperty(globalThis, 'Buffer', {
 				value: originalBuffer,

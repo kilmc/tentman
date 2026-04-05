@@ -85,9 +85,9 @@ async function buildCreatedContent(
 
 	ensureBufferGlobal();
 	const { data: templateFrontmatter, content: templateBody } = matter(template);
-	const { _body, ...frontmatterData } = data;
+	const { body, ...frontmatterData } = data;
 	delete frontmatterData._filename;
-	const body = _body !== undefined ? _body : processTemplate(templateBody, data);
+	const bodyContent = typeof body === 'string' ? body : processTemplate(templateBody, data);
 	const mergedFrontmatter = { ...templateFrontmatter, ...frontmatterData };
 	const processedFrontmatter: Record<string, unknown> = {};
 
@@ -95,7 +95,7 @@ async function buildCreatedContent(
 		processedFrontmatter[key] = typeof value === 'string' ? processTemplate(value, data) : value;
 	}
 
-	return matter.stringify(body, processedFrontmatter);
+	return matter.stringify(bodyContent, processedFrontmatter);
 }
 
 async function previewDirectoryContent(

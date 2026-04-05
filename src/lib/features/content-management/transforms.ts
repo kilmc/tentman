@@ -56,7 +56,7 @@ export function parseCollectionItem(
 		const { data, content: body } = matter(content);
 		return {
 			...(data as Record<string, ContentValue>),
-			_body: body,
+			body,
 			_filename: filename
 		};
 	}
@@ -71,9 +71,9 @@ export function parseCollectionItem(
 export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean): string {
 	if (isMarkdown) {
 		ensureBufferGlobal();
-		const { _body, ...frontmatterData } = item;
+		const { body, ...frontmatterData } = item;
 		delete frontmatterData._filename;
-		return matter.stringify(_body || '', frontmatterData);
+		return matter.stringify(typeof body === 'string' ? body : '', frontmatterData);
 	}
 
 	const jsonData = { ...item };

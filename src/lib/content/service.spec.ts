@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isParsedContentConfig, parseConfigFile } from '$lib/config/parse';
-import type {
-	RepositoryBackend,
-	RepositoryReadOptions,
-	RepositoryWriteOptions
-} from '$lib/repository/types';
+import type { RepositoryBackend, RepositoryWriteOptions } from '$lib/repository/types';
 import {
 	createContentDocument,
 	deleteContentDocument,
@@ -40,7 +36,7 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 		return null;
 	}
 
-	async readTextFile(path: string, _options?: RepositoryReadOptions): Promise<string> {
+	async readTextFile(path: string): Promise<string> {
 		const content = this.files.get(path);
 		if (content === undefined) {
 			throw new Error(`File not found: ${path}`);
@@ -272,7 +268,7 @@ describe('content/service', () => {
 			{
 				slug: 'hello-world',
 				title: 'Hello World',
-				_body: 'Body copy',
+				body: 'Body copy',
 				_filename: 'hello-world.md'
 			}
 		]);
@@ -281,7 +277,7 @@ describe('content/service', () => {
 			backend,
 			directoryConfig,
 			'content/posts.tentman.json',
-			{ slug: 'new-post', title: 'New Post', _body: 'Fresh body' },
+			{ slug: 'new-post', title: 'New Post', body: 'Fresh body' },
 			{ filename: 'new-post' }
 		);
 
@@ -289,7 +285,7 @@ describe('content/service', () => {
 			backend,
 			directoryConfig,
 			'content/posts.tentman.json',
-			{ slug: 'hello-world', title: 'Updated Title', _body: 'Updated body' },
+			{ slug: 'hello-world', title: 'Updated Title', body: 'Updated body' },
 			{ filename: 'hello-world.md', newFilename: 'renamed-post' }
 		);
 

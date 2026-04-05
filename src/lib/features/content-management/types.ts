@@ -3,7 +3,6 @@ export type ContentValue = ContentPrimitive | ContentRecord | ContentValue[];
 
 export interface ContentRecord {
 	[key: string]: ContentValue | undefined;
-	_body?: string;
 	_filename?: string;
 }
 
