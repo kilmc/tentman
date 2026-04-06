@@ -12,6 +12,8 @@
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
+	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
+	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { createContentDocument } from '$lib/content/service';
@@ -166,17 +168,23 @@
 		localError = null;
 
 		try {
+			const materialized = await materializeDraftAssets({
+				backend: repoState.backend,
+				content: formData
+			});
 			await createContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				formData,
+				materialized.content,
 				requiresFilename ? { filename: filename.trim() } : undefined
 			);
-			await localContent.refresh();
+			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
+			await localContent.refresh({ force: true });
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
 		} catch (error) {
+			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to create item';
 		} finally {
 			saving = false;

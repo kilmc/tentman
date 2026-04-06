@@ -103,6 +103,7 @@ describe('loadBlockRegistry', () => {
 				return '';
 			},
 			async writeTextFile() {},
+			async writeBinaryFile() {},
 			async deleteFile() {},
 			async listDirectory() {
 				return [];

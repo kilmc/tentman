@@ -1,9 +1,8 @@
 <script lang="ts">
+	import AssetImage from '$lib/components/AssetImage.svelte';
 	import type { BlockUsage } from '$lib/config/types';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
-	import { localContent } from '$lib/stores/local-content';
-	import { resolveAssetValue } from '$lib/utils/assets';
 
 	interface Props {
 		item: ContentRecord;
@@ -22,14 +21,6 @@
 		allFields.find(
 			(block) => block.type === 'image' && typeof item[block.id] === 'string' && item[block.id]
 		)
-	);
-	const heroImageSrc = $derived(
-		heroImageBlock
-			? resolveAssetValue(String(item[heroImageBlock.id]), {
-					assetsDir: heroImageBlock.assetsDir,
-					previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
-				})
-			: null
 	);
 	const visiblePrimaryFields = $derived(
 		cardFields.primary.filter((block) => block !== heroImageBlock)
@@ -98,11 +89,12 @@
 	{href}
 	class="block cursor-pointer rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md"
 >
-	{#if heroImageBlock && heroImageSrc}
+	{#if heroImageBlock}
 		<div class="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
-			<img
-				src={heroImageSrc}
+			<AssetImage
+				value={String(item[heroImageBlock.id])}
 				alt={heroImageBlock.label ?? 'Content image'}
+				assetsDir={heroImageBlock.assetsDir}
 				class="h-44 w-full object-cover"
 				loading="lazy"
 			/>
@@ -127,19 +119,14 @@
 				<div class="mt-2 space-y-1">
 					{#each visibleSecondaryFields as block}
 						{#if block.type === 'image' && typeof item[block.id] === 'string' && item[block.id]}
-							{@const imageSrc = resolveAssetValue(String(item[block.id]), {
-								assetsDir: block.assetsDir,
-								previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
-							})}
 							<div class="flex items-center gap-3 text-sm text-gray-600">
-								{#if imageSrc}
-									<img
-										src={imageSrc}
-										alt={getBlockLabel(block)}
-										class="h-12 w-12 rounded-lg border border-gray-200 object-cover"
-										loading="lazy"
-									/>
-								{/if}
+								<AssetImage
+									value={String(item[block.id])}
+									alt={getBlockLabel(block)}
+									assetsDir={block.assetsDir}
+									class="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+									loading="lazy"
+								/>
 								<div class="min-w-0">
 									<p class="font-medium text-gray-700">{getBlockLabel(block)}</p>
 									<p class="truncate text-xs text-gray-500">{String(item[block.id])}</p>

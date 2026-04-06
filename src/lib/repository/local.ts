@@ -126,6 +126,21 @@ async function writeFileText(
 	await writable.close();
 }
 
+async function writeFileBytes(
+	root: FileSystemDirectoryHandle,
+	path: string,
+	content: Uint8Array
+): Promise<void> {
+	const handle = await getFileHandle(root, path, true);
+	const writable = await handle.createWritable();
+	const buffer = content.buffer.slice(
+		content.byteOffset,
+		content.byteOffset + content.byteLength
+	) as ArrayBuffer;
+	await writable.write(buffer);
+	await writable.close();
+}
+
 async function deletePath(root: FileSystemDirectoryHandle, path: string): Promise<void> {
 	const segments = path.split('/').filter(Boolean);
 	const fileName = segments.pop();
@@ -302,6 +317,13 @@ export function createLocalRepositoryBackend(
 
 		async writeTextFile(path: string, content: string, _options?: RepositoryWriteOptions) {
 			await writeFileText(rootHandle, path, content);
+			if (shouldInvalidateDiscovery(path)) {
+				discoveryCache = null;
+			}
+		},
+
+		async writeBinaryFile(path: string, content: Uint8Array, _options?: RepositoryWriteOptions) {
+			await writeFileBytes(rootHandle, path, content);
 			if (shouldInvalidateDiscovery(path)) {
 				discoveryCache = null;
 			}

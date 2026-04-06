@@ -54,6 +54,14 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 		this.writes.push({ path, content, options });
 	}
 
+	async writeBinaryFile(
+		path: string,
+		content: Uint8Array,
+		_options?: RepositoryWriteOptions
+	): Promise<void> {
+		this.files.set(path, Buffer.from(content).toString('base64'));
+	}
+
 	async deleteFile(path: string, options?: RepositoryWriteOptions): Promise<void> {
 		this.files.delete(path);
 		this.deletes.push({ path, options });

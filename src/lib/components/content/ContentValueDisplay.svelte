@@ -1,12 +1,11 @@
 <script lang="ts">
+	import AssetImage from '$lib/components/AssetImage.svelte';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
-	import { localContent } from '$lib/stores/local-content';
-	import { resolveAssetValue } from '$lib/utils/assets';
 
 	interface Props {
 		block: BlockUsage;
@@ -17,14 +16,6 @@
 	let { block, value, blockRegistry }: Props = $props();
 
 	const structuredBlocks = getStructuredBlocksForUsage(block, blockRegistry);
-	const resolvedImageSrc = $derived(
-		block.type === 'image' && typeof value === 'string'
-			? resolveAssetValue(value, {
-					assetsDir: block.assetsDir,
-					previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
-				})
-			: null
-	);
 
 	function getBlockLabel(target: BlockUsage): string {
 		return (
@@ -99,12 +90,13 @@
 	<div class="prose max-w-none font-mono text-sm whitespace-pre-wrap">
 		{formatContentValue(value)}
 	</div>
-{:else if block.type === 'image' && typeof value === 'string' && value && resolvedImageSrc}
+{:else if block.type === 'image' && typeof value === 'string' && value}
 	<figure class="space-y-3">
 		<div class="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-			<img
-				src={resolvedImageSrc}
+			<AssetImage
+				{value}
 				alt={block.label ?? block.id}
+				assetsDir={block.assetsDir}
 				class="max-h-96 w-full bg-white object-contain"
 				loading="lazy"
 			/>

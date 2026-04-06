@@ -13,6 +13,7 @@
 
 	const tableOfContents = [
 		{ id: 'overview', label: 'Overview' },
+		{ id: 'quick-start', label: 'Quick Start' },
 		{ id: 'root-config', label: 'Root Config' },
 		{ id: 'content-configs', label: 'Content Configs' },
 		{ id: 'content-modes', label: 'Content Modes' },
@@ -57,7 +58,8 @@
 			required: 'No',
 			type: 'string[]',
 			purpose: 'Load reusable blocks from installed packages.',
-			notes: 'Currently aimed at the GitHub-backed/server runtime.'
+			notes:
+				'Supported in GitHub-backed/server mode. Local browser-backed mode does not load them yet.'
 		},
 		{
 			field: 'netlify.siteName',
@@ -305,6 +307,7 @@
 		'If `blocksDir` is set, Tentman discovers reusable block configs there and excludes them from top-level content discovery.',
 		'Files whose names start with an underscore are skipped during top-level content discovery.',
 		'Package blocks come from installed packages listed in `root.blockPackages`.',
+		'Package blocks are not available in local browser-backed mode yet.',
 		'In local mode, custom adapter files must be self-contained ESM JavaScript modules with a `.js` or `.mjs` extension.'
 	];
 
@@ -354,6 +357,20 @@
     { "id": "name", "type": "text", "label": "Name", "required": true, "show": "primary" },
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
     { "id": "role", "type": "text", "label": "Role", "show": "secondary" }
+  ]
+}`;
+
+	const fileSingletonExample = `{
+  "type": "content",
+  "label": "About Page",
+  "content": {
+    "mode": "file",
+    "path": "./src/content/pages/about.json"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+    { "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
+    { "id": "body", "type": "markdown", "label": "Body", "required": true }
   ]
 }`;
 
@@ -443,6 +460,41 @@
 					Add a custom adapter only when the generated structured block behavior is not enough.
 				</li>
 			</ul>
+		</div>
+	</section>
+
+	<section id="quick-start" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Quick Start</h2>
+		<div class="mt-4 space-y-4 text-base leading-7 text-stone-700">
+			<p>For a new site repo, the smallest useful setup is usually:</p>
+			<ol class="list-decimal space-y-2 pl-6">
+				<li>
+					Add an optional <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+						>.tentman.json</code
+					>
+					file.
+				</li>
+				<li>
+					Add one or more content configs, often under <code
+						class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">tentman/configs</code
+					>.
+				</li>
+				<li>
+					Add reusable block configs under <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+						>tentman/blocks</code
+					> only when a grouped structure repeats.
+				</li>
+				<li>
+					Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+						>content.mode: "directory"</code
+					>
+					for one-file-per-item content like posts.
+				</li>
+				<li>
+					Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">content.mode: "file"</code>
+					for singleton pages or JSON collections.
+				</li>
+			</ol>
 		</div>
 	</section>
 
@@ -705,7 +757,7 @@
 	<section id="examples" class="scroll-mt-24 border-t border-stone-200 py-8">
 		<h2 class="text-2xl font-semibold text-stone-950">Examples</h2>
 		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
-			If you are starting from scratch, most projects only need one of these two shapes.
+			If you are starting from scratch, most projects only need one or two of these shapes.
 		</p>
 
 		<div class="mt-6 space-y-6">
@@ -721,6 +773,14 @@
 				<h3 class="text-lg font-semibold text-stone-950">File-backed collection</h3>
 				<div class="mt-3 overflow-x-auto rounded border border-stone-200 bg-stone-950">
 					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{fileCollectionExample}</code
+						></pre>
+				</div>
+			</div>
+
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">File-backed singleton</h3>
+				<div class="mt-3 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{fileSingletonExample}</code
 						></pre>
 				</div>
 			</div>

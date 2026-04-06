@@ -1,6 +1,7 @@
 import type { Octokit } from 'octokit';
 import { discoverGitHubBlockConfigs, discoverGitHubConfigs } from '$lib/config/discovery';
 import { parseRootConfig, type RootConfig } from '$lib/config/root-config';
+import { writeGitHubImage } from '$lib/github/image';
 import type {
 	RepoEntry,
 	RepositoryBackend,
@@ -113,6 +114,18 @@ export function createGitHubRepositoryBackend(
 				content: Buffer.from(content).toString('base64'),
 				...(sha && { sha }),
 				...(options?.ref && { branch: options.ref })
+			});
+		},
+
+		async writeBinaryFile(
+			path: string,
+			content: Uint8Array,
+			options?: RepositoryWriteOptions
+		): Promise<void> {
+			await writeGitHubImage(octokit, owner, name, content, {
+				path,
+				branch: options?.ref,
+				message: options?.message
 			});
 		},
 

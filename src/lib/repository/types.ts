@@ -25,6 +25,11 @@ export interface RepositoryBackend {
 	readRootConfig(): Promise<RootConfig | null>;
 	readTextFile(path: string, options?: RepositoryReadOptions): Promise<string>;
 	writeTextFile(path: string, content: string, options?: RepositoryWriteOptions): Promise<void>;
+	writeBinaryFile(
+		path: string,
+		content: Uint8Array,
+		options?: RepositoryWriteOptions
+	): Promise<void>;
 	deleteFile(path: string, options?: RepositoryWriteOptions): Promise<void>;
 	listDirectory(path: string, options?: RepositoryReadOptions): Promise<RepoEntry[]>;
 	fileExists(path: string, options?: RepositoryReadOptions): Promise<boolean>;

@@ -1,14 +1,26 @@
 <script lang="ts">
 	import type { PageData, ActionData } from './$types';
 	import { enhance } from '$app/forms';
+	import type { FileChange } from '$lib/content/adapters/types';
+	import {
+		appendDraftAssetsToFormData,
+		getDraftAssetPreviewChanges
+	} from '$lib/features/draft-assets/client';
+	import { mergeChangesSummaryWithDraftAssets } from '$lib/features/draft-assets/shared';
+	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { buildPathWithQuery } from '$lib/utils/routing';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	let isSubmitting = $state(false);
+	let draftAssetError = $state<string | null>(null);
+	let draftAssetChanges = $state<FileChange[]>([]);
 
 	const contentDataString = $derived(JSON.stringify(data.contentData));
+	const displayedChangesSummary = $derived(
+		mergeChangesSummaryWithDraftAssets(data.changesSummary, draftAssetChanges)
+	);
 	const editUrl = $derived(
 		buildPathWithQuery(
 			data.isNew
@@ -19,6 +31,37 @@
 			}
 		)
 	);
+
+	$effect(() => {
+		let active = true;
+		draftAssetError = null;
+
+		void getDraftAssetPreviewChanges(data.contentData)
+			.then((changes) => {
+				if (!active) {
+					return;
+				}
+
+				draftAssetChanges = changes;
+			})
+			.catch((error) => {
+				if (!active) {
+					return;
+				}
+
+				draftAssetChanges = [];
+				draftAssetError =
+					error instanceof Error ? error.message : 'Failed to resolve staged draft assets';
+			});
+
+		return () => {
+			active = false;
+		};
+	});
+
+	async function cleanupDraftRefs(refs: string[]) {
+		await Promise.all(refs.map((ref) => draftAssetStore.delete(ref)));
+	}
 </script>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
@@ -45,22 +88,29 @@
 		</div>
 	{/if}
 
+	{#if draftAssetError}
+		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+			<p class="font-semibold">Draft asset error</p>
+			<p>{draftAssetError}</p>
+		</div>
+	{/if}
+
 	{#if data.changesError}
 		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
 			<p class="font-semibold">Error calculating changes</p>
 			<p>{data.changesError}</p>
 		</div>
-	{:else if data.changesSummary}
+	{:else if displayedChangesSummary}
 		<div class="mb-8 rounded-lg border border-gray-200 bg-white shadow-sm">
 			<div class="border-b border-gray-200 px-6 py-4">
 				<h2 class="text-xl font-semibold">
-					{data.changesSummary.totalChanges}
-					{data.changesSummary.totalChanges === 1 ? 'file' : 'files'} will be changed
+					{displayedChangesSummary.totalChanges}
+					{displayedChangesSummary.totalChanges === 1 ? 'file' : 'files'} will be changed
 				</h2>
 			</div>
 
 			<div class="divide-y divide-gray-200">
-				{#each data.changesSummary.files as file}
+				{#each displayedChangesSummary.files as file}
 					<div class="px-6 py-4">
 						<div class="mb-2 flex items-start justify-between">
 							<div class="flex-1">
@@ -130,9 +180,30 @@
 			<form
 				method="POST"
 				action="?/createPreview"
-				use:enhance={() => {
-					isSubmitting = true;
+				use:enhance={({ formData, cancel }) => {
+					let submittedRefs: string[] = [];
+					const prepareSubmission = (async () => {
+						try {
+							draftAssetError = null;
+							const appended = await appendDraftAssetsToFormData(formData, data.contentData);
+							submittedRefs = appended.refs;
+							isSubmitting = true;
+						} catch (error) {
+							draftAssetError =
+								error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
+							cancel();
+							throw error;
+						}
+					})();
+
 					return async ({ update, result }) => {
+						try {
+							await prepareSubmission;
+						} catch {
+							isSubmitting = false;
+							return;
+						}
+
 						await update();
 						// Update draft branch in store from redirect URL
 						if (result.type === 'redirect' && result.location) {
@@ -142,6 +213,9 @@
 								const repoFullName = `${data.repo.owner}/${data.repo.name}`;
 								draftBranch.setBranch(branch, repoFullName);
 							}
+						}
+						if (result.type === 'redirect' || result.type === 'success') {
+							await cleanupDraftRefs(submittedRefs);
 						}
 						isSubmitting = false;
 					};
@@ -174,10 +248,34 @@
 			<form
 				method="POST"
 				action="?/publishNow"
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update }) => {
+				use:enhance={({ formData, cancel }) => {
+					let submittedRefs: string[] = [];
+					const prepareSubmission = (async () => {
+						try {
+							draftAssetError = null;
+							const appended = await appendDraftAssetsToFormData(formData, data.contentData);
+							submittedRefs = appended.refs;
+							isSubmitting = true;
+						} catch (error) {
+							draftAssetError =
+								error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
+							cancel();
+							throw error;
+						}
+					})();
+
+					return async ({ update, result }) => {
+						try {
+							await prepareSubmission;
+						} catch {
+							isSubmitting = false;
+							return;
+						}
+
 						await update();
+						if (result.type === 'redirect' || result.type === 'success') {
+							await cleanupDraftRefs(submittedRefs);
+						}
 						isSubmitting = false;
 					};
 				}}

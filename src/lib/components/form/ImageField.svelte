@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import AssetImage from '$lib/components/AssetImage.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-	import { localContent } from '$lib/stores/local-content';
-	import { resolveAssetValue } from '$lib/utils/assets';
+	import { draftAssetStore } from '$lib/features/draft-assets/store';
+	import { getDraftAssetRepoKey, isDraftAssetRef } from '$lib/features/draft-assets/shared';
 
 	interface Props {
 		label: string;
 		value: string;
 		required?: boolean;
 		onchange?: () => void;
-		storagePath?: string; // Optional custom storage path (defaults to 'static/images/')
+		storagePath?: string;
 		assetsDir?: string;
 	}
 
@@ -23,31 +25,23 @@
 
 	const inputId = `image-field-${Math.random().toString(36).substring(2, 9)}`;
 
-	let uploading = $state(false);
+	let staging = $state(false);
 	let uploadError = $state<string | null>(null);
 	let previewUrl = $state<string | null>(null);
-	let uploadProgress = $state(0); // 0-100
-	let fileSize = $state<number | null>(null);
-	let uploadSpeed = $state<number | null>(null); // bytes per second
-	let uploadedBytes = $state(0);
-	let startTime = $state<number | null>(null);
-	const resolvedValueSrc = $derived(
-		resolveAssetValue(value, {
-			assetsDir,
-			previewBaseUrl: $localContent.rootConfig?.local?.previewUrl
+
+	const repoKey = $derived(
+		getDraftAssetRepoKey({
+			selectedBackend: page.data.selectedBackend,
+			selectedRepo: page.data.selectedRepo
 		})
 	);
 
-	function formatBytes(bytes: number): string {
-		if (bytes === 0) return '0 Bytes';
-		const k = 1024;
-		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-	}
+	async function cleanupDraftValue(targetValue: string) {
+		if (!isDraftAssetRef(targetValue)) {
+			return;
+		}
 
-	function formatSpeed(bytesPerSecond: number): string {
-		return formatBytes(bytesPerSecond) + '/s';
+		await draftAssetStore.delete(targetValue);
 	}
 
 	async function handleChange(event: Event) {
@@ -56,114 +50,52 @@
 
 		if (!file) return;
 
-		// Reset state
 		uploadError = null;
-		uploadProgress = 0;
-		uploadedBytes = 0;
-		uploadSpeed = null;
-		startTime = null;
 
-		// Validate file type
 		if (!file.type.startsWith('image/')) {
 			uploadError = 'Please select an image file';
 			return;
 		}
 
-		// Validate file size (max 5MB)
 		const maxSize = 5 * 1024 * 1024;
 		if (file.size > maxSize) {
 			uploadError = 'Image must be less than 5MB';
 			return;
 		}
 
-		// Store file size
-		fileSize = file.size;
+		if (!repoKey) {
+			uploadError = 'Unable to determine the current repository for draft asset storage.';
+			return;
+		}
 
-		// Create preview URL
-		previewUrl = URL.createObjectURL(file);
+		staging = true;
 
-		// Upload the file using XMLHttpRequest for progress tracking
-		uploading = true;
-		startTime = Date.now();
-
-		return new Promise<void>((resolve, reject) => {
-			const formData = new FormData();
-			formData.append('file', file);
-			formData.append('storagePath', storagePath);
-
-			const xhr = new XMLHttpRequest();
-
-			// Track upload progress
-			xhr.upload.addEventListener('progress', (e) => {
-				if (e.lengthComputable) {
-					uploadProgress = Math.round((e.loaded / e.total) * 100);
-					uploadedBytes = e.loaded;
-
-					// Calculate upload speed
-					if (startTime) {
-						const elapsedSeconds = (Date.now() - startTime) / 1000;
-						uploadSpeed = elapsedSeconds > 0 ? e.loaded / elapsedSeconds : 0;
-					}
-				}
+		try {
+			const previousValue = value;
+			const result = await draftAssetStore.create(file, {
+				repoKey,
+				storagePath
 			});
-
-			// Handle completion
-			xhr.addEventListener('load', () => {
-				if (xhr.status >= 200 && xhr.status < 300) {
-					try {
-						const result = JSON.parse(xhr.responseText);
-						value = result.path;
-						onchange?.();
-						resolve();
-					} catch (err) {
-						uploadError = 'Failed to parse server response';
-						previewUrl = null;
-						reject(err);
-					}
-				} else {
-					try {
-						const errorData = JSON.parse(xhr.responseText);
-						uploadError = errorData.message || 'Upload failed';
-					} catch {
-						uploadError = 'Upload failed';
-					}
-					previewUrl = null;
-					reject(new Error(uploadError || 'Upload failed'));
-				}
-				uploading = false;
-			});
-
-			// Handle errors
-			xhr.addEventListener('error', () => {
-				uploadError = 'Network error during upload';
-				previewUrl = null;
-				uploading = false;
-				reject(new Error('Network error'));
-			});
-
-			// Handle abort
-			xhr.addEventListener('abort', () => {
-				uploadError = 'Upload cancelled';
-				previewUrl = null;
-				uploading = false;
-				reject(new Error('Upload cancelled'));
-			});
-
-			xhr.open('POST', '/api/upload-image');
-			xhr.send(formData);
-		});
+			value = result.ref;
+			previewUrl = result.previewUrl;
+			onchange?.();
+			await cleanupDraftValue(previousValue);
+		} catch (error) {
+			uploadError = error instanceof Error ? error.message : 'Failed to stage image';
+			previewUrl = null;
+		} finally {
+			staging = false;
+			target.value = '';
+		}
 	}
 
-	function removeImage() {
+	async function removeImage() {
+		const previousValue = value;
 		value = '';
 		previewUrl = null;
 		uploadError = null;
-		uploadProgress = 0;
-		fileSize = null;
-		uploadSpeed = null;
-		uploadedBytes = 0;
-		startTime = null;
 		onchange?.();
+		await cleanupDraftValue(previousValue);
 	}
 </script>
 
@@ -184,14 +116,23 @@
 	{#if value || previewUrl}
 		<div class="mb-2 flex items-start gap-3">
 			<div class="relative flex-shrink-0">
-				{#if previewUrl || resolvedValueSrc}
+				{#if previewUrl}
 					<img
-						src={previewUrl || resolvedValueSrc}
+						src={previewUrl}
 						alt={label}
 						class="h-32 w-32 rounded border border-gray-300 object-cover"
 					/>
+				{:else}
+					<AssetImage
+						{value}
+						{assetsDir}
+						alt={label}
+						class="h-32 w-32 rounded border border-gray-300 object-cover"
+						loading="eager"
+					/>
 				{/if}
-				{#if uploading}
+
+				{#if staging}
 					<div
 						class="bg-opacity-50 absolute inset-0 flex items-center justify-center rounded bg-black"
 					>
@@ -204,45 +145,13 @@
 					<p class="font-mono text-xs break-all text-gray-600">{value}</p>
 				{/if}
 
-				{#if uploading}
-					<!-- Upload progress section -->
-					<div class="space-y-1">
-						<div class="flex items-center justify-between text-xs text-gray-600">
-							<span>Uploading...</span>
-							<span class="font-medium">{uploadProgress}%</span>
-						</div>
-
-						<!-- Progress bar -->
-						<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-							<div
-								class="h-2 rounded-full bg-blue-600 transition-all duration-300"
-								style="width: {uploadProgress}%"
-							></div>
-						</div>
-
-						<!-- File size and speed -->
-						<div class="flex items-center justify-between text-xs text-gray-500">
-							<span>
-								{#if fileSize}
-									{formatBytes(uploadedBytes)} / {formatBytes(fileSize)}
-								{/if}
-							</span>
-							<span>
-								{#if uploadSpeed !== null && uploadSpeed > 0}
-									{formatSpeed(uploadSpeed)}
-								{/if}
-							</span>
-						</div>
-					</div>
-				{:else}
-					<button
-						type="button"
-						onclick={removeImage}
-						class="self-start text-sm text-red-600 hover:underline"
-					>
-						Remove image
-					</button>
-				{/if}
+				<button
+					type="button"
+					onclick={() => void removeImage()}
+					class="self-start text-sm text-red-600 hover:underline"
+				>
+					Remove image
+				</button>
 			</div>
 		</div>
 	{/if}
@@ -253,15 +162,11 @@
 		accept="image/*"
 		required={required && !value}
 		onchange={handleChange}
-		disabled={uploading}
+		disabled={staging}
 		class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
 	/>
 
 	<p class="mt-1 text-xs text-gray-500">
-		{#if uploading}
-			Uploading to repository...
-		{:else}
-			Images are uploaded to {storagePath} in your repository
-		{/if}
+		Select an image under 5 MB. The file will be staged locally until you explicitly save.
 	</p>
 </div>

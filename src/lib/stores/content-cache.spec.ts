@@ -52,6 +52,14 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 		throw new Error('Not implemented');
 	}
 
+	async writeBinaryFile(
+		_path: string,
+		_content: Uint8Array,
+		_options?: RepositoryWriteOptions
+	): Promise<void> {
+		throw new Error('Not implemented');
+	}
+
 	async deleteFile(_path: string, _options?: RepositoryWriteOptions): Promise<void> {
 		throw new Error('Not implemented');
 	}

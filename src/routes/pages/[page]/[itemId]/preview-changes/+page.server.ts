@@ -2,6 +2,7 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { createContentDocument, saveContentDocument } from '$lib/content/service.js';
+import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { getRoutePath } from '$lib/utils/routing';
@@ -33,13 +34,22 @@ export const actions: Actions = {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
 
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend,
+				writeOptions: {
+					ref: branchName
+				}
+			});
+
 			// Save or create the content to the draft branch
 			if (isNew) {
 				await createContentDocument(
 					backend,
 					discoveredConfig.config,
 					discoveredConfig.path,
-					contentData,
+					materialized.content,
 					{
 						filename: newFilename,
 						branch: branchName
@@ -68,7 +78,7 @@ export const actions: Actions = {
 					backend,
 					discoveredConfig.config,
 					discoveredConfig.path,
-					contentData,
+					materialized.content,
 					saveOptions
 				);
 			}
@@ -109,6 +119,11 @@ export const actions: Actions = {
 			const isNew = formData.get('isNew') === 'true';
 			const filename = (formData.get('filename') as string) || undefined;
 			const newFilename = (formData.get('newFilename') as string) || undefined;
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend
+			});
 
 			// Save or create the content directly to main branch
 			if (isNew) {
@@ -116,7 +131,7 @@ export const actions: Actions = {
 					backend,
 					discoveredConfig.config,
 					discoveredConfig.path,
-					contentData,
+					materialized.content,
 					{
 						filename: newFilename
 						// No branch = commits to default branch
@@ -140,7 +155,7 @@ export const actions: Actions = {
 					backend,
 					discoveredConfig.config,
 					discoveredConfig.path,
-					contentData,
+					materialized.content,
 					saveOptions
 				);
 			}

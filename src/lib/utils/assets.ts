@@ -15,12 +15,12 @@ function trimLeadingSlash(value: string): string {
 	return value.replace(/^\/+/, '');
 }
 
-function getPublicPathFromAssetsDir(assetsDir?: string): string | null {
+export function getPublicPathFromAssetsDir(assetsDir?: string): string | null {
 	if (!assetsDir) {
 		return null;
 	}
 
-	const normalized = assetsDir.replace(/\\/g, '/');
+	const normalized = assetsDir.replace(/\\/g, '/').replace(/^(?:\.\/)+/, '');
 	const staticIndex = normalized.lastIndexOf('/static/');
 
 	if (staticIndex >= 0) {

@@ -2,6 +2,7 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { saveContentDocument } from '$lib/content/service.js';
+import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { getRoutePath } from '$lib/utils/routing';
@@ -29,12 +30,21 @@ export const actions: Actions = {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
 
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend,
+				writeOptions: {
+					ref: branchName
+				}
+			});
+
 			// Save the content to the draft branch
 			await saveContentDocument(
 				backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				contentData,
+				materialized.content,
 				{
 					branch: branchName
 				}
@@ -73,13 +83,18 @@ export const actions: Actions = {
 			// Parse form data
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend
+			});
 
 			// Save the content directly to main branch (no branch specified = default branch)
 			await saveContentDocument(
 				backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				contentData
+				materialized.content
 				// No branch option = commits to default branch
 			);
 

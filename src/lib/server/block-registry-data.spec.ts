@@ -37,6 +37,7 @@ function createBackend(rootConfig: RootConfig | null): GitHubRepositoryBackend {
 			return '';
 		},
 		async writeTextFile() {},
+		async writeBinaryFile() {},
 		async deleteFile() {},
 		async listDirectory() {
 			return [];
@@ -122,8 +123,6 @@ describe('loadGitHubBlockRegistryData', () => {
 		);
 
 		expect(result.packageBlocks).toEqual([]);
-		expect(result.blockRegistryError).toMatch(
-			/not yet supported in the current GitHub-backed package runtime/
-		);
+		expect(result.blockRegistryError).toMatch(/only supports structured package blocks/);
 	});
 });

@@ -13,6 +13,8 @@
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
+	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
@@ -174,15 +176,21 @@
 		localError = null;
 
 		try {
+			const materialized = await materializeDraftAssets({
+				backend: repoState.backend,
+				content: formData
+			});
 			await saveContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				formData
+				materialized.content
 			);
-			await localContent.refresh();
+			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
+			await localContent.refresh({ force: true });
 			await goto(`/pages/${discoveredConfig.slug}?published=true`);
 		} catch (error) {
+			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save local changes';
 		} finally {
 			saving = false;
@@ -190,33 +198,33 @@
 	}
 </script>
 
-	<div class="container mx-auto p-4 sm:p-6">
-		<div class="mb-4 sm:mb-6">
-			<a
-				href={resolve(`/pages/${data.pageSlug}${branchQuery}`)}
-				class="text-sm text-blue-600 hover:underline"
-			>
-				&larr; Back
-			</a>
+<div class="container mx-auto p-4 sm:p-6">
+	<div class="mb-4 sm:mb-6">
+		<a
+			href={resolve(`/pages/${data.pageSlug}${branchQuery}`)}
+			class="text-sm text-blue-600 hover:underline"
+		>
+			&larr; Back
+		</a>
+	</div>
+
+	<div class="mb-4 sm:mb-6">
+		<h1 class="text-2xl font-bold sm:text-3xl">
+			Edit {config?.label ?? 'Content'}
+		</h1>
+	</div>
+
+	{#if isDraftView}
+		<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+			<p class="text-sm font-medium text-blue-800">Editing Draft Content</p>
+			<p class="mt-1 text-sm text-blue-700">
+				Changes will continue from
+				<code class="rounded bg-blue-100 px-1 text-xs">{data.branch}</code>
+			</p>
 		</div>
+	{/if}
 
-		<div class="mb-4 sm:mb-6">
-			<h1 class="text-2xl font-bold sm:text-3xl">
-				Edit {config?.label ?? 'Content'}
-			</h1>
-		</div>
-
-		{#if isDraftView}
-			<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-				<p class="text-sm font-medium text-blue-800">Editing Draft Content</p>
-				<p class="mt-1 text-sm text-blue-700">
-					Changes will continue from
-					<code class="rounded bg-blue-100 px-1 text-xs">{data.branch}</code>
-				</p>
-			</div>
-		{/if}
-
-		{#if form?.error || localError}
+	{#if form?.error || localError}
 		<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
 			<p class="text-sm font-medium text-red-800">Failed to save changes</p>
 			<p class="mt-1 text-sm text-red-700">{form?.error || localError}</p>

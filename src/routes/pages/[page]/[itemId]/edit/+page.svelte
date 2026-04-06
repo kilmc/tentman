@@ -13,6 +13,8 @@
 	import { get } from 'svelte/store';
 	import { getCardFields } from '$lib/features/forms/helpers';
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
+	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
+	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { findContentItem, formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
@@ -188,19 +190,25 @@
 		localError = null;
 
 		try {
+			const materialized = await materializeDraftAssets({
+				backend: repoState.backend,
+				content: formData
+			});
 			await saveContentDocument(
 				repoState.backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				formData,
+				materialized.content,
 				discoveredConfig.config.content.mode === 'directory'
 					? { filename: item?._filename }
 					: { itemId: data.itemId }
 			);
-			await localContent.refresh();
+			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
+			await localContent.refresh({ force: true });
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
 		} catch (error) {
+			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save changes';
 		} finally {
 			saving = false;
@@ -228,7 +236,7 @@
 					? { filename: item?._filename, itemId: data.itemId }
 					: { itemId: data.itemId }
 			);
-			await localContent.refresh();
+			await localContent.refresh({ force: true });
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?deleted=true`);
 		} catch (error) {
@@ -252,7 +260,10 @@
 
 <div class="container mx-auto p-4 sm:p-6">
 	<div class="mb-4 sm:mb-6">
-		<a href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)} class="text-sm text-blue-600 hover:underline">
+		<a
+			href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
+			class="text-sm text-blue-600 hover:underline"
+		>
 			&larr; Back
 		</a>
 	</div>
