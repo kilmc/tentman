@@ -2,6 +2,7 @@
 	import type { PageData, ActionData } from './$types';
 	import { enhance } from '$app/forms';
 	import { draftBranch } from '$lib/stores/draft-branch';
+	import { buildPathWithQuery } from '$lib/utils/routing';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -9,9 +10,14 @@
 
 	const contentDataString = $derived(JSON.stringify(data.contentData));
 	const editUrl = $derived(
-		data.isNew
-			? `/pages/${data.discoveredConfig.slug}/new`
-			: `/pages/${data.discoveredConfig.slug}/${data.itemId}/edit`
+		buildPathWithQuery(
+			data.isNew
+				? `/pages/${data.discoveredConfig.slug}/new`
+				: `/pages/${data.discoveredConfig.slug}/${data.itemId}/edit`,
+			{
+				branch: data.branch ?? undefined
+			}
+		)
 	);
 </script>
 
@@ -142,8 +148,8 @@
 				}}
 			>
 				<input type="hidden" name="data" value={contentDataString} />
-				{#if $draftBranch.branchName}
-					<input type="hidden" name="branchName" value={$draftBranch.branchName} />
+				{#if $draftBranch.branchName || data.branch}
+					<input type="hidden" name="branchName" value={$draftBranch.branchName ?? data.branch} />
 				{/if}
 				<input type="hidden" name="isNew" value={data.isNew ? 'true' : 'false'} />
 				{#if data.filename}

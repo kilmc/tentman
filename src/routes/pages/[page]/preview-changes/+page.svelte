@@ -8,12 +8,13 @@
 	let isSubmitting = $state(false);
 
 	const contentDataString = $derived(JSON.stringify(data.contentData));
+	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 </script>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	<div class="mb-6">
 		<a
-			href="/pages/{data.discoveredConfig.slug}/edit"
+			href="/pages/{data.discoveredConfig.slug}/edit{branchQuery}"
 			class="text-sm text-blue-600 hover:text-blue-800"
 		>
 			← Back to Edit
@@ -137,8 +138,12 @@
 				}}
 			>
 				<input type="hidden" name="data" value={contentDataString} />
-				{#if $draftBranch.branchName}
-					<input type="hidden" name="branchName" value={$draftBranch.branchName} />
+				{#if $draftBranch.branchName || data.branch}
+					<input
+						type="hidden"
+						name="branchName"
+						value={$draftBranch.branchName ?? data.branch}
+					/>
 				{/if}
 				<button
 					type="submit"
@@ -179,7 +184,7 @@
 			</form>
 
 			<a
-				href="/pages/{data.discoveredConfig.slug}/edit"
+				href="/pages/{data.discoveredConfig.slug}/edit{branchQuery}"
 				class="w-full rounded-lg bg-gray-100 px-6 py-3 text-center font-semibold text-gray-700 transition-colors hover:bg-gray-200 sm:w-auto"
 			>
 				Back to Edit

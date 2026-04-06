@@ -1,64 +1,12 @@
+// SERVER_JUSTIFICATION: privileged_mutation
 import { redirect, error } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types';
-import { requireGitHubRepository } from '$lib/server/page-context';
-
-export const load: PageServerLoad = async ({ locals }) => {
-	const { octokit, owner, name, backend } = requireGitHubRepository(locals, '/publish');
-
-	// List preview branches
-	const { listPreviewBranches } = await import('$lib/github/branch');
-	const branches = await listPreviewBranches(octokit, owner, name);
-
-	if (branches.length === 0) {
-		throw error(404, 'No draft branch found');
-	}
-
-	// Use the most recent branch
-	const draftBranch = branches[0];
-
-	// Get all configs
-	const { getCachedConfigs } = await import('$lib/stores/config-cache');
-	const configs = await getCachedConfigs(backend);
-
-	// For each config, check if it has draft changes
-	const configsWithChanges = [];
-
-	for (const config of configs) {
-		const { compareDraftToBranch } = await import('$lib/utils/draft-comparison');
-		const changes = await compareDraftToBranch(
-			octokit,
-			owner,
-			name,
-			config.config,
-			config.path,
-			draftBranch.name
-		);
-
-		if (
-			changes &&
-			(changes.modified.length > 0 || changes.created.length > 0 || changes.deleted.length > 0)
-		) {
-			configsWithChanges.push({
-				config,
-				changes
-			});
-		}
-	}
-
-	// Get commit history
-	const { getCommitsSince } = await import('$lib/github/branch');
-	const commits = await getCommitsSince(octokit, owner, name, 'main', draftBranch.name);
-
-	return {
-		draftBranch,
-		configsWithChanges,
-		commits
-	};
-};
+import type { Actions } from './$types';
+import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
 
 export const actions = {
-	publish: async ({ locals }) => {
-		const { octokit, owner, name, backend } = requireGitHubRepository(locals);
+	publish: async ({ locals, cookies }) => {
+		const requestContext = { locals, cookies };
+		const { octokit, owner, name, backend } = requireGitHubRepository(requestContext);
 
 		// Get the draft branch
 		const { listPreviewBranches } = await import('$lib/github/branch');
@@ -94,6 +42,7 @@ export const actions = {
 
 			throw redirect(303, '/pages?merged=true');
 		} catch (err) {
+			handleGitHubRouteError(requestContext, err, '/publish');
 			// Re-throw redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
 				throw err;
@@ -103,8 +52,9 @@ export const actions = {
 		}
 	},
 
-	discard: async ({ locals }) => {
-		const { octokit, owner, name } = requireGitHubRepository(locals);
+	discard: async ({ locals, cookies }) => {
+		const requestContext = { locals, cookies };
+		const { octokit, owner, name } = requireGitHubRepository(requestContext);
 
 		// Get the draft branch
 		const { listPreviewBranches } = await import('$lib/github/branch');
@@ -125,6 +75,7 @@ export const actions = {
 
 			throw redirect(303, '/pages?cancelled=true');
 		} catch (err) {
+			handleGitHubRouteError(requestContext, err, '/publish');
 			// Re-throw redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
 				throw err;

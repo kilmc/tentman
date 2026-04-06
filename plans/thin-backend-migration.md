@@ -1,12 +1,14 @@
 # Thin Backend Migration Plan
 
-**Status:** Ready to implement
+**Status:** In cleanup / mostly complete
 **Priority:** High
 **Goal:** Make Tentman static-first and client-led, with a thin trusted backend that only handles secrets, privileged GitHub actions, and other server-required work.
 
 ## Summary
 
-Tentman should move away from route-server-driven GitHub reads and toward a client-owned data model with aggressive caching and explicit invalidation.
+Tentman has moved away from route-server-driven GitHub reads and toward universal route loads backed by a thin `/api/*` layer.
+
+The original broader client-owned data model and cache layer remains an optional later optimization, not active migration scope.
 
 The target architecture is:
 
@@ -14,6 +16,56 @@ The target architecture is:
 - Netlify functions are limited to trusted concerns: OAuth callback/session handling, GitHub API proxying with server-held tokens, publish/merge actions, and other privileged GitHub-backed writes
 - GitHub-backed reads move out of `+page.server` and `+layout.server` route loads into a thin `/api/*` layer consumed by client stores
 - The repo gets a permanent "thin backend principle" plus CI enforcement so future work does not quietly drift back toward server-heavy patterns
+
+## Current Implementation State
+
+### Completed
+
+- Session bootstrap now comes from `GET /api/session`
+- Normal authenticated navigation no longer validates the GitHub token on every request
+- `Octokit` creation is lazy and limited to server endpoints/actions that need GitHub
+- GitHub `401` responses clear the session and force a clean re-login path
+- Selected repo shell metadata such as `rootConfig.siteName` is snapshotted into cookies at repo-selection time
+- Repo selection now uses `GET /api/repos` for its read/bootstrap path
+- Repo config bootstrap now uses `GET /api/repo/configs`
+- Sidebar collection items are lazy and use `GET /api/repo/collection-items`
+- Page and item view reads now use:
+  - `GET /api/repo/page-view`
+  - `GET /api/repo/item-view`
+- Edit/new form bootstraps now use `GET /api/repo/form-config`
+- Preview read bootstraps now use:
+  - `GET /api/repo/page-preview`
+  - `GET /api/repo/item-preview`
+- Publish read bootstrap now uses `GET /api/repo/publish-view`
+- Explicit draft comparison now uses `GET /api/repo/draft-status`
+- Normal page and item reads no longer do hidden draft comparison or hidden draft-branch discovery
+- `GET /api/repo/page-view` and `GET /api/repo/item-view` now accept an optional explicit `branch`
+- Draft-aware navigation and auth redirects preserve the current path plus encoded query string
+- `/pages`, `/publish`, and `/repos` route reads have been moved off `+page.server.ts` / `+layout.server.ts`
+- There are currently no route-server `load` exports left under `src/routes`
+- Remaining `+page.server.ts` files under `/pages` are action-only and intentionally server-owned
+- Thin-backend guardrails now exist:
+  - `plans/thin-backend-principle.md`
+  - `scripts/check-thin-backend.mjs`
+  - fixture-backed tests for the checker
+  - required `SERVER_JUSTIFICATION` headers on current route server entrypoints
+
+### Intentionally Still Server-Owned
+
+- OAuth callback, login, logout, and session cookie handling
+- Repo selection action that persists selected repo cookies and root-config snapshot
+- Content write actions in edit/new/preview flows
+- Publish and discard actions
+- Image upload endpoint
+- Action-only `+page.server.ts` files under `/pages` for privileged draft/save/delete mutations
+
+### Remaining Work
+
+- Keep migration docs, status notes, and focused route tests aligned with the thin-backend reality
+- Measure whether the broader client-owned store/cache layer is still worthwhile before introducing it
+- Consider only tiny route-bootstrap helper consolidation if repeated fetch/redirect code becomes meaningfully harder to maintain
+- Add manual refresh or more targeted invalidation only if real usage shows stale-read pain
+- Defer any shared cache or KV layer until measurement shows the current thin API plus light cache approach is insufficient
 
 ## Architecture Direction
 
@@ -38,12 +90,22 @@ Replace GitHub-backed route loads with a small JSON API layer:
   Returns the user's selectable repositories
 - `GET /api/repo/configs`
   Returns discovered content configs, block configs, and root config for the selected repo
-- `GET /api/repo/content?slug=...&branch=main|draft`
-  Returns the content document for one config only
+- `GET /api/repo/page-view?slug=...`
+  Returns the single-config page bootstrap for standard read views; accepts optional `branch=...` for explicit draft reads
+- `GET /api/repo/item-view?slug=...&itemId=...`
+  Returns the collection item bootstrap for standard read views; accepts optional `branch=...` for explicit draft reads
+- `GET /api/repo/form-config?slug=...`
+  Returns the config + block bootstrap used by edit/new flows
 - `GET /api/repo/collection-items?slug=...`
   Returns sidebar/navigation items for one collection only
+- `GET /api/repo/page-preview?slug=...&data=...`
+  Returns preview bootstrap for single-entry content
+- `GET /api/repo/item-preview?slug=...&itemId=...&data=...`
+  Returns preview bootstrap for collection items
+- `GET /api/repo/publish-view`
+  Returns the publish review bootstrap for the active draft branch
 - `GET /api/repo/draft-status?slug=...`
-  Returns latest preview branch metadata and per-config draft summary on demand
+  Returns explicit on-demand draft metadata for the current config without piggybacking on normal page or item reads
 
 Existing publish and image mutation endpoints can remain in spirit, but should be treated as part of this thin GitHub proxy layer rather than as general page-server behavior.
 
@@ -84,6 +146,12 @@ Existing publish and image mutation endpoints can remain in spirit, but should b
 - Add a user-visible manual refresh action at the repo/config level
 - Do not add shared external cache or KV in this migration; first rely on browser/client caches plus light in-process server caching
 
+Status note:
+
+- Session and route bootstrap are now client-owned through universal loads plus thin `/api/*` endpoints
+- A broader shared client store for content/config/draft state has not been introduced yet and is intentionally deferred unless measurement shows a clear need
+- Existing light cache helpers such as config/content caches still sit behind the server thin API boundary
+
 ### 3. Route Migration
 
 - Convert `/pages` and child pages to client-first route shells
@@ -98,6 +166,13 @@ Existing publish and image mutation endpoints can remain in spirit, but should b
   - do not compute draft comparisons during normal page load
   - fetch draft status only when the UI needs draft state or when the user opens publish/review flows
 - Publish page remains server-backed for final merge/discard actions, but its read path should use the thin API and on-demand comparisons rather than eager route-wide GitHub work
+
+Status note:
+
+- This route migration is complete for current `/pages`, `/publish`, and `/repos` read paths
+- Privileged mutations remain in `+page.server.ts` files where they belong
+- Draft comparison is now explicit through `GET /api/repo/draft-status`, and normal page/item reads do not discover draft branches unless the caller opts in with `branch`
+- Preview summaries are still computed on the server thin API because GitHub-backed base reads remain token-protected
 
 ### 4. Thin Backend Guardrails
 
@@ -147,13 +222,13 @@ Include one test fixture case proving the checker catches a missing justificatio
 
 ## Suggested Execution Order
 
-1. Simplify auth/session handling so normal requests no longer hit GitHub for validation
-2. Add the thin API surface for session, repos, configs, and content
-3. Build client stores for repo/config/content state and caching
-4. Migrate `/pages` layout and page routes off server loads and onto the client data layer
-5. Move draft-status and preview computation to on-demand/client-driven behavior
-6. Add the thin-backend principle doc and CI guardrail script
-7. Measure whether any shared cache infrastructure is still needed after the rewrite
+1. Done: Simplify auth/session handling so normal requests no longer hit GitHub for validation
+2. Done: Add the thin API surface for session, repos, configs, route bootstraps, and explicit draft status
+3. Deferred: Build a broader shared client store only if later measurement shows the current thin API approach is insufficient
+4. Done: Migrate `/pages`, `/publish`, and `/repos` reads off route server loads
+5. Done: Move draft-status behavior toward explicit/on-demand reads and remove hidden draft discovery from normal page/item reads
+6. Done: Add the thin-backend principle doc and CI guardrail script
+7. Current phase: Keep docs/tests tidy and measure whether any additional cache infrastructure is actually needed
 
 ## Test Plan
 
@@ -175,6 +250,7 @@ Include one test fixture case proving the checker catches a missing justificatio
 - `/pages` loads without server-rendered config/content payloads
 - Expanding one collection only fetches that collection's items
 - Viewing/editing one config fetches only the needed content document
+- Draft-aware route reads and re-login redirects preserve the full current route query when needed
 - Preview flow still works end-to-end without route-server preview computation
 - Publish/discard flow still works end-to-end
 

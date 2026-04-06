@@ -1,10 +1,12 @@
+// SERVER_JUSTIFICATION: image_upload
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { uploadImage } from '$lib/github/image';
+import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	// Require authentication
-	if (!locals.isAuthenticated || !locals.octokit) {
+	if (!locals.isAuthenticated || !locals.githubToken) {
 		throw error(401, 'Not authenticated');
 	}
 
@@ -13,6 +15,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	const { owner, name } = locals.selectedRepo;
+	const octokit = createGitHubServerClient(locals.githubToken, cookies);
 
 	try {
 		const formData = await request.formData();
@@ -35,10 +38,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Upload the image
-		const imagePath = await uploadImage(locals.octokit, owner, name, file, storagePath);
+		const imagePath = await uploadImage(octokit, owner, name, file, storagePath);
 
 		return json({ success: true, path: imagePath });
 	} catch (err) {
+		handleGitHubSessionError({ cookies }, err);
 		console.error('Image upload failed:', err);
 
 		if (err && typeof err === 'object' && 'status' in err) {

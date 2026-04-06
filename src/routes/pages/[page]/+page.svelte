@@ -15,6 +15,8 @@
 	import { getContentItemId } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { RootConfig } from '$lib/config/root-config';
+	import type { DraftChange, DraftComparison } from '$lib/utils/draft-comparison';
+	import { buildLoginRedirect } from '$lib/utils/routing';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument } from '$lib/content/service';
@@ -31,9 +33,12 @@
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
 	let rootConfig = $state<RootConfig | null>(null);
+	let draftBranch = $state<string | null>(null);
+	let draftChanges = $state<DraftComparison | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const isSingletonContent = $derived(!config?.collection);
+	const activeBranch = $derived(data.branch ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
@@ -52,6 +57,7 @@
 	] as const;
 	const loadingSkeletons = [0, 1, 2, 3, 4, 5];
 	let localLoadRequest = 0;
+	let draftStatusRequest = 0;
 
 	function applyRemoteData() {
 		discoveredConfig = data.discoveredConfig;
@@ -62,6 +68,11 @@
 		blockRegistryError = data.blockRegistryError ?? null;
 		localBlockRegistry = null;
 		rootConfig = null;
+	}
+
+	function resetDraftStatus() {
+		draftBranch = null;
+		draftChanges = null;
 	}
 
 	function getFlashMessageKey() {
@@ -89,8 +100,8 @@
 
 		const branch = urlParams.get('branch');
 
-		if (branch && data.repo && !isLocalMode && 'owner' in data.repo) {
-			const repoFullName = `${data.repo.owner}/${data.repo.name}`;
+		if (branch && data.selectedRepo && !isLocalMode) {
+			const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
 			draftBranchStore.setBranch(branch, repoFullName);
 		}
 
@@ -128,6 +139,56 @@
 	onMount(async () => {
 		handleUrlMessages();
 	});
+
+	async function loadRemoteDraftStatus(pageSlug: string) {
+		const requestId = ++draftStatusRequest;
+		resetDraftStatus();
+
+		try {
+			const response = await fetch(`/api/repo/draft-status?slug=${encodeURIComponent(pageSlug)}`);
+
+			if (requestId !== draftStatusRequest) {
+				return;
+			}
+
+			if (response.status === 401) {
+				window.location.assign(buildLoginRedirect(resolve('/auth/login'), window.location));
+				return;
+			}
+
+			if (!response.ok) {
+				console.error(`Failed to load draft status for ${pageSlug}: ${response.status}`);
+				return;
+			}
+
+			const result = (await response.json()) as {
+				draftBranch: string | null;
+				draftChanges: DraftComparison | null;
+			};
+
+			if (requestId !== draftStatusRequest) {
+				return;
+			}
+
+			draftBranch = result.draftBranch;
+			draftChanges = result.draftChanges;
+
+			if (data.selectedRepo) {
+				const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
+				if (result.draftBranch) {
+					draftBranchStore.setBranch(result.draftBranch, repoFullName);
+				} else if (draftBranchStore.hasDraft(repoFullName)) {
+					draftBranchStore.clear();
+				}
+			}
+		} catch (error) {
+			if (requestId !== draftStatusRequest) {
+				return;
+			}
+
+			console.error(`Failed to load draft status for ${pageSlug}:`, error);
+		}
+	}
 
 	async function loadLocalPage(pageSlug: string) {
 		const requestId = ++localLoadRequest;
@@ -188,45 +249,51 @@
 
 	$effect(() => {
 		if (isLocalMode) {
+			draftStatusRequest += 1;
+			resetDraftStatus();
 			void loadLocalPage(data.pageSlug);
 			return;
 		}
 
 		localLoadRequest += 1;
 		applyRemoteData();
+		void loadRemoteDraftStatus(data.pageSlug);
 	});
 
 	function hasDraftChanges(itemId: string | undefined): 'modified' | 'created' | 'deleted' | null {
-		if (!itemId || !data.draftChanges) return null;
+		if (!itemId || !draftChanges) return null;
 
-		if (data.draftChanges.modified.some((change) => change.itemId === itemId)) return 'modified';
-		if (data.draftChanges.created.some((change) => change.itemId === itemId)) return 'created';
-		if (data.draftChanges.deleted.some((change) => change.itemId === itemId)) return 'deleted';
+		if (draftChanges.modified.some((change: DraftChange) => change.itemId === itemId))
+			return 'modified';
+		if (draftChanges.created.some((change: DraftChange) => change.itemId === itemId))
+			return 'created';
+		if (draftChanges.deleted.some((change: DraftChange) => change.itemId === itemId))
+			return 'deleted';
 
 		return null;
 	}
 
 	function getDraftItems() {
-		if (!data.draftChanges || !Array.isArray(content)) return [];
+		if (!draftChanges || !Array.isArray(content)) return [];
 
 		return [
-			...data.draftChanges.modified
-				.filter((change) => change.draftContent)
-				.map((change) => ({
+			...draftChanges.modified
+				.filter((change: DraftChange) => change.draftContent)
+				.map((change: DraftChange) => ({
 					item: change.draftContent as ContentRecord,
 					badge: 'draft' as const,
 					itemId: change.itemId
 				})),
-			...data.draftChanges.created
-				.filter((change) => change.draftContent)
-				.map((change) => ({
+			...draftChanges.created
+				.filter((change: DraftChange) => change.draftContent)
+				.map((change: DraftChange) => ({
 					item: change.draftContent as ContentRecord,
 					badge: 'new' as const,
 					itemId: change.itemId
 				})),
-			...data.draftChanges.deleted
-				.filter((change) => change.mainContent)
-				.map((change) => ({
+			...draftChanges.deleted
+				.filter((change: DraftChange) => change.mainContent)
+				.map((change: DraftChange) => ({
 					item: change.mainContent as ContentRecord,
 					badge: 'deleted' as const,
 					itemId: change.itemId
@@ -243,12 +310,33 @@
 		});
 	}
 
+	function getItemHref(itemId: string | undefined, branch?: string | null) {
+		if (!itemId) {
+			return resolve(`/pages/${discoveredConfig.slug}`);
+		}
+
+		const path = resolve(`/pages/${discoveredConfig.slug}/${itemId}`);
+		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
+	}
+
+	function getEditHref() {
+		const path = resolve(`/pages/${discoveredConfig.slug}/edit`);
+		const branch = !isLocalMode && isSingletonContent ? activeBranch : undefined;
+		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
+	}
+
+	function getNewHref() {
+		const path = resolve(`/pages/${discoveredConfig.slug}/new`);
+		const branch = !isLocalMode ? activeBranch : undefined;
+		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
+	}
+
 	const hasDrafts = $derived(
 		!isLocalMode &&
-			data.draftChanges &&
-			(data.draftChanges.modified.length > 0 ||
-				data.draftChanges.created.length > 0 ||
-				data.draftChanges.deleted.length > 0)
+			draftChanges &&
+			(draftChanges.modified.length > 0 ||
+				draftChanges.created.length > 0 ||
+				draftChanges.deleted.length > 0)
 	);
 </script>
 
@@ -277,7 +365,7 @@
 
 			{#if !isSingletonContent}
 				<a
-					href={resolve(`/pages/${discoveredConfig.slug}/new`)}
+					href={getNewHref()}
 					class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
 				>
 					New {getConfigItemLabel(config)}
@@ -285,17 +373,17 @@
 			{/if}
 		</div>
 
-		{#if !isLocalMode && data.draftBranch && data.draftChanges}
+		{#if !isLocalMode && draftBranch && draftChanges}
 			{@const hasChanges =
-				data.draftChanges.modified.length > 0 ||
-				data.draftChanges.created.length > 0 ||
-				data.draftChanges.deleted.length > 0}
+				draftChanges.modified.length > 0 ||
+				draftChanges.created.length > 0 ||
+				draftChanges.deleted.length > 0}
 			{#if hasChanges}
 				<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
 					<p class="text-sm font-medium text-blue-800">Draft Changes</p>
 					<p class="mt-1 text-sm text-blue-700">
 						You have unpublished changes on
-						<code class="rounded bg-blue-100 px-1 text-xs">{data.draftBranch}</code>
+						<code class="rounded bg-blue-100 px-1 text-xs">{draftBranch}</code>
 					</p>
 				</div>
 			{/if}
@@ -337,7 +425,7 @@
 				</div>
 				<div class="flex gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
 					<a
-						href={resolve(`/pages/${discoveredConfig.slug}/edit`)}
+						href={getEditHref()}
 						class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
 					>
 						Edit Content
@@ -359,12 +447,7 @@
 						<h2 class="mb-3 text-lg font-semibold text-gray-900">Draft Changes</h2>
 						<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 							{#each draftItems as { item, badge, itemId } (itemId)}
-								<ItemCard
-									{item}
-									{cardFields}
-									{badge}
-									href={resolve(`/pages/${discoveredConfig.slug}/${itemId}`)}
-								/>
+								<ItemCard {item} {cardFields} {badge} href={getItemHref(itemId, activeBranch)} />
 							{/each}
 						</div>
 					</div>
@@ -373,11 +456,7 @@
 				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{#each regularItems as item (getContentItemId(config, item as ContentRecord) ?? item._filename ?? '')}
 						{@const itemId = getContentItemId(config, item as ContentRecord)}
-						<ItemCard
-							{item}
-							{cardFields}
-							href={resolve(`/pages/${discoveredConfig.slug}/${itemId}`)}
-						/>
+						<ItemCard {item} {cardFields} href={getItemHref(itemId, activeBranch)} />
 					{/each}
 				</div>
 			{:else}

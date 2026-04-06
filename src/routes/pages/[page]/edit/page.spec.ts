@@ -1,0 +1,135 @@
+import { describe, expect, it, vi } from 'vitest';
+import { load } from './+page';
+
+describe('routes/pages/[page]/edit/+page', () => {
+	it('preserves the explicit draft branch when redirecting unauthenticated users to login', async () => {
+		await expect(
+			load({
+				parent: async () => ({
+					isAuthenticated: false,
+					selectedRepo: null,
+					selectedBackend: null
+				}),
+				params: {
+					page: 'about'
+				},
+				url: new URL('http://localhost/pages/about/edit?branch=preview-2026-04-06'),
+				depends: () => {}
+			} as never)
+		).rejects.toMatchObject({
+			status: 302,
+			location: '/auth/login?redirect=%2Fpages%2Fabout%2Fedit%3Fbranch%3Dpreview-2026-04-06'
+		});
+	});
+
+	it('loads the singleton edit bootstrap from the thin API', async () => {
+		const fetch = vi.fn(async () =>
+			new Response(
+				JSON.stringify({
+					discoveredConfig: {
+						slug: 'about',
+						config: {
+							collection: false
+						}
+					},
+					content: { title: 'About' },
+					pageSlug: 'about',
+					mode: 'github'
+				}),
+				{
+					status: 200,
+					headers: {
+						'content-type': 'application/json'
+					}
+				}
+			)
+		);
+
+		await expect(
+			load({
+				parent: async () => ({
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'github',
+						repo: {
+							owner: 'acme',
+							name: 'docs',
+							full_name: 'acme/docs'
+						}
+					}
+				}),
+				fetch,
+				params: {
+					page: 'about'
+				},
+				url: new URL('http://localhost/pages/about/edit'),
+				depends: () => {}
+			} as never)
+		).resolves.toMatchObject({
+			pageSlug: 'about'
+		});
+
+		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
+	});
+
+	it('passes through an explicit draft branch for singleton draft editing', async () => {
+		const fetch = vi.fn(async () =>
+			new Response(
+				JSON.stringify({
+					discoveredConfig: {
+						slug: 'about',
+						config: {
+							collection: false
+						}
+					},
+					content: { title: 'Draft About' },
+					branch: 'preview-2026-04-06',
+					pageSlug: 'about',
+					mode: 'github'
+				}),
+				{
+					status: 200,
+					headers: {
+						'content-type': 'application/json'
+					}
+				}
+			)
+		);
+
+		await expect(
+			load({
+				parent: async () => ({
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'github',
+						repo: {
+							owner: 'acme',
+							name: 'docs',
+							full_name: 'acme/docs'
+						}
+					}
+				}),
+				fetch,
+				params: {
+					page: 'about'
+				},
+				url: new URL('http://localhost/pages/about/edit?branch=preview-2026-04-06'),
+				depends: () => {}
+			} as never)
+		).resolves.toMatchObject({
+			branch: 'preview-2026-04-06'
+		});
+
+		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about&branch=preview-2026-04-06');
+	});
+});

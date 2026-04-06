@@ -251,6 +251,8 @@ This keeps the developer experience strong without requiring the hosted product 
 
 Tentman should aim for low ongoing infrastructure cost.
 
+See the [Thin Backend Principle](./thin-backend-principle.md) for the repo-level rule that keeps day-to-day implementation aligned with this cost model.
+
 The preferred operating model is:
 
 - Keep the core hosted product lightweight

@@ -14,19 +14,24 @@
 	} from '$lib/features/content-management/navigation';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { buildLoginRedirect } from '$lib/utils/routing';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	type CollectionItemsBySlug = Record<string, CollectionNavigationItem[]>;
+	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 	let localCollectionItemsBySlug = $state<CollectionItemsBySlug>({});
+	let githubCollectionItemsBySlug = $state<CollectionItemsBySlug>({});
+	let githubCollectionLoadStatusBySlug = $state<Record<string, CollectionLoadStatus>>({});
+	let githubCollectionErrorBySlug = $state<Record<string, string | null>>({});
 	let collectionLoadRequest = 0;
 	let expandedCollections = $state<Record<string, boolean>>({});
 
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const configs = $derived(isLocalMode ? $localContent.configs : data.configs);
 	const collectionItemsBySlug = $derived(
-		isLocalMode ? localCollectionItemsBySlug : (data.collectionItemsBySlug ?? {})
+		isLocalMode ? localCollectionItemsBySlug : githubCollectionItemsBySlug
 	);
 	const currentPageSlug = $derived(page.params.page ?? null);
 	const currentItemId = $derived(page.params.itemId ?? null);
@@ -35,15 +40,93 @@
 		return expandedCollections[slug] ?? currentPageSlug === slug;
 	}
 
-	function toggleCollection(slug: string) {
+	function getGitHubCollectionStatus(slug: string): CollectionLoadStatus {
+		return githubCollectionLoadStatusBySlug[slug] ?? 'idle';
+	}
+
+	function getGitHubCollectionError(slug: string): string | null {
+		return githubCollectionErrorBySlug[slug] ?? null;
+	}
+
+	function toggleCollection(config: DiscoveredConfig) {
+		const nextExpanded = !isCollectionExpanded(config.slug);
+
 		expandedCollections = {
 			...expandedCollections,
-			[slug]: !isCollectionExpanded(slug)
+			[config.slug]: nextExpanded
 		};
+
+		if (!isLocalMode && nextExpanded) {
+			void loadGitHubCollectionItems(config);
+		}
 	}
 
 	function getCollectionItems(slug: string) {
 		return collectionItemsBySlug[slug] ?? [];
+	}
+
+	async function redirectToLoginForExpiredSession() {
+		window.location.assign(buildLoginRedirect(resolve('/auth/login'), window.location));
+	}
+
+	async function loadGitHubCollectionItems(
+		config: DiscoveredConfig,
+		options?: { force?: boolean }
+	) {
+		if (isLocalMode || !config.config.collection) {
+			return;
+		}
+
+		const status = getGitHubCollectionStatus(config.slug);
+		if (!options?.force && (status === 'loading' || status === 'ready')) {
+			return;
+		}
+
+		githubCollectionLoadStatusBySlug = {
+			...githubCollectionLoadStatusBySlug,
+			[config.slug]: 'loading'
+		};
+		githubCollectionErrorBySlug = {
+			...githubCollectionErrorBySlug,
+			[config.slug]: null
+		};
+
+		try {
+			const response = await fetch(
+				`${resolve('/api/repo/collection-items')}?slug=${encodeURIComponent(config.slug)}`
+			);
+
+			if (response.status === 401) {
+				await redirectToLoginForExpiredSession();
+				return;
+			}
+
+			if (!response.ok) {
+				throw new Error(`Failed to load collection items (${response.status})`);
+			}
+
+			const payload = (await response.json()) as {
+				items?: CollectionNavigationItem[];
+			};
+
+			githubCollectionItemsBySlug = {
+				...githubCollectionItemsBySlug,
+				[config.slug]: payload.items ?? []
+			};
+			githubCollectionLoadStatusBySlug = {
+				...githubCollectionLoadStatusBySlug,
+				[config.slug]: 'ready'
+			};
+		} catch (error) {
+			githubCollectionLoadStatusBySlug = {
+				...githubCollectionLoadStatusBySlug,
+				[config.slug]: 'error'
+			};
+			githubCollectionErrorBySlug = {
+				...githubCollectionErrorBySlug,
+				[config.slug]: error instanceof Error ? error.message : 'Failed to load items'
+			};
+		}
 	}
 
 	async function loadLocalCollectionItems(availableConfigs: DiscoveredConfig[]) {
@@ -117,6 +200,21 @@
 
 		void loadLocalCollectionItems(configs);
 	});
+
+	$effect(() => {
+		if (isLocalMode || !currentPageSlug) {
+			return;
+		}
+
+		const currentConfig = configs.find(
+			(config: DiscoveredConfig) => config.slug === currentPageSlug
+		);
+		if (!currentConfig?.config.collection) {
+			return;
+		}
+
+		void loadGitHubCollectionItems(currentConfig);
+	});
 </script>
 
 <div class="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]">
@@ -153,7 +251,7 @@
 									<button
 										type="button"
 										class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-										onclick={() => toggleCollection(config.slug)}
+										onclick={() => toggleCollection(config)}
 										aria-expanded={isExpanded}
 										aria-label={isExpanded ? 'Collapse collection' : 'Expand collection'}
 									>
@@ -181,8 +279,14 @@
 									<p class="truncate font-medium">{config.config.label}</p>
 									{#if isCollection}
 										<p class="mt-1 text-xs text-gray-500">
-											{getCollectionItems(config.slug).length}
-											{getCollectionItems(config.slug).length === 1 ? 'item' : 'items'}
+											{#if isLocalMode || getGitHubCollectionStatus(config.slug) === 'ready'}
+												{getCollectionItems(config.slug).length}
+												{getCollectionItems(config.slug).length === 1 ? 'item' : 'items'}
+											{:else if getGitHubCollectionStatus(config.slug) === 'loading'}
+												Loading items…
+											{:else if getGitHubCollectionStatus(config.slug) === 'error'}
+												Couldn't load items
+											{/if}
 										</p>
 									{/if}
 								</a>
@@ -204,6 +308,19 @@
 								<div class="px-3 pb-3">
 									{#if isLocalMode && $localContent.status === 'loading' && items.length === 0}
 										<p class="pl-10 text-sm text-gray-500">Loading items…</p>
+									{:else if !isLocalMode && ['idle', 'loading'].includes(getGitHubCollectionStatus(config.slug)) && items.length === 0}
+										<p class="pl-10 text-sm text-gray-500">Loading items…</p>
+									{:else if !isLocalMode && getGitHubCollectionStatus(config.slug) === 'error' && items.length === 0}
+										<div class="pl-10 text-sm text-red-700">
+											<p>{getGitHubCollectionError(config.slug) ?? "Couldn't load items."}</p>
+											<button
+												type="button"
+												class="mt-2 text-sm font-medium text-red-700 underline hover:text-red-800"
+												onclick={() => void loadGitHubCollectionItems(config, { force: true })}
+											>
+												Retry
+											</button>
+										</div>
 									{:else if items.length === 0}
 										<p class="pl-10 text-sm text-gray-500">No items yet.</p>
 									{:else}

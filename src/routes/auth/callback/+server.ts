@@ -1,6 +1,9 @@
+// SERVER_JUSTIFICATION: auth_callback
 import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET } from '$env/static/private';
+import type { GitHubUserSnapshot } from '$lib/auth/session';
+import { persistGitHubSession } from '$lib/server/auth/github';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const code = url.searchParams.get('code');
@@ -11,12 +14,6 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	}
 
 	try {
-		// Log for debugging
-		console.log('[OAuth] Starting token exchange...');
-		console.log('[OAuth] CLIENT_ID exists:', !!GITHUB_CLIENT_ID);
-		console.log('[OAuth] CLIENT_SECRET exists:', !!GITHUB_CLIENT_SECRET);
-
-		// Exchange code for access token
 		const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
 			method: 'POST',
 			headers: {
@@ -31,22 +28,40 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		});
 
 		const tokenData = await tokenResponse.json();
-		console.log('[OAuth] Token response:', tokenData);
 
-		if (tokenData.error) {
-			console.error('[OAuth] Token error:', tokenData);
+		if (tokenData.error || !tokenData.access_token) {
 			throw error(400, tokenData.error_description || 'Failed to get access token');
 		}
 
-		// Store access token in HTTP-only cookie
-		cookies.set('github_token', tokenData.access_token, {
-			path: '/',
-			httpOnly: true,
-			secure: process.env.NODE_ENV === 'production',
-			sameSite: 'lax',
-			maxAge: 60 * 60 * 24 * 30 // 30 days
+		const userResponse = await fetch('https://api.github.com/user', {
+			headers: {
+				Accept: 'application/vnd.github+json',
+				Authorization: `Bearer ${tokenData.access_token}`,
+				'User-Agent': 'Tentman'
+			}
+		});
+
+		if (!userResponse.ok) {
+			throw error(400, 'Failed to load GitHub user profile');
+		}
+
+		const userData = await userResponse.json();
+		const user: GitHubUserSnapshot = {
+			login: userData.login,
+			name: userData.name ?? null,
+			avatar_url: userData.avatar_url,
+			email: userData.email ?? null
+		};
+
+		persistGitHubSession(cookies, {
+			token: tokenData.access_token,
+			user
 		});
 	} catch (err) {
+		if (err && typeof err === 'object' && 'status' in err) {
+			throw err;
+		}
+
 		console.error('OAuth callback error:', err);
 		throw error(500, 'Authentication failed');
 	}

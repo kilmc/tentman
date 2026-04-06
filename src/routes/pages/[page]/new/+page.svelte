@@ -36,6 +36,7 @@
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(discoveredConfig?.config.content.mode === 'directory');
+	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const githubBlockRegistry = $derived.by(() => {
 		if (isLocalMode || blockRegistryError) {
 			return null;
@@ -185,7 +186,10 @@
 
 <div class="container mx-auto p-4 sm:p-6">
 	<div class="mb-4 sm:mb-6">
-		<a href={resolve(`/pages/${data.pageSlug}`)} class="text-sm text-blue-600 hover:underline">
+		<a
+			href={resolve(`/pages/${data.pageSlug}`) + branchQuery}
+			class="text-sm text-blue-600 hover:underline"
+		>
 			&larr; Back
 		</a>
 	</div>
@@ -300,6 +304,9 @@
 					}}
 				>
 					<input type="hidden" name="data" value="" />
+					{#if data.branch}
+						<input type="hidden" name="branch" value={data.branch} />
+					{/if}
 
 					{#if requiresFilename}
 						<div class="mb-6 border-b border-gray-200 pb-6">
@@ -361,7 +368,7 @@
 							{saving ? 'Creating...' : 'Create'}
 						</button>
 						<a
-							href={resolve(`/pages/${data.pageSlug}`)}
+							href={resolve(`/pages/${data.pageSlug}`) + branchQuery}
 							class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 						>
 							Cancel

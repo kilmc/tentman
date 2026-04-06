@@ -80,7 +80,7 @@
 						>
 							Close Local Repo
 						</button>
-					{:else if data.isAuthenticated && data.user}
+					{:else if data.isAuthenticated}
 						{#if $draftBranch.branchName}
 							<a
 								href={resolve('/publish')}
@@ -91,8 +91,16 @@
 						{/if}
 
 						<div class="flex items-center gap-3">
-							<img src={data.user.avatar_url} alt={data.user.login} class="h-8 w-8 rounded-full" />
-							<span class="text-sm font-medium text-gray-700">{data.user.login}</span>
+							{#if data.user}
+								<img
+									src={data.user.avatar_url}
+									alt={data.user.login}
+									class="h-8 w-8 rounded-full"
+								/>
+								<span class="text-sm font-medium text-gray-700">{data.user.login}</span>
+							{:else}
+								<span class="text-sm font-medium text-gray-700">GitHub</span>
+							{/if}
 							<a
 								href={resolve('/auth/logout')}
 								class="text-sm text-gray-600 hover:text-gray-900 hover:underline"

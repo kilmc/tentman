@@ -1,17 +1,38 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, redirect, type Cookies } from '@sveltejs/kit';
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
+import type { GitHubUserSnapshot } from '$lib/auth/session';
+import {
+	createGitHubServerClient,
+	handleGitHubSessionError
+} from '$lib/server/auth/github';
 
 type AppLocals = App.Locals;
+type GitHubRequestContext = {
+	locals: AppLocals;
+	cookies: Pick<Cookies, 'delete'>;
+};
+
+interface GitHubRepositoryContext {
+	backend: ReturnType<typeof createGitHubRepositoryBackend>;
+	octokit: ReturnType<typeof createGitHubServerClient>;
+	repo: NonNullable<AppLocals['selectedRepo']>;
+	owner: string;
+	name: string;
+	user?: GitHubUserSnapshot;
+}
 
 export function isLocalMode(locals: AppLocals): boolean {
 	return locals.selectedBackend?.kind === 'local';
 }
 
-export function requireGitHubRepository(locals: AppLocals, redirectTo = '/pages') {
-	if (!locals.isAuthenticated || !locals.octokit) {
+export function requireGitHubRepository(
+	{ locals, cookies }: GitHubRequestContext,
+	redirectTo = '/pages'
+): GitHubRepositoryContext {
+	if (!locals.isAuthenticated || !locals.githubToken) {
 		throw redirect(302, `/auth/login?redirect=${redirectTo}`);
 	}
 
@@ -19,31 +40,33 @@ export function requireGitHubRepository(locals: AppLocals, redirectTo = '/pages'
 		throw redirect(302, '/repos');
 	}
 
-	const backend = createGitHubRepositoryBackend(locals.octokit, locals.selectedRepo);
+	const octokit = createGitHubServerClient(locals.githubToken, cookies);
+	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
 
 	return {
 		backend,
-		octokit: locals.octokit,
+		octokit,
 		repo: locals.selectedRepo,
 		owner: locals.selectedRepo.owner,
-		name: locals.selectedRepo.name
+		name: locals.selectedRepo.name,
+		user: locals.user
 	};
 }
 
 export async function requireDiscoveredConfig(
-	locals: AppLocals,
+	context: GitHubRequestContext,
 	pageSlug: string,
 	redirectTo = '/pages'
 ): Promise<{
 	backend: ReturnType<typeof createGitHubRepositoryBackend>;
-	octokit: NonNullable<AppLocals['octokit']>;
+	octokit: GitHubRepositoryContext['octokit'];
 	repo: NonNullable<AppLocals['selectedRepo']>;
 	owner: string;
 	name: string;
 	discoveredConfig: DiscoveredConfig;
 }> {
-	const context = requireGitHubRepository(locals, redirectTo);
-	const configs = await getCachedConfigs(context.backend);
+	const repository = requireGitHubRepository(context, redirectTo);
+	const configs = await getCachedConfigs(repository.backend);
 	const discoveredConfig = configs.find((config) => config.slug === pageSlug);
 
 	if (!discoveredConfig) {
@@ -51,12 +74,23 @@ export async function requireDiscoveredConfig(
 	}
 
 	return {
-		...context,
+		...repository,
 		discoveredConfig
 	};
 }
 
-export async function getOptionalDraftBranchName(locals: AppLocals): Promise<string | undefined> {
-	const context = requireGitHubRepository(locals);
-	return getLatestPreviewBranchName(context.octokit, context.owner, context.name);
+export async function getOptionalDraftBranchName(
+	context: GitHubRequestContext,
+	redirectTo = '/pages'
+): Promise<string | undefined> {
+	const repository = requireGitHubRepository(context, redirectTo);
+	return getLatestPreviewBranchName(repository.octokit, repository.owner, repository.name);
+}
+
+export function handleGitHubRouteError(
+	context: GitHubRequestContext,
+	value: unknown,
+	redirectTo?: string
+): void {
+	handleGitHubSessionError(context, value, redirectTo ? { redirectTo } : undefined);
 }

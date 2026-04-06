@@ -1,5 +1,18 @@
 # Single Draft Branch Refactor - COMPLETE ✅
 
+## Status Note
+
+This file is a historical completion note for the earlier single-draft-branch refactor.
+
+Some implementation details below have since been superseded by the thin-backend/auth-session migration:
+
+- route read flows no longer center on `+page.server.ts` reads
+- current read bootstrap comes from universal loads plus thin `/api/*` endpoints
+- action-only server files remain for privileged mutations, while read-path server loads are gone
+- draft-awareness is now explicit in route/query handling instead of being driven by a client `localStorage` architecture
+
+For the current architecture and migration status, prefer `plans/thin-backend-migration.md` and `plans/thin-backend-principle.md`.
+
 ## Summary
 
 Successfully refactored the draft/preview system from a complex cookie-based session model to a simple, single-draft-branch model with persistent localStorage.

@@ -15,6 +15,7 @@
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import { findContentItem, formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import {
@@ -45,6 +46,8 @@
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
+	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const githubBlockRegistry = $derived.by(() => {
 		if (isLocalMode || blockRegistryError) {
 			return null;
@@ -141,6 +144,15 @@
 
 		localLoadRequest += 1;
 		applyRemoteData();
+	});
+
+	$effect(() => {
+		if (!data.branch || !data.selectedRepo || isLocalMode) {
+			return;
+		}
+
+		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
+		draftBranchStore.setBranch(data.branch, repoFullName);
 	});
 
 	function validateForm(event?: SubmitEvent) {
@@ -240,7 +252,7 @@
 
 <div class="container mx-auto p-4 sm:p-6">
 	<div class="mb-4 sm:mb-6">
-		<a href={resolve(`/pages/${data.pageSlug}`)} class="text-sm text-blue-600 hover:underline">
+		<a href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)} class="text-sm text-blue-600 hover:underline">
 			&larr; Back
 		</a>
 	</div>
@@ -251,6 +263,16 @@
 		</h1>
 		<p class="mt-1 text-gray-600">{getItemTitle()}</p>
 	</div>
+
+	{#if isDraftView}
+		<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+			<p class="text-sm font-medium text-blue-800">Editing Draft Content</p>
+			<p class="mt-1 text-sm text-blue-700">
+				Changes will continue from
+				<code class="rounded bg-blue-100 px-1 text-xs">{data.branch}</code>
+			</p>
+		</div>
+	{/if}
 
 	{#if form?.error || localError}
 		<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -334,6 +356,9 @@
 						}}
 					>
 						<input type="hidden" name="data" value="" />
+						{#if data.branch}
+							<input type="hidden" name="branch" value={data.branch} />
+						{/if}
 						{#if item?._filename}
 							<input type="hidden" name="filename" value={item._filename} />
 						{/if}
@@ -363,7 +388,7 @@
 								{saving ? 'Saving...' : 'Continue'}
 							</button>
 							<a
-								href={resolve(`/pages/${data.pageSlug}`)}
+								href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
 								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
@@ -469,6 +494,9 @@
 							};
 						}}
 					>
+						{#if data.branch}
+							<input type="hidden" name="branch" value={data.branch} />
+						{/if}
 						<div class="flex gap-3">
 							<button
 								type="submit"

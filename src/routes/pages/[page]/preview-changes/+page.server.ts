@@ -1,70 +1,20 @@
-import { redirect, error, fail } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types';
-import { previewContentChanges, saveContentDocument } from '$lib/content/service.js';
+// SERVER_JUSTIFICATION: privileged_mutation
+import { redirect, fail } from '@sveltejs/kit';
+import type { Actions } from './$types';
+import { saveContentDocument } from '$lib/content/service.js';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
-import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
+import { getRoutePath } from '$lib/utils/routing';
+import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
-export const load: PageServerLoad = async ({ locals, params, url }) => {
-	if (isLocalMode(locals)) {
-		throw redirect(302, `/pages/${params.page}/edit`);
-	}
-
-	const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(
-		locals,
-		params.page
-	);
-
-	// Only allow single-entry content on this route
-	if (discoveredConfig.config.collection) {
-		throw redirect(302, `/pages/${params.page}`);
-	}
-
-	// Get form data from URL params (passed from edit form)
-	const encodedData = url.searchParams.get('data');
-	if (!encodedData) {
-		throw redirect(302, `/pages/${params.page}/edit`);
-	}
-
-	let contentData: ContentRecord;
-	try {
-		contentData = JSON.parse(Buffer.from(encodedData, 'base64url').toString());
-	} catch (err) {
-		logError(err, 'Parse preview data');
-		throw error(400, 'Invalid preview data');
-	}
-
-	// Calculate what changes will be made
-	let changesSummary = null;
-	let changesError = null;
-
-	try {
-		changesSummary = await previewContentChanges(
-			backend,
-			discoveredConfig.config,
-			discoveredConfig.path,
-			contentData
-		);
-	} catch (err) {
-		logError(err, 'Calculate changes');
-		changesError = formatErrorMessage(err);
-	}
-
-	return {
-		discoveredConfig,
-		contentData,
-		changesSummary,
-		changesError,
-		repo: { owner, name }
-	};
-};
-
 export const actions: Actions = {
-	createPreview: async ({ locals, params, request, cookies }) => {
+	createPreview: async ({ locals, params, request, cookies, url }) => {
+		const requestContext = { locals, cookies };
+
 		try {
 			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
-				locals,
+				requestContext,
 				params.page
 			);
 
@@ -103,6 +53,7 @@ export const actions: Actions = {
 				throw err;
 			}
 
+			handleGitHubRouteError(requestContext, err, getRoutePath(url));
 			logError(err, 'Create draft');
 			return fail(500, {
 				error: formatErrorMessage(err)
@@ -110,10 +61,12 @@ export const actions: Actions = {
 		}
 	},
 
-	publishNow: async ({ locals, params, request }) => {
+	publishNow: async ({ locals, params, request, cookies, url }) => {
+		const requestContext = { locals, cookies };
+
 		try {
-			const { backend, owner, name, discoveredConfig } = await requireDiscoveredConfig(
-				locals,
+			const { backend, discoveredConfig } = await requireDiscoveredConfig(
+				requestContext,
 				params.page
 			);
 
@@ -138,6 +91,7 @@ export const actions: Actions = {
 				throw err;
 			}
 
+			handleGitHubRouteError(requestContext, err, getRoutePath(url));
 			// Check for protected branch error
 			if (
 				err &&

@@ -1,62 +1,21 @@
-import { redirect, error, fail } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types';
+// SERVER_JUSTIFICATION: privileged_mutation
+import { redirect, fail } from '@sveltejs/kit';
+import type { Actions } from './$types';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
-import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
-import { isLocalMode, requireDiscoveredConfig } from '$lib/server/page-context';
-
-export const load: PageServerLoad = async ({ locals, params }) => {
-	if (isLocalMode(locals)) {
-		return {
-			discoveredConfig: null,
-			blockConfigs: [],
-			packageBlocks: [],
-			blockRegistryError: null,
-			pageSlug: params.page,
-			mode: 'local' as const
-		};
-	}
-
-	const { backend, discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
-
-	try {
-		// Only allow collection content on this route
-		if (!discoveredConfig.config.collection) {
-			throw redirect(302, `/pages/${params.page}`);
-		}
-
-		const { blockConfigs, packageBlocks, blockRegistryError } =
-			await loadGitHubBlockRegistryData(backend);
-
-		return {
-			discoveredConfig,
-			blockConfigs,
-			packageBlocks,
-			blockRegistryError,
-			pageSlug: params.page,
-			mode: 'github' as const
-		};
-	} catch (err) {
-		if (
-			err &&
-			typeof err === 'object' &&
-			'status' in err &&
-			(err.status === 404 || err.status === 302)
-		) {
-			throw err;
-		}
-		console.error('Failed to load config:', err);
-		throw error(500, 'Failed to load configuration');
-	}
-};
+import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
+import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const actions: Actions = {
-	createToPreview: async ({ locals, params, request }) => {
+	createToPreview: async ({ locals, params, request, cookies, url }) => {
+		const requestContext = { locals, cookies };
+
 		try {
-			const { discoveredConfig } = await requireDiscoveredConfig(locals, params.page);
+			const { discoveredConfig } = await requireDiscoveredConfig(requestContext, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string);
+			const branch = (formData.get('branch') as string | null) || undefined;
 
 			// Generate an itemId for the URL (use idField if available, or "new")
 			const itemId =
@@ -67,27 +26,29 @@ export const actions: Actions = {
 			// Encode the data to pass via URL
 			const encodedData = Buffer.from(JSON.stringify(contentData)).toString('base64url');
 
-			// Build URL params
-			const urlParams = new URLSearchParams({
-				data: encodedData,
-				new: 'true'
-			});
-
 			// Directory-backed collections need an explicit filename
+			const newFilename =
+				discoveredConfig.config.content.mode === 'directory'
+					? (formData.get('newFilename') as string)
+					: undefined;
+
 			if (discoveredConfig.config.content.mode === 'directory') {
-				const newFilename = formData.get('newFilename') as string;
 				if (!newFilename) {
 					return fail(400, {
 						error: 'Filename is required for collection items'
 					});
 				}
-				urlParams.set('newFilename', newFilename.trim());
 			}
 
 			// Redirect to preview-changes page
 			throw redirect(
 				303,
-				`/pages/${params.page}/${itemId}/preview-changes?${urlParams.toString()}`
+				buildPathWithQuery(`/pages/${params.page}/${itemId}/preview-changes`, {
+					data: encodedData,
+					new: 'true',
+					newFilename: newFilename?.trim(),
+					branch
+				})
 			);
 		} catch (err) {
 			// Handle redirects
@@ -95,6 +56,7 @@ export const actions: Actions = {
 				throw err;
 			}
 
+			handleGitHubRouteError(requestContext, err, getRoutePath(url));
 			logError(err, 'Prepare preview');
 			return fail(500, {
 				error: formatErrorMessage(err)

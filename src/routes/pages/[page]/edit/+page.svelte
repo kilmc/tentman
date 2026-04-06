@@ -7,11 +7,13 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument, saveContentDocument } from '$lib/content/service';
@@ -35,6 +37,8 @@
 	let localLoadRequest = 0;
 
 	const config = $derived(discoveredConfig?.config ?? null);
+	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const githubBlockRegistry = $derived.by(() => {
 		if (isLocalMode || blockRegistryError) {
 			return null;
@@ -140,6 +144,15 @@
 		applyRemoteData();
 	});
 
+	$effect(() => {
+		if (!data.branch || !data.selectedRepo || isLocalMode) {
+			return;
+		}
+
+		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
+		draftBranchStore.setBranch(data.branch, repoFullName);
+	});
+
 	async function handleLocalSave() {
 		if (!formGenerator || !discoveredConfig || !config) {
 			return;
@@ -177,18 +190,33 @@
 	}
 </script>
 
-<div class="container mx-auto p-4 sm:p-6">
-	<div class="mb-4 sm:mb-6">
-		<a href="/pages/{data.pageSlug}" class="text-sm text-blue-600 hover:underline">&larr; Back</a>
-	</div>
+	<div class="container mx-auto p-4 sm:p-6">
+		<div class="mb-4 sm:mb-6">
+			<a
+				href={resolve(`/pages/${data.pageSlug}${branchQuery}`)}
+				class="text-sm text-blue-600 hover:underline"
+			>
+				&larr; Back
+			</a>
+		</div>
 
-	<div class="mb-4 sm:mb-6">
-		<h1 class="text-2xl font-bold sm:text-3xl">
-			Edit {config?.label ?? 'Content'}
-		</h1>
-	</div>
+		<div class="mb-4 sm:mb-6">
+			<h1 class="text-2xl font-bold sm:text-3xl">
+				Edit {config?.label ?? 'Content'}
+			</h1>
+		</div>
 
-	{#if form?.error || localError}
+		{#if isDraftView}
+			<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+				<p class="text-sm font-medium text-blue-800">Editing Draft Content</p>
+				<p class="mt-1 text-sm text-blue-700">
+					Changes will continue from
+					<code class="rounded bg-blue-100 px-1 text-xs">{data.branch}</code>
+				</p>
+			</div>
+		{/if}
+
+		{#if form?.error || localError}
 		<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
 			<p class="text-sm font-medium text-red-800">Failed to save changes</p>
 			<p class="mt-1 text-sm text-red-700">{form?.error || localError}</p>
@@ -266,6 +294,9 @@
 						}}
 					>
 						<input type="hidden" name="data" value="" />
+						{#if data.branch}
+							<input type="hidden" name="branch" value={data.branch} />
+						{/if}
 						{#if blockRegistryError}
 							<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
 								<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
@@ -292,7 +323,7 @@
 								{saving ? 'Saving...' : 'Continue'}
 							</button>
 							<a
-								href="/pages/{data.pageSlug}"
+								href={resolve(`/pages/${data.pageSlug}${branchQuery}`)}
 								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel

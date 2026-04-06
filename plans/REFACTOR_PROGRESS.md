@@ -1,5 +1,17 @@
 # Single Draft Branch Refactor - Progress Report
 
+## Status Note
+
+This file is a historical progress snapshot from the earlier single-draft-branch refactor.
+
+Current Tentman thin-backend/auth-session reality has moved beyond parts of this note:
+
+- route read bootstraps now live in universal `+page.ts` / `+layout.ts` loads backed by thin `/api/*` endpoints
+- draft state is no longer modeled around a client-owned `localStorage` store as the primary architecture
+- action-only `+page.server.ts` files remain intentionally server-owned for privileged mutations
+
+For current status, use `plans/thin-backend-migration.md` and `plans/thin-backend-principle.md`.
+
 ## ✅ Completed (Phases 1-2)
 
 ### Phase 1: Core Store & Branch Management

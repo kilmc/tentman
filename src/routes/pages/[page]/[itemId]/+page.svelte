@@ -4,6 +4,7 @@
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import { get } from 'svelte/store';
+	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { getContentItemTitle } from '$lib/features/content-management/navigation';
@@ -27,6 +28,8 @@
 	let localLoadRequest = 0;
 
 	const config = $derived(discoveredConfig?.config ?? null);
+	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
+	const isDraftView = $derived(!isLocalMode && !!data.branch);
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
 			return null;
@@ -110,14 +113,36 @@
 		localLoadRequest += 1;
 		applyRemoteData();
 	});
+
+	$effect(() => {
+		if (!data.branch || !data.selectedRepo || isLocalMode) {
+			return;
+		}
+
+		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
+		draftBranchStore.setBranch(data.branch, repoFullName);
+	});
 </script>
 
 <div class="container mx-auto p-4 sm:p-6">
 	<div class="mb-4 sm:mb-6">
-		<a href={resolve(`/pages/${data.pageSlug}`)} class="text-sm text-blue-600 hover:underline">
+		<a
+			href={resolve(`/pages/${data.pageSlug}`) + branchQuery}
+			class="text-sm text-blue-600 hover:underline"
+		>
 			&larr; Back
 		</a>
 	</div>
+
+	{#if isDraftView}
+		<div class="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+			<p class="text-sm font-medium text-blue-800">Viewing Draft Content</p>
+			<p class="mt-1 text-sm text-blue-700">
+				This item is being loaded from
+				<code class="rounded bg-blue-100 px-1 text-xs">{data.branch}</code>
+			</p>
+		</div>
+	{/if}
 
 	{#if contentError}
 		<div class="rounded-lg border border-red-200 bg-red-50 p-6">
@@ -130,13 +155,15 @@
 		</div>
 	{:else}
 		<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-			<div class="border-b border-gray-200 bg-gray-50 px-4 py-4 sm:flex sm:items-start sm:justify-between sm:px-6">
+			<div
+				class="border-b border-gray-200 bg-gray-50 px-4 py-4 sm:flex sm:items-start sm:justify-between sm:px-6"
+			>
 				<div>
 					<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">{itemTitle}</h1>
 					<p class="mt-1 text-sm text-gray-600">{config.label}</p>
 				</div>
 				<a
-					href={resolve(`/pages/${data.pageSlug}/${data.itemId}/edit`)}
+					href={resolve(`/pages/${data.pageSlug}/${data.itemId}/edit${branchQuery}`)}
 					class="mt-4 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:mt-0"
 				>
 					Edit Item
