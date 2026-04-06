@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	getGitHubClientId,
+	getGitHubOAuthCredentials,
 	GITHUB_SESSION_COOKIE,
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_TOKEN_COOKIE,
@@ -10,6 +12,26 @@ import {
 	persistSelectedGitHubRepository,
 	readGitHubSession
 } from './github';
+
+function expectHttpError(
+	callback: () => unknown,
+	expected: {
+		status: number;
+		message: string;
+	}
+) {
+	try {
+		callback();
+		throw new Error('Expected callback to throw');
+	} catch (error) {
+		expect(error).toMatchObject({
+			status: expected.status,
+			body: {
+				message: expected.message
+			}
+		});
+	}
+}
 
 function createCookieStore(initial: Record<string, string> = {}) {
 	const values = new Map(Object.entries(initial));
@@ -27,6 +49,31 @@ function createCookieStore(initial: Record<string, string> = {}) {
 }
 
 describe('server/auth/github', () => {
+	it('reads the GitHub OAuth config from runtime env instead of build-time imports', () => {
+		vi.stubEnv('GITHUB_CLIENT_ID', ' github-client-id ');
+		vi.stubEnv('GITHUB_CLIENT_SECRET', ' github-client-secret ');
+
+		expect(getGitHubClientId()).toBe('github-client-id');
+		expect(getGitHubOAuthCredentials()).toEqual({
+			clientId: 'github-client-id',
+			clientSecret: 'github-client-secret'
+		});
+	});
+
+	it('returns a 503 when GitHub OAuth is not configured', () => {
+		vi.stubEnv('GITHUB_CLIENT_ID', '');
+		vi.stubEnv('GITHUB_CLIENT_SECRET', '');
+
+		expectHttpError(getGitHubClientId, {
+			status: 503,
+			message: 'GitHub OAuth is not configured for this deployment. Set GITHUB_CLIENT_ID.'
+		});
+		expectHttpError(getGitHubOAuthCredentials, {
+			status: 503,
+			message: 'GitHub OAuth is not configured for this deployment. Set GITHUB_CLIENT_ID.'
+		});
+	});
+
 	it('persists and reads the GitHub session snapshot separately from the token', () => {
 		const cookies = createCookieStore();
 

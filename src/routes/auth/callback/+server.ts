@@ -1,9 +1,8 @@
 // SERVER_JUSTIFICATION: auth_callback
 import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET } from '$env/static/private';
 import type { GitHubUserSnapshot } from '$lib/auth/session';
-import { persistGitHubSession } from '$lib/server/auth/github';
+import { getGitHubOAuthCredentials, persistGitHubSession } from '$lib/server/auth/github';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const code = url.searchParams.get('code');
@@ -14,6 +13,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	}
 
 	try {
+		const { clientId, clientSecret } = getGitHubOAuthCredentials();
 		const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
 			method: 'POST',
 			headers: {
@@ -21,8 +21,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 				Accept: 'application/json'
 			},
 			body: JSON.stringify({
-				client_id: GITHUB_CLIENT_ID,
-				client_secret: GITHUB_CLIENT_SECRET,
+				client_id: clientId,
+				client_secret: clientSecret,
 				code
 			})
 		});

@@ -34,6 +34,39 @@ interface CookieTarget {
 	cookies: Pick<Cookies, 'delete'>;
 }
 
+export function getGitHubClientId(): string {
+	const clientId = process.env.GITHUB_CLIENT_ID?.trim();
+
+	if (!clientId) {
+		throw httpError(
+			503,
+			'GitHub OAuth is not configured for this deployment. Set GITHUB_CLIENT_ID.'
+		);
+	}
+
+	return clientId;
+}
+
+export function getGitHubOAuthCredentials(): {
+	clientId: string;
+	clientSecret: string;
+} {
+	const clientId = getGitHubClientId();
+	const clientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
+
+	if (!clientSecret) {
+		throw httpError(
+			503,
+			'GitHub OAuth is not configured for this deployment. Set GITHUB_CLIENT_SECRET.'
+		);
+	}
+
+	return {
+		clientId,
+		clientSecret
+	};
+}
+
 export function getGitHubCookieOptions() {
 	return {
 		path: '/',

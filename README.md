@@ -47,6 +47,35 @@ pnpm run dev
 
 If you only want to test local-repo mode, GitHub auth is optional.
 
+## Deploy To Netlify
+
+This repo now includes a checked-in [Netlify config](/Users/kilmc/code/tentman/tentman/netlify.toml) and a pinned Node version in [package.json](/Users/kilmc/code/tentman/tentman/package.json) and [\.nvmrc](/Users/kilmc/code/tentman/tentman/.nvmrc).
+
+To deploy:
+
+1. Connect this repo to Netlify.
+2. Keep the default build command `pnpm run build`.
+3. Keep the publish directory `build`.
+4. Add these Netlify environment variables in the site settings:
+
+```env
+GITHUB_CLIENT_ID=your_github_oauth_client_id
+GITHUB_CLIENT_SECRET=your_github_oauth_client_secret
+```
+
+5. Create or update a GitHub OAuth App with:
+
+- Homepage URL: your deployed Netlify site URL
+- Authorization callback URL: `https://<your-netlify-domain>/auth/callback`
+
+6. Trigger a new deploy after saving the environment variables.
+
+Notes:
+
+- GitHub login is configured at runtime, so missing OAuth variables no longer break the Netlify build itself.
+- If OAuth variables are missing at runtime, the auth routes will return a clear server error instead of failing the build.
+- GitHub OAuth Apps support a single callback URL, so if you use a custom production domain, update the callback URL to match it exactly.
+
 ## Quick Start For Another Repo
 
 Most repos only need:
