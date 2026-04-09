@@ -1,6 +1,7 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
-import { getCollectionNavigationItems } from '$lib/features/content-management/navigation';
+import { getOrderedCollectionNavigation } from '$lib/features/content-management/navigation';
+import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getCachedContent } from '$lib/stores/content-cache';
@@ -25,7 +26,10 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
 
 	try {
-		const configs = await getCachedConfigs(backend);
+		const [configs, navigationManifest] = await Promise.all([
+			getCachedConfigs(backend),
+			loadNavigationManifestState(backend)
+		]);
 		const discoveredConfig = configs.find((config) => config.slug === slug);
 
 		if (!discoveredConfig) {
@@ -43,9 +47,9 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			discoveredConfig.slug
 		);
 
-		return json({
-			items: getCollectionNavigationItems(discoveredConfig.config, content)
-		});
+		return json(
+			getOrderedCollectionNavigation(discoveredConfig.config, content, navigationManifest.manifest)
+		);
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
 

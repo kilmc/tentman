@@ -65,6 +65,7 @@ export type ContentMode = EmbeddedContentMode | FileContentMode | DirectoryConte
 export interface ContentConfig {
 	type: 'content';
 	label: string;
+	id?: string;
 	itemLabel?: string;
 	collection?: boolean;
 	idField?: string;

@@ -52,6 +52,7 @@
 		"@tailwindcss/typography": "^0.5.19",
 		"gray-matter": "^4.0.3",
 		"jsonpath-plus": "^10.3.0",
-		"octokit": "^5.0.5"
+		"octokit": "^5.0.5",
+		"svelte-dnd-action": "^0.9.69"
 	}
 }

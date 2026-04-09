@@ -203,6 +203,9 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 	const config: ParsedContentConfig = {
 		type: 'content',
 		label: readRequiredString(input, 'label', 'config'),
+		...(readOptionalString(input, 'id', 'config') && {
+			id: readOptionalString(input, 'id', 'config')
+		}),
 		...(readOptionalString(input, 'itemLabel', 'config') && {
 			itemLabel: readOptionalString(input, 'itemLabel', 'config')
 		}),

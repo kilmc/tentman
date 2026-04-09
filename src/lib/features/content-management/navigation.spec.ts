@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	getCollectionNavigationItems,
 	getConfigItemLabel,
-	getContentItemTitle
+	getContentItemTitle,
+	getOrderedCollectionNavigation,
+	orderDiscoveredConfigs
 } from '$lib/features/content-management/navigation';
 import type { ParsedContentConfig } from '$lib/config/parse';
 
@@ -58,5 +60,89 @@ describe('content navigation helpers', () => {
 			{ itemId: 'hello-world', title: 'Hello World' },
 			{ itemId: 'second-post', title: 'Second Post' }
 		]);
+	});
+
+	it('orders top-level configs from the manifest and appends unlisted configs', () => {
+		expect(
+			orderDiscoveredConfigs(
+				[
+					{
+						slug: 'about',
+						path: 'content/about.tentman.json',
+						config: {
+							...collectionConfig,
+							id: 'about',
+							label: 'About'
+						}
+					},
+					{
+						slug: 'posts',
+						path: 'content/posts.tentman.json',
+						config: {
+							...collectionConfig,
+							id: 'posts'
+						}
+					},
+					{
+						slug: 'contact',
+						path: 'content/contact.tentman.json',
+						config: {
+							...collectionConfig,
+							id: 'contact',
+							label: 'Contact'
+						}
+					}
+				],
+				{
+					version: 1,
+					content: {
+						items: ['posts', 'about']
+					}
+				}
+			).map((config) => config.slug)
+		).toEqual(['posts', 'about', 'contact']);
+	});
+
+	it('uses grouped collection navigation from the manifest and appends ungrouped items', () => {
+		expect(
+			getOrderedCollectionNavigation(
+				{
+					...collectionConfig,
+					id: 'posts'
+				},
+				[
+					{ title: 'Hello World', slug: 'hello-world' },
+					{ title: 'Second Post', slug: 'second-post' },
+					{ title: 'Third Post', slug: 'third-post' }
+				],
+				{
+					version: 1,
+					collections: {
+						posts: {
+							items: ['second-post', 'hello-world'],
+							groups: [
+								{
+									id: 'featured',
+									label: 'Featured',
+									items: ['second-post']
+								}
+							]
+						}
+					}
+				}
+			)
+		).toEqual({
+			groups: [
+				{
+					id: 'featured',
+					label: 'Featured',
+					items: [{ itemId: 'second-post', title: 'Second Post' }]
+				}
+			],
+			items: [
+				{ itemId: 'hello-world', title: 'Hello World' },
+				{ itemId: 'third-post', title: 'Third Post' }
+			]
+		});
 	});
 });

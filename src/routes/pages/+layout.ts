@@ -1,5 +1,8 @@
 import { redirect } from '@sveltejs/kit';
-import { loadRepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
+import {
+	EMPTY_REPO_CONFIGS_BOOTSTRAP,
+	loadRepoConfigsBootstrap
+} from '$lib/repository/config-bootstrap';
 import type { LayoutLoad } from './$types';
 
 export const load: LayoutLoad = async ({ fetch, depends, parent }) => {
@@ -11,16 +14,14 @@ export const load: LayoutLoad = async ({ fetch, depends, parent }) => {
 		!parentData.selectedRepo
 	) {
 		return {
-			configs: []
+			...EMPTY_REPO_CONFIGS_BOOTSTRAP
 		};
 	}
 
 	depends('app:repo-configs');
 
 	try {
-		const { configs } = await loadRepoConfigsBootstrap(fetch);
-
-		return { configs };
+		return await loadRepoConfigsBootstrap(fetch);
 	} catch (error) {
 		if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
 			throw redirect(302, '/auth/login?redirect=/pages');

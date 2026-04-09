@@ -83,6 +83,7 @@ Most repos only need:
 1. An optional root config at `.tentman.json`
 2. One or more content configs like `tentman/configs/blog.tentman.json`
 3. Optional reusable block configs like `tentman/blocks/image-gallery.tentman.json`
+4. An optional manual navigation manifest at `tentman/navigation-manifest.json`
 
 ### Optional Root Config
 
@@ -118,6 +119,7 @@ Use this for blog posts, docs, or any one-file-per-item content.
 {
 	"type": "content",
 	"label": "Blog Posts",
+	"id": "blog",
 	"itemLabel": "Blog Post",
 	"collection": true,
 	"idField": "slug",
@@ -162,6 +164,7 @@ Use this for a single page or settings document stored in one JSON file.
 {
 	"type": "content",
 	"label": "About Page",
+	"id": "about",
 	"content": {
 		"mode": "file",
 		"path": "../../src/content/pages/about.json"
@@ -173,6 +176,46 @@ Use this for a single page or settings document stored in one JSON file.
 	]
 }
 ```
+
+### Manual Navigation Manifest
+
+Tentman can optionally read and write a conventional JSON manifest at
+`tentman/navigation-manifest.json`. In v1, JSON is the only supported format.
+
+Top-level manual ordering needs stable content config `id` values. Collection item ordering also
+needs `idField`.
+
+```json
+{
+	"version": 1,
+	"content": {
+		"items": ["about", "contact", "blog"]
+	},
+	"collections": {
+		"blog": {
+			"items": ["testing-content-workflows", "designing-a-realistic-fixture"],
+			"groups": [
+				{
+					"id": "featured",
+					"label": "Featured posts",
+					"items": ["testing-content-workflows"]
+				}
+			]
+		}
+	}
+}
+```
+
+Manifest precedence in Tentman:
+
+- If a manifest section exists, Tentman uses it first.
+- Unlisted existing configs or items are appended in their normal discovered order.
+- Stale manifest references are ignored.
+- If no manifest exists, Tentman keeps its current discovery-based behavior.
+
+If you want your live site navigation to match Tentman, read the same manifest in your site code.
+The example app in [`/Users/kilmc/code/tentman/test-app`](/Users/kilmc/code/tentman/test-app)
+shows that pattern.
 
 ### Reusable Block Example
 
@@ -238,6 +281,8 @@ Common block fields:
 - `maxLength`
 - `assetsDir`
 - `generated`
+- top-level content config `id` for stable manual navigation
+- `idField`, which becomes effectively required for manual collection ordering
 
 Path rules:
 

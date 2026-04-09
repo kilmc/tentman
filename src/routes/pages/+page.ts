@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent }) => {
@@ -16,7 +17,7 @@ export const load: PageLoad = async ({ parent }) => {
 		throw redirect(302, '/repos');
 	}
 
-	const firstConfig = data.configs[0];
+	const firstConfig = orderDiscoveredConfigs(data.configs, data.navigationManifest.manifest)[0];
 	if (firstConfig) {
 		throw redirect(302, `/pages/${firstConfig.slug}`);
 	}

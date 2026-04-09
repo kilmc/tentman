@@ -7,6 +7,7 @@ describe('parseConfigFile', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",
 			"label": "Posts",
+			"id": "posts",
 			"itemLabel": "Post",
 			"collection": true,
 			"idField": "slug",
@@ -32,6 +33,7 @@ describe('parseConfigFile', () => {
 
 		expect(parsed.content.template).toBe('./templates/post.md');
 		expect(parsed.content.filename).toBe('{{slug}}');
+		expect(parsed.id).toBe('posts');
 		expect(normalizeFields(parsed.blocks).title).toMatchObject({
 			type: 'text',
 			label: 'Title',

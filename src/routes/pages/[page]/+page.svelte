@@ -11,7 +11,10 @@
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { getCardFields } from '$lib/features/forms/helpers';
-	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
+	import {
+		getConfigItemLabel,
+		getOrderedCollectionRecords
+	} from '$lib/features/content-management/navigation';
 	import { getContentItemId } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { RootConfig } from '$lib/config/root-config';
@@ -37,6 +40,9 @@
 	let draftChanges = $state<DraftComparison | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
+	const navigationManifest = $derived(
+		isLocalMode ? $localContent.navigationManifest.manifest : data.navigationManifest.manifest
+	);
 	const isSingletonContent = $derived(!config?.collection);
 	const activeBranch = $derived(data.branch ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
@@ -310,6 +316,17 @@
 		});
 	}
 
+	function getOrderedRegularItems() {
+		if (!Array.isArray(content) || !config) {
+			return {
+				items: [],
+				groups: []
+			};
+		}
+
+		return getOrderedCollectionRecords(config, getRegularItems(), navigationManifest);
+	}
+
 	function getItemHref(itemId: string | undefined, branch?: string | null) {
 		if (!itemId) {
 			return resolve(`/pages/${discoveredConfig.slug}`);
@@ -434,7 +451,7 @@
 			</div>
 		{:else}
 			{@const draftItems = getDraftItems()}
-			{@const regularItems = getRegularItems()}
+			{@const regularItems = getOrderedRegularItems()}
 			{@const totalItems = Array.isArray(content) ? content.length : 0}
 
 			{#if totalItems > 0 || hasDrafts}
@@ -454,9 +471,30 @@
 				{/if}
 
 				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-					{#each regularItems as item (getContentItemId(config, item as ContentRecord) ?? item._filename ?? '')}
-						{@const itemId = getContentItemId(config, item as ContentRecord)}
-						<ItemCard {item} {cardFields} href={getItemHref(itemId, activeBranch)} />
+					{#each regularItems.groups as group (group.id)}
+						{#if group.items.length > 0}
+							<div class="md:col-span-2 lg:col-span-3">
+								<h3 class="mb-3 text-sm font-semibold tracking-[0.16em] text-gray-500 uppercase">
+									{group.label}
+								</h3>
+								<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+									{#each group.items as entry (entry.itemId)}
+										<ItemCard
+											item={entry.item}
+											{cardFields}
+											href={getItemHref(entry.itemId, activeBranch)}
+										/>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					{/each}
+					{#each regularItems.items as entry (entry.itemId)}
+						<ItemCard
+							item={entry.item}
+							{cardFields}
+							href={getItemHref(entry.itemId, activeBranch)}
+						/>
 					{/each}
 				</div>
 			{:else}

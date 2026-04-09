@@ -19,6 +19,7 @@
 		{ id: 'content-modes', label: 'Content Modes' },
 		{ id: 'block-configs', label: 'Block Configs' },
 		{ id: 'package-blocks', label: 'Package Blocks' },
+		{ id: 'manual-navigation', label: 'Manual Navigation' },
 		{ id: 'custom-adapters', label: 'Custom Adapters' },
 		{ id: 'discovery', label: 'Discovery and Paths' },
 		{ id: 'examples', label: 'Examples' }
@@ -93,6 +94,14 @@
 			notes: 'Also used to derive slugs in some flows.'
 		},
 		{
+			field: 'id',
+			required: 'No',
+			type: 'string',
+			purpose: 'Stable config identifier used by manual navigation.',
+			notes:
+				'Required in practice for top-level manual ordering via `tentman/navigation-manifest.json`.'
+		},
+		{
 			field: 'content',
 			required: 'Yes',
 			type: 'object',
@@ -125,7 +134,7 @@
 			required: 'No',
 			type: 'string',
 			purpose: 'Stable field used to identify items.',
-			notes: 'Recommended for collections.'
+			notes: 'Recommended for collections and required in practice for manual collection ordering.'
 		}
 	];
 
@@ -306,6 +315,8 @@
 		'If `configsDir` is set, Tentman only discovers top-level content configs inside that directory.',
 		'If `blocksDir` is set, Tentman discovers reusable block configs there and excludes them from top-level content discovery.',
 		'Files whose names start with an underscore are skipped during top-level content discovery.',
+		'Manual navigation uses the fixed manifest path `tentman/navigation-manifest.json`.',
+		'JSON is the only supported manual navigation manifest format in v1.',
 		'Package blocks come from installed packages listed in `root.blockPackages`.',
 		'Package blocks are not available in local browser-backed mode yet.',
 		'In local mode, custom adapter files must be self-contained ESM JavaScript modules with a `.js` or `.mjs` extension.'
@@ -325,6 +336,7 @@
 	const contentConfigExample = `{
   "type": "content",
   "label": "Blog Posts",
+  "id": "blog",
   "itemLabel": "Blog Post",
   "collection": true,
   "idField": "slug",
@@ -363,6 +375,7 @@
 	const fileSingletonExample = `{
   "type": "content",
   "label": "About Page",
+  "id": "about",
   "content": {
     "mode": "file",
     "path": "./src/content/pages/about.json"
@@ -399,6 +412,25 @@
     }
   ]
 };`;
+
+	const navigationManifestExample = `{
+  "version": 1,
+  "content": {
+    "items": ["about", "contact", "blog"]
+  },
+  "collections": {
+    "blog": {
+      "items": ["testing-content-workflows", "designing-a-realistic-fixture", "blooop"],
+      "groups": [
+        {
+          "id": "featured",
+          "label": "Featured posts",
+          "items": ["testing-content-workflows", "designing-a-realistic-fixture"]
+        }
+      ]
+    }
+  }
+}`;
 
 	const customAdapterExample = `export const adapter = {
   type: "imageGallery",
@@ -708,6 +740,43 @@
 				id.
 			</li>
 		</ul>
+	</section>
+
+	<section id="manual-navigation" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Manual Navigation</h2>
+		<div class="mt-4 space-y-4 text-base leading-7 text-stone-700">
+			<p>
+				Tentman can optionally read and write a conventional JSON manifest at
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+					>tentman/navigation-manifest.json</code
+				>. JSON is the only supported manifest format in v1.
+			</p>
+			<p>
+				Top-level manual ordering requires stable top-level content config
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">id</code> values. Manual collection
+				ordering also requires
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>.
+			</p>
+			<ul class="list-disc space-y-2 pl-6">
+				<li>If a manifest section exists, Tentman uses it first.</li>
+				<li>Unlisted existing configs or items are appended in discovered/default order.</li>
+				<li>Missing manifest references are ignored.</li>
+				<li>Grouped collection navigation is supported in the manifest loader.</li>
+				<li>If no manifest exists, Tentman keeps its discovery-based ordering behavior.</li>
+			</ul>
+			<p>
+				In the Tentman UI, enable this from the low-prominence Site Settings area inside
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">/pages</code>. Guided setup can add
+				missing config ids, explain when collection ordering is blocked by a missing
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>, and generate the
+				initial manifest from the current discovered order.
+			</p>
+		</div>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{navigationManifestExample}</code
+				></pre>
+		</div>
 	</section>
 
 	<section id="custom-adapters" class="scroll-mt-24 border-t border-stone-200 py-8">

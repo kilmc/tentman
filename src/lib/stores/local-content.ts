@@ -2,6 +2,10 @@ import type { BlockRegistry } from '$lib/blocks/registry';
 import { createLoadedBlockRegistry } from '$lib/blocks/registry';
 import { get, writable } from 'svelte/store';
 import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
+import {
+	loadNavigationManifestState,
+	type NavigationManifestState
+} from '$lib/features/content-management/navigation-manifest';
 import { localRepo } from '$lib/stores/local-repo';
 import type { RootConfig } from '$lib/config/root-config';
 
@@ -13,6 +17,7 @@ type LocalContentState = {
 	blockRegistry: BlockRegistry | null;
 	blockRegistryError: string | null;
 	rootConfig: RootConfig | null;
+	navigationManifest: NavigationManifestState;
 	error: string | null;
 };
 
@@ -25,6 +30,12 @@ function createStore() {
 		blockRegistry: null,
 		blockRegistryError: null,
 		rootConfig: null,
+		navigationManifest: {
+			path: 'tentman/navigation-manifest.json',
+			exists: false,
+			manifest: null,
+			error: null
+		},
 		error: null
 	});
 	const { subscribe, set, update } = store;
@@ -49,6 +60,12 @@ function createStore() {
 					blockRegistry: null,
 					blockRegistryError: null,
 					rootConfig: null,
+					navigationManifest: {
+						path: 'tentman/navigation-manifest.json',
+						exists: false,
+						manifest: null,
+						error: null
+					},
 					error: 'No local repository is open.'
 				});
 				return;
@@ -91,15 +108,24 @@ function createStore() {
 				blockRegistry: shouldClearForRepoChange ? null : state.blockRegistry,
 				blockRegistryError: shouldClearForRepoChange ? null : state.blockRegistryError,
 				rootConfig: shouldClearForRepoChange ? null : state.rootConfig,
+				navigationManifest: shouldClearForRepoChange
+					? {
+							path: 'tentman/navigation-manifest.json',
+							exists: false,
+							manifest: null,
+							error: null
+						}
+					: state.navigationManifest,
 				error: null
 			}));
 
 			inFlightRefresh = (async () => {
 				try {
-					const [configs, blockConfigs, rootConfig] = await Promise.all([
+					const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
 						backend.discoverConfigs(),
 						backend.discoverBlockConfigs(),
-						backend.readRootConfig()
+						backend.readRootConfig(),
+						loadNavigationManifestState(backend)
 					]);
 
 					let blockRegistry: BlockRegistry | null = null;
@@ -127,6 +153,7 @@ function createStore() {
 						blockRegistry,
 						blockRegistryError,
 						rootConfig,
+						navigationManifest,
 						error: null
 					});
 				} catch (error) {
@@ -138,6 +165,12 @@ function createStore() {
 						blockRegistry: null,
 						blockRegistryError: null,
 						rootConfig: null,
+						navigationManifest: {
+							path: 'tentman/navigation-manifest.json',
+							exists: false,
+							manifest: null,
+							error: null
+						},
 						error:
 							error instanceof Error ? error.message : 'Failed to load local repository content'
 					});
@@ -159,6 +192,12 @@ function createStore() {
 				blockRegistry: null,
 				blockRegistryError: null,
 				rootConfig: null,
+				navigationManifest: {
+					path: 'tentman/navigation-manifest.json',
+					exists: false,
+					manifest: null,
+					error: null
+				},
 				error: null
 			});
 		}

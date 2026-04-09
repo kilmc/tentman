@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
 	import type { PageData } from './$types';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
@@ -19,7 +20,11 @@
 
 		await localContent.refresh();
 
-		const firstConfig = get(localContent).configs[0];
+		const contentState = get(localContent);
+		const firstConfig = orderDiscoveredConfigs(
+			contentState.configs,
+			contentState.navigationManifest.manifest
+		)[0];
 		if (firstConfig) {
 			redirecting = true;
 			await goto(resolve(`/pages/${firstConfig.slug}`));

@@ -14,7 +14,17 @@ vi.mock('$lib/server/auth/github', async () => {
 
 	return {
 		...actual,
-		createGitHubServerClient: vi.fn(() => ({ rest: {} }))
+		createGitHubServerClient: vi.fn(() => ({
+			rest: {
+				repos: {
+					getContent: vi.fn(async () => {
+						throw {
+							status: 404
+						};
+					})
+				}
+			}
+		}))
 	};
 });
 
@@ -89,7 +99,8 @@ describe('GET /api/repo/collection-items', () => {
 					itemId: 'hello-world',
 					title: 'Hello world'
 				}
-			]
+			],
+			groups: []
 		});
 	});
 

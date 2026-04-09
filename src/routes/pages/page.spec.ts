@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { load } from './+page';
+import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 describe('routes/pages/+page', () => {
 	it('redirects GitHub-backed /pages requests to the first config', async () => {
@@ -33,7 +34,8 @@ describe('routes/pages/+page', () => {
 								blocks: []
 							}
 						}
-					]
+					],
+					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				})
 			} as never)
 		).rejects.toMatchObject({
@@ -55,7 +57,8 @@ describe('routes/pages/+page', () => {
 							pathLabel: '~/Sites/docs'
 						}
 					},
-					configs: []
+					configs: [],
+					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				})
 			} as never)
 		).toEqual({});

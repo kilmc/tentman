@@ -1,16 +1,24 @@
 import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
 import type { RootConfig } from '$lib/config/root-config';
+import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 
 export interface RepoConfigsBootstrap {
 	configs: DiscoveredConfig[];
 	blockConfigs: DiscoveredBlockConfig[];
 	rootConfig: RootConfig | null;
+	navigationManifest: NavigationManifestState;
 }
 
 export const EMPTY_REPO_CONFIGS_BOOTSTRAP: RepoConfigsBootstrap = {
 	configs: [],
 	blockConfigs: [],
-	rootConfig: null
+	rootConfig: null,
+	navigationManifest: {
+		path: 'tentman/navigation-manifest.json',
+		exists: false,
+		manifest: null,
+		error: null
+	}
 };
 
 export function normalizeRepoConfigsBootstrap(
@@ -19,7 +27,8 @@ export function normalizeRepoConfigsBootstrap(
 	return {
 		configs: value?.configs ?? [],
 		blockConfigs: value?.blockConfigs ?? [],
-		rootConfig: value?.rootConfig ?? null
+		rootConfig: value?.rootConfig ?? null,
+		navigationManifest: value?.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 	};
 }
 

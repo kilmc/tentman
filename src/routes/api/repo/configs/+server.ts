@@ -1,5 +1,6 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
+import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { normalizeRepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { getCachedConfigs } from '$lib/stores/config-cache';
@@ -19,17 +20,19 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
 
 	try {
-		const [configs, blockConfigs, rootConfig] = await Promise.all([
+		const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
 			getCachedConfigs(backend),
 			backend.discoverBlockConfigs(),
-			backend.readRootConfig()
+			backend.readRootConfig(),
+			loadNavigationManifestState(backend)
 		]);
 
 		return json(
 			normalizeRepoConfigsBootstrap({
 				configs,
 				blockConfigs,
-				rootConfig
+				rootConfig,
+				navigationManifest
 			})
 		);
 	} catch (err) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { load } from './+layout';
+import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 describe('routes/pages/+layout', () => {
 	it('returns empty configs when the GitHub bootstrap is not yet available', async () => {
@@ -11,9 +12,7 @@ describe('routes/pages/+layout', () => {
 					selectedBackend: null
 				})
 			} as never)
-		).toEqual({
-			configs: []
-		});
+		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
 	});
 
 	it('loads repo configs from the thin API bootstrap', async () => {
@@ -52,7 +51,8 @@ describe('routes/pages/+layout', () => {
 										blocks: []
 									}
 								}
-							]
+							],
+							navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 						}),
 						{
 							status: 200,
@@ -76,7 +76,10 @@ describe('routes/pages/+layout', () => {
 						blocks: []
 					}
 				}
-			]
+			],
+			blockConfigs: [],
+			rootConfig: null,
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 		});
 	});
 
