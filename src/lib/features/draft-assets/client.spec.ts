@@ -45,7 +45,7 @@ describe('draft-assets/client', () => {
 		const result = await appendDraftAssetsToFormData(
 			formData,
 			{
-				hero: heroRef
+				body: `![Hero](${heroRef})`
 			},
 			store
 		);
@@ -73,10 +73,27 @@ describe('draft-assets/client', () => {
 		await expect(
 			getDraftAssetPreviewChanges(
 				{
-					hero: heroRef
+					body: `![Hero](${heroRef})`
 				},
 				store
 			)
 		).resolves.toEqual([{ path: 'static/images/hero-asset.png', type: 'create', size: 11 }]);
+	});
+
+	it('throws a clear error when staged markdown metadata is missing', async () => {
+		const missingStore: DraftAssetStore = {
+			...createStore(),
+			getMetadata: vi.fn(async () => null)
+		};
+
+		await expect(
+			appendDraftAssetsToFormData(
+				new FormData(),
+				{
+					body: `![Missing](${buildDraftAssetRef('missing')})`
+				},
+				missingStore
+			)
+		).rejects.toThrow('Draft asset metadata is missing');
 	});
 });

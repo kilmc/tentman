@@ -97,6 +97,7 @@ describe('draft-assets/materialize', () => {
 			store,
 			content: {
 				hero: firstRef,
+				body: `![Hero](${firstRef})\n\n![](${secondRef})`,
 				sections: [{ image: firstRef }, { image: secondRef }]
 			}
 		});
@@ -116,6 +117,7 @@ describe('draft-assets/materialize', () => {
 		);
 		expect(result.content).toEqual({
 			hero: '/images/hero-first.png',
+			body: '![Hero](/images/hero-first.png)\n\n![](/images/gallery-second.png)',
 			sections: [{ image: '/images/hero-first.png' }, { image: '/images/gallery-second.png' }]
 		});
 		expect(result.fileChanges).toEqual([

@@ -82,6 +82,22 @@ describe('shared draft asset rendering surfaces', () => {
 		await expect.element(screen.getByText('draft-asset:hero')).toBeVisible();
 	});
 
+	it('renders markdown blocks as formatted content instead of raw markdown text', async () => {
+		const screen = render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body'
+			},
+			value: '# Hello world\n\nThis is **bold** text.',
+			blockRegistry: new Map() as never
+		});
+
+		await expect.element(screen.getByRole('heading', { name: 'Hello world' })).toBeVisible();
+		await expect.element(screen.getByText('bold')).toBeVisible();
+		await expect.element(screen.getByText('This is')).toBeVisible();
+	});
+
 	it('renders staged draft refs in item cards', async () => {
 		const screen = render(ItemCard, {
 			item: {

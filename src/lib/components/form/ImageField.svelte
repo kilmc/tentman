@@ -4,6 +4,7 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { getDraftAssetRepoKey, isDraftAssetRef } from '$lib/features/draft-assets/shared';
+	import { getDraftImageValidationError } from '$lib/features/draft-assets/validation';
 
 	interface Props {
 		label: string;
@@ -52,14 +53,9 @@
 
 		uploadError = null;
 
-		if (!file.type.startsWith('image/')) {
-			uploadError = 'Please select an image file';
-			return;
-		}
-
-		const maxSize = 5 * 1024 * 1024;
-		if (file.size > maxSize) {
-			uploadError = 'Image must be less than 5MB';
+		const validationError = getDraftImageValidationError(file);
+		if (validationError) {
+			uploadError = validationError;
 			return;
 		}
 

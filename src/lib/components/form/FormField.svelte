@@ -49,7 +49,16 @@
 {:else if fieldType === 'textarea'}
 	<TextareaField {label} bind:value {required} {minLength} {maxLength} {onchange} />
 {:else if fieldType === 'markdown'}
-	<MarkdownField {label} bind:value {required} {minLength} {maxLength} {onchange} />
+	<MarkdownField
+		{label}
+		bind:value
+		{required}
+		{minLength}
+		{maxLength}
+		{onchange}
+		storagePath={block.assetsDir ?? imagePath}
+		assetsDir={block.assetsDir}
+	/>
 {:else if fieldType === 'email'}
 	<EmailField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'url'}

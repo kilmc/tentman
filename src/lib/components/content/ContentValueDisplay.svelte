@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
@@ -87,8 +88,10 @@
 		<span class="text-sm">{formatContentValue(value)}</span>
 	{/if}
 {:else if block.type === 'markdown' && typeof value === 'string'}
-	<div class="prose max-w-none font-mono text-sm whitespace-pre-wrap">
-		{formatContentValue(value)}
+	<div
+		class="markdown-content prose max-w-none text-sm prose-stone prose-headings:font-semibold prose-code:rounded prose-code:bg-stone-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:font-mono prose-pre:text-stone-800"
+	>
+		<SvelteMarkdown source={value} />
 	</div>
 {:else if block.type === 'image' && typeof value === 'string' && value}
 	<figure class="space-y-3">
@@ -106,3 +109,20 @@
 {:else}
 	<span class="text-sm">{formatContentValue(value)}</span>
 {/if}
+
+<style>
+	:global(.markdown-content pre) {
+		font-family:
+			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+			monospace;
+		line-height: 1.6;
+		tab-size: 2;
+	}
+
+	:global(.markdown-content pre code) {
+		font: inherit;
+		background: transparent;
+		padding: 0;
+		border-radius: 0;
+	}
+</style>

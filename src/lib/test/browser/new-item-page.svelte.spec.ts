@@ -191,14 +191,14 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 		setMockFormGeneratorResult({
 			data: {
 				title: 'Hello world',
-				hero: 'draft-asset:hero'
+				body: '![Hero](draft-asset:hero)'
 			},
 			errors: []
 		});
 		localFlowMocks.materializeDraftAssets.mockResolvedValue({
 			content: {
 				title: 'Hello world',
-				hero: '/images/hero-asset.png'
+				body: '![Hero](/images/hero-asset.png)'
 			},
 			fileChanges: [],
 			cleanedRefs: ['draft-asset:hero']
@@ -231,7 +231,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			backend: localFlowMocks.backend,
 			content: {
 				title: 'Hello world',
-				hero: 'draft-asset:hero'
+				body: '![Hero](draft-asset:hero)'
 			}
 		});
 		expect(localFlowMocks.createContentDocument).toHaveBeenCalledWith(
@@ -240,7 +240,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			localFlowMocks.discoveredConfig.path,
 			{
 				title: 'Hello world',
-				hero: '/images/hero-asset.png'
+				body: '![Hero](/images/hero-asset.png)'
 			},
 			undefined
 		);

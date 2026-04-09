@@ -76,8 +76,85 @@ function getFileExtension(originalName: string, mimeType: string): string {
 	}
 }
 
+const MARKDOWN_DRAFT_IMAGE_PATTERN =
+	/!\[[^\]]*]\((?:<(draft-asset:[^>\s]+)>|(draft-asset:[^\s)]+))((?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?)\)/g;
+const HTML_DRAFT_IMAGE_PATTERN =
+	/<img\b([^>]*?)\bsrc\s*=\s*(["'])(draft-asset:[^"']+)\2([^>]*?)>/gi;
+
+function collectDraftAssetRefsFromMarkdownString(value: string): string[] {
+	const refs: string[] = [];
+
+	for (const match of value.matchAll(MARKDOWN_DRAFT_IMAGE_PATTERN)) {
+		const ref = match[1] ?? match[2];
+		if (ref) {
+			refs.push(ref);
+		}
+	}
+
+	for (const match of value.matchAll(HTML_DRAFT_IMAGE_PATTERN)) {
+		const ref = match[3];
+		if (ref) {
+			refs.push(ref);
+		}
+	}
+
+	return refs;
+}
+
+export function collectDraftAssetRefsFromString(value: string): string[] {
+	if (isDraftAssetRef(value)) {
+		return [value];
+	}
+
+	return Array.from(new Set(collectDraftAssetRefsFromMarkdownString(value)));
+}
+
+function replaceDraftAssetRefsInMarkdownString(
+	value: string,
+	replacements: Map<string, string>
+): string {
+	let nextValue = value.replace(MARKDOWN_DRAFT_IMAGE_PATTERN, (match, angleRef, plainRef) => {
+		const ref = angleRef ?? plainRef;
+		const replacement = replacements.get(ref);
+
+		if (!replacement) {
+			return match;
+		}
+
+		return match.replace(ref, replacement);
+	});
+
+	nextValue = nextValue.replace(
+		HTML_DRAFT_IMAGE_PATTERN,
+		(match, beforeSrc, quote, ref, afterSrc) => {
+			const replacement = replacements.get(ref);
+
+			if (!replacement) {
+				return match;
+			}
+
+			return `<img${beforeSrc}src=${quote}${replacement}${quote}${afterSrc}>`;
+		}
+	);
+
+	return nextValue;
+}
+
+export function replaceDraftAssetRefsInString(
+	value: string,
+	replacements: Map<string, string>
+): string {
+	if (isDraftAssetRef(value)) {
+		return replacements.get(value) ?? value;
+	}
+
+	return replaceDraftAssetRefsInMarkdownString(value, replacements);
+}
+
 export function normalizeDraftAssetStoragePath(storagePath?: string): string {
-	const normalized = normalizeRepoRelativePath(trimDotSlash((storagePath || 'static/images/').trim()));
+	const normalized = normalizeRepoRelativePath(
+		trimDotSlash((storagePath || 'static/images/').trim())
+	);
 	const withoutLeadingSlash = trimLeadingSlash(normalized);
 	return withoutLeadingSlash.endsWith('/') ? withoutLeadingSlash : `${withoutLeadingSlash}/`;
 }
@@ -144,7 +221,7 @@ export function buildDraftAssetMetadata(input: {
 
 export function collectDraftAssetRefsFromValue(value: ContentValue | undefined): string[] {
 	if (typeof value === 'string') {
-		return isDraftAssetRef(value) ? [value] : [];
+		return collectDraftAssetRefsFromString(value);
 	}
 
 	if (!value || typeof value !== 'object') {
@@ -169,7 +246,7 @@ export function replaceDraftAssetRefsInValue(
 	replacements: Map<string, string>
 ): ContentValue | undefined {
 	if (typeof value === 'string') {
-		return replacements.get(value) ?? value;
+		return replaceDraftAssetRefsInString(value, replacements);
 	}
 
 	if (!value || typeof value !== 'object') {

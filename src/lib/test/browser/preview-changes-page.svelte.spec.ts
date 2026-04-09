@@ -83,7 +83,7 @@ describe('routes/pages/[page]/preview-changes/+page.svelte', () => {
 				},
 				contentData: {
 					title: 'About',
-					hero: 'draft-asset:hero'
+					body: '![Hero](draft-asset:hero)'
 				},
 				changesSummary: {
 					totalChanges: 1,

@@ -3,7 +3,9 @@ import {
 	buildDraftAssetMetadata,
 	buildDraftAssetRef,
 	collectDraftAssetRefsFromContent,
+	collectDraftAssetRefsFromString,
 	mergeChangesSummaryWithDraftAssets,
+	replaceDraftAssetRefsInString,
 	replaceDraftAssetRefsInContent
 } from './shared';
 
@@ -69,6 +71,62 @@ describe('draft-assets/shared', () => {
 			nested: {
 				cover: '/images/cover.png'
 			}
+		});
+	});
+
+	it('collects draft refs from markdown image destinations and html image tags only', () => {
+		const firstRef = buildDraftAssetRef('first');
+		const secondRef = buildDraftAssetRef('second');
+
+		expect(
+			collectDraftAssetRefsFromString(
+				[
+					`Intro prose with ${firstRef} should be ignored.`,
+					`![Hero](${firstRef})`,
+					`<img src="${secondRef}" alt="Cover">`,
+					`![Gallery](https://example.com/image.png)`
+				].join('\n\n')
+			)
+		).toEqual([firstRef, secondRef]);
+	});
+
+	it('rewrites inline markdown and html image refs while preserving exact-string image refs', () => {
+		const firstRef = buildDraftAssetRef('first');
+		const secondRef = buildDraftAssetRef('second');
+		const replacements = new Map([
+			[firstRef, '/images/hero.png'],
+			[secondRef, '/images/cover.png']
+		]);
+
+		expect(replaceDraftAssetRefsInString(firstRef, replacements)).toBe('/images/hero.png');
+		expect(
+			replaceDraftAssetRefsInString(
+				`![Hero](${firstRef} "Hero title")\n\n<img src="${secondRef}" alt="Cover">`,
+				replacements
+			)
+		).toBe('![Hero](/images/hero.png "Hero title")\n\n<img src="/images/cover.png" alt="Cover">');
+	});
+
+	it('collects and rewrites multiple markdown image refs inside content fields', () => {
+		const firstRef = buildDraftAssetRef('first');
+		const secondRef = buildDraftAssetRef('second');
+		const content = {
+			body: `![Hero](${firstRef})\n\nSome prose\n\n![](${secondRef})`,
+			hero: firstRef
+		};
+
+		expect(collectDraftAssetRefsFromContent(content)).toEqual([firstRef, secondRef]);
+		expect(
+			replaceDraftAssetRefsInContent(
+				content,
+				new Map([
+					[firstRef, '/images/hero.png'],
+					[secondRef, '/images/gallery.png']
+				])
+			)
+		).toEqual({
+			body: '![Hero](/images/hero.png)\n\nSome prose\n\n![](/images/gallery.png)',
+			hero: '/images/hero.png'
 		});
 	});
 

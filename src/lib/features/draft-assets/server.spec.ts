@@ -47,7 +47,7 @@ describe('draft-assets/server', () => {
 		const result = await materializeDraftAssetsFromFormData({
 			formData,
 			content: {
-				hero: heroRef
+				body: `![Hero](${heroRef})`
 			},
 			backend,
 			writeOptions: {
@@ -61,11 +61,43 @@ describe('draft-assets/server', () => {
 			{ ref: 'draft/preview-branch' }
 		);
 		expect(result.content).toEqual({
-			hero: '/images/hero-asset.png'
+			body: '![Hero](/images/hero-asset.png)'
 		});
 		expect(result.fileChanges).toEqual([
 			{ path: 'static/images/hero-asset.png', type: 'create', size: 5 }
 		]);
 		expect(result.cleanedRefs).toEqual([heroRef]);
+	});
+
+	it('throws a clear error when a staged markdown file part is missing', async () => {
+		const backend = createBackend();
+		const formData = new FormData();
+		const heroRef = buildDraftAssetRef('hero');
+
+		formData.set(
+			'draftAssetManifest',
+			JSON.stringify([
+				{
+					id: 'hero',
+					ref: heroRef,
+					originalName: 'hero.png',
+					mimeType: 'image/png',
+					size: 5,
+					targetFilename: 'hero-asset.png',
+					targetPath: 'static/images/hero-asset.png',
+					publicPath: '/images/hero-asset.png'
+				}
+			])
+		);
+
+		await expect(
+			materializeDraftAssetsFromFormData({
+				formData,
+				content: {
+					body: `![Hero](${heroRef})`
+				},
+				backend
+			})
+		).rejects.toThrow(`Draft asset file is missing for ${heroRef}`);
 	});
 });
