@@ -7,7 +7,7 @@
 </script>
 
 <div
-	class="block animate-pulse rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+	class="block animate-pulse rounded-md border border-stone-200 bg-white p-4"
 	role="status"
 	aria-label="Loading content..."
 >
@@ -29,7 +29,7 @@
 		<!-- Badge skeleton (optional) -->
 		{#if showBadge}
 			<div class="flex-shrink-0">
-				<div class="h-7 w-20 rounded-full bg-gray-200"></div>
+				<div class="h-6 w-16 rounded-sm bg-gray-200"></div>
 			</div>
 		{/if}
 	</div>

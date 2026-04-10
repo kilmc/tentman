@@ -48,15 +48,15 @@
 		<button
 			type="button"
 			onclick={addItem}
-			class="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+			class="rounded-md bg-stone-950 px-3 py-1 text-xs font-medium text-white hover:bg-stone-800"
 		>
 			Add Item
 		</button>
 	</div>
 
 	{#if value.length === 0}
-		<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-			<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white">
+		<div class="rounded-md border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+			<div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-white">
 				<svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path
 						stroke-linecap="round"
@@ -101,7 +101,7 @@
 							type="text"
 							bind:value={value[index]}
 							oninput={() => onchange?.()}
-							class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+							class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
 						/>
 					{/if}
 				</div>

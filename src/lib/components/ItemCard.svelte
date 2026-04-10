@@ -43,11 +43,11 @@
 	function getBadgeStyles(badgeType: 'draft' | 'new' | 'deleted') {
 		switch (badgeType) {
 			case 'draft':
-				return 'bg-blue-100 text-blue-800 border-blue-200';
+				return 'border-stone-300 bg-stone-100 text-stone-700';
 			case 'new':
-				return 'bg-green-100 text-green-800 border-green-200';
+				return 'border-stone-300 bg-stone-900 text-white';
 			case 'deleted':
-				return 'bg-red-100 text-red-800 border-red-200';
+				return 'border-red-200 bg-red-50 text-red-700';
 		}
 	}
 
@@ -87,53 +87,51 @@
 
 <a
 	{href}
-	class="block cursor-pointer rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md"
+	class="block cursor-pointer rounded-md border border-stone-200 bg-white p-4 transition-colors duration-200 hover:border-stone-400 hover:bg-stone-50"
 >
 	{#if heroImageBlock}
-		<div class="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+		<div class="mb-3 overflow-hidden rounded-md border border-stone-200 bg-stone-100">
 			<AssetImage
 				value={String(item[heroImageBlock.id])}
 				alt={heroImageBlock.label ?? 'Content image'}
 				assetsDir={heroImageBlock.assetsDir}
-				class="h-44 w-full object-cover"
+				class="h-40 w-full object-cover"
 				loading="lazy"
 			/>
 		</div>
 	{/if}
 
-	<div class="flex items-start justify-between gap-4">
+	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0 flex-1">
-			<!-- Primary fields (titles) -->
 			{#if visiblePrimaryFields.length > 0}
-				<div class="space-y-1">
+				<div class="space-y-0.5">
 					{#each visiblePrimaryFields as block}
-						<h3 class="text-lg font-semibold break-words text-gray-900">
+						<h3 class="text-base font-semibold break-words text-stone-950">
 							{formatContentValue(item[block.id])}
 						</h3>
 					{/each}
 				</div>
 			{/if}
 
-			<!-- Secondary fields (metadata) -->
 			{#if visibleSecondaryFields.length > 0}
 				<div class="mt-2 space-y-1">
 					{#each visibleSecondaryFields as block}
 						{#if block.type === 'image' && typeof item[block.id] === 'string' && item[block.id]}
-							<div class="flex items-center gap-3 text-sm text-gray-600">
+							<div class="flex items-center gap-3 text-sm text-stone-600">
 								<AssetImage
 									value={String(item[block.id])}
 									alt={getBlockLabel(block)}
 									assetsDir={block.assetsDir}
-									class="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+									class="h-11 w-11 rounded-md border border-stone-200 object-cover"
 									loading="lazy"
 								/>
 								<div class="min-w-0">
-									<p class="font-medium text-gray-700">{getBlockLabel(block)}</p>
-									<p class="truncate text-xs text-gray-500">{String(item[block.id])}</p>
+									<p class="font-medium text-stone-700">{getBlockLabel(block)}</p>
+									<p class="truncate text-xs text-stone-500">{String(item[block.id])}</p>
 								</div>
 							</div>
 						{:else}
-							<p class="text-sm text-gray-600">
+							<p class="text-sm text-stone-600">
 								<span class="font-medium">{getBlockLabel(block)}:</span>
 								{formatContentValue(item[block.id])}
 							</p>
@@ -143,16 +141,15 @@
 			{/if}
 
 			{#if item._filename}
-				<p class="mt-3 font-mono text-xs text-gray-400">{item._filename}</p>
+				<p class="mt-3 font-mono text-xs text-stone-400">{item._filename}</p>
 			{/if}
 		</div>
 
-		<!-- Badge -->
 		{#if statusBadges.length > 0}
 			<div class="flex flex-shrink-0 flex-col gap-2">
 				{#each statusBadges as statusBadge}
 					<span
-						class="inline-block rounded-full border px-3 py-1 text-center text-xs font-medium {statusBadge.className}"
+						class="inline-block rounded-sm border px-2.5 py-1 text-center text-[11px] font-medium tracking-[0.14em] uppercase {statusBadge.className}"
 					>
 						{statusBadge.label}
 					</span>

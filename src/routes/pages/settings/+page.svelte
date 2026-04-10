@@ -136,51 +136,49 @@
 	}
 </script>
 
-<div class="container mx-auto max-w-4xl p-4 sm:p-6">
-	<div class="mb-8">
-		<p class="text-xs font-semibold tracking-[0.18em] text-gray-500 uppercase">Site Settings</p>
-		<h1 class="mt-2 text-2xl font-bold text-gray-900 sm:text-3xl">Navigation</h1>
-		<p class="mt-3 max-w-2xl text-sm text-gray-600">
+<div class="mx-auto max-w-4xl">
+	<div class="mb-6">
+		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">Settings</h1>
+		<p class="mt-2 max-w-2xl text-sm text-stone-600">
 			Set up the repo manifest that powers sidebar editing. Once it is ready, use
-			<code class="rounded bg-gray-100 px-1 py-0.5 text-xs">Edit navigation</code>
+			<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">Edit navigation</code>
 			in the sidebar.
 		</p>
 	</div>
 
 	{#if actionError}
-		<div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+		<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
 			{actionError}
 		</div>
 	{/if}
 
 	{#if actionMessage}
-		<div class="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+		<div class="mb-5 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
 			{actionMessage}
 		</div>
 	{/if}
 
-	<div class="space-y-6">
-		<section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+	<div class="space-y-4">
+		<section class="rounded-md border border-stone-200 bg-white p-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div>
-					<p class="text-xs font-semibold tracking-[0.18em] text-gray-500 uppercase">Status</p>
-					<h2 class="mt-2 text-xl font-semibold text-gray-900">
+					<h2 class="text-xl font-semibold text-stone-950">
 						{setup.status === 'active'
 							? 'Ready'
 							: setup.status === 'partial'
 								? 'Needs setup'
 								: 'Not enabled'}
 					</h2>
-					<p class="mt-2 text-sm text-gray-600">
+					<p class="mt-2 text-sm text-stone-600">
 						Manifest path:
-						<code class="rounded bg-gray-100 px-1 py-0.5 text-xs">{setup.manifestPath}</code>
+						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">{setup.manifestPath}</code>
 					</p>
 				</div>
 
 				{#if !setup.manifestExists || !setup.manifestValid}
 					<button
 						type="button"
-						class="inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+						class="inline-flex rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
 						onclick={() => void handleEnableManualNavigation()}
 						disabled={saving}
 					>
@@ -189,10 +187,10 @@
 				{/if}
 			</div>
 
-			<div class="mt-6 grid gap-4 md:grid-cols-2">
-				<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-					<p class="font-medium text-gray-900">Manifest</p>
-					<p class="mt-2 text-sm text-gray-600">
+			<div class="mt-4 grid gap-3 md:grid-cols-2">
+				<div class="rounded-md border border-stone-200 bg-stone-50 p-3">
+					<p class="font-medium text-stone-950">Manifest</p>
+					<p class="mt-2 text-sm text-stone-600">
 						{#if setup.manifestExists && setup.manifestValid}
 							The sidebar editor is using the repo manifest.
 						{:else if setup.manifestExists}
@@ -206,25 +204,23 @@
 					{/if}
 				</div>
 
-				<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-					<p class="font-medium text-gray-900">Sidebar editing</p>
-					<p class="mt-2 text-sm text-gray-600">
+				<div class="rounded-md border border-stone-200 bg-stone-50 p-3">
+					<p class="font-medium text-stone-950">Sidebar editing</p>
+					<p class="mt-2 text-sm text-stone-600">
 						Top-level order needs config
-						<code class="rounded bg-gray-100 px-1 py-0.5 text-xs">id</code>
+						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">id</code>
 						values. Collection item order also needs an
-						<code class="rounded bg-gray-100 px-1 py-0.5 text-xs">idField</code>.
+						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">idField</code>.
 					</p>
 				</div>
 			</div>
 		</section>
 
-		<section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+		<section class="rounded-md border border-stone-200 bg-white p-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div>
-					<p class="text-xs font-semibold tracking-[0.18em] text-gray-500 uppercase">
-						Content Config Ids
-					</p>
-					<p class="mt-2 text-sm text-gray-600">
+					<h2 class="text-base font-semibold text-stone-950">Content config IDs</h2>
+					<p class="mt-2 text-sm text-stone-600">
 						These are required for stable top-level navigation order.
 					</p>
 				</div>
@@ -232,7 +228,7 @@
 				{#if setup.missingConfigIds.length > 0}
 					<button
 						type="button"
-						class="inline-flex rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+						class="inline-flex rounded-md border border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400"
 						onclick={() => void handleAddMissingIds()}
 						disabled={saving}
 					>
@@ -247,7 +243,7 @@
 				<div class="mt-4 space-y-2">
 					{#each setup.missingConfigIds as config (config.path)}
 						<div
-							class="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900"
+							class="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900"
 						>
 							<span class="font-medium">{config.label}</span>
 							<span>
@@ -262,33 +258,31 @@
 			{/if}
 		</section>
 
-		<section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-			<p class="text-xs font-semibold tracking-[0.18em] text-gray-500 uppercase">
-				Collection Readiness
-			</p>
-			<div class="mt-4 space-y-2">
+		<section class="rounded-md border border-stone-200 bg-white p-4">
+			<h2 class="text-base font-semibold text-stone-950">Collection readiness</h2>
+			<div class="mt-3 space-y-2">
 				{#each setup.collections as collection (collection.slug)}
 					<div
-						class="rounded-xl border border-gray-200 p-3"
+						class="rounded-md border border-stone-200 p-3"
 						class:bg-white={collection.canOrderItems}
-						class:bg-gray-50={!collection.canOrderItems}
+						class:bg-stone-50={!collection.canOrderItems}
 					>
 						<div class="flex flex-wrap items-center justify-between gap-3">
-							<p class="font-medium text-gray-900">{collection.label}</p>
+							<p class="font-medium text-stone-950">{collection.label}</p>
 							<p
 								class:text-green-700={collection.canOrderItems}
-								class:text-gray-500={!collection.canOrderItems}
+								class:text-stone-500={!collection.canOrderItems}
 								class="text-sm font-medium"
 							>
 								{collection.canOrderItems ? 'Editable in sidebar' : 'Locked in sidebar'}
 							</p>
 						</div>
 						{#if !collection.canOrderItems}
-							<p class="mt-1 text-sm text-gray-500">
+							<p class="mt-1 text-sm text-stone-500">
 								Add a config
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-xs">id</code>
+								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs">id</code>
 								and
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-xs">idField</code>
+								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs">idField</code>
 								to unlock item reordering.
 							</p>
 						{/if}

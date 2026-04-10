@@ -765,9 +765,8 @@
 				<li>If no manifest exists, Tentman keeps its discovery-based ordering behavior.</li>
 			</ul>
 			<p>
-				In the Tentman UI, enable this from the low-prominence Site Settings area inside
-				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">/pages</code>. Guided setup can add
-				missing config ids, explain when collection ordering is blocked by a missing
+				In the Tentman UI, enable this from Site settings in the top bar settings menu. Guided setup
+				can add missing config ids, explain when collection ordering is blocked by a missing
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>, and generate the
 				initial manifest from the current discovered order.
 			</p>

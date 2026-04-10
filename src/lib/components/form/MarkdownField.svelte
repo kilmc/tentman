@@ -125,14 +125,14 @@
 
 	function toolbarButtonClass(active = false): string {
 		return active
-			? 'flex h-10 w-10 items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300'
-			: 'flex h-10 w-10 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300';
+			? 'flex h-10 w-10 items-center justify-center rounded-md border border-stone-400 bg-stone-100 text-stone-900 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300'
+			: 'flex h-10 w-10 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300';
 	}
 
 	function toolbarTriggerClass(active = false): string {
 		return active
-			? 'inline-flex h-10 w-14 items-center justify-between rounded-lg border border-sky-300 bg-sky-50 px-3 text-sm font-medium text-sky-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300'
-			: 'inline-flex h-10 w-14 items-center justify-between rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300';
+			? 'inline-flex h-10 w-14 items-center justify-between rounded-md border border-stone-400 bg-stone-100 px-3 text-sm font-medium text-stone-900 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300'
+			: 'inline-flex h-10 w-14 items-center justify-between rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300';
 	}
 
 	function toggleGroupButtonClass(
@@ -141,26 +141,26 @@
 	): string {
 		const radiusClass =
 			position === 'only'
-				? 'rounded-lg'
+				? 'rounded-md'
 				: position === 'start'
-					? 'rounded-l-lg rounded-r-none'
+					? 'rounded-l-md rounded-r-none'
 					: position === 'end'
-						? 'rounded-r-lg rounded-l-none'
+						? 'rounded-r-md rounded-l-none'
 						: 'rounded-none';
 
 		return active
-			? `relative z-10 flex h-10 w-10 items-center justify-center border border-sky-300 bg-sky-50 text-sky-700 shadow-sm ${radiusClass} focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300`
-			: `relative flex h-10 w-10 items-center justify-center border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors hover:bg-stone-50 hover:text-stone-900 ${radiusClass} focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300`;
+			? `relative z-10 flex h-10 w-10 items-center justify-center border border-stone-400 bg-stone-100 text-stone-900 shadow-sm ${radiusClass} focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300`
+			: `relative flex h-10 w-10 items-center justify-center border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors hover:bg-stone-50 hover:text-stone-900 ${radiusClass} focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300`;
 	}
 
 	function dropdownContentClass(): string {
-		return 'z-50 min-w-48 rounded-xl border border-stone-200 bg-white p-1.5 shadow-lg';
+		return 'z-50 min-w-48 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg';
 	}
 
 	function dropdownRadioItemClass(checked = false): string {
 		return checked
-			? 'flex cursor-default items-center justify-between rounded-lg bg-sky-50 px-2.5 py-2 text-sm font-medium text-sky-700 outline-none'
-			: 'flex cursor-default items-center justify-between rounded-lg px-2.5 py-2 text-sm text-stone-700 outline-none hover:bg-stone-100 focus:bg-stone-100';
+			? 'flex cursor-default items-center justify-between rounded-md bg-stone-100 px-2.5 py-2 text-sm font-medium text-stone-900 outline-none'
+			: 'flex cursor-default items-center justify-between rounded-md px-2.5 py-2 text-sm text-stone-700 outline-none hover:bg-stone-100 focus:bg-stone-100';
 	}
 
 	function queueDraftCleanup(previousMarkdown: string, nextMarkdown: string) {
@@ -590,7 +590,7 @@
 			type="button"
 			onclick={() => (activeTab = 'rich')}
 			class="border-b-2 px-4 py-2 text-sm font-medium transition-colors {activeTab === 'rich'
-				? 'border-blue-600 text-blue-600'
+				? 'border-stone-950 text-stone-950'
 				: 'border-transparent text-gray-600 hover:text-gray-900'}"
 		>
 			Rich
@@ -599,7 +599,7 @@
 			type="button"
 			onclick={() => (activeTab = 'markdown')}
 			class="border-b-2 px-4 py-2 text-sm font-medium transition-colors {activeTab === 'markdown'
-				? 'border-blue-600 text-blue-600'
+				? 'border-stone-950 text-stone-950'
 				: 'border-transparent text-gray-600 hover:text-gray-900'}"
 		>
 			Markdown
@@ -618,12 +618,10 @@
 			class:border-red-300={isOverLimit || isUnderMin}
 			class:border-gray-300={!isOverLimit && !isUnderMin}
 		>
-			<div
-				class="border-b border-stone-200 bg-gradient-to-r from-stone-50 via-white to-slate-50 p-3"
-			>
+			<div class="border-b border-stone-200 bg-stone-50 p-3">
 				<Toolbar.Root
 					aria-label="Markdown formatting"
-					class="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200/80 bg-white/90 p-2 shadow-sm"
+					class="flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-white p-2 shadow-sm"
 				>
 					<DropdownMenu.Root
 						open={structureMenuOpen}
@@ -832,13 +830,13 @@
 			{required}
 			{rows}
 			oninput={handleMarkdownInput}
-			class="w-full rounded border px-3 py-2 font-mono text-sm focus:ring-1 focus:outline-none"
+			class="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-1 focus:outline-none"
 			class:border-red-300={isOverLimit || isUnderMin}
 			class:focus:border-red-500={isOverLimit || isUnderMin}
 			class:focus:ring-red-500={isOverLimit || isUnderMin}
 			class:border-gray-300={!isOverLimit && !isUnderMin}
-			class:focus:border-blue-500={!isOverLimit && !isUnderMin}
-			class:focus:ring-blue-500={!isOverLimit && !isUnderMin}
+			class:focus:border-stone-900={!isOverLimit && !isUnderMin}
+			class:focus:ring-stone-900={!isOverLimit && !isUnderMin}
 		></textarea>
 		<p class="mt-1 text-xs text-gray-500">
 			Markdown is the stored source of truth. Use this tab for precise edits and alt text.

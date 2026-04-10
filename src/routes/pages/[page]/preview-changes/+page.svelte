@@ -54,66 +54,57 @@
 	}
 </script>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
+<div class="mx-auto max-w-4xl">
 	<div class="mb-6">
-		<a
-			href="/pages/{data.discoveredConfig.slug}/edit{branchQuery}"
-			class="text-sm text-blue-600 hover:text-blue-800"
-		>
-			← Back to Edit
-		</a>
-	</div>
-
-	<div class="mb-8">
-		<h1 class="mb-2 text-3xl font-bold">Preview Changes</h1>
-		<p class="text-gray-600">
+		<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Preview Changes</h1>
+		<p class="text-stone-600">
 			Review the changes that will be made to <strong>{data.discoveredConfig.config.label}</strong>
 		</p>
 	</div>
 
 	{#if form?.error}
-		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+		<div class="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-red-800">
 			<p class="font-semibold">Error</p>
 			<p>{form.error}</p>
 		</div>
 	{/if}
 
 	{#if draftAssetError}
-		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+		<div class="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-red-800">
 			<p class="font-semibold">Draft asset error</p>
 			<p>{draftAssetError}</p>
 		</div>
 	{/if}
 
 	{#if data.changesError}
-		<div class="mb-6 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+		<div class="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-red-800">
 			<p class="font-semibold">Error calculating changes</p>
 			<p>{data.changesError}</p>
 		</div>
 	{:else if displayedChangesSummary}
-		<div class="mb-8 rounded-lg border border-gray-200 bg-white shadow-sm">
-			<div class="border-b border-gray-200 px-6 py-4">
-				<h2 class="text-xl font-semibold">
+		<div class="mb-6 rounded-md border border-stone-200 bg-white">
+			<div class="border-b border-stone-200 px-4 py-3">
+				<h2 class="text-xl font-semibold text-stone-950">
 					{displayedChangesSummary.totalChanges}
 					{displayedChangesSummary.totalChanges === 1 ? 'file' : 'files'} will be changed
 				</h2>
 			</div>
 
-			<div class="divide-y divide-gray-200">
+			<div class="divide-y divide-stone-200">
 				{#each displayedChangesSummary.files as file}
-					<div class="px-6 py-4">
+					<div class="px-4 py-3">
 						<div class="mb-2 flex items-start justify-between">
 							<div class="flex-1">
 								<div class="flex items-center gap-2">
 									{#if file.type === 'create'}
 										<span
-											class="inline-flex items-center rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800"
+											class="inline-flex items-center rounded-sm bg-stone-900 px-2 py-1 text-xs font-medium text-white"
 										>
 											Create
 										</span>
 									{:else if file.type === 'update'}
 										<span
-											class="inline-flex items-center rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800"
+											class="inline-flex items-center rounded-sm bg-stone-100 px-2 py-1 text-xs font-medium text-stone-800"
 										>
 											Update
 										</span>
@@ -124,10 +115,10 @@
 											Delete
 										</span>
 									{/if}
-									<code class="font-mono text-sm text-gray-700">{file.path}</code>
+									<code class="font-mono text-sm text-stone-700">{file.path}</code>
 								</div>
 								{#if file.size}
-									<p class="mt-1 text-xs text-gray-500">
+									<p class="mt-1 text-xs text-stone-500">
 										Size: {(file.size / 1024).toFixed(2)} KB
 									</p>
 								{/if}
@@ -136,27 +127,31 @@
 
 						{#if file.type === 'create' && file.newContent}
 							<details class="mt-3">
-								<summary class="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+								<summary
+									class="cursor-pointer text-sm font-medium text-stone-700 hover:text-stone-950"
+								>
 									View content
 								</summary>
 								<pre
-									class="mt-2 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">{file.newContent}</pre>
+									class="mt-2 overflow-x-auto rounded-md border border-stone-200 bg-stone-50 p-3 text-xs">{file.newContent}</pre>
 							</details>
 						{:else if file.type === 'update' && file.oldContent && file.newContent}
 							<details class="mt-3">
-								<summary class="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+								<summary
+									class="cursor-pointer text-sm font-medium text-stone-700 hover:text-stone-950"
+								>
 									View changes
 								</summary>
 								<div class="mt-2 grid grid-cols-2 gap-4">
 									<div>
-										<p class="mb-1 text-xs font-semibold text-gray-600">Before</p>
+										<p class="mb-1 text-xs font-semibold text-stone-600">Before</p>
 										<pre
-											class="max-h-96 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">{file.oldContent}</pre>
+											class="max-h-96 overflow-x-auto rounded-md border border-stone-200 bg-stone-50 p-3 text-xs">{file.oldContent}</pre>
 									</div>
 									<div>
-										<p class="mb-1 text-xs font-semibold text-gray-600">After</p>
+										<p class="mb-1 text-xs font-semibold text-stone-600">After</p>
 										<pre
-											class="max-h-96 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">{file.newContent}</pre>
+											class="max-h-96 overflow-x-auto rounded-md border border-stone-200 bg-stone-50 p-3 text-xs">{file.newContent}</pre>
 									</div>
 								</div>
 							</details>
@@ -166,7 +161,7 @@
 			</div>
 		</div>
 
-		<div class="flex flex-col gap-4 sm:flex-row">
+		<div class="flex flex-col gap-3 sm:flex-row">
 			<form
 				method="POST"
 				action="?/createPreview"
@@ -218,7 +213,7 @@
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+					class="w-full rounded-md bg-stone-950 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
 						Saving to Draft...
@@ -267,7 +262,7 @@
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="w-full rounded-lg bg-green-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+					class="w-full rounded-md border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
 						Publishing...
@@ -279,15 +274,15 @@
 
 			<a
 				href="/pages/{data.discoveredConfig.slug}/edit{branchQuery}"
-				class="w-full rounded-lg bg-gray-100 px-6 py-3 text-center font-semibold text-gray-700 transition-colors hover:bg-gray-200 sm:w-auto"
+				class="w-full rounded-md bg-stone-100 px-5 py-2.5 text-center text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-200 sm:w-auto"
 			>
-				Back to Edit
+				Cancel
 			</a>
 		</div>
 
-		<div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-			<h3 class="mb-2 font-semibold text-blue-900">What happens next?</h3>
-			<ul class="list-inside list-disc space-y-1 text-sm text-blue-800">
+		<div class="mt-5 rounded-md border border-stone-200 bg-stone-100 p-4">
+			<h3 class="mb-2 font-semibold text-stone-950">What happens next?</h3>
+			<ul class="list-inside list-disc space-y-1 text-sm text-stone-700">
 				<li>
 					<strong>Save to Draft:</strong> Saves your changes to a draft, then shows you the Netlify preview
 					URL (builds in 2-3 minutes)

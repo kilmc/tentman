@@ -16,7 +16,7 @@
 			bind:checked={value}
 			{required}
 			onchange={() => onchange?.()}
-			class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+			class="h-4 w-4 rounded-sm border-gray-300 text-stone-900 focus:ring-2 focus:ring-stone-900"
 		/>
 		{label}
 		{#if required}

@@ -136,6 +136,16 @@
 		);
 	}
 
+	function getTopLevelHref(config: DiscoveredConfig) {
+		return resolve(
+			config.config.collection ? `/pages/${config.slug}` : `/pages/${config.slug}/edit`
+		);
+	}
+
+	function getCollectionItemHref(slug: string, itemId: string) {
+		return resolve(`/pages/${slug}/${itemId}/edit`);
+	}
+
 	function isShadowItem(item: { id: string } & Record<string, unknown>) {
 		return (
 			item.id === SHADOW_PLACEHOLDER_ITEM_ID || item[SHADOW_ITEM_MARKER_PROPERTY_NAME] === true
@@ -648,84 +658,79 @@
 	});
 
 	$effect(() => {
-		if (isLocalMode || isEditingNavigation || !currentPageSlug) {
+		if (isLocalMode || isEditingNavigation) {
 			return;
 		}
 
-		const currentConfig = configs.find(
-			(config: DiscoveredConfig) => config.slug === currentPageSlug
+		void Promise.all(
+			configs
+				.filter((config: DiscoveredConfig) => config.config.collection)
+				.map((config: DiscoveredConfig) => loadGitHubCollectionItems(config))
 		);
-		if (!currentConfig?.config.collection) {
-			return;
-		}
-
-		void loadGitHubCollectionItems(currentConfig);
 	});
 </script>
 
-<div class="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]">
-	<aside class="space-y-4 lg:sticky lg:top-8 lg:self-start">
-		<div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-			<div class="border-b border-gray-100 px-1 pb-3">
-				<div class="flex items-start justify-between gap-3">
-					<div>
-						<p class="text-xs font-semibold tracking-[0.18em] text-gray-500 uppercase">
-							Site Structure
-						</p>
-						<p class="mt-1 text-sm text-gray-600">
-							{configs.length} content {configs.length === 1 ? 'type' : 'types'}
-						</p>
-					</div>
-
-					{#if canEditNavigation}
-						{#if isEditingNavigation}
-							<div class="flex gap-2">
-								<button
-									type="button"
-									class="rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
-									onclick={cancelNavigationEditing}
-									disabled={savingNavigation}
-								>
-									Cancel
-								</button>
-								<button
-									type="button"
-									class="rounded-full bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-									onclick={() => void saveNavigationEditing()}
-									disabled={!hasUnsavedNavigationChanges || savingNavigation}
-								>
-									{savingNavigation ? 'Saving…' : 'Save'}
-								</button>
-							</div>
-						{:else}
-							<button
-								type="button"
-								class="inline-flex items-center rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
-								onclick={() => void startNavigationEditing()}
-								disabled={preparingNavigationEditor}
+<div class="grid gap-4 lg:grid-cols-[16.5rem_minmax(0,1fr)] xl:grid-cols-[18.5rem_minmax(0,1fr)]">
+	<aside class="space-y-4 lg:sticky lg:top-6 lg:self-start">
+		<div class="rounded-md border border-stone-200 bg-white p-3">
+			{#if canEditNavigation}
+				<div class="mb-3 flex items-start justify-end gap-2 border-b border-stone-100 pb-3">
+					{#if isEditingNavigation}
+						<button
+							type="button"
+							class="rounded-md border border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400"
+							onclick={cancelNavigationEditing}
+							disabled={savingNavigation}
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							class="rounded-md bg-stone-950 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+							onclick={() => void saveNavigationEditing()}
+							disabled={!hasUnsavedNavigationChanges || savingNavigation}
+						>
+							{savingNavigation ? 'Saving…' : 'Save'}
+						</button>
+					{:else}
+						<button
+							type="button"
+							class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-stone-300 text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400"
+							onclick={() => void startNavigationEditing()}
+							disabled={preparingNavigationEditor}
+							aria-label="Edit navigation"
+							title="Edit navigation"
+						>
+							<svg
+								viewBox="0 0 20 20"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.6"
+								class="h-4 w-4"
 							>
-								{preparingNavigationEditor ? 'Preparing…' : 'Edit navigation'}
-							</button>
-						{/if}
+								<path d="M4 13.5V16h2.5L14 8.5 11.5 6 4 13.5Z" stroke-linejoin="round" />
+								<path d="M10.75 6.75 13.25 9.25" stroke-linecap="round" />
+							</svg>
+						</button>
 					{/if}
 				</div>
+			{/if}
 
-				{#if isEditingNavigation}
-					<p class="mt-2 text-sm text-gray-500">
-						Drag items to reorder the sidebar. Expand collections to organise their items.
-					</p>
-				{/if}
-			</div>
+			{#if isEditingNavigation}
+				<p class="mb-3 text-sm text-stone-500">
+					Drag items to reorder the sidebar. Expand collections to organise their items.
+				</p>
+			{/if}
 
 			{#if isLocalMode && $localContent.status === 'loading' && configs.length === 0}
-				<p class="px-1 py-4 text-sm text-gray-500">Scanning local repository…</p>
+				<p class="px-1 py-3 text-sm text-stone-500">Scanning local repository…</p>
 			{:else if isLocalMode && $localContent.error}
-				<p class="px-1 py-4 text-sm text-red-700">{$localContent.error}</p>
+				<p class="px-1 py-3 text-sm text-red-700">{$localContent.error}</p>
 			{:else if configs.length === 0}
-				<p class="px-1 py-4 text-sm text-gray-500">No content configs found yet.</p>
+				<p class="px-1 py-3 text-sm text-stone-500">No content configs found yet.</p>
 			{:else if isEditingNavigation && navigationDraft}
 				<div
-					class="mt-3 space-y-2"
+					class="space-y-2"
 					use:dragHandleZone={{
 						items: topLevelEditorItems,
 						type: 'top-level',
@@ -745,13 +750,13 @@
 							{@const collectionLocked =
 								!!config.config.collection && !collectionSetup?.canOrderItems}
 							<div
-								class="rounded-xl border border-gray-200 bg-white"
+								class="rounded-md border border-stone-200 bg-white"
 								data-is-dnd-shadow-item-hint={item[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
 							>
 								<div class="flex items-center gap-2 p-2">
 									<div
 										use:dragHandle
-										class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+										class="inline-flex h-8 w-8 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
 										aria-label={`Drag ${item.label}`}
 									>
 										<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
@@ -767,7 +772,7 @@
 									{#if item.isCollection}
 										<button
 											type="button"
-											class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+											class="inline-flex h-8 w-8 items-center justify-center rounded-md text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
 											onclick={() => toggleCollection(config)}
 											aria-expanded={isExpanded}
 											aria-label={isExpanded ? 'Collapse collection' : 'Expand collection'}
@@ -787,10 +792,10 @@
 										<span class="h-8 w-8 shrink-0"></span>
 									{/if}
 
-									<div class="min-w-0 flex-1 rounded-lg px-3 py-2">
-										<p class="truncate font-medium text-gray-900">{item.label}</p>
+									<div class="min-w-0 flex-1 rounded-md px-3 py-2">
+										<p class="truncate font-medium text-stone-950">{item.label}</p>
 										{#if item.isCollection}
-											<p class="mt-1 text-xs text-gray-500">
+											<p class="mt-1 text-xs text-stone-500">
 												{getFlatCollectionItemCount(config.slug)}
 												{getFlatCollectionItemCount(config.slug) === 1 ? ' item' : ' items'}
 											</p>
@@ -799,9 +804,9 @@
 								</div>
 
 								{#if item.isCollection && isExpanded}
-									<div class="border-t border-gray-100 px-3 pt-2 pb-3">
+									<div class="border-t border-stone-100 px-3 pt-2 pb-3">
 										{#if collectionLocked}
-											<p class="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+											<p class="rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-500">
 												This collection needs an
 												<code class="rounded bg-gray-200 px-1 py-0.5 text-xs">idField</code>
 												before its items can be reordered.
@@ -951,74 +956,48 @@
 					{/each}
 				</div>
 			{:else}
-				<nav class="mt-3 space-y-2">
+				<nav class="space-y-3">
 					{#each configs as config (config.slug)}
 						{@const isCollection = !!config.config.collection}
 						{@const isSelected = currentPageSlug === config.slug}
-						{@const isExpanded = isCollectionExpanded(config.slug)}
-						<div
-							class="rounded-xl border border-gray-200 bg-white transition-colors"
-							class:border-blue-200={isSelected}
-							class:bg-blue-50={isSelected}
-						>
-							<div class="flex items-center gap-2 p-2">
-								{#if isCollection}
-									<button
-										type="button"
-										class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-										onclick={() => toggleCollection(config)}
-										aria-expanded={isExpanded}
-										aria-label={isExpanded ? 'Collapse collection' : 'Expand collection'}
+						{@const navigation = getCollectionItems(config.slug)}
+						{@const flatItemCount = getFlatCollectionItemCount(config.slug)}
+						<div class="rounded-md border border-stone-200 bg-white">
+							<div class="flex items-center gap-2 px-3 py-2.5">
+								<a href={getTopLevelHref(config)} class="min-w-0 flex-1">
+									<div
+										class="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 transition-colors"
+										class:bg-stone-950={isSelected && (!isCollection || !currentItemId)}
+										class:bg-stone-100={isSelected && isCollection && !!currentItemId}
+										class:text-white={isSelected && (!isCollection || !currentItemId)}
+										class:text-stone-950={isSelected && isCollection && !!currentItemId}
+										class:text-stone-900={!isSelected}
+										class:hover:bg-stone-100={!isSelected}
 									>
-										<svg
-											viewBox="0 0 20 20"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.75"
-											class="h-4 w-4 transition-transform"
-											class:rotate-90={isExpanded}
-										>
-											<path d="M7 4l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
-										</svg>
-									</button>
-								{:else}
-									<span class="h-8 w-8 shrink-0"></span>
-								{/if}
-
-								<a
-									href={resolve(`/pages/${config.slug}`)}
-									class="min-w-0 flex-1 rounded-lg px-3 py-2 transition-colors hover:bg-white/80"
-									class:text-blue-900={isSelected}
-									class:text-gray-800={!isSelected}
-								>
-									<p class="truncate font-medium">{config.config.label}</p>
-									{#if isCollection}
-										{@const navigation = getCollectionItems(config.slug)}
-										<p class="mt-1 text-xs text-gray-500">
-											{#if isLocalMode || getGitHubCollectionStatus(config.slug) === 'ready'}
-												{navigation.items.length +
-													navigation.groups.reduce((count, group) => count + group.items.length, 0)}
-												{navigation.items.length +
-													navigation.groups.reduce(
-														(count, group) => count + group.items.length,
-														0
-													) ===
-												1
-													? 'item'
-													: 'items'}
-											{:else if getGitHubCollectionStatus(config.slug) === 'loading'}
-												Loading items…
-											{:else if getGitHubCollectionStatus(config.slug) === 'error'}
-												Couldn't load items
-											{/if}
-										</p>
-									{/if}
+										<p class="truncate text-sm font-medium">{config.config.label}</p>
+										{#if isCollection}
+											<p
+												class="shrink-0 text-xs"
+												class:text-stone-300={isSelected && (!isCollection || !currentItemId)}
+												class:text-stone-500={!(isSelected && (!isCollection || !currentItemId))}
+											>
+												{#if isLocalMode || getGitHubCollectionStatus(config.slug) === 'ready'}
+													{flatItemCount}
+													{flatItemCount === 1 ? ' item' : ' items'}
+												{:else if getGitHubCollectionStatus(config.slug) === 'loading'}
+													Loading items…
+												{:else if getGitHubCollectionStatus(config.slug) === 'error'}
+													Retry needed
+												{/if}
+											</p>
+										{/if}
+									</div>
 								</a>
 
 								{#if isCollection}
 									<a
 										href={resolve(`/pages/${config.slug}/new`)}
-										class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+										class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-stone-200 text-lg leading-none text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950"
 										aria-label={`New ${getConfigItemLabel(config.config)}`}
 										title={`New ${getConfigItemLabel(config.config)}`}
 									>
@@ -1027,50 +1006,46 @@
 								{/if}
 							</div>
 
-							{#if isCollection && isExpanded}
-								{@const navigation = getCollectionItems(config.slug)}
-								{@const flatItemCount =
-									navigation.items.length +
-									navigation.groups.reduce((count, group) => count + group.items.length, 0)}
-								<div class="px-3 pb-3">
+							{#if isCollection}
+								<div class="border-t border-stone-100 px-3 pt-2 pb-3">
 									{#if isLocalMode && $localContent.status === 'loading' && flatItemCount === 0}
-										<p class="pl-10 text-sm text-gray-500">Loading items…</p>
+										<p class="px-2 py-1 text-sm text-stone-500">Loading items…</p>
 									{:else if !isLocalMode && ['idle', 'loading'].includes(getGitHubCollectionStatus(config.slug)) && flatItemCount === 0}
-										<p class="pl-10 text-sm text-gray-500">Loading items…</p>
+										<p class="px-2 py-1 text-sm text-stone-500">Loading items…</p>
 									{:else if !isLocalMode && getGitHubCollectionStatus(config.slug) === 'error' && flatItemCount === 0}
-										<div class="pl-10 text-sm text-red-700">
+										<div class="px-2 py-1 text-sm text-red-700">
 											<p>{getGitHubCollectionError(config.slug) ?? "Couldn't load items."}</p>
 											<button
 												type="button"
-												class="mt-2 text-sm font-medium text-red-700 underline hover:text-red-800"
+												class="mt-2 text-sm font-medium underline hover:text-red-800"
 												onclick={() => void loadGitHubCollectionItems(config, { force: true })}
 											>
 												Retry
 											</button>
 										</div>
 									{:else if flatItemCount === 0}
-										<p class="pl-10 text-sm text-gray-500">No items yet.</p>
+										<p class="px-2 py-1 text-sm text-stone-500">No items yet.</p>
 									{:else}
-										<div class="space-y-1 pl-10">
+										<div class="space-y-2">
 											{#each navigation.groups as group (group.id)}
 												{#if group.items.length > 0}
-													<div class="pt-2">
+													<div class="space-y-1 border-l border-stone-200 pl-3">
 														<p
-															class="px-3 pb-1 text-[0.7rem] font-semibold tracking-[0.16em] text-gray-500 uppercase"
+															class="text-[0.68rem] font-semibold tracking-[0.16em] text-stone-500 uppercase"
 														>
 															{group.label}
 														</p>
 														<div class="space-y-1">
 															{#each group.items as item (item.itemId)}
 																<a
-																	href={resolve(`/pages/${config.slug}/${item.itemId}`)}
-																	class="block rounded-lg px-3 py-2 text-sm transition-colors"
-																	class:bg-blue-100={isSelected && currentItemId === item.itemId}
-																	class:text-blue-900={isSelected && currentItemId === item.itemId}
-																	class:text-gray-700={!(
+																	href={getCollectionItemHref(config.slug, item.itemId)}
+																	class="block rounded-md px-2 py-1.5 text-sm transition-colors"
+																	class:bg-stone-950={isSelected && currentItemId === item.itemId}
+																	class:text-white={isSelected && currentItemId === item.itemId}
+																	class:text-stone-700={!(
 																		isSelected && currentItemId === item.itemId
 																	)}
-																	class:hover:bg-gray-100={!(
+																	class:hover:bg-stone-100={!(
 																		isSelected && currentItemId === item.itemId
 																	)}
 																>
@@ -1081,18 +1056,29 @@
 													</div>
 												{/if}
 											{/each}
-											{#each navigation.items as item (item.itemId)}
-												<a
-													href={resolve(`/pages/${config.slug}/${item.itemId}`)}
-													class="block rounded-lg px-3 py-2 text-sm transition-colors"
-													class:bg-blue-100={isSelected && currentItemId === item.itemId}
-													class:text-blue-900={isSelected && currentItemId === item.itemId}
-													class:text-gray-700={!(isSelected && currentItemId === item.itemId)}
-													class:hover:bg-gray-100={!(isSelected && currentItemId === item.itemId)}
+											{#if navigation.items.length > 0}
+												<div
+													class="space-y-1"
+													class:border-l={navigation.groups.length > 0}
+													class:border-stone-200={navigation.groups.length > 0}
+													class:pl-3={navigation.groups.length > 0}
 												>
-													{item.title}
-												</a>
-											{/each}
+													{#each navigation.items as item (item.itemId)}
+														<a
+															href={getCollectionItemHref(config.slug, item.itemId)}
+															class="block rounded-md px-2 py-1.5 text-sm transition-colors"
+															class:bg-stone-950={isSelected && currentItemId === item.itemId}
+															class:text-white={isSelected && currentItemId === item.itemId}
+															class:text-stone-700={!(isSelected && currentItemId === item.itemId)}
+															class:hover:bg-stone-100={!(
+																isSelected && currentItemId === item.itemId
+															)}
+														>
+															{item.title}
+														</a>
+													{/each}
+												</div>
+											{/if}
 										</div>
 									{/if}
 								</div>
@@ -1101,45 +1087,6 @@
 					{/each}
 				</nav>
 			{/if}
-		</div>
-
-		{#if isLocalMode}
-			<div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-				<div class="flex flex-wrap gap-2">
-					<button
-						type="button"
-						class="rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
-						onclick={() => void localContent.refresh({ force: true })}
-					>
-						Rescan repo
-					</button>
-					{#if $localContent.rootConfig?.local?.previewUrl}
-						<button
-							type="button"
-							onclick={() =>
-								window.open(
-									$localContent.rootConfig?.local?.previewUrl,
-									'_blank',
-									'noopener,noreferrer'
-								)}
-							class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
-						>
-							Open preview
-						</button>
-					{/if}
-				</div>
-			</div>
-		{/if}
-
-		<div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-			<p class="text-xs font-semibold tracking-[0.18em] text-gray-500 uppercase">Site Settings</p>
-			<p class="mt-2 text-sm text-gray-600">Enable manual navigation and fix locked sections.</p>
-			<a
-				href={resolve('/pages/settings')}
-				class="mt-3 inline-flex rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
-			>
-				Open Settings
-			</a>
 		</div>
 	</aside>
 

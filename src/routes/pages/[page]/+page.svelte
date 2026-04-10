@@ -17,7 +17,6 @@
 	} from '$lib/features/content-management/navigation';
 	import { getContentItemId } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
-	import type { RootConfig } from '$lib/config/root-config';
 	import type { DraftChange, DraftComparison } from '$lib/utils/draft-comparison';
 	import { buildLoginRedirect } from '$lib/utils/routing';
 	import { localContent } from '$lib/stores/local-content';
@@ -35,7 +34,6 @@
 	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
-	let rootConfig = $state<RootConfig | null>(null);
 	let draftBranch = $state<string | null>(null);
 	let draftChanges = $state<DraftComparison | null>(null);
 
@@ -73,7 +71,6 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistryError = data.blockRegistryError ?? null;
 		localBlockRegistry = null;
-		rootConfig = null;
 	}
 
 	function resetDraftStatus() {
@@ -215,7 +212,6 @@
 			return;
 		}
 
-		rootConfig = contentState.rootConfig;
 		blockConfigs = contentState.blockConfigs;
 		packageBlocks = [];
 		blockRegistryError = contentState.blockRegistryError;
@@ -332,7 +328,7 @@
 			return resolve(`/pages/${discoveredConfig.slug}`);
 		}
 
-		const path = resolve(`/pages/${discoveredConfig.slug}/${itemId}`);
+		const path = resolve(`/pages/${discoveredConfig.slug}/${itemId}/edit`);
 		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
 	}
 
@@ -358,32 +354,22 @@
 </script>
 
 {#if !discoveredConfig || !config || !blockRegistry}
-	<div class="container mx-auto p-4 sm:p-6">
-		<div class="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+	<div class="mx-auto max-w-6xl">
+		<div class="rounded-md border border-stone-200 bg-white p-4 text-sm text-stone-600">
 			{blockRegistryError || contentError || 'Loading content...'}
 		</div>
 	</div>
 {:else}
-	<div class="container mx-auto p-4 sm:p-6">
-		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-			<div>
-				<h1 class="text-2xl font-bold sm:text-3xl">{config.label}</h1>
-				{#if isLocalMode && rootConfig?.local?.previewUrl}
-					<button
-						type="button"
-						onclick={() =>
-							window.open(rootConfig?.local?.previewUrl, '_blank', 'noopener,noreferrer')}
-						class="mt-2 inline-block text-sm text-blue-600 hover:underline"
-					>
-						Open Local Preview
-					</button>
-				{/if}
-			</div>
+	<div class="mx-auto max-w-6xl">
+		<div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
+				{config.label}
+			</h1>
 
 			{#if !isSingletonContent}
 				<a
 					href={getNewHref()}
-					class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+					class="inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
 				>
 					New {getConfigItemLabel(config)}
 				</a>
@@ -396,40 +382,37 @@
 				draftChanges.created.length > 0 ||
 				draftChanges.deleted.length > 0}
 			{#if hasChanges}
-				<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-					<p class="text-sm font-medium text-blue-800">Draft Changes</p>
-					<p class="mt-1 text-sm text-blue-700">
+				<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
+					<p class="text-sm font-medium text-stone-900">Draft changes</p>
+					<p class="mt-1 text-sm text-stone-600">
 						You have unpublished changes on
-						<code class="rounded bg-blue-100 px-1 text-xs">{draftBranch}</code>
+						<code class="rounded bg-white px-1 text-xs">{draftBranch}</code>
 					</p>
 				</div>
 			{/if}
 		{/if}
 
 		{#if contentError}
-			<div class="rounded-lg border border-red-200 bg-red-50 p-6">
+			<div class="rounded-md border border-red-200 bg-red-50 p-4">
 				<h2 class="mb-2 font-semibold text-red-800">Failed to Load Content</h2>
 				<p class="text-sm text-red-700">{contentError}</p>
 			</div>
 		{:else if content === null}
-			<div class="space-y-4">
+			<div class="space-y-3">
 				{#each loadingSkeletons as skeleton (skeleton)}
 					<ItemCardSkeleton />
 				{/each}
 			</div>
 		{:else if isSingletonContent}
-			<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-				<div class="border-b border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
-					<h2 class="font-semibold text-gray-900">Content</h2>
-				</div>
-				<div class="p-4 sm:p-6">
-					<dl class="space-y-6">
+			<div class="rounded-md border border-stone-200 bg-white">
+				<div class="p-4">
+					<dl class="space-y-4">
 						{#each config.blocks as block (block.id)}
-							<div class="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
-								<dt class="mb-2 text-sm font-semibold text-gray-700">
+							<div class="border-b border-stone-100 pb-4 last:border-0 last:pb-0">
+								<dt class="mb-2 text-sm font-semibold text-stone-700">
 									{block.label ?? block.id}
 								</dt>
-								<dd class="text-gray-900">
+								<dd class="text-stone-950">
 									<ContentValueDisplay
 										{block}
 										value={(content as ContentRecord)[block.id]}
@@ -440,12 +423,12 @@
 						{/each}
 					</dl>
 				</div>
-				<div class="flex gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
+				<div class="flex gap-3 border-t border-stone-200 bg-stone-50 px-4 py-3">
 					<a
 						href={getEditHref()}
-						class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+						class="inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
 					>
-						Edit Content
+						Edit
 					</a>
 				</div>
 			</div>
@@ -455,14 +438,16 @@
 			{@const totalItems = Array.isArray(content) ? content.length : 0}
 
 			{#if totalItems > 0 || hasDrafts}
-				<div class="mb-4 flex items-center justify-between">
-					<p class="text-sm text-gray-600">{totalItems} {totalItems === 1 ? 'item' : 'items'}</p>
+				<div class="mb-3 flex items-center justify-between">
+					<p class="text-sm text-stone-600">{totalItems} {totalItems === 1 ? 'item' : 'items'}</p>
 				</div>
 
 				{#if !isLocalMode && hasDrafts}
-					<div class="mb-6">
-						<h2 class="mb-3 text-lg font-semibold text-gray-900">Draft Changes</h2>
-						<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+					<div class="mb-5">
+						<p class="mb-3 text-sm font-semibold tracking-[0.16em] text-stone-500 uppercase">
+							Draft changes
+						</p>
+						<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
 							{#each draftItems as { item, badge, itemId } (itemId)}
 								<ItemCard {item} {cardFields} {badge} href={getItemHref(itemId, activeBranch)} />
 							{/each}
@@ -470,14 +455,14 @@
 					</div>
 				{/if}
 
-				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+				<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
 					{#each regularItems.groups as group (group.id)}
 						{#if group.items.length > 0}
 							<div class="md:col-span-2 lg:col-span-3">
-								<h3 class="mb-3 text-sm font-semibold tracking-[0.16em] text-gray-500 uppercase">
+								<h3 class="mb-3 text-sm font-semibold tracking-[0.16em] text-stone-500 uppercase">
 									{group.label}
 								</h3>
-								<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+								<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
 									{#each group.items as entry (entry.itemId)}
 										<ItemCard
 											item={entry.item}
@@ -498,14 +483,14 @@
 					{/each}
 				</div>
 			{:else}
-				<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
-					<h3 class="mb-2 text-lg font-semibold text-gray-900">No items yet</h3>
-					<p class="mb-4 text-sm text-gray-600">
+				<div class="rounded-md border border-dashed border-stone-300 bg-white p-8 text-center">
+					<h3 class="mb-2 text-lg font-semibold text-stone-950">No items yet</h3>
+					<p class="mb-4 text-sm text-stone-600">
 						Create the first {getConfigItemLabel(config).toLowerCase()} to get started.
 					</p>
 					<a
 						href={resolve(`/pages/${discoveredConfig.slug}/new`)}
-						class="inline-flex rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+						class="inline-flex rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
 					>
 						New {getConfigItemLabel(config)}
 					</a>

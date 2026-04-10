@@ -159,7 +159,7 @@
 		required={required && !value}
 		onchange={handleChange}
 		disabled={staging}
-		class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
+		class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
 	/>
 
 	<p class="mt-1 text-xs text-gray-500">

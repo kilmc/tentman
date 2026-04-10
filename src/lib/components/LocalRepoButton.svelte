@@ -6,7 +6,7 @@
 		class?: string;
 	}
 
-	let { label = 'Open Local Repo', class: className = '' }: Props = $props();
+	let { label = 'Open repo', class: className = '' }: Props = $props();
 </script>
 
 <button type="button" class={className} onclick={() => localRepo.open()}>

@@ -192,41 +192,29 @@
 	}
 </script>
 
-<div class="container mx-auto p-4 sm:p-6">
-	<div class="mb-4 sm:mb-6">
-		<a
-			href={resolve(`/pages/${data.pageSlug}`) + branchQuery}
-			class="text-sm text-blue-600 hover:underline"
-		>
-			&larr; Back
-		</a>
-	</div>
-
-	<div class="mb-4 sm:mb-6">
-		<h1 class="text-2xl font-bold sm:text-3xl">
+<div class="mx-auto max-w-5xl">
+	<div class="mb-5">
+		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
 			New {config ? getConfigItemLabel(config) : 'Item'}
 		</h1>
 	</div>
 
 	{#if form?.error || localError}
-		<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+		<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 			<p class="text-sm font-medium text-red-800">Failed to create item</p>
 			<p class="mt-1 text-sm text-red-700">{form?.error || localError}</p>
 		</div>
 	{/if}
 
-	<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-		<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-			<h2 class="font-semibold">Item Details</h2>
-		</div>
-		<div class="p-6">
+	<div class="rounded-md border border-stone-200 bg-white">
+		<div class="p-4">
 			{#if isLocalMode}
 				<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
 					<input type="hidden" name="data" value="" />
 
 					{#if requiresFilename}
-						<div class="mb-6 border-b border-gray-200 pb-6">
-							<label for="filename" class="mb-2 block text-sm font-medium text-gray-700">
+						<div class="mb-5 border-b border-stone-200 pb-5">
+							<label for="filename" class="mb-2 block text-sm font-medium text-stone-700">
 								Filename <span class="text-red-500">*</span>
 							</label>
 							<div class="flex items-center gap-2">
@@ -240,16 +228,16 @@
 										hasUnsavedChanges = true;
 									}}
 									placeholder="e.g., 2025-11-30 or my-update"
-									class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+									class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
 									class:border-red-500={filenameError}
 									required
 								/>
-								<span class="text-sm text-gray-500">.md</span>
+								<span class="text-sm text-stone-500">.md</span>
 							</div>
 							{#if filenameError}
 								<p class="mt-1 text-sm text-red-600">{filenameError}</p>
 							{:else}
-								<p class="mt-1 text-xs text-gray-500">
+								<p class="mt-1 text-xs text-stone-500">
 									Enter a filename without the extension. Use lowercase letters, numbers, and
 									hyphens.
 								</p>
@@ -258,12 +246,12 @@
 					{/if}
 
 					{#if blockRegistryError}
-						<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+						<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 							<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
 							<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
 						</div>
 					{:else if !blockRegistry}
-						<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+						<div class="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
 							Loading block registry...
 						</div>
 					{:else if config}
@@ -284,13 +272,13 @@
 							type="button"
 							onclick={() => void handleLocalCreate()}
 							disabled={saving || !blockRegistry || !!blockRegistryError}
-							class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+							class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
 						>
 							{saving ? 'Creating...' : 'Create Item'}
 						</button>
 						<a
 							href={resolve(`/pages/${data.pageSlug}`)}
-							class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
 						>
 							Cancel
 						</a>
@@ -317,8 +305,8 @@
 					{/if}
 
 					{#if requiresFilename}
-						<div class="mb-6 border-b border-gray-200 pb-6">
-							<label for="filename" class="mb-2 block text-sm font-medium text-gray-700">
+						<div class="mb-5 border-b border-stone-200 pb-5">
+							<label for="filename" class="mb-2 block text-sm font-medium text-stone-700">
 								Filename <span class="text-red-500">*</span>
 							</label>
 							<div class="flex items-center gap-2">
@@ -332,16 +320,16 @@
 										hasUnsavedChanges = true;
 									}}
 									placeholder="e.g., 2025-11-30 or my-update"
-									class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+									class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
 									class:border-red-500={filenameError}
 									required
 								/>
-								<span class="text-sm text-gray-500">.md</span>
+								<span class="text-sm text-stone-500">.md</span>
 							</div>
 							{#if filenameError}
 								<p class="mt-1 text-sm text-red-600">{filenameError}</p>
 							{:else}
-								<p class="mt-1 text-xs text-gray-500">
+								<p class="mt-1 text-xs text-stone-500">
 									Enter a filename without the extension. Use lowercase letters, numbers, and
 									hyphens.
 								</p>
@@ -350,7 +338,7 @@
 					{/if}
 
 					{#if blockRegistryError}
-						<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+						<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 							<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
 							<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
 						</div>
@@ -371,13 +359,13 @@
 						<button
 							type="submit"
 							disabled={saving || !githubBlockRegistry || !!blockRegistryError}
-							class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+							class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
 						>
 							{saving ? 'Creating...' : 'Create'}
 						</button>
 						<a
 							href={resolve(`/pages/${data.pageSlug}`) + branchQuery}
-							class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
 						>
 							Cancel
 						</a>

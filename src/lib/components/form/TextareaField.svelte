@@ -55,12 +55,12 @@
 		minlength={minLength}
 		maxlength={maxLength}
 		oninput={() => onchange?.()}
-		class="w-full rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+		class="w-full rounded-md border bg-white px-3 py-2 text-sm focus:ring-1 focus:outline-none"
 		class:border-red-300={isOverLimit || isUnderMin}
 		class:focus:border-red-500={isOverLimit || isUnderMin}
 		class:focus:ring-red-500={isOverLimit || isUnderMin}
 		class:border-gray-300={!isOverLimit && !isUnderMin}
-		class:focus:border-blue-500={!isOverLimit && !isUnderMin}
-		class:focus:ring-blue-500={!isOverLimit && !isUnderMin}
+		class:focus:border-stone-900={!isOverLimit && !isUnderMin}
+		class:focus:ring-stone-900={!isOverLimit && !isUnderMin}
 	></textarea>
 </div>

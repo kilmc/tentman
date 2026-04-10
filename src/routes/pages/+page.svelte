@@ -32,25 +32,25 @@
 	});
 </script>
 
-<div class="mx-auto max-w-3xl py-10">
+<div class="mx-auto max-w-3xl py-8">
 	{#if isLocalMode && $localRepo.error}
-		<div class="rounded-lg border border-red-200 bg-red-50 p-4">
+		<div class="rounded-md border border-red-200 bg-red-50 p-4">
 			<p class="text-red-800">{$localRepo.error}</p>
 		</div>
 	{:else if isLocalMode && (redirecting || $localContent.status === 'loading' || $localContent.status === 'idle')}
-		<div class="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+		<div class="rounded-md border border-stone-200 bg-white p-4 text-sm text-stone-600">
 			Opening your first page…
 		</div>
 	{:else if isLocalMode && $localContent.error}
-		<div class="rounded-lg border border-red-200 bg-red-50 p-4">
+		<div class="rounded-md border border-red-200 bg-red-50 p-4">
 			<p class="text-red-800">{$localContent.error}</p>
 		</div>
 	{:else if redirecting || data.configs.length > 0}
-		<div class="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+		<div class="rounded-md border border-stone-200 bg-white p-4 text-sm text-stone-600">
 			Opening your first page…
 		</div>
 	{:else}
-		<div class="rounded-2xl border border-yellow-200 bg-yellow-50 p-6">
+		<div class="rounded-md border border-yellow-200 bg-yellow-50 p-5">
 			<h1 class="text-xl font-semibold text-yellow-950">No content configs found</h1>
 			<p class="mt-2 text-sm text-yellow-900">
 				Create a <code class="rounded bg-yellow-100 px-1">*.tentman.json</code> content config to start

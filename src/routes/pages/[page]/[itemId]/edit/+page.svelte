@@ -258,55 +258,45 @@
 	}
 </script>
 
-<div class="container mx-auto p-4 sm:p-6">
-	<div class="mb-4 sm:mb-6">
-		<a
-			href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
-			class="text-sm text-blue-600 hover:underline"
-		>
-			&larr; Back
-		</a>
-	</div>
-
-	<div class="mb-4 sm:mb-6">
-		<h1 class="text-2xl font-bold sm:text-3xl">
-			Edit {config ? getConfigItemLabel(config) : 'Item'}
+<div class="mx-auto max-w-5xl">
+	<div class="mb-5">
+		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
+			{getItemTitle()}
 		</h1>
-		<p class="mt-1 text-gray-600">{getItemTitle()}</p>
+		{#if config}
+			<p class="mt-1 text-sm text-stone-500">{getConfigItemLabel(config)}</p>
+		{/if}
 	</div>
 
 	{#if isDraftView}
-		<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-			<p class="text-sm font-medium text-blue-800">Editing Draft Content</p>
-			<p class="mt-1 text-sm text-blue-700">
+		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
+			<p class="text-sm font-medium text-stone-900">Editing draft content</p>
+			<p class="mt-1 text-sm text-stone-600">
 				Changes will continue from
-				<code class="rounded bg-blue-100 px-1 text-xs">{data.branch}</code>
+				<code class="rounded bg-white px-1 text-xs">{data.branch}</code>
 			</p>
 		</div>
 	{/if}
 
 	{#if form?.error || localError}
-		<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+		<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 			<p class="text-sm font-medium text-red-800">Failed to save changes</p>
 			<p class="mt-1 text-sm text-red-700">{form?.error || localError}</p>
 		</div>
 	{/if}
 
 	{#if contentError}
-		<div class="rounded-lg border border-red-200 bg-red-50 p-6">
+		<div class="rounded-md border border-red-200 bg-red-50 p-4">
 			<h2 class="mb-2 font-semibold text-red-800">Failed to Load Content</h2>
 			<p class="text-sm text-red-700">{contentError}</p>
 		</div>
 	{:else if item === null || !config}
-		<div class="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
+		<div class="rounded-md border border-stone-200 bg-white p-8 text-center">
 			<LoadingSpinner size="lg" label="Loading content..." />
 		</div>
 	{:else}
-		<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-			<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-				<h2 class="font-semibold">Edit Item</h2>
-			</div>
-			<div class="p-6">
+		<div class="rounded-md border border-stone-200 bg-white">
+			<div class="p-4">
 				{#if isLocalMode}
 					<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
 						<input type="hidden" name="data" value="" />
@@ -314,12 +304,14 @@
 							<input type="hidden" name="filename" value={item._filename} />
 						{/if}
 						{#if blockRegistryError}
-							<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+							<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 								<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
 								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
 							</div>
 						{:else if !blockRegistry}
-							<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+							<div
+								class="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600"
+							>
 								Loading block registry...
 							</div>
 						{:else}
@@ -339,13 +331,13 @@
 								type="button"
 								onclick={() => void handleLocalSave()}
 								disabled={saving || !blockRegistry || !!blockRegistryError}
-								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+								class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
 							>
 								{saving ? 'Saving...' : 'Save Changes'}
 							</button>
 							<a
 								href={resolve(`/pages/${data.pageSlug}`)}
-								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+								class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
 							>
 								Cancel
 							</a>
@@ -374,7 +366,7 @@
 							<input type="hidden" name="filename" value={item._filename} />
 						{/if}
 						{#if blockRegistryError}
-							<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+							<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 								<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
 								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
 							</div>
@@ -394,13 +386,13 @@
 							<button
 								type="submit"
 								disabled={saving || !githubBlockRegistry || !!blockRegistryError}
-								class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+								class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
 							>
 								{saving ? 'Saving...' : 'Continue'}
 							</button>
 							<a
 								href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
-								class="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+								class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
 							>
 								Cancel
 							</a>
@@ -409,15 +401,15 @@
 				{/if}
 			</div>
 
-			<div class="border-t border-gray-200 bg-gray-50 px-6 py-4">
-				<h3 class="mb-2 text-sm font-semibold text-gray-900">Danger Zone</h3>
-				<p class="mb-3 text-sm text-gray-600">
+			<div class="border-t border-stone-200 bg-stone-50 px-4 py-4">
+				<h3 class="mb-2 text-sm font-semibold text-stone-950">Delete item</h3>
+				<p class="mb-3 text-sm text-stone-600">
 					Once you delete this item, it will be permanently removed from the repository.
 				</p>
 				<button
 					type="button"
 					onclick={() => (showDeleteConfirm = true)}
-					class="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
 				>
 					Delete {getConfigItemLabel(config)}
 				</button>

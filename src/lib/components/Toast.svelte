@@ -35,7 +35,7 @@
 		success: 'border-green-300 bg-green-50 text-green-900',
 		error: 'border-red-300 bg-red-50 text-red-900',
 		warning: 'border-yellow-300 bg-yellow-50 text-yellow-900',
-		info: 'border-blue-300 bg-blue-50 text-blue-900'
+		info: 'border-stone-300 bg-stone-50 text-stone-900'
 	};
 
 	const icons: Record<ToastType, string> = {
