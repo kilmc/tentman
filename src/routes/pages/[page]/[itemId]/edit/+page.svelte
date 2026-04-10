@@ -3,7 +3,6 @@
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
-	import KeyboardShortcutHelp from '$lib/components/KeyboardShortcutHelp.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { enhance } from '$app/forms';
 	import { goto, beforeNavigate } from '$app/navigation';
@@ -258,7 +257,7 @@
 	}
 </script>
 
-<div class="mx-auto max-w-5xl">
+<div class="min-w-0">
 	<div class="mb-5">
 		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
 			{getItemTitle()}
@@ -521,6 +520,4 @@
 			</div>
 		</div>
 	{/if}
-
-	<KeyboardShortcutHelp />
 </div>

@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Tentman Mockup 03 - Bold Editorial</title>
+		<style>
+			:root {
+				color-scheme: light;
+				--ink: #090909;
+				--paper: #ffffff;
+				--soft: #efefef;
+				--muted: #5c5c5c;
+				--blue: #0047ff;
+				--green: #00a77a;
+				--yellow: #ffe500;
+				--red: #e31515;
+				font-family:
+					Arial, Helvetica, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+					sans-serif;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				background: var(--green);
+				color: var(--ink);
+				font-size: 15px;
+				line-height: 1.42;
+			}
+
+			a {
+				color: inherit;
+				text-decoration: none;
+			}
+
+			button,
+			input,
+			textarea {
+				font: inherit;
+			}
+
+			.frame {
+				min-height: 100vh;
+				padding: clamp(14px, 2.4vw, 32px);
+			}
+
+			.app {
+				min-height: calc(100vh - clamp(28px, 4.8vw, 64px));
+				background: var(--paper);
+				border-radius: 8px;
+				overflow: hidden;
+				box-shadow: 0 18px 60px rgb(0 0 0 / 0.22);
+			}
+
+			.masthead {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(260px, 34vw);
+				background: var(--yellow);
+			}
+
+			.brand-panel {
+				padding: clamp(22px, 4vw, 54px);
+			}
+
+			.brand {
+				display: block;
+				max-width: 7.5ch;
+				font-size: clamp(4rem, 12vw, 11rem);
+				font-weight: 950;
+				letter-spacing: 0;
+				line-height: 0.72;
+				text-transform: uppercase;
+			}
+
+			.repo {
+				margin: 24px 0 0;
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.82rem;
+				font-weight: 700;
+			}
+
+			.action-panel {
+				display: grid;
+				align-content: stretch;
+				background: var(--ink);
+				color: var(--paper);
+			}
+
+			.action-panel img {
+				display: block;
+				width: 100%;
+				height: 100%;
+				max-height: 240px;
+				object-fit: cover;
+				mix-blend-mode: luminosity;
+				opacity: 0.82;
+			}
+
+			.actions {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 2px;
+				padding: 2px;
+				background: var(--paper);
+			}
+
+			.button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-height: 44px;
+				border: 0;
+				border-radius: 0;
+				background: var(--ink);
+				color: var(--paper);
+				padding: 0 14px;
+				font-size: 0.74rem;
+				font-weight: 950;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				cursor: pointer;
+			}
+
+			.button.blue {
+				background: var(--blue);
+			}
+
+			.button.green {
+				background: var(--green);
+			}
+
+			.button.light {
+				background: var(--soft);
+				color: var(--ink);
+			}
+
+			.body-grid {
+				display: grid;
+				grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+				gap: 0;
+			}
+
+			.sidebar {
+				padding: clamp(18px, 3vw, 34px);
+				background: var(--ink);
+				color: var(--paper);
+			}
+
+			.sidebar-head {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 12px;
+				margin-bottom: 24px;
+				color: #cfcfcf;
+				font-size: 0.72rem;
+				font-weight: 950;
+				letter-spacing: 0.14em;
+				text-transform: uppercase;
+			}
+
+			.nav {
+				display: grid;
+				gap: 20px;
+			}
+
+			.nav-block {
+				display: grid;
+				gap: 10px;
+			}
+
+			.nav-title {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				align-items: start;
+				gap: 14px;
+				font-size: clamp(1.45rem, 3vw, 2.35rem);
+				font-weight: 950;
+				line-height: 0.9;
+				text-transform: uppercase;
+			}
+
+			.nav-title.active {
+				color: var(--yellow);
+			}
+
+			.nav-count {
+				color: #cfcfcf;
+				font-size: 0.75rem;
+				line-height: 1;
+			}
+
+			.nav-items {
+				display: grid;
+				gap: 5px;
+				padding-left: 4px;
+			}
+
+			.nav-items a,
+			.nav-items p {
+				margin: 0;
+				color: #d8d8d8;
+				font-size: 0.92rem;
+				overflow-wrap: anywhere;
+			}
+
+			.nav-items p {
+				color: var(--green);
+				font-size: 0.7rem;
+				font-weight: 950;
+				letter-spacing: 0.14em;
+				text-transform: uppercase;
+			}
+
+			.nav-items a.active {
+				color: var(--paper);
+				font-weight: 950;
+				text-decoration: underline;
+				text-decoration-color: var(--yellow);
+				text-decoration-thickness: 0.18em;
+				text-underline-offset: 0.2em;
+			}
+
+			main {
+				min-width: 0;
+				padding: clamp(20px, 4vw, 56px);
+			}
+
+			.page-head {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 22px;
+				align-items: start;
+				margin-bottom: 42px;
+			}
+
+			h1,
+			h2,
+			h3,
+			p {
+				margin: 0;
+			}
+
+			.kicker {
+				display: inline-flex;
+				margin-bottom: 12px;
+				background: var(--blue);
+				color: var(--paper);
+				padding: 6px 8px;
+				font-size: 0.72rem;
+				font-weight: 950;
+				letter-spacing: 0.14em;
+				text-transform: uppercase;
+			}
+
+			h1 {
+				max-width: 8ch;
+				font-size: clamp(4rem, 12vw, 10.5rem);
+				font-weight: 950;
+				letter-spacing: 0;
+				line-height: 0.74;
+				text-transform: uppercase;
+			}
+
+			.big-stat {
+				display: grid;
+				place-items: center;
+				min-width: 150px;
+				min-height: 150px;
+				border-radius: 50%;
+				background: var(--green);
+				color: var(--paper);
+				text-align: center;
+			}
+
+			.big-stat strong {
+				display: block;
+				font-size: 4.3rem;
+				font-weight: 950;
+				line-height: 0.8;
+			}
+
+			.big-stat span {
+				font-size: 0.68rem;
+				font-weight: 950;
+				letter-spacing: 0.14em;
+				text-transform: uppercase;
+			}
+
+			.gallery {
+				display: grid;
+				grid-template-columns: 1.4fr 1fr 1fr;
+				gap: clamp(12px, 2vw, 22px);
+				align-items: start;
+			}
+
+			.item {
+				display: grid;
+				background: var(--soft);
+				border-radius: 8px;
+				overflow: hidden;
+			}
+
+			.item.featured {
+				grid-row: span 2;
+			}
+
+			.item img {
+				display: block;
+				width: 100%;
+				aspect-ratio: 1 / 0.78;
+				object-fit: cover;
+				filter: saturate(1.05) contrast(1.05);
+			}
+
+			.item.featured img {
+				aspect-ratio: 1 / 1.1;
+			}
+
+			.item-copy {
+				display: grid;
+				gap: 8px;
+				padding: 14px;
+			}
+
+			.item-title {
+				font-size: clamp(1.4rem, 3vw, 2.6rem);
+				font-weight: 950;
+				line-height: 0.86;
+				text-transform: uppercase;
+				overflow-wrap: anywhere;
+			}
+
+			.item-meta {
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.76rem;
+				overflow-wrap: anywhere;
+			}
+
+			.draft-band {
+				display: grid;
+				grid-template-columns: auto minmax(0, 1fr) auto;
+				gap: 18px;
+				align-items: center;
+				margin: 36px 0;
+				padding: 18px;
+				background: var(--yellow);
+				color: var(--ink);
+				border-radius: 8px;
+			}
+
+			.draft-band strong {
+				font-size: clamp(1.5rem, 4vw, 3.4rem);
+				font-weight: 950;
+				line-height: 0.8;
+				text-transform: uppercase;
+			}
+
+			.draft-band p {
+				font-weight: 750;
+			}
+
+			.editor {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(250px, 360px);
+				gap: clamp(18px, 3vw, 42px);
+				align-items: start;
+			}
+
+			.form-card {
+				display: grid;
+				gap: 18px;
+				padding: clamp(18px, 3vw, 30px);
+				background: var(--ink);
+				color: var(--paper);
+				border-radius: 8px;
+			}
+
+			.form-title {
+				font-size: clamp(2rem, 5vw, 4.8rem);
+				font-weight: 950;
+				line-height: 0.82;
+				text-transform: uppercase;
+			}
+
+			.form-grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 12px;
+			}
+
+			.field {
+				display: grid;
+				gap: 7px;
+			}
+
+			.field.wide {
+				grid-column: 1 / -1;
+			}
+
+			.field label {
+				color: #cfcfcf;
+				font-size: 0.7rem;
+				font-weight: 950;
+				letter-spacing: 0.14em;
+				text-transform: uppercase;
+			}
+
+			input,
+			textarea {
+				width: 100%;
+				border: 0;
+				border-radius: 6px;
+				background: #2b2b2b;
+				color: var(--paper);
+				padding: 14px;
+				outline: 0;
+			}
+
+			textarea {
+				min-height: 170px;
+				resize: vertical;
+			}
+
+			input:focus,
+			textarea:focus {
+				box-shadow: 0 0 0 3px var(--yellow);
+			}
+
+			.form-actions {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+			}
+
+			.image-card {
+				display: grid;
+				gap: 14px;
+				align-content: start;
+			}
+
+			.image-card img {
+				width: 100%;
+				aspect-ratio: 1 / 1;
+				object-fit: cover;
+				border-radius: 8px;
+			}
+
+			.image-card code {
+				display: block;
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.78rem;
+				overflow-wrap: anywhere;
+			}
+
+			@media (max-width: 1050px) {
+				.masthead,
+				.body-grid,
+				.editor {
+					grid-template-columns: 1fr;
+				}
+
+				.gallery {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.item.featured {
+					grid-row: span 1;
+				}
+			}
+
+			@media (max-width: 680px) {
+				.frame {
+					padding: 0;
+				}
+
+				.app {
+					min-height: 100vh;
+					border-radius: 0;
+				}
+
+				.actions,
+				.page-head,
+				.gallery,
+				.draft-band,
+				.form-grid {
+					grid-template-columns: 1fr;
+				}
+
+				h1 {
+					font-size: 4rem;
+				}
+
+				.big-stat {
+					width: 150px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="frame">
+			<div class="app">
+				<header class="masthead">
+					<div class="brand-panel">
+						<a class="brand" href="#">Tentman</a>
+						<p class="repo">kilmc/kilian.website</p>
+					</div>
+					<div class="action-panel">
+						<img src="https://picsum.photos/seed/tentman-bold-masthead/900/520" alt="Cropped site preview" />
+						<nav class="actions" aria-label="Global">
+							<a class="button" href="#">Docs</a>
+							<a class="button blue" href="#">Preview</a>
+							<a class="button green" href="#">Publish</a>
+						</nav>
+					</div>
+				</header>
+
+				<div class="body-grid">
+					<aside class="sidebar">
+						<div class="sidebar-head">
+							<span>Content</span>
+							<a href="#">Edit map</a>
+						</div>
+						<nav class="nav" aria-label="Content">
+							<div class="nav-block">
+								<a class="nav-title active" href="#">
+									<span>Albums</span>
+									<span class="nav-count">18</span>
+								</a>
+								<div class="nav-items">
+									<p>Live</p>
+									<a class="active" href="#">The Old Ceremony</a>
+									<a href="#">Signal Fires</a>
+									<a href="#">Sister Cities</a>
+								</div>
+							</div>
+							<div class="nav-block">
+								<a class="nav-title" href="#">
+									<span>Projects</span>
+									<span class="nav-count">12</span>
+								</a>
+								<div class="nav-items">
+									<a href="#">Record Keeper</a>
+									<a href="#">Tentman Docs</a>
+								</div>
+							</div>
+							<div class="nav-block">
+								<a class="nav-title" href="#">
+									<span>Pages</span>
+									<span class="nav-count">5</span>
+								</a>
+							</div>
+						</nav>
+					</aside>
+
+					<main>
+						<header class="page-head">
+							<div>
+								<p class="kicker">Collection</p>
+								<h1>Albums</h1>
+							</div>
+							<div class="big-stat">
+								<p><strong>18</strong><span>items</span></p>
+							</div>
+						</header>
+
+						<section class="gallery" aria-label="Albums">
+							<a class="item featured" href="#">
+								<img src="https://picsum.photos/seed/tentman-bold-1/820/940" alt="Featured album artwork" />
+								<div class="item-copy">
+									<h2 class="item-title">The Old Ceremony</h2>
+									<p class="item-meta">albums/old-ceremony.md</p>
+								</div>
+							</a>
+							<a class="item" href="#">
+								<img src="https://picsum.photos/seed/tentman-bold-2/700/520" alt="Album artwork" />
+								<div class="item-copy">
+									<h2 class="item-title">Signal Fires</h2>
+									<p class="item-meta">albums/signal-fires.md</p>
+								</div>
+							</a>
+							<a class="item" href="#">
+								<img src="https://picsum.photos/seed/tentman-bold-3/700/520" alt="Album artwork" />
+								<div class="item-copy">
+									<h2 class="item-title">Sister Cities</h2>
+									<p class="item-meta">albums/sister-cities.md</p>
+								</div>
+							</a>
+							<a class="item" href="#">
+								<img src="https://picsum.photos/seed/tentman-bold-4/700/520" alt="Album artwork" />
+								<div class="item-copy">
+									<h2 class="item-title">Low Sun Choir</h2>
+									<p class="item-meta">albums/low-sun-choir.md</p>
+								</div>
+							</a>
+							<a class="item" href="#">
+								<img src="https://picsum.photos/seed/tentman-bold-5/700/520" alt="Album artwork" />
+								<div class="item-copy">
+									<h2 class="item-title">Night House</h2>
+									<p class="item-meta">albums/night-house.md</p>
+								</div>
+							</a>
+						</section>
+
+						<section class="draft-band" aria-label="Draft changes">
+							<strong>3 draft changes</strong>
+							<p>You have unpublished edits on <code>codex/site-copy-pass</code>.</p>
+							<a class="button" href="#">Review</a>
+						</section>
+
+						<section class="editor" aria-label="Edit album">
+							<form class="form-card">
+								<h2 class="form-title">Edit album</h2>
+								<div class="form-grid">
+									<div class="field">
+										<label for="title">Title</label>
+										<input id="title" value="The Old Ceremony" />
+									</div>
+									<div class="field">
+										<label for="slug">Slug</label>
+										<input id="slug" value="old-ceremony" />
+									</div>
+									<div class="field wide">
+										<label for="notes">Notes</label>
+										<textarea id="notes">A short note about the record, where it belongs, and what should be visible in the card view.</textarea>
+									</div>
+								</div>
+								<div class="form-actions">
+									<button class="button green" type="button">Save changes</button>
+									<button class="button light" type="button">Cancel</button>
+								</div>
+							</form>
+							<div class="image-card">
+								<img src="https://picsum.photos/seed/tentman-bold-preview/760/760" alt="Album image preview" />
+								<code>static/images/albums/old-ceremony.jpg</code>
+								<a class="button blue" href="#">Replace image</a>
+							</div>
+						</section>
+					</main>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

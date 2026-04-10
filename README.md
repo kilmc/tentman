@@ -14,9 +14,10 @@ The current docs live in two places:
 
 ## Development Setup
 
-1. Install dependencies:
+1. Select the pinned Node version and install dependencies:
 
 ```sh
+nvm use
 pnpm install
 ```
 

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Projects - Tentman Flow Mockup</title>
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<div class="app">
+			<aside class="site-nav">
+				<div class="site-head">
+					<a class="site-name" href="./home.html"><strong>kilian.website</strong><span>kilmc/kilian.website</span></a>
+					<details class="settings"><summary class="icon-button" aria-label="Site settings"><span class="cog" aria-hidden="true"></span></summary><div class="settings-menu"><a href="./settings.html">Site settings</a><a href="./settings.html#navigation">Edit navigation</a><a href="#">Help</a></div></details>
+				</div>
+				<nav class="nav" aria-label="Website pages">
+					<a href="./home.html"><span class="name">Home</span><span class="marker"></span></a>
+					<a class="changed" href="./posts.html"><span class="name">Posts</span><span class="marker"></span></a>
+					<a class="active changed" href="./project.html"><span class="name">Projects</span><span class="marker"></span></a>
+					<a href="#"><span class="name">Lists</span><span class="marker"></span></a>
+					<a href="#"><span class="name">About</span><span class="marker"></span></a>
+				</nav>
+				<div class="nav-tools">
+					<a class="nav-edit" href="./settings.html#navigation">Edit navigation</a>
+					<a class="switch-site" href="#">Switch site</a>
+				</div>
+			</aside>
+			<main class="main">
+				<header class="topbar">
+					<div class="breadcrumb"><h1>Projects</h1></div>
+					<div class="top-actions"><a class="button" href="#">Preview</a><a class="button primary" href="#">Publish</a></div>
+				</header>
+				<div class="workbench detail">
+					<section class="page-pane" aria-label="Edit project page">
+						<header class="page-head">
+							<div><h2>Projects</h2><p class="summary">Intro text and selected projects shown on the site.</p></div>
+						</header>
+						<form class="form">
+							<div class="field"><label for="title">Title</label><input id="title" value="Projects" /></div>
+							<div class="field"><label for="intro">Intro</label><textarea id="intro">A short note before the project list.</textarea></div>
+							<section class="entry-field" aria-label="Featured projects">
+								<div class="entry-field-head">
+									<div><h3>Featured projects</h3><p class="summary">Select a project to edit its details.</p></div>
+									<button class="button" type="button">Add project</button>
+								</div>
+								<div class="entry-list">
+									<a class="entry-item active changed" href="#selected-project">
+										<span><strong>Record Keeper</strong><span>A small app for cataloguing records.</span></span>
+										<span class="change-dot"></span>
+									</a>
+									<a class="entry-item" href="#selected-project">
+										<span><strong>Pixel Pad</strong><span>Sketching tools and saved palettes.</span></span>
+										<span class="change-dot"></span>
+									</a>
+									<a class="entry-item new" href="#selected-project">
+										<span><strong>Listening Room</strong><span>Albums, lists, and short notes.</span></span>
+										<span class="change-dot"></span>
+									</a>
+								</div>
+							</section>
+							<div class="form-actions"><button class="button primary" type="button">Save</button><button class="button" type="button">Cancel</button></div>
+						</form>
+					</section>
+					<aside class="entry-editor changed" id="selected-project" aria-label="Edit selected featured project">
+						<header class="entry-editor-head">
+							<div><p class="eyebrow">Featured project</p><h2>Record Keeper</h2><p class="summary">Appears in the Projects page list.</p></div>
+							<span class="change-dot" aria-label="Changed"></span>
+						</header>
+						<form class="form">
+							<div class="field"><label for="record-title">Title</label><input id="record-title" value="Record Keeper" /></div>
+							<div class="field"><label for="record-summary">Summary</label><textarea id="record-summary">A small app for cataloguing records, notes, and release metadata.</textarea></div>
+							<div class="field"><label for="record-url">Project URL</label><input id="record-url" value="https://recordkeeper.example" /></div>
+							<div class="field"><label for="record-image">Image</label><span class="thumb city"></span><input id="record-image" value="static/images/projects/record-keeper.jpg" /></div>
+							<div class="form-actions"><button class="button primary" type="button">Done</button><button class="button" type="button">Remove</button></div>
+						</form>
+					</aside>
+				</div>
+			</main>
+		</div>
+	</body>
+</html>

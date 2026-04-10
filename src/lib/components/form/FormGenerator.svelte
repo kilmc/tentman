@@ -1,8 +1,14 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
+	import { writable } from 'svelte/store';
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 	import type { ParsedContentConfig } from '$lib/config/parse';
 	import { buildFormData } from '$lib/features/forms/helpers';
+	import {
+		FORM_WORKSPACE_PANEL,
+		type FormWorkspacePanelContext
+	} from '$lib/features/forms/workspace-panel';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
@@ -39,6 +45,14 @@
 	}
 
 	const blockRegistry = providedBlockRegistry ?? createBlockRegistry(blockConfigs);
+	const activeWorkspacePanelId = writable<string | null>(null);
+
+	setContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL, {
+		activePanelId: activeWorkspacePanelId,
+		setActivePanel(panelId) {
+			activeWorkspacePanelId.set(panelId);
+		}
+	});
 
 	// FormGenerator owns its own state - initialize once with structuredClone
 	let formData = $state<Record<string, any>>(
@@ -106,9 +120,13 @@
 		}
 		return validationErrors.find((err) => err.field === fieldName)?.message;
 	}
+
+	const formLayoutClass = $derived(
+		$activeWorkspacePanelId ? 'space-y-4 xl:pr-[23rem]' : 'space-y-4'
+	);
 </script>
 
-<div class="space-y-4">
+<div class={formLayoutClass}>
 	{#if showErrors && validationErrors.length > 0}
 		{@const visibleErrors = realtimeValidation
 			? validationErrors.filter((err) => touchedFields.has(err.field))
@@ -148,6 +166,7 @@
 			<FormField
 				{block}
 				bind:value={formData[block.id]}
+				fieldPath={block.id}
 				imagePath={config.imagePath}
 				{blockRegistry}
 				onchange={() => handleFieldChange(block.id)}

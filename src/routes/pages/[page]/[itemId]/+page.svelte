@@ -124,7 +124,7 @@
 	});
 </script>
 
-<div class="mx-auto max-w-5xl">
+<div class="max-w-4xl">
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Viewing draft content</p>

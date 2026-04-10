@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Settings - Tentman Flow Mockup</title>
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<div class="app">
+			<aside class="site-nav">
+				<div class="site-head">
+					<a class="site-name" href="./home.html"><strong>kilian.website</strong><span>kilmc/kilian.website</span></a>
+					<details class="settings"><summary class="icon-button" aria-label="Site settings"><span class="cog" aria-hidden="true"></span></summary><div class="settings-menu"><a href="./settings.html">Site settings</a><a href="#navigation">Edit navigation</a><a href="#">Help</a></div></details>
+				</div>
+				<nav class="nav" aria-label="Website pages">
+					<a href="./home.html"><span class="name">Home</span><span class="marker"></span></a>
+					<a class="changed" href="./posts.html"><span class="name">Posts</span><span class="marker"></span></a>
+					<a class="changed" href="./project.html"><span class="name">Projects</span><span class="marker"></span></a>
+					<a href="#"><span class="name">Lists</span><span class="marker"></span></a>
+					<a href="#"><span class="name">About</span><span class="marker"></span></a>
+				</nav>
+				<div class="nav-tools">
+					<a class="nav-edit" href="#navigation">Edit navigation</a>
+					<a class="switch-site" href="#">Switch site</a>
+				</div>
+			</aside>
+			<main class="main">
+				<header class="topbar">
+					<div class="breadcrumb"><h1>Site settings</h1></div>
+					<div class="top-actions"><a class="button" href="#">Preview</a><a class="button primary" href="#">Publish</a></div>
+				</header>
+				<div class="workbench single">
+					<section class="page-pane" aria-label="Site settings">
+						<header class="page-head"><div><h2>Settings</h2><p class="summary">Site-level controls kept out of the page list.</p></div></header>
+						<div class="settings-grid">
+							<section class="panel" id="navigation">
+								<h3>Navigation</h3>
+								<div class="setting-list">
+									<div class="setting-row"><div><strong>Page order</strong><p class="summary">Drag the sidebar pages into the order used here.</p></div><button class="button primary" type="button">Edit order</button></div>
+									<div class="setting-row"><div><strong>Post groups</strong><p class="summary">Posts can be reordered when they have stable slugs.</p></div><button class="button" type="button">Manage</button></div>
+									<div class="setting-row"><div><strong>Ready</strong><p class="summary">Home, Posts, Projects, Lists, and About can be reordered.</p></div><span class="status-badge">Ready</span></div>
+								</div>
+							</section>
+							<section class="panel">
+								<h3>Preview</h3>
+								<div class="setting-list">
+									<div class="setting-row"><div><strong>Preview site</strong><p class="summary">Open the site with saved changes applied.</p></div><button class="button" type="button">Open</button></div>
+									<div class="setting-row"><div><strong>Publish button</strong><p class="summary">Appears globally when there are saved changes.</p></div><span class="status-badge">Ready</span></div>
+									<div class="setting-row"><div><strong>Help</strong><p class="summary">Notes for connecting the site navigation to the saved order.</p></div><button class="button" type="button">Open</button></div>
+								</div>
+							</section>
+						</div>
+					</section>
+				</div>
+			</main>
+		</div>
+	</body>
+</html>

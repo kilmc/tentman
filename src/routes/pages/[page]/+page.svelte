@@ -365,15 +365,6 @@
 			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
 				{config.label}
 			</h1>
-
-			{#if !isSingletonContent}
-				<a
-					href={getNewHref()}
-					class="inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
-				>
-					New {getConfigItemLabel(config)}
-				</a>
-			{/if}
 		</div>
 
 		{#if !isLocalMode && draftBranch && draftChanges}

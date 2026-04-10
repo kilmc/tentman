@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Tentman Mockup 04 - Content First</title>
+		<style>
+			:root {
+				color-scheme: light;
+				--ink: #171717;
+				--muted: #656565;
+				--soft: #f3f3f3;
+				--softer: #fafafa;
+				--line: #dedede;
+				--paper: #ffffff;
+				--blue: #0057ff;
+				--green: #00986f;
+				--yellow: #ffe100;
+				--red: #d41515;
+				font-family:
+					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				background: var(--paper);
+				color: var(--ink);
+				font-size: 15px;
+				line-height: 1.45;
+			}
+
+			a {
+				color: inherit;
+				text-decoration: none;
+			}
+
+			button,
+			input,
+			textarea {
+				font: inherit;
+			}
+
+			.app {
+				min-height: 100vh;
+				display: grid;
+				grid-template-columns: 260px minmax(0, 1fr);
+			}
+
+			.sidebar {
+				min-height: 100vh;
+				padding: 18px 14px;
+				background: #f7f7f7;
+			}
+
+			.site-switcher {
+				display: grid;
+				gap: 2px;
+				margin-bottom: 24px;
+				padding: 0 4px;
+			}
+
+			.site-switcher strong {
+				font-size: 1.05rem;
+			}
+
+			.site-switcher span {
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.78rem;
+			}
+
+			.nav {
+				display: grid;
+				gap: 4px;
+			}
+
+			.nav-row {
+				position: relative;
+				display: grid;
+				grid-template-columns: 12px minmax(0, 1fr) auto;
+				gap: 10px;
+				align-items: center;
+				min-height: 38px;
+				border-radius: 6px;
+				padding: 7px 8px;
+				color: #333333;
+			}
+
+			.nav-row:hover {
+				background: #ededed;
+			}
+
+			.nav-row.active {
+				background: var(--ink);
+				color: var(--paper);
+			}
+
+			.nav-row .dot,
+			.item-dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: transparent;
+			}
+
+			.has-edits .dot,
+			.has-edits .item-dot {
+				background: var(--blue);
+			}
+
+			.has-new .dot,
+			.has-new .item-dot {
+				background: var(--green);
+			}
+
+			.has-warning .dot,
+			.has-warning .item-dot {
+				background: var(--yellow);
+				box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.2);
+			}
+
+			.nav-row span:nth-child(2) {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				font-weight: 720;
+			}
+
+			.nav-row small {
+				color: var(--muted);
+				font-size: 0.78rem;
+			}
+
+			.nav-row.active small {
+				color: #d6d6d6;
+			}
+
+			.nav-children {
+				display: grid;
+				gap: 2px;
+				margin: 4px 0 12px 30px;
+			}
+
+			.child-row {
+				display: grid;
+				grid-template-columns: 10px minmax(0, 1fr);
+				gap: 8px;
+				align-items: center;
+				min-height: 28px;
+				color: #4f4f4f;
+				font-size: 0.9rem;
+			}
+
+			.child-row.active {
+				color: var(--blue);
+				font-weight: 760;
+			}
+
+			.content {
+				min-width: 0;
+				padding: 18px 24px 42px;
+			}
+
+			.topbar {
+				display: flex;
+				align-items: center;
+				justify-content: flex-end;
+				gap: 8px;
+				margin-bottom: 28px;
+			}
+
+			.button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-height: 36px;
+				border: 0;
+				border-radius: 6px;
+				background: var(--soft);
+				color: var(--ink);
+				padding: 0 13px;
+				font-size: 0.9rem;
+				font-weight: 720;
+				cursor: pointer;
+			}
+
+			.button.primary {
+				background: var(--ink);
+				color: var(--paper);
+			}
+
+			.button.publish {
+				background: var(--blue);
+				color: var(--paper);
+			}
+
+			.page-head {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 18px;
+				align-items: end;
+				margin-bottom: 18px;
+			}
+
+			h1,
+			h2,
+			h3,
+			p {
+				margin: 0;
+			}
+
+			h1 {
+				font-size: 2.35rem;
+				font-weight: 800;
+				line-height: 1;
+			}
+
+			.summary {
+				margin-top: 7px;
+				color: var(--muted);
+			}
+
+			.status-line {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-bottom: 22px;
+			}
+
+			.pill {
+				display: inline-flex;
+				align-items: center;
+				gap: 7px;
+				border-radius: 999px;
+				background: var(--soft);
+				padding: 6px 10px;
+				color: #393939;
+				font-size: 0.88rem;
+				font-weight: 680;
+			}
+
+			.pill::before {
+				content: "";
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: var(--blue);
+			}
+
+			.pill.green::before {
+				background: var(--green);
+			}
+
+			.toolbar {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 12px;
+				margin-bottom: 16px;
+			}
+
+			.search {
+				width: 100%;
+				min-height: 40px;
+				border: 0;
+				border-radius: 6px;
+				background: var(--soft);
+				padding: 0 13px;
+				outline: 0;
+			}
+
+			.search:focus,
+			input:focus,
+			textarea:focus {
+				box-shadow: 0 0 0 3px var(--blue);
+			}
+
+			.item-list {
+				display: grid;
+				gap: 8px;
+			}
+
+			.item-row {
+				display: grid;
+				grid-template-columns: 10px 86px minmax(0, 1fr) auto;
+				gap: 14px;
+				align-items: center;
+				border-radius: 8px;
+				background: var(--softer);
+				padding: 10px;
+			}
+
+			.item-row:hover {
+				background: var(--soft);
+			}
+
+			.item-row img {
+				display: block;
+				width: 86px;
+				aspect-ratio: 1.25 / 1;
+				object-fit: cover;
+				border-radius: 6px;
+				background: var(--soft);
+			}
+
+			.item-copy {
+				min-width: 0;
+			}
+
+			.item-copy h2 {
+				font-size: 1.08rem;
+				line-height: 1.15;
+			}
+
+			.item-copy p {
+				margin-top: 4px;
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.78rem;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+
+			.row-meta {
+				display: flex;
+				gap: 8px;
+				align-items: center;
+				color: var(--muted);
+				font-size: 0.88rem;
+				white-space: nowrap;
+			}
+
+			.row-meta .changed {
+				color: var(--blue);
+				font-weight: 760;
+			}
+
+			.editor {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) 300px;
+				gap: 24px;
+				margin-top: 34px;
+				padding-top: 24px;
+				border-top: 1px solid var(--line);
+			}
+
+			.form {
+				display: grid;
+				gap: 16px;
+			}
+
+			.form h2 {
+				font-size: 1.45rem;
+				line-height: 1.1;
+			}
+
+			.field {
+				display: grid;
+				gap: 7px;
+			}
+
+			.field label {
+				color: #454545;
+				font-size: 0.9rem;
+				font-weight: 720;
+			}
+
+			.field input,
+			.field textarea {
+				width: 100%;
+				border: 0;
+				border-radius: 6px;
+				background: var(--soft);
+				padding: 12px;
+				outline: 0;
+			}
+
+			.field textarea {
+				min-height: 150px;
+				resize: vertical;
+			}
+
+			.image-panel {
+				display: grid;
+				gap: 10px;
+				align-content: start;
+			}
+
+			.image-panel img {
+				display: block;
+				width: 100%;
+				aspect-ratio: 1 / 1;
+				object-fit: cover;
+				border-radius: 8px;
+			}
+
+			.image-panel code {
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.78rem;
+				overflow-wrap: anywhere;
+			}
+
+			.form-actions {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+			}
+
+			@media (max-width: 880px) {
+				.app {
+					grid-template-columns: 1fr;
+				}
+
+				.sidebar {
+					min-height: auto;
+				}
+
+				.content {
+					padding: 18px 14px 34px;
+				}
+
+				.editor {
+					grid-template-columns: 1fr;
+				}
+			}
+
+			@media (max-width: 560px) {
+				.page-head,
+				.toolbar {
+					grid-template-columns: 1fr;
+				}
+
+				.item-row {
+					grid-template-columns: 10px 68px minmax(0, 1fr);
+					gap: 8px;
+				}
+
+				.item-row img {
+					width: 68px;
+					aspect-ratio: 1 / 1;
+				}
+
+				.row-meta {
+					grid-column: 3;
+					white-space: normal;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="app">
+			<aside class="sidebar">
+				<a class="site-switcher" href="#">
+					<strong>kilian.website</strong>
+					<span>local checkout</span>
+				</a>
+				<nav class="nav" aria-label="Website pages">
+					<a class="nav-row" href="#">
+						<span class="dot"></span>
+						<span>Home</span>
+						<small></small>
+					</a>
+					<a class="nav-row active has-edits" href="#">
+						<span class="dot"></span>
+						<span>Posts</span>
+						<small>18</small>
+					</a>
+					<div class="nav-children">
+						<a class="child-row active has-edits" href="#">
+							<span class="item-dot"></span>
+							<span>The Old Ceremony</span>
+						</a>
+						<a class="child-row" href="#">
+							<span class="item-dot"></span>
+							<span>Signal Fires</span>
+						</a>
+						<a class="child-row has-new" href="#">
+							<span class="item-dot"></span>
+							<span>Sister Cities</span>
+						</a>
+					</div>
+					<a class="nav-row has-warning" href="#">
+						<span class="dot"></span>
+						<span>Projects</span>
+						<small>12</small>
+					</a>
+					<a class="nav-row" href="#">
+						<span class="dot"></span>
+						<span>Lists</span>
+						<small>9</small>
+					</a>
+					<a class="nav-row" href="#">
+						<span class="dot"></span>
+						<span>About</span>
+						<small></small>
+					</a>
+					<a class="nav-row" href="#">
+						<span class="dot"></span>
+						<span>Settings</span>
+						<small></small>
+					</a>
+				</nav>
+			</aside>
+
+			<main class="content">
+				<div class="topbar">
+					<a class="button" href="#">Preview</a>
+					<a class="button publish" href="#">Publish changes</a>
+				</div>
+
+				<header class="page-head">
+					<div>
+						<h1>Posts</h1>
+						<p class="summary">18 posts in this site. 3 have unpublished changes.</p>
+					</div>
+					<a class="button primary" href="#">New post</a>
+				</header>
+
+				<div class="status-line" aria-label="Change summary">
+					<span class="pill">2 edited</span>
+					<span class="pill green">1 new</span>
+				</div>
+
+				<div class="toolbar">
+					<input class="search" type="search" placeholder="Search posts" />
+					<button class="button" type="button">Newest first</button>
+				</div>
+
+				<section class="item-list" aria-label="Posts">
+					<a class="item-row has-edits" href="#">
+						<span class="item-dot"></span>
+						<img src="https://picsum.photos/seed/tentman-ia-1/400/320" alt="Post thumbnail" />
+						<div class="item-copy">
+							<h2>The Old Ceremony</h2>
+							<p>posts/old-ceremony.md</p>
+						</div>
+						<div class="row-meta">
+							<span class="changed">Edited</span>
+							<span>Mar 22</span>
+						</div>
+					</a>
+					<a class="item-row" href="#">
+						<span class="item-dot"></span>
+						<img src="https://picsum.photos/seed/tentman-ia-2/400/320" alt="Post thumbnail" />
+						<div class="item-copy">
+							<h2>Signal Fires</h2>
+							<p>posts/signal-fires.md</p>
+						</div>
+						<div class="row-meta">
+							<span>Published</span>
+							<span>Feb 11</span>
+						</div>
+					</a>
+					<a class="item-row has-new" href="#">
+						<span class="item-dot"></span>
+						<img src="https://picsum.photos/seed/tentman-ia-3/400/320" alt="Post thumbnail" />
+						<div class="item-copy">
+							<h2>Sister Cities</h2>
+							<p>posts/sister-cities.md</p>
+						</div>
+						<div class="row-meta">
+							<span class="changed">New</span>
+							<span>Draft</span>
+						</div>
+					</a>
+				</section>
+
+				<section class="editor" aria-label="Edit selected post">
+					<form class="form">
+						<h2>The Old Ceremony</h2>
+						<div class="field">
+							<label for="title">Title</label>
+							<input id="title" value="The Old Ceremony" />
+						</div>
+						<div class="field">
+							<label for="slug">Slug</label>
+							<input id="slug" value="old-ceremony" />
+						</div>
+						<div class="field">
+							<label for="notes">Body</label>
+							<textarea id="notes">A short note about the record, where it belongs, and what should be visible in the post list.</textarea>
+						</div>
+						<div class="form-actions">
+							<button class="button primary" type="button">Save</button>
+							<button class="button" type="button">Cancel</button>
+						</div>
+					</form>
+					<div class="image-panel">
+						<img src="https://picsum.photos/seed/tentman-ia-preview/500/500" alt="Post image preview" />
+						<code>static/images/posts/old-ceremony.jpg</code>
+						<a class="button" href="#">Replace image</a>
+					</div>
+				</section>
+			</main>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Home - Tentman Flow Mockup</title>
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<div class="app">
+			<aside class="site-nav">
+				<div class="site-head">
+					<a class="site-name" href="./home.html"><strong>kilian.website</strong><span>kilmc/kilian.website</span></a>
+					<details class="settings"><summary class="icon-button" aria-label="Site settings"><span class="cog" aria-hidden="true"></span></summary><div class="settings-menu"><a href="./settings.html">Site settings</a><a href="./settings.html#navigation">Edit navigation</a><a href="#">Help</a></div></details>
+				</div>
+				<nav class="nav" aria-label="Website pages">
+					<a class="active changed" href="./home.html"><span class="name">Home</span><span class="marker"></span></a>
+					<a class="changed" href="./posts.html"><span class="name">Posts</span><span class="marker"></span></a>
+					<a class="changed" href="./project.html"><span class="name">Projects</span><span class="marker"></span></a>
+					<a href="#"><span class="name">Lists</span><span class="marker"></span></a>
+					<a href="#"><span class="name">About</span><span class="marker"></span></a>
+				</nav>
+				<div class="nav-tools">
+					<a class="nav-edit" href="./settings.html#navigation">Edit navigation</a>
+					<a class="switch-site" href="#">Switch site</a>
+				</div>
+			</aside>
+			<main class="main">
+				<header class="topbar">
+					<div class="breadcrumb"><h1>Home</h1></div>
+					<div class="top-actions"><a class="button" href="#">Preview</a><a class="button primary" href="#">Publish</a></div>
+				</header>
+				<div class="workbench single">
+					<section class="page-pane" aria-label="Edit home page">
+						<header class="page-head">
+							<div><h2>Home</h2><p class="summary">Intro text, primary link, and main image.</p></div>
+						</header>
+						<form class="form">
+							<div class="field"><label for="headline">Headline</label><input id="headline" value="Design, code, records, notes" /></div>
+							<div class="field"><label for="intro">Intro</label><textarea id="intro">A short introduction that appears at the top of the site. It should sound like the site owner.</textarea></div>
+							<div class="field"><label for="cta">Primary link</label><input id="cta" value="/projects" /></div>
+							<div class="field"><label for="label">Link label</label><input id="label" value="Projects" /></div>
+							<div class="field"><label for="image">Image</label><span class="thumb paper"></span><input id="image" value="static/images/home/desk.jpg" /></div>
+							<div class="form-actions"><button class="button primary" type="button">Save</button><button class="button" type="button">Cancel</button></div>
+						</form>
+					</section>
+				</div>
+			</main>
+		</div>
+	</body>
+</html>

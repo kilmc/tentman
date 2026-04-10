@@ -17,12 +17,14 @@
 	interface Props {
 		block: BlockUsage;
 		value: any;
+		fieldPath?: string;
 		onchange?: () => void;
 		imagePath?: string; // Custom image storage path from config
 		blockRegistry: BlockRegistry;
 	}
 
-	let { block, value = $bindable(), onchange, imagePath, blockRegistry }: Props = $props();
+	let { block, value = $bindable(), fieldPath, onchange, imagePath, blockRegistry }: Props =
+		$props();
 
 	function getBlockLabel(id: string): string {
 		return id
@@ -82,7 +84,9 @@
 	<ArrayField
 		{label}
 		bind:value
+		{fieldPath}
 		blocks={structuredBlocks?.blocks ?? []}
+		itemLabel={block.itemLabel}
 		{required}
 		{onchange}
 		{imagePath}
@@ -92,6 +96,7 @@
 	<StructuredBlockField
 		{label}
 		bind:value
+		{fieldPath}
 		blocks={structuredBlocks?.blocks ?? []}
 		{required}
 		{onchange}

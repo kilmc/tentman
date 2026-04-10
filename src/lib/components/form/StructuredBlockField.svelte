@@ -9,6 +9,7 @@
 		label: string;
 		blocks: BlockUsage[];
 		value: ContentRecord;
+		fieldPath?: string;
 		required?: boolean;
 		onchange?: () => void;
 		imagePath?: string;
@@ -19,6 +20,7 @@
 		label,
 		blocks,
 		value = $bindable({}),
+		fieldPath,
 		required = false,
 		onchange,
 		imagePath,
@@ -43,6 +45,7 @@
 			<FormField
 				{block}
 				bind:value={value[block.id]}
+				fieldPath={fieldPath ? `${fieldPath}.${block.id}` : block.id}
 				{imagePath}
 				{blockRegistry}
 				onchange={() => onchange?.()}

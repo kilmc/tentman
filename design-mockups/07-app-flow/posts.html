@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Posts - Tentman Flow Mockup</title>
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<div class="app">
+			<aside class="site-nav">
+				<div class="site-head">
+					<a class="site-name" href="./home.html"><strong>kilian.website</strong><span>kilmc/kilian.website</span></a>
+					<details class="settings">
+						<summary class="icon-button" aria-label="Site settings"><span class="cog" aria-hidden="true"></span></summary>
+						<div class="settings-menu">
+							<a href="./settings.html">Site settings</a>
+							<a href="./settings.html#navigation">Edit navigation</a>
+							<a href="#">Help</a>
+						</div>
+					</details>
+				</div>
+				<nav class="nav" aria-label="Website pages">
+					<a href="./home.html"><span class="name">Home</span><span class="marker"></span></a>
+					<a class="active changed" href="./posts.html"><span class="name">Posts</span><span class="marker"></span></a>
+					<a class="changed" href="./project.html"><span class="name">Projects</span><span class="marker"></span></a>
+					<a href="#"><span class="name">Lists</span><span class="marker"></span></a>
+					<a href="#"><span class="name">About</span><span class="marker"></span></a>
+				</nav>
+				<div class="nav-tools">
+					<a class="nav-edit" href="./settings.html#navigation">Edit navigation</a>
+					<a class="switch-site" href="#">Switch site</a>
+				</div>
+			</aside>
+			<main class="main">
+				<header class="topbar">
+					<div class="breadcrumb"><h1>Posts</h1></div>
+					<div class="top-actions"><a class="button" href="#">Preview</a><a class="button primary" href="#">Publish</a></div>
+				</header>
+				<div class="workbench">
+					<section class="index-pane" aria-label="Posts">
+						<div class="index-head">
+							<div class="index-title"><strong>Posts</strong><span>18 total, 3 changed</span></div>
+							<a class="button" href="#">New post</a>
+							<a class="button" href="./posts-collapsed.html">Hide list</a>
+						</div>
+						<div class="search-row"><input class="search" type="search" placeholder="Search posts" /><button class="button" type="button">Newest</button></div>
+						<div class="items">
+							<a class="item active changed" href="./posts.html"><span class="thumb land"></span><div><h2>The Old Ceremony</h2><p>A short note about the record.</p></div><span class="change-dot"></span></a>
+							<a class="item" href="./markdown.html"><span class="thumb sea"></span><div><h2>Signal Fires</h2><p>Field notes and late-night listening.</p></div><span class="change-dot"></span></a>
+							<a class="item new" href="#"><span class="thumb city"></span><div><h2>Sister Cities</h2><p>Two days of pictures and fragments.</p></div><span class="change-dot"></span></a>
+							<a class="item changed" href="#"><span class="thumb paper"></span><div><h2>Low Sun Choir</h2><p>Updated intro and image.</p></div><span class="change-dot"></span></a>
+							<a class="item" href="#"><span class="thumb"></span><div><h2>Night House</h2><p>Notes from January.</p></div><span class="change-dot"></span></a>
+						</div>
+					</section>
+					<section class="editor-pane" aria-label="Edit selected post">
+						<header class="editor-head">
+							<div><h2>The Old Ceremony</h2></div>
+						</header>
+						<form class="form">
+							<div class="field"><label for="title">Title</label><input id="title" value="The Old Ceremony" /></div>
+							<div class="field"><label for="slug">Slug</label><input id="slug" value="old-ceremony" /></div>
+							<div class="field"><label for="body">Body</label><textarea id="body">A short note about the record, where it belongs, and what should be visible in the post list.</textarea></div>
+							<div class="field"><label for="image">Image</label><span class="thumb land"></span><input id="image" value="static/images/posts/old-ceremony.jpg" /></div>
+							<div class="form-actions"><button class="button primary" type="button">Save</button><button class="button" type="button">Cancel</button></div>
+						</form>
+					</section>
+				</div>
+			</main>
+		</div>
+	</body>
+</html>

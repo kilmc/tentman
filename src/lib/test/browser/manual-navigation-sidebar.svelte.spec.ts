@@ -65,12 +65,13 @@ const sidebarEditorMocks = vi.hoisted(() => {
 					label: 'Blog Posts',
 					collection: true,
 					idField: 'slug',
+					itemLabel: 'Blog Post',
 					content: {
 						mode: 'directory' as const,
 						path: 'src/content/posts',
 						template: 'templates/post.md'
 					},
-					blocks: []
+					blocks: [{ id: 'title', type: 'text' as const, label: 'Title' }]
 				}
 			}
 		],
@@ -106,14 +107,20 @@ const sidebarEditorMocks = vi.hoisted(() => {
 
 	return {
 		backend,
+		page: {
+			params: {} as Record<string, string>,
+			url: new URL('http://localhost/pages')
+		},
 		localRepoStore,
 		localContentStore,
 		refresh: vi.fn(async () => {}),
+		clearLocalRepo: vi.fn(async () => {}),
 		fetchContentDocument: vi.fn(async () => [
 			{ slug: 'hello-world', title: 'Hello world' },
 			{ slug: 'second-post', title: 'Second post' },
 			{ slug: 'third-post', title: 'Third post' }
 		]),
+		goto: vi.fn(async () => {}),
 		resolve: vi.fn((path: string) => path),
 		invalidateAll: vi.fn(async () => {}),
 		toasts: {
@@ -124,6 +131,7 @@ const sidebarEditorMocks = vi.hoisted(() => {
 });
 
 vi.mock('$app/navigation', () => ({
+	goto: sidebarEditorMocks.goto,
 	invalidateAll: sidebarEditorMocks.invalidateAll
 }));
 
@@ -132,9 +140,7 @@ vi.mock('$app/paths', () => ({
 }));
 
 vi.mock('$app/state', () => ({
-	page: {
-		params: {}
-	}
+	page: sidebarEditorMocks.page
 }));
 
 vi.mock('$lib/content/service', () => ({
@@ -150,7 +156,17 @@ vi.mock('$lib/stores/local-content', () => ({
 
 vi.mock('$lib/stores/local-repo', () => ({
 	localRepo: {
-		subscribe: sidebarEditorMocks.localRepoStore.subscribe
+		subscribe: sidebarEditorMocks.localRepoStore.subscribe,
+		clear: sidebarEditorMocks.clearLocalRepo
+	}
+}));
+
+vi.mock('$lib/stores/draft-branch', () => ({
+	draftBranch: {
+		subscribe(callback: (value: { branchName: string | null }) => void) {
+			callback({ branchName: null });
+			return () => {};
+		}
 	}
 }));
 
@@ -164,63 +180,83 @@ vi.mock('$lib/utils/routing', () => ({
 
 import PagesLayout from '../../../routes/pages/+layout.svelte';
 
-describe('routes/pages/+layout.svelte manual navigation editor', () => {
+const layoutData = {
+	isAuthenticated: false,
+	user: null,
+	selectedBackend: {
+		kind: 'local' as const,
+		repo: {
+			name: 'Docs',
+			pathLabel: '~/Docs'
+		}
+	},
+	selectedRepo: null,
+	configs: [],
+	blockConfigs: [],
+	rootConfig: null,
+	navigationManifest: {
+		path: 'tentman/navigation-manifest.json',
+		exists: false,
+		manifest: null,
+		error: null
+	}
+};
+
+describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 	beforeEach(() => {
 		sidebarEditorMocks.refresh.mockClear();
+		sidebarEditorMocks.clearLocalRepo.mockClear();
 		sidebarEditorMocks.fetchContentDocument.mockClear();
+		sidebarEditorMocks.goto.mockClear();
 		sidebarEditorMocks.resolve.mockClear();
 		sidebarEditorMocks.invalidateAll.mockClear();
 		sidebarEditorMocks.toasts.success.mockClear();
 		sidebarEditorMocks.toasts.error.mockClear();
+		sidebarEditorMocks.page.params = {};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages');
 	});
 
-	it('enters sidebar edit mode with collections collapsed, then reveals grouped and ungrouped zones when expanded', async () => {
+	it('renders site pages only in the sidebar and edits top-level page order', async () => {
 		const screen = render(PagesLayout, {
-			data: {
-				isAuthenticated: false,
-				user: null,
-				selectedBackend: {
-					kind: 'local',
-					repo: {
-						name: 'Docs',
-						pathLabel: '~/Docs'
-					}
-				},
-				selectedRepo: null,
-				configs: [],
-				blockConfigs: [],
-				rootConfig: null,
-				navigationManifest: {
-					path: 'tentman/navigation-manifest.json',
-					exists: false,
-					manifest: null,
-					error: null
-				}
-			}
+			data: layoutData
 		});
 
 		await expect.element(screen.getByRole('button', { name: 'Edit navigation' })).toBeVisible();
+		await expect.element(screen.getByRole('link', { name: 'About Page' })).toBeVisible();
+		await expect.element(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
+		await expect.element(screen.getByText('Hello world')).not.toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Edit navigation' }).click();
 
 		await expect.element(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-		await expect
-			.element(screen.getByRole('button', { name: 'Expand collection' }))
-			.toHaveAttribute('aria-expanded', 'false');
 		await expect.element(screen.getByText('About Page')).toBeVisible();
 		await expect.element(screen.getByText('Blog Posts')).toBeVisible();
-
-		await screen.getByRole('button', { name: 'Expand collection' }).click();
-
-		await expect
-			.element(screen.getByRole('button', { name: 'Collapse collection' }))
-			.toHaveAttribute('aria-expanded', 'true');
-		await expect.element(screen.getByText('Featured')).toBeVisible();
-		await expect.element(screen.getByText('Ungrouped')).toBeVisible();
-		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalledTimes(2);
+		await expect.element(screen.getByText('Ungrouped')).not.toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Cancel' }).click();
 
 		await expect.element(screen.getByRole('button', { name: 'Edit navigation' })).toBeVisible();
+	});
+
+	it('renders collection items in the collection index pane beside the editor', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog',
+			itemId: 'hello-world'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
+
+		const screen = render(PagesLayout, {
+			data: layoutData
+		});
+
+		await expect.element(screen.getByRole('link', { name: 'New Blog Post' })).toBeVisible();
+		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await expect.element(screen.getByText('Second post')).toBeVisible();
+		await expect.element(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
+
+		await screen.getByRole('button', { name: 'Edit order' }).click();
+		await expect.element(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
+		await expect.element(screen.getByText('Ungrouped')).toBeVisible();
+		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();
 	});
 });

@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Tentman Mockup 05 - Two Pane Tight</title>
+		<style>
+			:root {
+				color-scheme: light;
+				--ink: #101010;
+				--paper: #ffffff;
+				--soft: #f4f4f4;
+				--line: #d8d8d8;
+				--muted: #626262;
+				--blue: #0057ff;
+				--green: #008d67;
+				--yellow: #ffdf00;
+				--red: #d51a1a;
+				font-family:
+					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				background: var(--paper);
+				color: var(--ink);
+				font-size: 14px;
+				line-height: 1.4;
+			}
+
+			a {
+				color: inherit;
+				text-decoration: none;
+			}
+
+			button,
+			input,
+			textarea {
+				font: inherit;
+			}
+
+			.app {
+				min-height: 100vh;
+				display: grid;
+				grid-template-columns: 232px minmax(0, 1fr);
+			}
+
+			.sidebar {
+				display: grid;
+				grid-template-rows: auto minmax(0, 1fr) auto;
+				background: var(--ink);
+				color: var(--paper);
+				padding: 14px;
+			}
+
+			.site {
+				display: grid;
+				gap: 2px;
+				margin-bottom: 18px;
+			}
+
+			.site strong {
+				font-size: 1rem;
+			}
+
+			.site span {
+				color: #bbbbbb;
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.76rem;
+			}
+
+			.nav {
+				display: grid;
+				gap: 2px;
+				align-content: start;
+			}
+
+			.nav a {
+				display: grid;
+				grid-template-columns: 8px minmax(0, 1fr) auto;
+				gap: 9px;
+				align-items: center;
+				min-height: 34px;
+				border-radius: 4px;
+				padding: 7px 8px;
+				color: #e9e9e9;
+			}
+
+			.nav a:hover {
+				background: #2c2c2c;
+			}
+
+			.nav a.active {
+				background: var(--paper);
+				color: var(--ink);
+			}
+
+			.marker {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: transparent;
+			}
+
+			.changed .marker {
+				background: var(--blue);
+			}
+
+			.new .marker {
+				background: var(--green);
+			}
+
+			.warning .marker {
+				background: var(--yellow);
+			}
+
+			.nav .name {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				font-weight: 720;
+			}
+
+			.nav small {
+				color: #bdbdbd;
+				font-size: 0.76rem;
+			}
+
+			.nav .active small {
+				color: var(--muted);
+			}
+
+			.sidebar-actions {
+				display: grid;
+				gap: 6px;
+			}
+
+			.button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-height: 34px;
+				border: 0;
+				border-radius: 4px;
+				background: var(--soft);
+				color: var(--ink);
+				padding: 0 12px;
+				font-weight: 720;
+				cursor: pointer;
+			}
+
+			.sidebar .button {
+				background: #2c2c2c;
+				color: var(--paper);
+			}
+
+			.button.primary {
+				background: var(--ink);
+				color: var(--paper);
+			}
+
+			.button.blue {
+				background: var(--blue);
+				color: var(--paper);
+			}
+
+			.main {
+				display: grid;
+				grid-template-rows: auto minmax(0, 1fr);
+				min-width: 0;
+				min-height: 100vh;
+			}
+
+			.topbar {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 14px;
+				align-items: center;
+				min-height: 58px;
+				padding: 10px 16px;
+				border-bottom: 1px solid var(--line);
+			}
+
+			.title-line {
+				display: flex;
+				align-items: baseline;
+				gap: 10px;
+				min-width: 0;
+			}
+
+			h1,
+			h2,
+			h3,
+			p {
+				margin: 0;
+			}
+
+			h1 {
+				font-size: 1.45rem;
+				line-height: 1.1;
+			}
+
+			.title-line span {
+				color: var(--muted);
+				white-space: nowrap;
+			}
+
+			.actions {
+				display: flex;
+				gap: 8px;
+			}
+
+			.workbench {
+				display: grid;
+				grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
+				min-width: 0;
+				min-height: 0;
+			}
+
+			.list-pane {
+				min-width: 0;
+				border-right: 1px solid var(--line);
+				background: #fbfbfb;
+			}
+
+			.pane-tools {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 8px;
+				padding: 12px;
+				border-bottom: 1px solid var(--line);
+			}
+
+			.search {
+				width: 100%;
+				min-height: 34px;
+				border: 0;
+				border-radius: 4px;
+				background: var(--soft);
+				padding: 0 10px;
+				outline: 0;
+			}
+
+			.search:focus,
+			input:focus,
+			textarea:focus {
+				box-shadow: 0 0 0 3px var(--blue);
+			}
+
+			.items {
+				display: grid;
+			}
+
+			.item {
+				display: grid;
+				grid-template-columns: 8px 56px minmax(0, 1fr) auto;
+				gap: 10px;
+				align-items: center;
+				padding: 9px 12px;
+				border-bottom: 1px solid var(--line);
+				background: var(--paper);
+			}
+
+			.item.active {
+				background: #eeeeee;
+			}
+
+			.item img {
+				display: block;
+				width: 56px;
+				aspect-ratio: 1 / 1;
+				object-fit: cover;
+				border-radius: 4px;
+				background: var(--soft);
+			}
+
+			.item h2 {
+				font-size: 1rem;
+				line-height: 1.15;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+
+			.item p {
+				margin-top: 3px;
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.74rem;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+
+			.item time {
+				color: var(--muted);
+				font-size: 0.82rem;
+				white-space: nowrap;
+			}
+
+			.editor-pane {
+				min-width: 0;
+				padding: 18px;
+			}
+
+			.editor-head {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 16px;
+				align-items: start;
+				margin-bottom: 18px;
+			}
+
+			.editor-head h2 {
+				font-size: 1.65rem;
+				line-height: 1.05;
+			}
+
+			.change-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 7px;
+				border-radius: 999px;
+				background: #e7edff;
+				color: #003ab3;
+				padding: 6px 10px;
+				font-weight: 720;
+				white-space: nowrap;
+			}
+
+			.change-badge::before {
+				content: "";
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: var(--blue);
+			}
+
+			.editor-grid {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) 220px;
+				gap: 18px;
+				align-items: start;
+			}
+
+			.form {
+				display: grid;
+				gap: 14px;
+			}
+
+			.field {
+				display: grid;
+				gap: 6px;
+			}
+
+			.field label {
+				color: #444444;
+				font-weight: 720;
+			}
+
+			input,
+			textarea {
+				width: 100%;
+				border: 1px solid transparent;
+				border-radius: 4px;
+				background: var(--soft);
+				padding: 10px;
+				outline: 0;
+			}
+
+			textarea {
+				min-height: 190px;
+				resize: vertical;
+			}
+
+			.preview {
+				display: grid;
+				gap: 10px;
+			}
+
+			.preview img {
+				display: block;
+				width: 100%;
+				aspect-ratio: 1 / 1;
+				object-fit: cover;
+				border-radius: 4px;
+			}
+
+			.preview code {
+				color: var(--muted);
+				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-size: 0.74rem;
+				overflow-wrap: anywhere;
+			}
+
+			.form-actions {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-top: 2px;
+			}
+
+			@media (max-width: 980px) {
+				.app,
+				.workbench,
+				.editor-grid {
+					grid-template-columns: 1fr;
+				}
+
+				.sidebar {
+					min-height: auto;
+				}
+
+				.list-pane {
+					border-right: 0;
+					border-bottom: 1px solid var(--line);
+				}
+			}
+
+			@media (max-width: 560px) {
+				.topbar,
+				.pane-tools,
+				.editor-head {
+					grid-template-columns: 1fr;
+				}
+
+				.actions,
+				.title-line {
+					flex-wrap: wrap;
+				}
+
+				.item {
+					grid-template-columns: 8px 54px minmax(0, 1fr);
+				}
+
+				.item img {
+					width: 54px;
+				}
+
+				.item h2,
+				.item p {
+					white-space: normal;
+				}
+
+				.item time {
+					grid-column: 3;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="app">
+			<aside class="sidebar">
+				<a class="site" href="#">
+					<strong>kilian.website</strong>
+					<span>local checkout</span>
+				</a>
+				<nav class="nav" aria-label="Website pages">
+					<a href="#">
+						<span class="marker"></span>
+						<span class="name">Home</span>
+						<small></small>
+					</a>
+					<a class="active changed" href="#">
+						<span class="marker"></span>
+						<span class="name">Posts</span>
+						<small>18</small>
+					</a>
+					<a class="warning" href="#">
+						<span class="marker"></span>
+						<span class="name">Projects</span>
+						<small>12</small>
+					</a>
+					<a href="#">
+						<span class="marker"></span>
+						<span class="name">Lists</span>
+						<small>9</small>
+					</a>
+					<a href="#">
+						<span class="marker"></span>
+						<span class="name">About</span>
+						<small></small>
+					</a>
+					<a href="#">
+						<span class="marker"></span>
+						<span class="name">Settings</span>
+						<small></small>
+					</a>
+				</nav>
+				<div class="sidebar-actions">
+					<a class="button" href="#">Preview site</a>
+					<a class="button" href="#">Switch site</a>
+				</div>
+			</aside>
+
+			<main class="main">
+				<header class="topbar">
+					<div class="title-line">
+						<h1>Posts</h1>
+						<span>3 unpublished changes</span>
+					</div>
+					<div class="actions">
+						<a class="button" href="#">New post</a>
+						<a class="button blue" href="#">Publish</a>
+					</div>
+				</header>
+
+				<div class="workbench">
+					<section class="list-pane" aria-label="Posts">
+						<div class="pane-tools">
+							<input class="search" type="search" placeholder="Search posts" />
+							<button class="button" type="button">Newest</button>
+						</div>
+						<div class="items">
+							<a class="item active changed" href="#">
+								<span class="marker"></span>
+								<img src="https://picsum.photos/seed/tentman-tight-1/240/240" alt="Post thumbnail" />
+								<div>
+									<h2>The Old Ceremony</h2>
+									<p>posts/old-ceremony.md</p>
+								</div>
+								<time>Edited</time>
+							</a>
+							<a class="item" href="#">
+								<span class="marker"></span>
+								<img src="https://picsum.photos/seed/tentman-tight-2/240/240" alt="Post thumbnail" />
+								<div>
+									<h2>Signal Fires</h2>
+									<p>posts/signal-fires.md</p>
+								</div>
+								<time>Feb 11</time>
+							</a>
+							<a class="item new" href="#">
+								<span class="marker"></span>
+								<img src="https://picsum.photos/seed/tentman-tight-3/240/240" alt="Post thumbnail" />
+								<div>
+									<h2>Sister Cities</h2>
+									<p>posts/sister-cities.md</p>
+								</div>
+								<time>New</time>
+							</a>
+							<a class="item" href="#">
+								<span class="marker"></span>
+								<img src="https://picsum.photos/seed/tentman-tight-4/240/240" alt="Post thumbnail" />
+								<div>
+									<h2>Low Sun Choir</h2>
+									<p>posts/low-sun-choir.md</p>
+								</div>
+								<time>Jan 28</time>
+							</a>
+							<a class="item" href="#">
+								<span class="marker"></span>
+								<img src="https://picsum.photos/seed/tentman-tight-5/240/240" alt="Post thumbnail" />
+								<div>
+									<h2>Night House</h2>
+									<p>posts/night-house.md</p>
+								</div>
+								<time>Jan 12</time>
+							</a>
+						</div>
+					</section>
+
+					<section class="editor-pane" aria-label="Edit selected post">
+						<header class="editor-head">
+							<div>
+								<h2>The Old Ceremony</h2>
+								<p>posts/old-ceremony.md</p>
+							</div>
+							<span class="change-badge">Edited</span>
+						</header>
+
+						<div class="editor-grid">
+							<form class="form">
+								<div class="field">
+									<label for="title">Title</label>
+									<input id="title" value="The Old Ceremony" />
+								</div>
+								<div class="field">
+									<label for="slug">Slug</label>
+									<input id="slug" value="old-ceremony" />
+								</div>
+								<div class="field">
+									<label for="body">Body</label>
+									<textarea id="body">A short note about the record, where it belongs, and what should be visible in the post list.</textarea>
+								</div>
+								<div class="form-actions">
+									<button class="button primary" type="button">Save</button>
+									<button class="button" type="button">Cancel</button>
+								</div>
+							</form>
+
+							<div class="preview">
+								<img src="https://picsum.photos/seed/tentman-tight-preview/420/420" alt="Post image preview" />
+								<code>static/images/posts/old-ceremony.jpg</code>
+								<a class="button" href="#">Replace image</a>
+							</div>
+						</div>
+					</section>
+				</div>
+			</main>
+		</div>
+	</body>
+</html>
