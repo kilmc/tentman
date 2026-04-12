@@ -1,10 +1,7 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
-import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-import { normalizeRepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
-import { getCachedConfigs } from '$lib/stores/config-cache';
-import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { handleGitHubSessionError } from '$lib/server/auth/github';
+import { loadSelectedGitHubRepoConfigs } from '$lib/server/repo-config-bootstrap';
 import { logDevRouting } from '$lib/utils/dev-routing-log';
 import type { RequestHandler } from './$types';
 
@@ -29,25 +26,8 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 		selectedRepo: locals.selectedRepo.full_name
 	});
 
-	const octokit = createGitHubServerClient(locals.githubToken, cookies);
-	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
-
 	try {
-		const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
-			getCachedConfigs(backend),
-			backend.discoverBlockConfigs(),
-			backend.readRootConfig(),
-			loadNavigationManifestState(backend)
-		]);
-
-		return json(
-			normalizeRepoConfigsBootstrap({
-				configs,
-				blockConfigs,
-				rootConfig,
-				navigationManifest
-			})
-		);
+		return json(await loadSelectedGitHubRepoConfigs(locals, cookies));
 	} catch (err) {
 		logDevRouting('api:repo-configs:error', {
 			selectedRepo: locals.selectedRepo.full_name,

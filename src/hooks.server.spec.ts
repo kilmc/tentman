@@ -99,7 +99,16 @@ describe('hooks.server', () => {
 	it('keeps local backend selection when the local repo cookie is present', async () => {
 		const cookies = createCookies({
 			[SELECTED_BACKEND_COOKIE]: 'local',
-			[SELECTED_LOCAL_REPO_COOKIE]: '{"name":"Docs","pathLabel":"~/Sites/docs"}'
+			[SELECTED_LOCAL_REPO_COOKIE]: '{"name":"Docs","pathLabel":"~/Sites/docs"}',
+			[GITHUB_REPO_SESSION_COOKIE]: Buffer.from(
+				JSON.stringify({
+					v: 1,
+					rootConfig: {
+						siteName: 'Acme Docs'
+					}
+				})
+			).toString('base64url'),
+			selected_repo: '{"owner":"acme","name":"repo","full_name":"acme/repo"}'
 		});
 
 		let resolvedLocals: App.Locals | undefined;
@@ -126,5 +135,7 @@ describe('hooks.server', () => {
 				}
 			}
 		});
+		expect(resolvedLocals?.selectedRepo).toBeUndefined();
+		expect(resolvedLocals?.rootConfig).toBeUndefined();
 	});
 });

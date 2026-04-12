@@ -125,11 +125,7 @@
 				<span class="text-red-600">*</span>
 			{/if}
 		</legend>
-		<button
-			type="button"
-			onclick={addItem}
-			class="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-stone-950 px-3 text-xs font-medium text-white hover:bg-stone-800"
-		>
+		<button type="button" onclick={addItem} class="tm-btn tm-btn-secondary min-h-8 px-3 text-xs">
 			<Plus class="h-3.5 w-3.5" />
 			Add item
 		</button>
@@ -167,16 +163,10 @@
 			{#each value as item, index}
 				<button
 					type="button"
-					class="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-3 py-3 text-left text-sm transition-colors"
-					class:border-stone-950={selectedIndex === index}
-					class:bg-stone-950={selectedIndex === index}
-					class:text-white={selectedIndex === index}
-					class:border-gray-300={selectedIndex !== index}
-					class:bg-white={selectedIndex !== index}
-					class:text-stone-800={selectedIndex !== index}
-					class:hover:bg-stone-100={selectedIndex !== index}
+					class="tm-nav-link grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-r-md border-y border-r border-l-2 border-y-stone-200 border-r-stone-200 px-4 py-3 text-left text-sm"
+					class:tm-nav-link-active={isPanelOpen && selectedIndex === index}
 					onclick={() => selectItem(index)}
-					aria-pressed={selectedIndex === index}
+					aria-pressed={isPanelOpen && selectedIndex === index}
 				>
 					<span class="truncate font-medium">
 						{getRepeatableItemLabel(item, index, blocks, itemLabel)}
@@ -187,53 +177,13 @@
 		</div>
 
 		{#if isPanelOpen}
-			<div class="mt-4 rounded-md border border-gray-300 bg-gray-50 p-4 xl:hidden">
-				<div class="mb-4 flex items-start justify-between gap-3 border-b border-gray-200 pb-3">
-					<div class="min-w-0">
-						<p class="text-[0.7rem] font-semibold tracking-[0.16em] text-stone-500 uppercase">
-							{itemLabel ?? label}
-						</p>
-						<h3 class="truncate text-sm font-semibold text-stone-900">
-							{getRepeatableItemLabel(selectedItem, selectedIndex, blocks, itemLabel)}
-						</h3>
-					</div>
-					<div class="flex items-center gap-2">
-						<button
-							type="button"
-							onclick={closePanel}
-							class="inline-flex min-h-8 items-center rounded-md border border-stone-300 px-2.5 text-xs font-medium text-stone-700 hover:bg-stone-100"
-						>
-							Done
-						</button>
-						<button
-							type="button"
-							onclick={() => removeItem(selectedIndex)}
-							class="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-red-700 hover:bg-red-50"
-						>
-							<Trash2 class="h-3.5 w-3.5" />
-							Remove
-						</button>
-					</div>
-				</div>
-
-				<div class="grid gap-2">
-					{#each blocks as block}
-						<FormField
-							{block}
-							fieldPath={fieldPath ? `${fieldPath}[${selectedIndex}].${block.id}` : block.id}
-							bind:value={value[selectedIndex][block.id]}
-							{imagePath}
-							{blockRegistry}
-							onchange={() => onchange?.()}
-						/>
-					{/each}
-				</div>
-			</div>
 			<aside
-				class="hidden xl:flex xl:fixed xl:top-14 xl:right-0 xl:z-20 xl:h-[calc(100vh-3.5rem)] xl:w-[22rem] xl:flex-col xl:border-l xl:border-stone-200 xl:bg-white"
+				class="mt-4 flex flex-col rounded-md border border-gray-300 bg-gray-50 p-4 xl:fixed xl:top-14 xl:right-0 xl:z-20 xl:mt-0 xl:h-[calc(100vh-3.5rem)] xl:w-[22rem] xl:rounded-none xl:border-t-0 xl:border-r-0 xl:border-b-0 xl:border-l xl:border-stone-200 xl:bg-white xl:p-0"
 				aria-label={`${label} editor`}
 			>
-				<div class="flex items-start justify-between gap-3 border-b border-stone-200 px-4 py-4">
+				<div
+					class="mb-4 flex items-start justify-between gap-3 border-b border-gray-200 pb-3 xl:mb-0 xl:border-stone-200 xl:px-4 xl:py-4"
+				>
 					<div class="min-w-0">
 						<p class="text-[0.7rem] font-semibold tracking-[0.16em] text-stone-500 uppercase">
 							{itemLabel ?? label}
@@ -245,7 +195,7 @@
 					<span class="h-2 w-2 rounded-full bg-stone-950" aria-hidden="true"></span>
 				</div>
 
-				<div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+				<div class="min-h-0 flex-1 overflow-y-auto xl:px-4 xl:py-4">
 					<div class="grid gap-2">
 						{#each blocks as block}
 							<FormField
@@ -260,18 +210,14 @@
 					</div>
 				</div>
 
-				<div class="flex items-center gap-2 border-t border-stone-200 px-4 py-4">
-					<button
-						type="button"
-						onclick={closePanel}
-						class="inline-flex min-h-9 items-center justify-center rounded-md bg-stone-950 px-3 text-sm font-semibold text-white hover:bg-stone-800"
-					>
-						Done
-					</button>
+				<div
+					class="mt-4 flex items-center gap-2 border-t border-stone-200 pt-4 xl:mt-0 xl:px-4 xl:py-4 xl:pt-4"
+				>
+					<button type="button" onclick={closePanel} class="tm-btn tm-btn-secondary"> Done </button>
 					<button
 						type="button"
 						onclick={() => removeItem(selectedIndex)}
-						class="inline-flex min-h-9 items-center justify-center rounded-md bg-stone-100 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+						class="tm-btn border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
 					>
 						Remove
 					</button>

@@ -54,7 +54,6 @@
 	async function loadLocalItem(pageSlug: string, itemId: string) {
 		const requestId = ++localLoadRequest;
 
-		item = null;
 		contentError = null;
 		await localContent.refresh();
 
@@ -157,7 +156,7 @@
 				</div>
 				<a
 					href={resolve(`/pages/${data.pageSlug}/${data.itemId}/edit${branchQuery}`)}
-					class="mt-4 inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 sm:mt-0"
+					class="tm-btn tm-btn-secondary mt-4 sm:mt-0"
 				>
 					Edit
 				</a>

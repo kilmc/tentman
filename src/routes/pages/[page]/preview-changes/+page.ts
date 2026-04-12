@@ -1,4 +1,5 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
+import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import {
 	buildPathWithQuery,
@@ -7,20 +8,16 @@ import {
 } from '$lib/utils/routing';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
-	const parentData = await parent();
+	const workspace = resolveWorkspaceState(await parent());
 	const branch = readOptionalSearchParam(url.searchParams, 'branch');
 	const reposRedirect = buildReposRedirect('/repos', url);
 
-	if (parentData.selectedBackend?.kind === 'local') {
+	if (workspace.mode === 'local') {
 		throw redirect(302, `/pages/${params.page}/edit`);
 	}
 
-	if (!parentData.isAuthenticated) {
+	if (workspace.mode !== 'github' || !workspace.isAuthenticated) {
 		throw redirect(302, reposRedirect);
-	}
-
-	if (!parentData.selectedRepo) {
-		throw redirect(302, '/repos');
 	}
 
 	const encodedData = url.searchParams.get('data');

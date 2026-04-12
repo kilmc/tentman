@@ -1,12 +1,7 @@
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
-import { goto } from '$app/navigation';
 import { invalidateAll } from '$app/navigation';
-import {
-	SELECTED_BACKEND_COOKIE,
-	SELECTED_LOCAL_REPO_COOKIE,
-	type LocalRepositoryIdentity
-} from '$lib/repository/selection';
+import { type LocalRepositoryIdentity } from '$lib/repository/selection';
 import { createLocalRepositoryBackend, type LocalRepositoryBackend } from '$lib/repository/local';
 import { traceRouting } from '$lib/utils/routing-trace';
 
@@ -71,12 +66,26 @@ async function clearHandle(): Promise<void> {
 	});
 }
 
-function setCookie(name: string, value: string, maxAge = 60 * 60 * 24 * 30) {
-	document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-}
+async function persistBackendSelection(
+	payload: { kind: 'local'; repo: LocalRepositoryIdentity } | { kind: 'none' }
+) {
+	const response = await fetch('/api/session/backend', {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify(payload)
+	});
 
-function deleteCookie(name: string) {
-	document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+	if (!response.ok) {
+		throw new Error(`Failed to persist backend selection (${response.status})`);
+	}
+
+	return (await response.json()) as {
+		selectedBackend: { kind: 'github' | 'local' } | null;
+		selectedRepo: { full_name: string } | null;
+		selectionCommitted: boolean;
+	};
 }
 
 async function ensureRepoHandle(handle: FileSystemDirectoryHandle): Promise<void> {
@@ -173,8 +182,10 @@ function createStore() {
 				await saveHandle(handle);
 
 				const repo = getRepoIdentity(handle);
-				setCookie(SELECTED_BACKEND_COOKIE, 'local');
-				setCookie(SELECTED_LOCAL_REPO_COOKIE, JSON.stringify(repo));
+				const persistedSelection = await persistBackendSelection({
+					kind: 'local',
+					repo
+				});
 
 				set({
 					status: 'ready',
@@ -186,11 +197,17 @@ function createStore() {
 				traceRouting('local-repo:selected', {
 					repo: repo.pathLabel
 				});
-				traceRouting('navigation:goto', {
+				traceRouting('local-repo:server-selection', {
+					repo: repo.pathLabel,
+					selectedBackend: persistedSelection.selectedBackend?.kind ?? null,
+					selectedRepo: persistedSelection.selectedRepo?.full_name ?? null,
+					selectionCommitted: persistedSelection.selectionCommitted
+				});
+				traceRouting('navigation:assign', {
 					to: '/pages',
 					source: 'local-repo.open'
 				});
-				await goto('/pages', { invalidateAll: true });
+				window.location.assign('/pages');
 			} catch (error) {
 				set({
 					status: 'error',
@@ -204,15 +221,16 @@ function createStore() {
 			}
 		},
 
-		async clear() {
+		async clear(options: { invalidate?: boolean } = {}) {
 			if (!browser) return;
 
+			await persistBackendSelection({ kind: 'none' });
 			await clearHandle();
-			deleteCookie(SELECTED_BACKEND_COOKIE);
-			deleteCookie(SELECTED_LOCAL_REPO_COOKIE);
 			set({ status: 'idle', repo: null, backend: null, error: null });
 			traceRouting('local-repo:cleared');
-			await invalidateAll();
+			if (options.invalidate ?? true) {
+				await invalidateAll();
+			}
 		}
 	};
 }

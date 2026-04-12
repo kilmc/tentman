@@ -1,24 +1,60 @@
-import { describe, expect, it } from 'vitest';
-import { load } from './+layout';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+	loadSelectedGitHubRepoConfigs: vi.fn(),
+	handleGitHubSessionError: vi.fn()
+}));
+
+vi.mock('$lib/server/repo-config-bootstrap', () => ({
+	loadSelectedGitHubRepoConfigs: mocks.loadSelectedGitHubRepoConfigs
+}));
+
+vi.mock('$lib/server/auth/github', () => ({
+	handleGitHubSessionError: mocks.handleGitHubSessionError
+}));
+
+import { load } from './+layout.server';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 describe('routes/pages/+layout', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.loadSelectedGitHubRepoConfigs.mockResolvedValue({
+			configs: [
+				{
+					slug: 'posts',
+					path: 'content/posts.tentman.json',
+					config: {
+						label: 'Posts',
+						collection: true,
+						content: {
+							mode: 'directory'
+						},
+						blocks: []
+					}
+				}
+			],
+			blockConfigs: [],
+			rootConfig: null,
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+		});
+	});
+
 	it('returns empty configs when the GitHub bootstrap is not yet available', async () => {
 		expect(
 			await load({
-				parent: async () => ({
-					isAuthenticated: false,
-					selectedRepo: null,
-					selectedBackend: null
-				})
+				locals: {
+					isAuthenticated: false
+				},
+				cookies: {}
 			} as never)
 		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
 	});
 
-	it('loads repo configs from the thin API bootstrap', async () => {
+	it('loads repo configs from the current server-selected GitHub repo', async () => {
 		expect(
 			await load({
-				parent: async () => ({
+				locals: {
 					isAuthenticated: true,
 					selectedRepo: {
 						owner: 'acme',
@@ -33,34 +69,10 @@ describe('routes/pages/+layout', () => {
 							full_name: 'acme/docs'
 						}
 					}
-				}),
-				depends: () => {},
-				fetch: async () =>
-					new Response(
-						JSON.stringify({
-							configs: [
-								{
-									slug: 'posts',
-									path: 'content/posts.tentman.json',
-									config: {
-										label: 'Posts',
-										collection: true,
-										content: {
-											mode: 'directory'
-										},
-										blocks: []
-									}
-								}
-							],
-							navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
-						}),
-						{
-							status: 200,
-							headers: {
-								'content-type': 'application/json'
-							}
-						}
-					)
+				},
+				cookies: {
+					delete: () => {}
+				}
 			} as never)
 		).toEqual({
 			configs: [
@@ -83,11 +95,39 @@ describe('routes/pages/+layout', () => {
 		});
 	});
 
+	it('returns empty configs when local mode is active, even if a stale GitHub repo snapshot exists', async () => {
+		expect(
+			await load({
+				locals: {
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'local',
+						repo: {
+							name: 'Docs',
+							pathLabel: '~/Sites/docs'
+						}
+					}
+				},
+				cookies: {}
+			} as never)
+		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
+	});
+
 	it('redirects to login when repo config bootstrap returns 401', async () => {
+		mocks.loadSelectedGitHubRepoConfigs.mockRejectedValueOnce({
+			status: 401
+		});
+
 		await expect(
 			load({
-				parent: async () => ({
+				locals: {
 					isAuthenticated: true,
+					githubToken: 'secret-token',
 					selectedRepo: {
 						owner: 'acme',
 						name: 'docs',
@@ -101,13 +141,15 @@ describe('routes/pages/+layout', () => {
 							full_name: 'acme/docs'
 						}
 					}
-				}),
-				depends: () => {},
-				fetch: async () => new Response(null, { status: 401 })
+				},
+				cookies: {
+					delete: () => {}
+				}
 			} as never)
 		).rejects.toMatchObject({
-			status: 302,
-			location: '/repos?returnTo=%2Fpages&debugFailure=pages-layout-bootstrap-401&debugRepo=acme%2Fdocs'
+			status: 401
 		});
+
+		expect(mocks.handleGitHubSessionError).toHaveBeenCalledOnce();
 	});
 });

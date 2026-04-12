@@ -175,7 +175,8 @@ vi.mock('$lib/stores/toasts', () => ({
 }));
 
 vi.mock('$lib/utils/routing', () => ({
-	buildLoginRedirect: vi.fn((path: string) => path)
+	buildLoginRedirect: vi.fn((path: string) => path),
+	buildReposRedirect: vi.fn((path: string) => path)
 }));
 
 import PagesLayout from '../../../routes/pages/+layout.svelte';

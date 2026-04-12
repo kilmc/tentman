@@ -2,6 +2,7 @@ import { dev } from '$app/environment';
 import { redirect } from '@sveltejs/kit';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
+import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import { requireGitHubRepository, handleGitHubRouteError } from '$lib/server/page-context';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
@@ -18,14 +19,17 @@ type ChangedPageSummary = {
 export const load: PageServerLoad = async ({ parent, locals, cookies }) => {
 	const parentData = (await parent()) as LayoutData;
 	const requestLocals = locals ?? {};
-	const selectedBackend = requestLocals.selectedBackend ?? parentData.selectedBackend ?? null;
-	const selectedRepo = requestLocals.selectedRepo ?? parentData.selectedRepo ?? null;
-	const isAuthenticated = Boolean(requestLocals.isAuthenticated ?? parentData.isAuthenticated);
+	const workspace = resolveWorkspaceState({
+		isAuthenticated: requestLocals.isAuthenticated ?? parentData.isAuthenticated,
+		selectedBackend: requestLocals.selectedBackend ?? parentData.selectedBackend ?? null,
+		selectedRepo: requestLocals.selectedRepo ?? parentData.selectedRepo ?? null,
+		rootConfig: requestLocals.rootConfig ?? parentData.rootConfig ?? null
+	});
 	const configs = parentData.configs ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.configs;
 	const navigationManifest =
 		parentData.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest;
 
-	if (selectedBackend?.kind === 'local') {
+	if (workspace.mode === 'local') {
 		return {
 			summary: {
 				draftBranch: null,
@@ -36,7 +40,7 @@ export const load: PageServerLoad = async ({ parent, locals, cookies }) => {
 		};
 	}
 
-	if (!isAuthenticated) {
+	if (!workspace.isAuthenticated) {
 		throw redirect(
 			302,
 			dev
@@ -48,7 +52,7 @@ export const load: PageServerLoad = async ({ parent, locals, cookies }) => {
 		);
 	}
 
-	if (!selectedRepo) {
+	if (workspace.mode !== 'github') {
 		throw redirect(
 			302,
 			dev

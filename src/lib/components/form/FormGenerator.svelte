@@ -122,7 +122,9 @@
 	}
 
 	const formLayoutClass = $derived(
-		$activeWorkspacePanelId ? 'space-y-4 xl:pr-[23rem]' : 'space-y-4'
+		$activeWorkspacePanelId
+			? 'space-y-4 xl:w-[calc(100%+23rem)] xl:max-w-[calc(var(--workspace-content-max-width)+23rem)] xl:pr-[23rem] xl:-mr-[23rem]'
+			: 'space-y-4'
 	);
 </script>
 

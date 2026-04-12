@@ -93,7 +93,6 @@
 	async function loadLocalItem(pageSlug: string, itemId: string) {
 		const requestId = ++localLoadRequest;
 
-		item = null;
 		contentError = null;
 		await localContent.refresh();
 		const repoState = get(localRepo);
@@ -293,127 +292,111 @@
 		<div class="rounded-md border border-stone-200 bg-white p-8 text-center">
 			<LoadingSpinner size="lg" label="Loading content..." />
 		</div>
-	{:else}
-		<div class="rounded-md border border-stone-200 bg-white">
-			<div class="p-4">
-				{#if isLocalMode}
-					<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
-						<input type="hidden" name="data" value="" />
-						{#if item?._filename}
-							<input type="hidden" name="filename" value={item._filename} />
-						{/if}
-						{#if blockRegistryError}
-							<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
-								<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
-								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
-							</div>
-						{:else if !blockRegistry}
-							<div
-								class="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600"
-							>
-								Loading block registry...
-							</div>
-						{:else}
-							<FormGenerator
-								bind:this={formGenerator}
-								{config}
-								{blockConfigs}
-								{blockRegistry}
-								initialData={item}
-								existingItems={[]}
-								currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
-								onvalidate={handleFieldsChanged}
-							/>
-						{/if}
-						<div class="mt-6 flex gap-3">
-							<button
-								type="button"
-								onclick={() => void handleLocalSave()}
-								disabled={saving || !blockRegistry || !!blockRegistryError}
-								class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-							>
-								{saving ? 'Saving...' : 'Save Changes'}
-							</button>
-							<a
-								href={resolve(`/pages/${data.pageSlug}`)}
-								class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
-							>
-								Cancel
-							</a>
-						</div>
-					</form>
-				{:else}
-					<form
-						bind:this={currentForm}
-						method="POST"
-						action="?/saveToPreview"
-						onsubmit={validateForm}
-						use:enhance={() => {
-							saving = true;
-							hasUnsavedChanges = false;
-							return async ({ update }) => {
-								await update();
-								saving = false;
-							};
-						}}
-					>
-						<input type="hidden" name="data" value="" />
-						{#if data.branch}
-							<input type="hidden" name="branch" value={data.branch} />
-						{/if}
-						{#if item?._filename}
-							<input type="hidden" name="filename" value={item._filename} />
-						{/if}
-						{#if blockRegistryError}
-							<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
-								<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
-								<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
-							</div>
-						{:else if githubBlockRegistry}
-							<FormGenerator
-								bind:this={formGenerator}
-								{config}
-								{blockConfigs}
-								blockRegistry={githubBlockRegistry}
-								initialData={item}
-								existingItems={[]}
-								currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
-								onvalidate={handleFieldsChanged}
-							/>
-						{/if}
-						<div class="mt-6 flex gap-3">
-							<button
-								type="submit"
-								disabled={saving || !githubBlockRegistry || !!blockRegistryError}
-								class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-							>
-								{saving ? 'Saving...' : 'Continue'}
-							</button>
-							<a
-								href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
-								class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
-							>
-								Cancel
-							</a>
-						</div>
-					</form>
-				{/if}
-			</div>
-
-			<div class="border-t border-stone-200 bg-stone-50 px-4 py-4">
-				<h3 class="mb-2 text-sm font-semibold text-stone-950">Delete item</h3>
-				<p class="mb-3 text-sm text-stone-600">
-					Once you delete this item, it will be permanently removed from the repository.
-				</p>
+	{:else if isLocalMode}
+		<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
+			<input type="hidden" name="data" value="" />
+			{#if item?._filename}
+				<input type="hidden" name="filename" value={item._filename} />
+			{/if}
+			{#if blockRegistryError}
+				<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
+					<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
+					<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+				</div>
+			{:else if !blockRegistry}
+				<div class="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
+					Loading block registry...
+				</div>
+			{:else}
+				{#key `${data.pageSlug}:${data.itemId}:${item?._filename ?? ''}:${JSON.stringify(item)}`}
+					<FormGenerator
+						bind:this={formGenerator}
+						{config}
+						{blockConfigs}
+						{blockRegistry}
+						initialData={item}
+						existingItems={[]}
+						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
+						onvalidate={handleFieldsChanged}
+					/>
+				{/key}
+			{/if}
+			<div class="mt-6 flex flex-wrap gap-3">
+				<button
+					type="button"
+					onclick={() => void handleLocalSave()}
+					disabled={saving || !blockRegistry || !!blockRegistryError}
+					class="tm-btn tm-btn-primary"
+				>
+					{saving ? 'Saving...' : 'Save Changes'}
+				</button>
+				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary"> Cancel </a>
 				<button
 					type="button"
 					onclick={() => (showDeleteConfirm = true)}
-					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+					class="tm-btn border-red-600 bg-red-600 text-white hover:bg-red-700"
 				>
 					Delete {getConfigItemLabel(config)}
 				</button>
 			</div>
-		</div>
+		</form>
+	{:else}
+		<form
+			bind:this={currentForm}
+			method="POST"
+			action="?/saveToPreview"
+			onsubmit={validateForm}
+			use:enhance={() => {
+				saving = true;
+				hasUnsavedChanges = false;
+				return async ({ update }) => {
+					await update();
+					saving = false;
+				};
+			}}
+		>
+			<input type="hidden" name="data" value="" />
+			{#if data.branch}
+				<input type="hidden" name="branch" value={data.branch} />
+			{/if}
+			{#if item?._filename}
+				<input type="hidden" name="filename" value={item._filename} />
+			{/if}
+			{#if blockRegistryError}
+				<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
+					<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
+					<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+				</div>
+			{:else if githubBlockRegistry}
+				{#key `${data.pageSlug}:${data.itemId}:${item?._filename ?? ''}:${JSON.stringify(item)}`}
+					<FormGenerator
+						bind:this={formGenerator}
+						{config}
+						{blockConfigs}
+						blockRegistry={githubBlockRegistry}
+						initialData={item}
+						existingItems={[]}
+						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
+						onvalidate={handleFieldsChanged}
+					/>
+				{/key}
+			{/if}
+			<div class="mt-6 flex flex-wrap gap-3">
+				<button
+					type="submit"
+					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
+					class="tm-btn tm-btn-primary"
+				>
+					{saving ? 'Saving...' : 'Continue'}
+				</button>
+				<a
+					href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
+					class="tm-btn tm-btn-secondary"
+				>
+					Cancel
+				</a>
+			</div>
+		</form>
 	{/if}
 
 	{#if showDeleteConfirm}

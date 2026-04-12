@@ -11,6 +11,7 @@ import type { ContentDocument, ContentRecord } from '$lib/features/content-manag
 export interface CollectionNavigationItem {
 	itemId: string;
 	title: string;
+	sortDate?: number | null;
 }
 
 export interface CollectionNavigationGroup {
@@ -22,6 +23,7 @@ export interface CollectionNavigationGroup {
 export interface OrderedCollectionRecord {
 	itemId: string;
 	title: string;
+	sortDate?: number | null;
 	item: ContentRecord;
 }
 
@@ -89,6 +91,8 @@ export function getCollectionNavigationItems(
 		return [];
 	}
 
+	const dateFieldId = config.blocks.find((block) => block.type === 'date')?.id;
+
 	return content.flatMap((item) => {
 		const itemId = getContentItemId(config, item);
 
@@ -99,10 +103,27 @@ export function getCollectionNavigationItems(
 		return [
 			{
 				itemId,
-				title: getContentItemTitle(config, item)
+				title: getContentItemTitle(config, item),
+				sortDate: getCollectionSortDate(item, dateFieldId)
 			}
 		];
 	});
+}
+
+function getCollectionSortDate(item: ContentRecord, dateFieldId?: string): number | null {
+	if (!dateFieldId) {
+		return null;
+	}
+
+	const value = item[dateFieldId];
+	if (value === undefined || value === null || value === '') {
+		return null;
+	}
+
+	const parsed = new Date(String(value));
+	const timestamp = parsed.getTime();
+
+	return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 function orderItemsByManifest<T extends { itemId: string }>(
@@ -269,6 +290,10 @@ export function getOrderedCollectionRecords(
 			{
 				itemId,
 				title: getContentItemTitle(config, item),
+				sortDate: getCollectionSortDate(
+					item,
+					config.blocks.find((block) => block.type === 'date')?.id
+				),
 				item
 			}
 		];

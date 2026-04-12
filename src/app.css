@@ -5,6 +5,40 @@
 	--workspace-content-max-width: 44rem;
 }
 
+@layer components {
+	.tm-btn {
+		@apply inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+	}
+
+	.tm-btn-primary {
+		@apply border-stone-950 bg-stone-950 text-white hover:bg-stone-800;
+	}
+
+	.tm-btn-secondary {
+		@apply border-stone-300 bg-white text-stone-900 hover:bg-stone-100;
+	}
+
+	.tm-btn-ghost {
+		@apply border-transparent bg-transparent text-stone-600 hover:bg-stone-100 hover:text-stone-950;
+	}
+
+	.tm-icon-btn {
+		@apply inline-flex h-9 w-9 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-700 transition-colors hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+	}
+
+	.tm-icon-btn-ghost {
+		@apply border-transparent bg-transparent text-stone-600 hover:bg-stone-100 hover:text-stone-950;
+	}
+
+	.tm-nav-link {
+		@apply border-l-2 border-transparent text-stone-700 transition-colors hover:bg-stone-100 hover:text-stone-950;
+	}
+
+	.tm-nav-link-active {
+		@apply border-stone-950 bg-stone-100 text-stone-950;
+	}
+}
+
 /* Custom animations for better UX */
 @keyframes fadeIn {
 	from {

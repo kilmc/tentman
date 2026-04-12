@@ -1,20 +1,17 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
+import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import { buildReposReturnHref } from '$lib/utils/routing';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, fetch, depends }) => {
-	const parentData = await parent();
+	const workspace = resolveWorkspaceState(await parent());
 
-	if (parentData.selectedBackend?.kind === 'local') {
+	if (workspace.mode === 'local') {
 		throw redirect(302, '/pages');
 	}
 
-	if (!parentData.isAuthenticated) {
+	if (workspace.mode !== 'github' || !workspace.isAuthenticated) {
 		throw redirect(302, buildReposReturnHref('/repos', '/publish'));
-	}
-
-	if (!parentData.selectedRepo) {
-		throw redirect(302, '/repos');
 	}
 
 	depends('app:content');

@@ -12,26 +12,26 @@ import {
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const session = readGitHubSession(event.cookies);
+	const selectedBackendKind = event.cookies.get(SELECTED_BACKEND_COOKIE);
+	const githubRepoSession = readSelectedGitHubRepositorySession(event.cookies);
 
 	if (session.token) {
 		event.locals.githubToken = session.token;
 		event.locals.user = session.user;
 	}
 	event.locals.isAuthenticated = Boolean(session.token);
-	event.locals.rootConfig = readSelectedGitHubRepositorySession(event.cookies).rootConfig;
 	event.locals.recentRepos = readRecentGitHubRepositories(event.cookies);
 
-	// Get selected repository from cookie
+	let selectedGitHubRepo: App.Locals['selectedRepo'];
 	const selectedRepo = event.cookies.get('selected_repo');
 	if (selectedRepo) {
 		try {
-			event.locals.selectedRepo = JSON.parse(selectedRepo);
+			selectedGitHubRepo = JSON.parse(selectedRepo);
 		} catch {
 			// Invalid JSON, ignore
 		}
 	}
 
-	const selectedBackendKind = event.cookies.get(SELECTED_BACKEND_COOKIE);
 	if (selectedBackendKind === 'local') {
 		const localRepo = event.cookies.get(SELECTED_LOCAL_REPO_COOKIE);
 		if (localRepo) {
@@ -44,11 +44,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 				// Ignore invalid local repo metadata.
 			}
 		}
-	} else if (event.locals.selectedRepo) {
+	} else if (selectedGitHubRepo && (selectedBackendKind === 'github' || !selectedBackendKind)) {
+		event.locals.selectedRepo = selectedGitHubRepo;
 		event.locals.selectedBackend = {
 			kind: 'github',
-			repo: event.locals.selectedRepo
+			repo: selectedGitHubRepo
 		};
+		event.locals.rootConfig = githubRepoSession.rootConfig;
 	}
 
 	return resolve(event);

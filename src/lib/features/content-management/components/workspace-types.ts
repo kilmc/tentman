@@ -9,7 +9,7 @@ export type WorkspaceNavItem = {
 	[key: string]: unknown;
 };
 
-export type CollectionSortMode = 'custom' | 'title-asc' | 'title-desc';
+export type CollectionSortType = 'custom' | 'title' | 'date';
 
 export type CollectionIndexItem = {
 	id: string;

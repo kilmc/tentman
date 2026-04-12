@@ -224,7 +224,6 @@
 	async function loadLocalPage(pageSlug: string) {
 		const requestId = ++localLoadRequest;
 
-		content = null;
 		contentError = null;
 		await localContent.refresh();
 
@@ -305,12 +304,6 @@
 	</div>
 {:else}
 	<div>
-		<div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
-				{config.label}
-			</h1>
-		</div>
-
 		{#if !isLocalMode && draftBranch && draftChanges}
 			{@const hasChanges =
 				draftChanges.modified.length > 0 ||
@@ -337,70 +330,48 @@
 				Loading content...
 			</div>
 		{:else if isCollectionContent}
-			<div class="rounded-md border border-stone-200 bg-white">
-				<div class="p-6">
-					<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">Collection</p>
-					<h2 class="mt-3 text-2xl font-bold tracking-[-0.03em] text-stone-950">
-						{config.label}
-					</h2>
-					<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-						{#if collectionItemCount > 0}
-							Choose a {collectionItemLabel ?? 'collection item'} from the index to start editing, or
-							create a new one when you need it.
-						{:else}
-							This collection does not have any items yet. Create the first
-							{collectionItemLabel ?? 'item'} to get started.
-						{/if}
-					</p>
+			<div class="grid gap-4 py-2">
+				<p class="max-w-2xl text-sm leading-6 text-stone-600">
+					{#if collectionItemCount > 0}
+						Choose a {collectionItemLabel ?? 'collection item'} from the index to start editing, or create
+						a new one when you need it.
+					{:else}
+						This collection does not have any items yet. Create the first
+						{collectionItemLabel ?? 'item'} to get started.
+					{/if}
+				</p>
 
-					<div class="mt-6 flex flex-wrap gap-3">
-						{#if firstCollectionItemHref}
-							<a
-								href={firstCollectionItemHref}
-								class="inline-flex items-center justify-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
-							>
-								Open first item
-							</a>
-						{/if}
+				<div class="flex flex-wrap gap-3">
+					{#if firstCollectionItemHref}
+						<a href={firstCollectionItemHref} class="tm-btn tm-btn-secondary"> Open first item </a>
+					{/if}
 
-						{#if newCollectionItemHref}
-							<a
-								href={newCollectionItemHref}
-								class="inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
-							>
-								{collectionItemCount > 0 ? 'Create new item' : 'Create first item'}
-							</a>
-						{/if}
-					</div>
+					{#if newCollectionItemHref}
+						<a href={newCollectionItemHref} class="tm-btn tm-btn-secondary">
+							{collectionItemCount > 0 ? 'Create new item' : 'Create first item'}
+						</a>
+					{/if}
 				</div>
 			</div>
 		{:else}
-			<div class="rounded-md border border-stone-200 bg-white">
-				<div class="p-4">
-					<dl class="space-y-4">
-						{#each config.blocks as block (block.id)}
-							<div class="border-b border-stone-100 pb-4 last:border-0 last:pb-0">
-								<dt class="mb-2 text-sm font-semibold text-stone-700">
-									{block.label ?? block.id}
-								</dt>
-								<dd class="text-stone-950">
-									<ContentValueDisplay
-										{block}
-										value={(content as ContentRecord)[block.id]}
-										blockRegistry={blockRegistry!}
-									/>
-								</dd>
-							</div>
-						{/each}
-					</dl>
-				</div>
-				<div class="flex gap-3 border-t border-stone-200 bg-stone-50 px-4 py-3">
-					<a
-						href={getEditHref()}
-						class="inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
-					>
-						Edit
-					</a>
+			<div class="grid gap-6">
+				<dl class="space-y-4">
+					{#each config.blocks as block (block.id)}
+						<div class="border-b border-stone-100 pb-4 last:border-0 last:pb-0">
+							<dt class="mb-2 text-sm font-semibold text-stone-700">{block.label ?? block.id}</dt>
+							<dd class="text-stone-950">
+								<ContentValueDisplay
+									{block}
+									value={(content as ContentRecord)[block.id]}
+									blockRegistry={blockRegistry!}
+								/>
+							</dd>
+						</div>
+					{/each}
+				</dl>
+
+				<div class="flex gap-3">
+					<a href={getEditHref()} class="tm-btn tm-btn-secondary"> Edit </a>
 				</div>
 			</div>
 		{/if}

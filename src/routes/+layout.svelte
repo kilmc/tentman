@@ -4,7 +4,6 @@
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -48,21 +47,29 @@
 		traceRouting('route', {
 			path: currentRoutePath,
 			authenticated: data.isAuthenticated,
-			selectedBackend: data.selectedBackend?.kind ?? null
+			selectedBackend: data.selectedBackend?.kind ?? null,
+			selectedRepo: data.selectedRepo?.full_name ?? null,
+			repoLabel,
+			siteName
 		});
 	});
 
-	onMount(async () => {
-		await localRepo.hydrate();
-
-		if (isLocalMode) {
-			await localContent.refresh();
+	$effect(() => {
+		if (!isLocalMode) {
+			localContent.reset();
+			return;
 		}
+
+		void (async () => {
+			await localRepo.hydrate();
+			await localContent.refresh();
+		})();
 	});
 
 	async function handleSwitchRepository() {
 		if (isLocalMode) {
-			await localRepo.clear();
+			localContent.reset();
+			await localRepo.clear({ invalidate: false });
 		}
 
 		await goto(resolve('/repos'));

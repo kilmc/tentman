@@ -55,6 +55,49 @@ describe('routes/pages/+page.server', () => {
 		});
 	});
 
+	it('treats current local locals as authoritative over stale parent GitHub state', async () => {
+		expect(
+			await load({
+				parent: async () => ({
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'github',
+						repo: {
+							owner: 'acme',
+							name: 'docs',
+							full_name: 'acme/docs'
+						}
+					},
+					configs: [],
+					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+				}),
+				locals: {
+					isAuthenticated: true,
+					selectedBackend: {
+						kind: 'local',
+						repo: {
+							name: 'Docs',
+							pathLabel: '~/Sites/docs'
+						}
+					}
+				},
+				cookies: {}
+			} as never)
+		).toEqual({
+			summary: {
+				draftBranch: null,
+				changedPages: [],
+				totalChanges: 0,
+				hasConfigs: false
+			}
+		});
+	});
+
 	it('redirects unauthenticated users to repos instead of forcing oauth', async () => {
 		await expect(
 			load({

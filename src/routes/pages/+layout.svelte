@@ -2,7 +2,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 	import {
@@ -60,6 +59,7 @@
 	let preparingNavigationEditor = $state(false);
 	let savingNavigation = $state(false);
 	let savingCollectionOrder = $state(false);
+	let isCollectionIndexCollapsed = $state(false);
 	let navigationDraft = $state<NavigationDraft | null>(null);
 	let initialNavigationDraft = $state<NavigationDraft | null>(null);
 	let topLevelEditorItems = $state<WorkspaceNavItem[]>([]);
@@ -234,7 +234,8 @@
 
 	async function handleSwitchSite() {
 		if (isLocalMode) {
-			await localRepo.clear();
+			localContent.reset();
+			await localRepo.clear({ invalidate: false });
 		}
 
 		await goto(resolve('/repos'));
@@ -504,14 +505,6 @@
 		syncTopLevelDraft(event.detail.items);
 	}
 
-	onMount(() => {
-		if (!isLocalMode) {
-			return;
-		}
-
-		void localContent.refresh();
-	});
-
 	$effect(() => {
 		if (!isLocalMode || $localContent.status !== 'ready') {
 			return;
@@ -565,12 +558,15 @@
 			{previewUrl}
 			showPublish={data.isAuthenticated && !!$draftBranch.branchName}
 			publishHref={resolve('/publish')}
+			showCollectionToggle={shouldShowCollectionIndex}
+			collectionCollapsed={isCollectionIndexCollapsed}
+			onToggleCollection={() => (isCollectionIndexCollapsed = !isCollectionIndexCollapsed)}
 		/>
 
-		{#if shouldShowCollectionIndex && currentConfig}
+		{#if shouldShowCollectionIndex && currentConfig && !isCollectionIndexCollapsed}
 			{@const navigation = getCollectionItems(currentConfig.slug)}
 			{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
-			<div class="grid min-h-0 overflow-hidden lg:grid-cols-[auto_minmax(0,1fr)]">
+			<div class="grid min-h-0 overflow-hidden lg:grid-cols-[17.5rem_minmax(0,1fr)]">
 				<CollectionIndex
 					slug={currentConfig.slug}
 					label={currentConfig.config.label}

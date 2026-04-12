@@ -205,172 +205,158 @@
 		</div>
 	{/if}
 
-	<div class="rounded-md border border-stone-200 bg-white">
-		<div class="p-4">
-			{#if isLocalMode}
-				<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
-					<input type="hidden" name="data" value="" />
+	{#if isLocalMode}
+		<form bind:this={currentForm} onsubmit={(event) => event.preventDefault()}>
+			<input type="hidden" name="data" value="" />
 
-					{#if requiresFilename}
-						<div class="mb-5 border-b border-stone-200 pb-5">
-							<label for="filename" class="mb-2 block text-sm font-medium text-stone-700">
-								Filename <span class="text-red-500">*</span>
-							</label>
-							<div class="flex items-center gap-2">
-								<input
-									type="text"
-									id="filename"
-									name="newFilename"
-									bind:value={filename}
-									oninput={() => {
-										filenameError = '';
-										hasUnsavedChanges = true;
-									}}
-									placeholder="e.g., 2025-11-30 or my-update"
-									class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
-									class:border-red-500={filenameError}
-									required
-								/>
-								<span class="text-sm text-stone-500">.md</span>
-							</div>
-							{#if filenameError}
-								<p class="mt-1 text-sm text-red-600">{filenameError}</p>
-							{:else}
-								<p class="mt-1 text-xs text-stone-500">
-									Enter a filename without the extension. Use lowercase letters, numbers, and
-									hyphens.
-								</p>
-							{/if}
-						</div>
-					{/if}
-
-					{#if blockRegistryError}
-						<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
-							<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
-							<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
-						</div>
-					{:else if !blockRegistry}
-						<div class="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
-							Loading block registry...
-						</div>
-					{:else if config}
-						<FormGenerator
-							bind:this={formGenerator}
-							{config}
-							{blockConfigs}
-							{blockRegistry}
-							initialData={{}}
-							existingItems={[]}
-							currentItemId={undefined}
-							onvalidate={handleFieldsChanged}
+			{#if requiresFilename}
+				<div class="mb-5 border-b border-stone-200 pb-5">
+					<label for="filename" class="mb-2 block text-sm font-medium text-stone-700">
+						Filename <span class="text-red-500">*</span>
+					</label>
+					<div class="flex items-center gap-2">
+						<input
+							type="text"
+							id="filename"
+							name="newFilename"
+							bind:value={filename}
+							oninput={() => {
+								filenameError = '';
+								hasUnsavedChanges = true;
+							}}
+							placeholder="e.g., 2025-11-30 or my-update"
+							class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
+							class:border-red-500={filenameError}
+							required
 						/>
-					{/if}
-
-					<div class="mt-6 flex gap-3">
-						<button
-							type="button"
-							onclick={() => void handleLocalCreate()}
-							disabled={saving || !blockRegistry || !!blockRegistryError}
-							class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-						>
-							{saving ? 'Creating...' : 'Create Item'}
-						</button>
-						<a
-							href={resolve(`/pages/${data.pageSlug}`)}
-							class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
-						>
-							Cancel
-						</a>
+						<span class="text-sm text-stone-500">.md</span>
 					</div>
-				</form>
-			{:else}
-				<form
-					bind:this={currentForm}
-					method="POST"
-					action="?/createToPreview"
-					onsubmit={validateLocalForm}
-					use:enhance={() => {
-						saving = true;
-						hasUnsavedChanges = false;
-						return async ({ update }) => {
-							await update();
-							saving = false;
-						};
-					}}
-				>
-					<input type="hidden" name="data" value="" />
-					{#if data.branch}
-						<input type="hidden" name="branch" value={data.branch} />
+					{#if filenameError}
+						<p class="mt-1 text-sm text-red-600">{filenameError}</p>
+					{:else}
+						<p class="mt-1 text-xs text-stone-500">
+							Enter a filename without the extension. Use lowercase letters, numbers, and hyphens.
+						</p>
 					{/if}
-
-					{#if requiresFilename}
-						<div class="mb-5 border-b border-stone-200 pb-5">
-							<label for="filename" class="mb-2 block text-sm font-medium text-stone-700">
-								Filename <span class="text-red-500">*</span>
-							</label>
-							<div class="flex items-center gap-2">
-								<input
-									type="text"
-									id="filename"
-									name="newFilename"
-									bind:value={filename}
-									oninput={() => {
-										filenameError = '';
-										hasUnsavedChanges = true;
-									}}
-									placeholder="e.g., 2025-11-30 or my-update"
-									class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
-									class:border-red-500={filenameError}
-									required
-								/>
-								<span class="text-sm text-stone-500">.md</span>
-							</div>
-							{#if filenameError}
-								<p class="mt-1 text-sm text-red-600">{filenameError}</p>
-							{:else}
-								<p class="mt-1 text-xs text-stone-500">
-									Enter a filename without the extension. Use lowercase letters, numbers, and
-									hyphens.
-								</p>
-							{/if}
-						</div>
-					{/if}
-
-					{#if blockRegistryError}
-						<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
-							<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
-							<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
-						</div>
-					{:else if config && githubBlockRegistry}
-						<FormGenerator
-							bind:this={formGenerator}
-							{config}
-							{blockConfigs}
-							blockRegistry={githubBlockRegistry}
-							initialData={{}}
-							existingItems={[]}
-							currentItemId={undefined}
-							onvalidate={handleFieldsChanged}
-						/>
-					{/if}
-
-					<div class="mt-6 flex gap-3">
-						<button
-							type="submit"
-							disabled={saving || !githubBlockRegistry || !!blockRegistryError}
-							class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-						>
-							{saving ? 'Creating...' : 'Create'}
-						</button>
-						<a
-							href={resolve(`/pages/${data.pageSlug}`) + branchQuery}
-							class="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
-						>
-							Cancel
-						</a>
-					</div>
-				</form>
+				</div>
 			{/if}
-		</div>
-	</div>
+
+			{#if blockRegistryError}
+				<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
+					<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
+					<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+				</div>
+			{:else if !blockRegistry}
+				<div class="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
+					Loading block registry...
+				</div>
+			{:else if config}
+				<FormGenerator
+					bind:this={formGenerator}
+					{config}
+					{blockConfigs}
+					{blockRegistry}
+					initialData={{}}
+					existingItems={[]}
+					currentItemId={undefined}
+					onvalidate={handleFieldsChanged}
+				/>
+			{/if}
+
+			<div class="mt-6 flex gap-3">
+				<button
+					type="button"
+					onclick={() => void handleLocalCreate()}
+					disabled={saving || !blockRegistry || !!blockRegistryError}
+					class="tm-btn tm-btn-primary"
+				>
+					{saving ? 'Creating...' : 'Create Item'}
+				</button>
+				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary"> Cancel </a>
+			</div>
+		</form>
+	{:else}
+		<form
+			bind:this={currentForm}
+			method="POST"
+			action="?/createToPreview"
+			onsubmit={validateLocalForm}
+			use:enhance={() => {
+				saving = true;
+				hasUnsavedChanges = false;
+				return async ({ update }) => {
+					await update();
+					saving = false;
+				};
+			}}
+		>
+			<input type="hidden" name="data" value="" />
+			{#if data.branch}
+				<input type="hidden" name="branch" value={data.branch} />
+			{/if}
+
+			{#if requiresFilename}
+				<div class="mb-5 border-b border-stone-200 pb-5">
+					<label for="filename" class="mb-2 block text-sm font-medium text-stone-700">
+						Filename <span class="text-red-500">*</span>
+					</label>
+					<div class="flex items-center gap-2">
+						<input
+							type="text"
+							id="filename"
+							name="newFilename"
+							bind:value={filename}
+							oninput={() => {
+								filenameError = '';
+								hasUnsavedChanges = true;
+							}}
+							placeholder="e.g., 2025-11-30 or my-update"
+							class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
+							class:border-red-500={filenameError}
+							required
+						/>
+						<span class="text-sm text-stone-500">.md</span>
+					</div>
+					{#if filenameError}
+						<p class="mt-1 text-sm text-red-600">{filenameError}</p>
+					{:else}
+						<p class="mt-1 text-xs text-stone-500">
+							Enter a filename without the extension. Use lowercase letters, numbers, and hyphens.
+						</p>
+					{/if}
+				</div>
+			{/if}
+
+			{#if blockRegistryError}
+				<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
+					<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
+					<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
+				</div>
+			{:else if config && githubBlockRegistry}
+				<FormGenerator
+					bind:this={formGenerator}
+					{config}
+					{blockConfigs}
+					blockRegistry={githubBlockRegistry}
+					initialData={{}}
+					existingItems={[]}
+					currentItemId={undefined}
+					onvalidate={handleFieldsChanged}
+				/>
+			{/if}
+
+			<div class="mt-6 flex gap-3">
+				<button
+					type="submit"
+					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
+					class="tm-btn tm-btn-primary"
+				>
+					{saving ? 'Creating...' : 'Create'}
+				</button>
+				<a href={resolve(`/pages/${data.pageSlug}`) + branchQuery} class="tm-btn tm-btn-secondary">
+					Cancel
+				</a>
+			</div>
+		</form>
+	{/if}
 </div>
