@@ -14,35 +14,34 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL(
-					'http://localhost/pages/posts/hello-world/edit?branch=preview-2026-04-06'
-				),
+				url: new URL('http://localhost/pages/posts/hello-world/edit?branch=preview-2026-04-06'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
 			location:
-				'/auth/login?redirect=%2Fpages%2Fposts%2Fhello-world%2Fedit%3Fbranch%3Dpreview-2026-04-06'
+				'/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%2Fedit%3Fbranch%3Dpreview-2026-04-06'
 		});
 	});
 
 	it('loads the item edit bootstrap from the thin API', async () => {
-		const fetch = vi.fn(async () =>
-			new Response(
-				JSON.stringify({
-					discoveredConfig: { slug: 'posts' },
-					item: { title: 'Hello world' },
-					itemId: 'hello-world',
-					pageSlug: 'posts',
-					mode: 'github'
-				}),
-				{
-					status: 200,
-					headers: {
-						'content-type': 'application/json'
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						discoveredConfig: { slug: 'posts' },
+						item: { title: 'Hello world' },
+						itemId: 'hello-world',
+						pageSlug: 'posts',
+						mode: 'github'
+					}),
+					{
+						status: 200,
+						headers: {
+							'content-type': 'application/json'
+						}
 					}
-				}
-			)
+				)
 		);
 
 		await expect(
@@ -80,23 +79,24 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 	});
 
 	it('passes through an explicit draft branch for draft-backed item editing', async () => {
-		const fetch = vi.fn(async () =>
-			new Response(
-				JSON.stringify({
-					discoveredConfig: { slug: 'posts' },
-					item: { title: 'Draft hello world' },
-					itemId: 'hello-world',
-					pageSlug: 'posts',
-					branch: 'preview-2026-04-06',
-					mode: 'github'
-				}),
-				{
-					status: 200,
-					headers: {
-						'content-type': 'application/json'
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						discoveredConfig: { slug: 'posts' },
+						item: { title: 'Draft hello world' },
+						itemId: 'hello-world',
+						pageSlug: 'posts',
+						branch: 'preview-2026-04-06',
+						mode: 'github'
+					}),
+					{
+						status: 200,
+						headers: {
+							'content-type': 'application/json'
+						}
 					}
-				}
-			)
+				)
 		);
 
 		await expect(

@@ -22,7 +22,7 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page', () => {
 		).rejects.toMatchObject({
 			status: 302,
 			location:
-				'/auth/login?redirect=%2Fpages%2Fposts%2Fhello-world%2Fpreview-changes%3Fdata%3Dabc%26branch%3Dpreview-2026-04-06'
+				'/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%2Fpreview-changes%3Fdata%3Dabc%26branch%3Dpreview-2026-04-06'
 		});
 	});
 

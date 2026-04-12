@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @plugin "@tailwindcss/typography";
 
+:root {
+	--workspace-content-max-width: 44rem;
+}
+
 /* Custom animations for better UX */
 @keyframes fadeIn {
 	from {

@@ -4,10 +4,8 @@ import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import type { GitHubUserSnapshot } from '$lib/auth/session';
-import {
-	createGitHubServerClient,
-	handleGitHubSessionError
-} from '$lib/server/auth/github';
+import { buildReposReturnHref } from '$lib/utils/routing';
+import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 
 type AppLocals = App.Locals;
 type GitHubRequestContext = {
@@ -33,7 +31,7 @@ export function requireGitHubRepository(
 	redirectTo = '/pages'
 ): GitHubRepositoryContext {
 	if (!locals.isAuthenticated || !locals.githubToken) {
-		throw redirect(302, `/auth/login?redirect=${redirectTo}`);
+		throw redirect(302, buildReposReturnHref('/repos', redirectTo));
 	}
 
 	if (!locals.selectedRepo) {

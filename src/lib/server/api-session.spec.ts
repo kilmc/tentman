@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('$lib/server/auth/github', () => ({
+	isGitHubOAuthConfigured: vi.fn(() => true)
+}));
+
 import { GET } from '../../routes/api/session/+server';
 
 describe('GET /api/session', () => {
@@ -33,6 +38,7 @@ describe('GET /api/session', () => {
 
 		expect(await response.json()).toEqual({
 			isAuthenticated: true,
+			githubOAuthConfigured: true,
 			user: {
 				login: 'kilmc',
 				name: 'Kilian',

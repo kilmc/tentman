@@ -67,6 +67,29 @@ describe('parseDiscoveredConfig', () => {
 		}
 		expect(discovered.config.content.path).toBe('./src/content/site.json');
 	});
+
+	it('accepts legacy discovered content configs', () => {
+		const discovered = parseDiscoveredConfig(
+			'src/lib/db/posts/posts.tentman.json',
+			`{
+				"label": "Blog Posts",
+				"template": "./post.template.md",
+				"filename": "{{slug}}",
+				"fields": [
+					{ "property": "title", "label": "Title", "type": "text" },
+					{ "property": "slug", "label": "Slug", "type": "text" },
+					{ "property": "_body", "label": "Content", "type": "markdown" }
+				]
+			}`
+		);
+
+		expect(discovered.slug).toBe('blog-posts');
+		expect(discovered.config.type).toBe('content');
+		expect(discovered.config.blocks.at(-1)).toMatchObject({
+			id: 'body',
+			type: 'markdown'
+		});
+	});
 });
 
 describe('parseDiscoveredBlockConfig', () => {

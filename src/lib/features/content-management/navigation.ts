@@ -230,6 +230,23 @@ export function getOrderedCollectionNavigation(
 	return splitOrderedItemsIntoGroups(items, getManifestCollection(manifest, config));
 }
 
+export function getFirstCollectionItemId(
+	config: ParsedContentConfig,
+	content: ContentDocument,
+	manifest: NavigationManifest | null | undefined
+): string | null {
+	const orderedNavigation = getOrderedCollectionNavigation(config, content, manifest);
+
+	for (const group of orderedNavigation.groups) {
+		const firstItem = group.items[0];
+		if (firstItem) {
+			return firstItem.itemId;
+		}
+	}
+
+	return orderedNavigation.items[0]?.itemId ?? null;
+}
+
 export function getOrderedCollectionRecords(
 	config: ParsedContentConfig,
 	content: ContentDocument,

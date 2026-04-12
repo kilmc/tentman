@@ -1,4 +1,5 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
+import { buildReposReturnHref } from '$lib/utils/routing';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, fetch, depends }) => {
@@ -9,7 +10,7 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 	}
 
 	if (!parentData.isAuthenticated) {
-		throw redirect(302, '/auth/login?redirect=/publish');
+		throw redirect(302, buildReposReturnHref('/repos', '/publish'));
 	}
 
 	if (!parentData.selectedRepo) {
@@ -21,7 +22,7 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 	const response = await fetch('/api/repo/publish-view');
 
 	if (response.status === 401) {
-		throw redirect(302, '/auth/login?redirect=/publish');
+		throw redirect(302, buildReposReturnHref('/repos', '/publish'));
 	}
 
 	if (response.status === 404) {

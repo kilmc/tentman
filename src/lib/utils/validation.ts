@@ -108,9 +108,16 @@ export function resolveConfigPath(configPath: string, relativePath: string): str
 	const lastSlashIndex = configPath.lastIndexOf('/');
 	const configDir = lastSlashIndex >= 0 ? configPath.substring(0, lastSlashIndex) : '';
 
+	if (relativePath === '.') {
+		return configDir;
+	}
+
 	// Handle relative paths starting with ./
 	if (relativePath.startsWith('./')) {
 		const pathWithoutDot = relativePath.slice(2);
+		if (!pathWithoutDot) {
+			return configDir;
+		}
 		return configDir ? `${configDir}/${pathWithoutDot}` : pathWithoutDot;
 	}
 

@@ -11,12 +11,15 @@
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
-	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
+	import { traceRouting } from '$lib/utils/routing-trace';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	const appHomeHref = $derived(data.selectedBackend ? '/pages' : '/');
 	const isPagesWorkspace = $derived(page.url.pathname.startsWith('/pages'));
+	const isSplashPage = $derived(
+		page.url.pathname === '/' && !data.isAuthenticated && !data.selectedBackend
+	);
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const siteName = $derived.by(() => {
 		if (isLocalMode) {
@@ -39,6 +42,15 @@
 	const previewUrl = $derived(
 		isLocalMode ? ($localContent.rootConfig?.local?.previewUrl ?? null) : null
 	);
+	const currentRoutePath = $derived(`${page.url.pathname}${page.url.search}`);
+
+	$effect(() => {
+		traceRouting('route', {
+			path: currentRoutePath,
+			authenticated: data.isAuthenticated,
+			selectedBackend: data.selectedBackend?.kind ?? null
+		});
+	});
 
 	onMount(async () => {
 		await localRepo.hydrate();
@@ -64,9 +76,14 @@
 {#if isPagesWorkspace}
 	{@render children?.()}
 	<ToastContainer />
+{:else if isSplashPage}
+	<div class="min-h-screen bg-stone-50" data-sveltekit-preload-data="hover">
+		{@render children?.()}
+		<ToastContainer />
+	</div>
 {:else}
 	<!-- Enable hover prefetch globally for instant navigation -->
-	<div class="min-h-screen bg-stone-50" data-sveltekit-preload-data="hover">
+	<div class="flex min-h-screen flex-col bg-stone-50" data-sveltekit-preload-data="hover">
 		<header class="border-b border-stone-200 bg-white/95 backdrop-blur">
 			<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				<div class="flex min-h-14 items-center justify-between gap-4 py-3">
@@ -181,11 +198,8 @@
 							</details>
 						{:else}
 							<div class="flex items-center gap-3">
-								<LocalRepoButton
-									class="rounded-md border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
-								/>
 								<a
-									href={resolve('/auth/login')}
+									href={resolve('/repos')}
 									class="rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
 								>
 									GitHub
@@ -197,7 +211,7 @@
 			</div>
 		</header>
 
-		<main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+		<main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
 			{@render children?.()}
 		</main>
 

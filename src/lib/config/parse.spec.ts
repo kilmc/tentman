@@ -76,6 +76,82 @@ describe('parseConfigFile', () => {
 			}`)
 		).toThrow(/must be "file" or "directory"/);
 	});
+
+	it('parses legacy directory-backed configs without an explicit type', () => {
+		const parsed = parseConfigFile(`{
+			"label": "Blog Posts",
+			"template": "./post.template.md",
+			"filename": "{{slug}}",
+			"fields": [
+				{ "property": "title", "label": "Title", "type": "text" },
+				{ "property": "slug", "label": "Slug", "type": "text" },
+				{ "property": "_body", "label": "Content", "type": "markdown" }
+			]
+		}`);
+
+		expect(parsed.type).toBe('content');
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+		if (parsed.content.mode !== 'directory') {
+			throw new Error('Expected directory-backed content config');
+		}
+
+		expect(parsed.collection).toBe(true);
+		expect(parsed.content.path).toBe('.');
+		expect(parsed.content.template).toBe('./post.template.md');
+		expect(parsed.idField).toBe('slug');
+		expect(parsed.blocks).toMatchObject([
+			{ id: 'title', type: 'text', label: 'Title' },
+			{ id: 'slug', type: 'text', label: 'Slug' },
+			{ id: 'body', type: 'markdown', label: 'Content' }
+		]);
+	});
+
+	it('parses legacy file-backed configs with nested array fields', () => {
+		const parsed = parseConfigFile(`{
+			"label": "Contact",
+			"contentFile": "./social-links.json",
+			"fields": {
+				"title": {
+					"type": "text",
+					"show": "primary"
+				},
+				"links": {
+					"type": "array",
+					"fields": {
+						"label": "text",
+						"url": "url",
+						"note": "text"
+					}
+				}
+			}
+		}`);
+
+		expect(parsed.type).toBe('content');
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+		if (parsed.content.mode !== 'file') {
+			throw new Error('Expected file-backed content config');
+		}
+
+		expect(parsed.collection).toBe(false);
+		expect(parsed.content.path).toBe('./social-links.json');
+		expect(parsed.blocks).toMatchObject([
+			{ id: 'title', type: 'text', show: 'primary' },
+			{
+				id: 'links',
+				type: 'block',
+				collection: true,
+				blocks: [
+					{ id: 'label', type: 'text' },
+					{ id: 'url', type: 'url' },
+					{ id: 'note', type: 'text' }
+				]
+			}
+		]);
+	});
 });
 
 describe('parseRootConfig', () => {

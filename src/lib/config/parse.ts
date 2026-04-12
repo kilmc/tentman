@@ -4,6 +4,7 @@ import type {
 	ContentConfig,
 	DirectoryContentMode,
 	FileContentMode,
+	PrimitiveBlockType,
 	RootConfig
 } from '$lib/config/types';
 
@@ -15,6 +16,35 @@ export interface ParsedContentConfig extends ContentConfig {
 export type ParsedBlockConfig = BlockConfig;
 
 export type ParsedConfigFile = ParsedContentConfig | ParsedBlockConfig;
+
+type LegacyFieldType = PrimitiveBlockType | 'array';
+type LegacyFieldInput =
+	| string
+	| {
+			type?: string;
+			label?: unknown;
+			required?: unknown;
+			generated?: unknown;
+			show?: unknown;
+			fields?: unknown;
+			minLength?: unknown;
+			maxLength?: unknown;
+			itemLabel?: unknown;
+			assetsDir?: unknown;
+	  };
+type LegacyFieldArrayItem = {
+	property?: unknown;
+	type?: unknown;
+	label?: unknown;
+	required?: unknown;
+	generated?: unknown;
+	show?: unknown;
+	fields?: unknown;
+	minLength?: unknown;
+	maxLength?: unknown;
+	itemLabel?: unknown;
+	assetsDir?: unknown;
+};
 
 function assertObject(value: unknown, message: string): asserts value is Record<string, unknown> {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -260,6 +290,239 @@ function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
 	};
 }
 
+function normalizeLegacyFieldId(id: string): string {
+	return id === '_body' ? 'body' : id;
+}
+
+function isLegacyFieldType(type: string): type is LegacyFieldType {
+	return (
+		type === 'text' ||
+		type === 'textarea' ||
+		type === 'markdown' ||
+		type === 'email' ||
+		type === 'url' ||
+		type === 'number' ||
+		type === 'date' ||
+		type === 'boolean' ||
+		type === 'image' ||
+		type === 'array'
+	);
+}
+
+function readLegacyFieldType(type: unknown, context: string): LegacyFieldType {
+	if (typeof type !== 'string' || type.length === 0) {
+		throw new Error(`${context}.type must be a non-empty string`);
+	}
+
+	if (!isLegacyFieldType(type)) {
+		throw new Error(`${context}.type "${type}" is not supported in legacy configs`);
+	}
+
+	return type;
+}
+
+function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage {
+	assertObject(input, `${context} must be an object`);
+
+	const rawField = input as LegacyFieldArrayItem;
+	const property = readRequiredString(rawField as Record<string, unknown>, 'property', context);
+	const id = normalizeLegacyFieldId(property);
+	const type = readLegacyFieldType(rawField.type, context);
+	const label = readOptionalString(rawField as Record<string, unknown>, 'label', context);
+	const required = readOptionalBoolean(rawField as Record<string, unknown>, 'required', context);
+	const generated = readOptionalBoolean(rawField as Record<string, unknown>, 'generated', context);
+	const show = rawField.show;
+	const minLength = rawField.minLength;
+	const maxLength = rawField.maxLength;
+	const itemLabel = readOptionalString(rawField as Record<string, unknown>, 'itemLabel', context);
+	const assetsDir = readOptionalString(rawField as Record<string, unknown>, 'assetsDir', context);
+
+	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
+		throw new Error(`${context}.show must be "primary" or "secondary"`);
+	}
+
+	if (minLength !== undefined && (typeof minLength !== 'number' || Number.isNaN(minLength))) {
+		throw new Error(`${context}.minLength must be a number`);
+	}
+
+	if (maxLength !== undefined && (typeof maxLength !== 'number' || Number.isNaN(maxLength))) {
+		throw new Error(`${context}.maxLength must be a number`);
+	}
+
+	if (type === 'array') {
+		return {
+			id,
+			type: 'block',
+			...(label && { label }),
+			...(required !== undefined && { required }),
+			...(generated !== undefined && { generated }),
+			...(show && { show }),
+			...(minLength !== undefined && { minLength }),
+			...(maxLength !== undefined && { maxLength }),
+			...(itemLabel && { itemLabel }),
+			...(assetsDir && { assetsDir }),
+			collection: true,
+			blocks: parseLegacyFields(rawField.fields ?? {}, `${context}.fields`)
+		};
+	}
+
+	return {
+		id,
+		type,
+		...(label && { label }),
+		...(required !== undefined && { required }),
+		...(generated !== undefined && { generated }),
+		...(show && { show }),
+		...(minLength !== undefined && { minLength }),
+		...(maxLength !== undefined && { maxLength }),
+		...(assetsDir && { assetsDir })
+	};
+}
+
+function parseLegacyFieldObjectEntry(
+	id: string,
+	input: LegacyFieldInput,
+	context: string
+): BlockUsage {
+	const normalizedId = normalizeLegacyFieldId(id);
+
+	if (typeof input === 'string') {
+		return {
+			id: normalizedId,
+			type: readLegacyFieldType(input, context)
+		};
+	}
+
+	assertObject(input, `${context} must be an object or string`);
+
+	const type = readLegacyFieldType(input.type, context);
+	const label = readOptionalString(input, 'label', context);
+	const required = readOptionalBoolean(input, 'required', context);
+	const generated = readOptionalBoolean(input, 'generated', context);
+	const show = input.show;
+	const minLength = input.minLength;
+	const maxLength = input.maxLength;
+	const itemLabel = readOptionalString(input, 'itemLabel', context);
+	const assetsDir = readOptionalString(input, 'assetsDir', context);
+
+	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
+		throw new Error(`${context}.show must be "primary" or "secondary"`);
+	}
+
+	if (minLength !== undefined && (typeof minLength !== 'number' || Number.isNaN(minLength))) {
+		throw new Error(`${context}.minLength must be a number`);
+	}
+
+	if (maxLength !== undefined && (typeof maxLength !== 'number' || Number.isNaN(maxLength))) {
+		throw new Error(`${context}.maxLength must be a number`);
+	}
+
+	if (type === 'array') {
+		return {
+			id: normalizedId,
+			type: 'block',
+			...(label && { label }),
+			...(required !== undefined && { required }),
+			...(generated !== undefined && { generated }),
+			...(show && { show }),
+			...(minLength !== undefined && { minLength }),
+			...(maxLength !== undefined && { maxLength }),
+			...(itemLabel && { itemLabel }),
+			...(assetsDir && { assetsDir }),
+			collection: true,
+			blocks: parseLegacyFields(input.fields ?? {}, `${context}.fields`)
+		};
+	}
+
+	return {
+		id: normalizedId,
+		type,
+		...(label && { label }),
+		...(required !== undefined && { required }),
+		...(generated !== undefined && { generated }),
+		...(show && { show }),
+		...(minLength !== undefined && { minLength }),
+		...(maxLength !== undefined && { maxLength }),
+		...(assetsDir && { assetsDir })
+	};
+}
+
+function parseLegacyFields(input: unknown, context: string): BlockUsage[] {
+	if (Array.isArray(input)) {
+		return input.map((field, index) => parseLegacyFieldArrayItem(field, `${context}[${index}]`));
+	}
+
+	assertObject(input, `${context} must be an object or array`);
+
+	return Object.entries(input).map(([id, field]) =>
+		parseLegacyFieldObjectEntry(id, field as LegacyFieldInput, `${context}.${id}`)
+	);
+}
+
+function inferLegacyIdField(
+	filename: string | undefined,
+	blocks: BlockUsage[]
+): string | undefined {
+	if (!filename) {
+		return undefined;
+	}
+
+	const match = filename.match(/^\{\{(\w+)\}\}$/);
+	if (!match) {
+		return undefined;
+	}
+
+	const candidate = match[1];
+	return blocks.some((block) => block.id === candidate) ? candidate : undefined;
+}
+
+function parseLegacyContentConfig(input: Record<string, unknown>): ParsedContentConfig {
+	const label = readRequiredString(input, 'label', 'config');
+	const template = readOptionalString(input, 'template', 'config');
+	const contentFile = readOptionalString(input, 'contentFile', 'config');
+
+	if (!template && !contentFile) {
+		throw new Error(
+			'Legacy content config must include either config.template or config.contentFile'
+		);
+	}
+
+	const blocks = parseLegacyFields(input.fields, 'config.fields');
+	const filename = readOptionalString(input, 'filename', 'config');
+	const idField =
+		readOptionalString(input, 'idField', 'config') ??
+		(template ? inferLegacyIdField(filename, blocks) : undefined);
+	const content =
+		template !== undefined
+			? ({
+					mode: 'directory',
+					path: '.',
+					template,
+					...(filename && { filename })
+				} satisfies DirectoryContentMode)
+			: ({
+					mode: 'file',
+					path: contentFile!
+				} satisfies FileContentMode);
+	const collection =
+		readOptionalBoolean(input, 'collection', 'config') ?? content.mode === 'directory';
+
+	return {
+		type: 'content',
+		label,
+		...(readOptionalString(input, 'id', 'config') && {
+			id: readOptionalString(input, 'id', 'config')
+		}),
+		...(readOptionalString(input, 'itemLabel', 'config') && {
+			itemLabel: readOptionalString(input, 'itemLabel', 'config')
+		}),
+		...(collection !== undefined && { collection }),
+		...(idField && { idField }),
+		content,
+		blocks
+	};
+}
+
 export function parseBlockConfigObject(input: unknown): ParsedBlockConfig {
 	assertObject(input, 'Block config must be an object');
 	return parseBlockConfig(input);
@@ -314,7 +577,11 @@ export function parseConfigFile(content: string): ParsedConfigFile {
 	const parsed = JSON.parse(content) as unknown;
 	assertObject(parsed, 'Tentman config must be an object');
 
-	const type = readRequiredString(parsed, 'type', 'config');
+	const type = readOptionalString(parsed, 'type', 'config');
+
+	if (!type) {
+		return parseLegacyContentConfig(parsed);
+	}
 
 	if (type === 'content') {
 		return parseContentConfig(parsed);

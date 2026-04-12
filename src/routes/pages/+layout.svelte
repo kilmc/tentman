@@ -40,8 +40,9 @@
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { traceRouting } from '$lib/utils/routing-trace';
 	import { toasts } from '$lib/stores/toasts';
-	import { buildLoginRedirect } from '$lib/utils/routing';
+	import { buildReposRedirect } from '$lib/utils/routing';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
@@ -112,6 +113,10 @@
 		isLocalMode ? ($localContent.rootConfig?.local?.previewUrl ?? null) : null
 	);
 	const workspaceTitle = $derived.by(() => {
+		if (page.url.pathname === '/pages' || page.url.pathname === '/pages/') {
+			return 'Overview';
+		}
+
 		if (page.url.pathname.endsWith('/settings')) {
 			return 'Settings';
 		}
@@ -218,8 +223,13 @@
 		);
 	}
 
-	async function redirectToLoginForExpiredSession() {
-		window.location.assign(buildLoginRedirect(resolve('/auth/login'), window.location));
+	async function redirectToReposForExpiredSession() {
+		const redirectTarget = buildReposRedirect(resolve('/repos'), window.location);
+		traceRouting('navigation:assign', {
+			to: redirectTarget,
+			source: 'pages-layout.expired-session'
+		});
+		window.location.assign(redirectTarget);
 	}
 
 	async function handleSwitchSite() {
@@ -266,7 +276,7 @@
 			);
 
 			if (response.status === 401) {
-				await redirectToLoginForExpiredSession();
+				await redirectToReposForExpiredSession();
 				return;
 			}
 
@@ -405,7 +415,7 @@
 				});
 
 				if (response.status === 401) {
-					await redirectToLoginForExpiredSession();
+					await redirectToReposForExpiredSession();
 					return;
 				}
 
@@ -464,7 +474,7 @@
 				});
 
 				if (response.status === 401) {
-					await redirectToLoginForExpiredSession();
+					await redirectToReposForExpiredSession();
 					return;
 				}
 
@@ -560,7 +570,7 @@
 		{#if shouldShowCollectionIndex && currentConfig}
 			{@const navigation = getCollectionItems(currentConfig.slug)}
 			{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
-			<div class="grid min-h-0 lg:grid-cols-[auto_minmax(0,1fr)] overflow-hidden">
+			<div class="grid min-h-0 overflow-hidden lg:grid-cols-[auto_minmax(0,1fr)]">
 				<CollectionIndex
 					slug={currentConfig.slug}
 					label={currentConfig.config.label}
@@ -577,13 +587,17 @@
 					onsavecustomorder={(collection: NavigationDraftCollection) =>
 						void saveCollectionCustomOrder(currentConfig, collection)}
 				/>
-				<section class="min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6">
-					{@render children?.()}
+				<section class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+					<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
+						{@render children?.()}
+					</div>
 				</section>
 			</div>
 		{:else}
-			<section class="min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6">
-				{@render children?.()}
+			<section class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+				<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
+					{@render children?.()}
+				</div>
 			</section>
 		{/if}
 	</main>

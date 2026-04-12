@@ -1,14 +1,14 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import {
-	buildLoginRedirect,
 	buildPathWithQuery,
+	buildReposRedirect,
 	readOptionalSearchParam
 } from '$lib/utils/routing';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
-	const loginRedirect = buildLoginRedirect('/auth/login', url);
+	const reposRedirect = buildReposRedirect('/repos', url);
 
 	if (parentData.selectedBackend?.kind === 'local') {
 		return {
@@ -25,7 +25,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	}
 
 	if (!parentData.isAuthenticated) {
-		throw redirect(302, loginRedirect);
+		throw redirect(302, reposRedirect);
 	}
 
 	if (!parentData.selectedRepo) {
@@ -43,7 +43,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	);
 
 	if (response.status === 401) {
-		throw redirect(302, loginRedirect);
+		throw redirect(302, reposRedirect);
 	}
 
 	if (response.status === 404) {

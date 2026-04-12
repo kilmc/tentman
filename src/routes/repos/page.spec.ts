@@ -2,16 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { load } from './+page';
 
 describe('routes/repos/+page', () => {
-	it('redirects unauthenticated users to login', async () => {
+	it('keeps the repo picker available for local-only use when unauthenticated', async () => {
 		await expect(
 			load({
 				parent: async () => ({
-					isAuthenticated: false
+					isAuthenticated: false,
+					recentRepos: []
 				})
 			} as never)
-		).rejects.toMatchObject({
-			status: 302,
-			location: '/auth/login?redirect=/repos'
+		).resolves.toEqual({
+			repos: [],
+			recentRepos: [],
+			githubAuthenticated: false
 		});
 	});
 
@@ -19,7 +21,8 @@ describe('routes/repos/+page', () => {
 		expect(
 			await load({
 				parent: async () => ({
-					isAuthenticated: true
+					isAuthenticated: true,
+					recentRepos: []
 				}),
 				depends: () => {},
 				fetch: async () =>
@@ -56,22 +59,26 @@ describe('routes/repos/+page', () => {
 					private: false,
 					updated_at: '2026-04-05T18:30:00.000Z'
 				}
-			]
+			],
+			recentRepos: [],
+			githubAuthenticated: true
 		});
 	});
 
-	it('redirects to login when the thin API reports an expired session', async () => {
+	it('falls back to local-only mode when the thin API reports an expired session', async () => {
 		await expect(
 			load({
 				parent: async () => ({
-					isAuthenticated: true
+					isAuthenticated: true,
+					recentRepos: []
 				}),
 				depends: () => {},
 				fetch: async () => new Response(null, { status: 401 })
 			} as never)
-		).rejects.toMatchObject({
-			status: 302,
-			location: '/auth/login?redirect=/repos'
+		).resolves.toEqual({
+			repos: [],
+			recentRepos: [],
+			githubAuthenticated: false
 		});
 	});
 });

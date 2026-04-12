@@ -2,14 +2,26 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import type { GitHubUserSnapshot } from '$lib/auth/session';
-import { getGitHubOAuthCredentials, persistGitHubSession } from '$lib/server/auth/github';
+import {
+	clearGitHubOAuthRequest,
+	getGitHubOAuthCredentials,
+	persistGitHubSession,
+	readGitHubOAuthRequest
+} from '$lib/server/auth/github';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const code = url.searchParams.get('code');
-	const state = url.searchParams.get('state') || '/';
+	const returnedState = url.searchParams.get('state');
+	const { state: storedState, redirectTo } = readGitHubOAuthRequest(cookies);
+	const callbackUrl = new URL('/auth/callback', url).toString();
 
 	if (!code) {
 		throw error(400, 'Missing authorization code');
+	}
+
+	if (!returnedState || !storedState || returnedState !== storedState) {
+		clearGitHubOAuthRequest(cookies);
+		throw error(400, 'Invalid OAuth state');
 	}
 
 	try {
@@ -23,7 +35,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			body: JSON.stringify({
 				client_id: clientId,
 				client_secret: clientSecret,
-				code
+				code,
+				redirect_uri: callbackUrl
 			})
 		});
 
@@ -57,15 +70,17 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			token: tokenData.access_token,
 			user
 		});
+		clearGitHubOAuthRequest(cookies);
 	} catch (err) {
 		if (err && typeof err === 'object' && 'status' in err) {
 			throw err;
 		}
 
+		clearGitHubOAuthRequest(cookies);
 		console.error('OAuth callback error:', err);
 		throw error(500, 'Authentication failed');
 	}
 
 	// Redirect to the original destination (outside try/catch so redirect isn't caught)
-	throw redirect(302, state);
+	throw redirect(302, redirectTo);
 };

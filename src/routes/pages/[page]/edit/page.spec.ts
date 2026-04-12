@@ -18,31 +18,32 @@ describe('routes/pages/[page]/edit/+page', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/auth/login?redirect=%2Fpages%2Fabout%2Fedit%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fabout%2Fedit%3Fbranch%3Dpreview-2026-04-06'
 		});
 	});
 
 	it('loads the singleton edit bootstrap from the thin API', async () => {
-		const fetch = vi.fn(async () =>
-			new Response(
-				JSON.stringify({
-					discoveredConfig: {
-						slug: 'about',
-						config: {
-							collection: false
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						discoveredConfig: {
+							slug: 'about',
+							config: {
+								collection: false
+							}
+						},
+						content: { title: 'About' },
+						pageSlug: 'about',
+						mode: 'github'
+					}),
+					{
+						status: 200,
+						headers: {
+							'content-type': 'application/json'
 						}
-					},
-					content: { title: 'About' },
-					pageSlug: 'about',
-					mode: 'github'
-				}),
-				{
-					status: 200,
-					headers: {
-						'content-type': 'application/json'
 					}
-				}
-			)
+				)
 		);
 
 		await expect(
@@ -78,27 +79,28 @@ describe('routes/pages/[page]/edit/+page', () => {
 	});
 
 	it('passes through an explicit draft branch for singleton draft editing', async () => {
-		const fetch = vi.fn(async () =>
-			new Response(
-				JSON.stringify({
-					discoveredConfig: {
-						slug: 'about',
-						config: {
-							collection: false
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						discoveredConfig: {
+							slug: 'about',
+							config: {
+								collection: false
+							}
+						},
+						content: { title: 'Draft About' },
+						branch: 'preview-2026-04-06',
+						pageSlug: 'about',
+						mode: 'github'
+					}),
+					{
+						status: 200,
+						headers: {
+							'content-type': 'application/json'
 						}
-					},
-					content: { title: 'Draft About' },
-					branch: 'preview-2026-04-06',
-					pageSlug: 'about',
-					mode: 'github'
-				}),
-				{
-					status: 200,
-					headers: {
-						'content-type': 'application/json'
 					}
-				}
-			)
+				)
 		);
 
 		await expect(

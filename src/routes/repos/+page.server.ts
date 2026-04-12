@@ -8,9 +8,11 @@ import {
 	handleGitHubSessionError,
 	persistSelectedGitHubRepository
 } from '$lib/server/auth/github';
+import { logDevRouting } from '$lib/utils/dev-routing-log';
+import { sanitizeAuthRedirectTarget } from '$lib/utils/routing';
 
 export const actions = {
-	select: async ({ request, cookies, locals }) => {
+	select: async ({ request, cookies, locals, url }) => {
 		if (!locals.isAuthenticated || !locals.githubToken) {
 			throw error(401, 'Unauthorized');
 		}
@@ -28,6 +30,14 @@ export const actions = {
 			name: name.toString(),
 			full_name: `${owner}/${name}`
 		};
+		const redirectTarget = sanitizeAuthRedirectTarget(url.searchParams.get('returnTo'), '/pages');
+
+		logDevRouting('repos:select:start', {
+			selectedRepo: selectedRepo.full_name,
+			redirectTarget,
+			isAuthenticated: locals.isAuthenticated,
+			hasGitHubToken: Boolean(locals.githubToken)
+		});
 
 		const octokit = createGitHubServerClient(locals.githubToken, cookies);
 		let rootConfig = null;
@@ -35,6 +45,10 @@ export const actions = {
 		try {
 			rootConfig = await createGitHubRepositoryBackend(octokit, selectedRepo).readRootConfig();
 		} catch (err) {
+			logDevRouting('repos:select:root-config-error', {
+				selectedRepo: selectedRepo.full_name,
+				message: err instanceof Error ? err.message : 'Unknown error'
+			});
 			handleGitHubSessionError({ cookies }, err, { redirectTo: '/repos' });
 			console.error('Failed to load repository root config:', err);
 		}
@@ -49,6 +63,12 @@ export const actions = {
 		});
 		cookies.delete(SELECTED_LOCAL_REPO_COOKIE, { path: '/' });
 
-		throw redirect(302, '/pages');
+		logDevRouting('repos:select:success', {
+			selectedRepo: selectedRepo.full_name,
+			redirectTarget,
+			hasRootConfig: rootConfig !== null
+		});
+
+		throw redirect(303, redirectTarget);
 	}
 } satisfies Actions;

@@ -1,5 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
 import {
+	readRecentGitHubRepositories,
 	readGitHubSession,
 	readSelectedGitHubRepositorySession
 } from '$lib/server/auth/github';
@@ -18,6 +19,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 	event.locals.isAuthenticated = Boolean(session.token);
 	event.locals.rootConfig = readSelectedGitHubRepositorySession(event.cookies).rootConfig;
+	event.locals.recentRepos = readRecentGitHubRepositories(event.cookies);
 
 	// Get selected repository from cookie
 	const selectedRepo = event.cookies.get('selected_repo');

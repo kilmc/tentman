@@ -8,6 +8,7 @@ import {
 	type LocalRepositoryIdentity
 } from '$lib/repository/selection';
 import { createLocalRepositoryBackend, type LocalRepositoryBackend } from '$lib/repository/local';
+import { traceRouting } from '$lib/utils/routing-trace';
 
 const DATABASE_NAME = 'tentman-local-repo';
 const STORE_NAME = 'handles';
@@ -182,14 +183,23 @@ function createStore() {
 					error: null
 				});
 
-				await invalidateAll();
-				await goto('/pages');
+				traceRouting('local-repo:selected', {
+					repo: repo.pathLabel
+				});
+				traceRouting('navigation:goto', {
+					to: '/pages',
+					source: 'local-repo.open'
+				});
+				await goto('/pages', { invalidateAll: true });
 			} catch (error) {
 				set({
 					status: 'error',
 					repo: null,
 					backend: null,
 					error: error instanceof Error ? error.message : 'Failed to open local repository'
+				});
+				traceRouting('local-repo:error', {
+					message: error instanceof Error ? error.message : 'Failed to open local repository'
 				});
 			}
 		},
@@ -201,6 +211,7 @@ function createStore() {
 			deleteCookie(SELECTED_BACKEND_COOKIE);
 			deleteCookie(SELECTED_LOCAL_REPO_COOKIE);
 			set({ status: 'idle', repo: null, backend: null, error: null });
+			traceRouting('local-repo:cleared');
 			await invalidateAll();
 		}
 	};

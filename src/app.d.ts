@@ -3,6 +3,7 @@
 import type { SelectedBackend } from '$lib/repository/selection';
 import type {
 	GitHubRootConfigSnapshot,
+	RecentGitHubRepositorySnapshot,
 	GitHubUserSnapshot
 } from '$lib/auth/session';
 
@@ -14,6 +15,7 @@ declare global {
 			githubToken?: string;
 			user?: GitHubUserSnapshot;
 			rootConfig?: GitHubRootConfigSnapshot | null;
+			recentRepos?: RecentGitHubRepositorySnapshot[];
 			selectedRepo?: {
 				owner: string;
 				name: string;

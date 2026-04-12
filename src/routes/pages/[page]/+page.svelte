@@ -6,19 +6,16 @@
 	import { get } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { toasts } from '$lib/stores/toasts';
-	import ItemCard from '$lib/components/ItemCard.svelte';
-	import ItemCardSkeleton from '$lib/components/ItemCardSkeleton.svelte';
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
-	import { getCardFields } from '$lib/features/forms/helpers';
 	import {
 		getConfigItemLabel,
-		getOrderedCollectionRecords
+		getFirstCollectionItemId
 	} from '$lib/features/content-management/navigation';
-	import { getContentItemId } from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
-	import type { DraftChange, DraftComparison } from '$lib/utils/draft-comparison';
-	import { buildLoginRedirect } from '$lib/utils/routing';
+	import type { DraftComparison } from '$lib/utils/draft-comparison';
+	import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
+	import { traceRouting } from '$lib/utils/routing-trace';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument } from '$lib/content/service';
@@ -42,14 +39,41 @@
 		isLocalMode ? $localContent.navigationManifest.manifest : data.navigationManifest.manifest
 	);
 	const isSingletonContent = $derived(!config?.collection);
+	const isCollectionContent = $derived(!!config?.collection);
 	const activeBranch = $derived(data.branch ?? null);
-	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
+	const collectionItemLabel = $derived(config ? getConfigItemLabel(config) : 'item');
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
 			return null;
 		}
 
 		return isLocalMode ? localBlockRegistry : createBlockRegistry(blockConfigs, { packageBlocks });
+	});
+	const branchQueryValue = $derived(activeBranch ?? undefined);
+	const collectionItemCount = $derived(Array.isArray(content) ? content.length : 0);
+	const firstCollectionItemHref = $derived.by(() => {
+		if (!config?.collection || !content || contentError) {
+			return null;
+		}
+
+		const firstItemId = getFirstCollectionItemId(config, content, navigationManifest);
+
+		if (!firstItemId) {
+			return null;
+		}
+
+		return buildPathWithQuery(resolve(`/pages/${data.pageSlug}/${firstItemId}/edit`), {
+			branch: branchQueryValue
+		});
+	});
+	const newCollectionItemHref = $derived.by(() => {
+		if (!config?.collection) {
+			return null;
+		}
+
+		return buildPathWithQuery(resolve(`/pages/${data.pageSlug}/new`), {
+			branch: branchQueryValue
+		});
 	});
 	const flashMessageKeys = [
 		'saved',
@@ -59,7 +83,6 @@
 		'deleted',
 		'branch'
 	] as const;
-	const loadingSkeletons = [0, 1, 2, 3, 4, 5];
 	let localLoadRequest = 0;
 	let draftStatusRequest = 0;
 
@@ -155,7 +178,12 @@
 			}
 
 			if (response.status === 401) {
-				window.location.assign(buildLoginRedirect(resolve('/auth/login'), window.location));
+				const redirectTarget = buildReposRedirect(resolve('/repos'), window.location);
+				traceRouting('navigation:assign', {
+					to: redirectTarget,
+					source: 'page-view.draft-status-401'
+				});
+				window.location.assign(redirectTarget);
 				return;
 			}
 
@@ -262,105 +290,21 @@
 		void loadRemoteDraftStatus(data.pageSlug);
 	});
 
-	function hasDraftChanges(itemId: string | undefined): 'modified' | 'created' | 'deleted' | null {
-		if (!itemId || !draftChanges) return null;
-
-		if (draftChanges.modified.some((change: DraftChange) => change.itemId === itemId))
-			return 'modified';
-		if (draftChanges.created.some((change: DraftChange) => change.itemId === itemId))
-			return 'created';
-		if (draftChanges.deleted.some((change: DraftChange) => change.itemId === itemId))
-			return 'deleted';
-
-		return null;
-	}
-
-	function getDraftItems() {
-		if (!draftChanges || !Array.isArray(content)) return [];
-
-		return [
-			...draftChanges.modified
-				.filter((change: DraftChange) => change.draftContent)
-				.map((change: DraftChange) => ({
-					item: change.draftContent as ContentRecord,
-					badge: 'draft' as const,
-					itemId: change.itemId
-				})),
-			...draftChanges.created
-				.filter((change: DraftChange) => change.draftContent)
-				.map((change: DraftChange) => ({
-					item: change.draftContent as ContentRecord,
-					badge: 'new' as const,
-					itemId: change.itemId
-				})),
-			...draftChanges.deleted
-				.filter((change: DraftChange) => change.mainContent)
-				.map((change: DraftChange) => ({
-					item: change.mainContent as ContentRecord,
-					badge: 'deleted' as const,
-					itemId: change.itemId
-				}))
-		];
-	}
-
-	function getRegularItems() {
-		if (!Array.isArray(content) || !config) return [];
-
-		return content.filter((item) => {
-			const itemId = getContentItemId(config, item as ContentRecord);
-			return !hasDraftChanges(itemId);
-		});
-	}
-
-	function getOrderedRegularItems() {
-		if (!Array.isArray(content) || !config) {
-			return {
-				items: [],
-				groups: []
-			};
-		}
-
-		return getOrderedCollectionRecords(config, getRegularItems(), navigationManifest);
-	}
-
-	function getItemHref(itemId: string | undefined, branch?: string | null) {
-		if (!itemId) {
-			return resolve(`/pages/${discoveredConfig.slug}`);
-		}
-
-		const path = resolve(`/pages/${discoveredConfig.slug}/${itemId}/edit`);
-		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
-	}
-
 	function getEditHref() {
 		const path = resolve(`/pages/${discoveredConfig.slug}/edit`);
 		const branch = !isLocalMode && isSingletonContent ? activeBranch : undefined;
 		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
 	}
-
-	function getNewHref() {
-		const path = resolve(`/pages/${discoveredConfig.slug}/new`);
-		const branch = !isLocalMode ? activeBranch : undefined;
-		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
-	}
-
-	const hasDrafts = $derived(
-		!isLocalMode &&
-			draftChanges &&
-			(draftChanges.modified.length > 0 ||
-				draftChanges.created.length > 0 ||
-				draftChanges.deleted.length > 0)
-	);
 </script>
 
-{#if !discoveredConfig || !config || !blockRegistry}
-	<div class="mx-auto max-w-6xl">
+{#if !discoveredConfig || !config || (!config.collection && !blockRegistry)}
+	<div>
 		<div class="rounded-md border border-stone-200 bg-white p-4 text-sm text-stone-600">
 			{blockRegistryError || contentError || 'Loading content...'}
 		</div>
 	</div>
 {:else}
-	<div class="mx-auto max-w-6xl">
+	<div>
 		<div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
 				{config.label}
@@ -389,12 +333,48 @@
 				<p class="text-sm text-red-700">{contentError}</p>
 			</div>
 		{:else if content === null}
-			<div class="space-y-3">
-				{#each loadingSkeletons as skeleton (skeleton)}
-					<ItemCardSkeleton />
-				{/each}
+			<div class="rounded-md border border-stone-200 bg-white p-4 text-sm text-stone-600">
+				Loading content...
 			</div>
-		{:else if isSingletonContent}
+		{:else if isCollectionContent}
+			<div class="rounded-md border border-stone-200 bg-white">
+				<div class="p-6">
+					<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">Collection</p>
+					<h2 class="mt-3 text-2xl font-bold tracking-[-0.03em] text-stone-950">
+						{config.label}
+					</h2>
+					<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+						{#if collectionItemCount > 0}
+							Choose a {collectionItemLabel ?? 'collection item'} from the index to start editing, or
+							create a new one when you need it.
+						{:else}
+							This collection does not have any items yet. Create the first
+							{collectionItemLabel ?? 'item'} to get started.
+						{/if}
+					</p>
+
+					<div class="mt-6 flex flex-wrap gap-3">
+						{#if firstCollectionItemHref}
+							<a
+								href={firstCollectionItemHref}
+								class="inline-flex items-center justify-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
+							>
+								Open first item
+							</a>
+						{/if}
+
+						{#if newCollectionItemHref}
+							<a
+								href={newCollectionItemHref}
+								class="inline-flex items-center justify-center rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
+							>
+								{collectionItemCount > 0 ? 'Create new item' : 'Create first item'}
+							</a>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{:else}
 			<div class="rounded-md border border-stone-200 bg-white">
 				<div class="p-4">
 					<dl class="space-y-4">
@@ -407,7 +387,7 @@
 									<ContentValueDisplay
 										{block}
 										value={(content as ContentRecord)[block.id]}
-										{blockRegistry}
+										blockRegistry={blockRegistry!}
 									/>
 								</dd>
 							</div>
@@ -423,70 +403,6 @@
 					</a>
 				</div>
 			</div>
-		{:else}
-			{@const draftItems = getDraftItems()}
-			{@const regularItems = getOrderedRegularItems()}
-			{@const totalItems = Array.isArray(content) ? content.length : 0}
-
-			{#if totalItems > 0 || hasDrafts}
-				<div class="mb-3 flex items-center justify-between">
-					<p class="text-sm text-stone-600">{totalItems} {totalItems === 1 ? 'item' : 'items'}</p>
-				</div>
-
-				{#if !isLocalMode && hasDrafts}
-					<div class="mb-5">
-						<p class="mb-3 text-sm font-semibold tracking-[0.16em] text-stone-500 uppercase">
-							Draft changes
-						</p>
-						<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-							{#each draftItems as { item, badge, itemId } (itemId)}
-								<ItemCard {item} {cardFields} {badge} href={getItemHref(itemId, activeBranch)} />
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-					{#each regularItems.groups as group (group.id)}
-						{#if group.items.length > 0}
-							<div class="md:col-span-2 lg:col-span-3">
-								<h3 class="mb-3 text-sm font-semibold tracking-[0.16em] text-stone-500 uppercase">
-									{group.label}
-								</h3>
-								<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-									{#each group.items as entry (entry.itemId)}
-										<ItemCard
-											item={entry.item}
-											{cardFields}
-											href={getItemHref(entry.itemId, activeBranch)}
-										/>
-									{/each}
-								</div>
-							</div>
-						{/if}
-					{/each}
-					{#each regularItems.items as entry (entry.itemId)}
-						<ItemCard
-							item={entry.item}
-							{cardFields}
-							href={getItemHref(entry.itemId, activeBranch)}
-						/>
-					{/each}
-				</div>
-			{:else}
-				<div class="rounded-md border border-dashed border-stone-300 bg-white p-8 text-center">
-					<h3 class="mb-2 text-lg font-semibold text-stone-950">No items yet</h3>
-					<p class="mb-4 text-sm text-stone-600">
-						Create the first {getConfigItemLabel(config).toLowerCase()} to get started.
-					</p>
-					<a
-						href={resolve(`/pages/${discoveredConfig.slug}/new`)}
-						class="inline-flex rounded-md bg-stone-950 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
-					>
-						New {getConfigItemLabel(config)}
-					</a>
-				</div>
-			{/if}
 		{/if}
 	</div>
 {/if}

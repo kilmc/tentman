@@ -4,7 +4,7 @@ import {
 	parseConfigFile,
 	type ParsedContentConfig
 } from '$lib/config/parse';
-import { validateFormData } from './validation';
+import { resolveConfigPath, validateFormData } from './validation';
 
 function parseContentConfigFixture(content: string): ParsedContentConfig {
 	const parsed = parseConfigFile(content);
@@ -73,5 +73,10 @@ describe('utils/validation', () => {
 				message: 'Slug must be unique. This value is already in use.'
 			}
 		]);
+	});
+
+	it('resolves "." relative paths to the config directory', () => {
+		expect(resolveConfigPath('src/lib/db/posts/posts.tentman.json', '.')).toBe('src/lib/db/posts');
+		expect(resolveConfigPath('src/lib/db/posts/posts.tentman.json', './')).toBe('src/lib/db/posts');
 	});
 });

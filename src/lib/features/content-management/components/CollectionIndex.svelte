@@ -5,11 +5,11 @@
 	import ArrowDownAZ from 'lucide-svelte/icons/arrow-down-a-z';
 	import ArrowUpAZ from 'lucide-svelte/icons/arrow-up-a-z';
 	import Check from 'lucide-svelte/icons/check';
-	import Eye from 'lucide-svelte/icons/eye';
-	import EyeOff from 'lucide-svelte/icons/eye-off';
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
 	import List from 'lucide-svelte/icons/list';
 	import Plus from 'lucide-svelte/icons/plus';
+	import SidebarClose from 'lucide-svelte/icons/sidebar-close';
+	import SidebarOpen from 'lucide-svelte/icons/sidebar-open';
 	import Shuffle from 'lucide-svelte/icons/shuffle';
 	import X from 'lucide-svelte/icons/x';
 	import type {
@@ -159,7 +159,7 @@
 			onclick={() => (collapsed = false)}
 			aria-label={`Show ${label} list`}
 		>
-			<Eye class="h-4 w-4" />
+			<SidebarOpen class="h-4 w-4" />
 		</button>
 	</aside>
 {:else}
@@ -192,7 +192,7 @@
 							onclick={() => (collapsed = true)}
 							aria-label={`Hide ${label} list`}
 						>
-							<EyeOff class="h-4 w-4" />
+							<SidebarClose class="h-4 w-4" />
 						</button>
 					</div>
 				</div>

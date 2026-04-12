@@ -19,6 +19,7 @@ describe('auth/session', () => {
 				new Response(
 					JSON.stringify({
 						isAuthenticated: true,
+						githubOAuthConfigured: true,
 						user: {
 							login: 'kilmc',
 							name: 'Kilian',
@@ -40,13 +41,22 @@ describe('auth/session', () => {
 						},
 						rootConfig: {
 							siteName: 'Acme Docs'
-						}
+						},
+						recentRepos: [
+							{
+								owner: 'acme',
+								name: 'docs',
+								full_name: 'acme/docs',
+								openedAt: '2026-04-10T09:15:00.000Z'
+							}
+						]
 					})
 				)
 		);
 
 		expect(await loadSessionBootstrap(fetcher as typeof fetch)).toEqual({
 			isAuthenticated: true,
+			githubOAuthConfigured: true,
 			user: {
 				login: 'kilmc',
 				name: 'Kilian',
@@ -68,7 +78,15 @@ describe('auth/session', () => {
 			},
 			rootConfig: {
 				siteName: 'Acme Docs'
-			}
+			},
+			recentRepos: [
+				{
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs',
+					openedAt: '2026-04-10T09:15:00.000Z'
+				}
+			]
 		});
 		expect(fetcher).toHaveBeenCalledWith('/api/session');
 	});

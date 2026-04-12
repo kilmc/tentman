@@ -18,7 +18,7 @@ describe('routes/pages/[page]/new/+page', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/auth/login?redirect=%2Fpages%2Fposts%2Fnew%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fposts%2Fnew%3Fbranch%3Dpreview-2026-04-06'
 		});
 	});
 

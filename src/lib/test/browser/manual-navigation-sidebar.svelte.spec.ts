@@ -182,7 +182,9 @@ import PagesLayout from '../../../routes/pages/+layout.svelte';
 
 const layoutData = {
 	isAuthenticated: false,
+	githubOAuthConfigured: true,
 	user: null,
+	recentRepos: [],
 	selectedBackend: {
 		kind: 'local' as const,
 		repo: {

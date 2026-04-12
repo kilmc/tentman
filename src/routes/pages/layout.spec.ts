@@ -107,7 +107,7 @@ describe('routes/pages/+layout', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/auth/login?redirect=/pages'
+			location: '/repos?returnTo=%2Fpages&debugFailure=pages-layout-bootstrap-401&debugRepo=acme%2Fdocs'
 		});
 	});
 });

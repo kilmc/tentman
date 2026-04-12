@@ -13,20 +13,28 @@ export interface GitHubRootConfigSnapshot {
 	siteName?: RootConfig['siteName'];
 }
 
+export interface RecentGitHubRepositorySnapshot extends GitHubRepositoryIdentity {
+	openedAt: string;
+}
+
 export interface SessionBootstrap {
 	isAuthenticated: boolean;
+	githubOAuthConfigured: boolean;
 	user: GitHubUserSnapshot | null;
 	selectedRepo: GitHubRepositoryIdentity | null;
 	selectedBackend: SelectedBackend | null;
 	rootConfig: GitHubRootConfigSnapshot | null;
+	recentRepos: RecentGitHubRepositorySnapshot[];
 }
 
 export const EMPTY_SESSION_BOOTSTRAP: SessionBootstrap = {
 	isAuthenticated: false,
+	githubOAuthConfigured: false,
 	user: null,
 	selectedRepo: null,
 	selectedBackend: null,
-	rootConfig: null
+	rootConfig: null,
+	recentRepos: []
 };
 
 export function normalizeSessionBootstrap(
@@ -34,10 +42,12 @@ export function normalizeSessionBootstrap(
 ): SessionBootstrap {
 	return {
 		isAuthenticated: value?.isAuthenticated ?? false,
+		githubOAuthConfigured: value?.githubOAuthConfigured ?? false,
 		user: value?.user ?? null,
 		selectedRepo: value?.selectedRepo ?? null,
 		selectedBackend: value?.selectedBackend ?? null,
-		rootConfig: value?.rootConfig ?? null
+		rootConfig: value?.rootConfig ?? null,
+		recentRepos: value?.recentRepos ?? []
 	};
 }
 

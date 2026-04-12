@@ -1,19 +1,30 @@
 import { error as httpError, redirect, type Cookies } from '@sveltejs/kit';
+import { randomBytes } from 'node:crypto';
+import { env } from '$env/dynamic/private';
 import { Octokit } from 'octokit';
 import type { RootConfig } from '$lib/config/root-config';
 import type {
 	GitHubRootConfigSnapshot,
-	GitHubUserSnapshot
+	GitHubUserSnapshot,
+	RecentGitHubRepositorySnapshot
 } from '$lib/auth/session';
 import { SELECTED_BACKEND_COOKIE } from '$lib/repository/selection';
 import type { GitHubRepositoryIdentity } from '$lib/repository/github';
+import { buildPathWithQuery, sanitizeAuthRedirectTarget } from '$lib/utils/routing';
 
 export const GITHUB_TOKEN_COOKIE = 'github_token';
 export const GITHUB_SESSION_COOKIE = 'github_session';
 export const GITHUB_REPO_SESSION_COOKIE = 'github_repo_session';
 export const SELECTED_REPO_COOKIE = 'selected_repo';
+export const RECENT_REPOS_COOKIE = 'recent_github_repos';
+export const GITHUB_LOGIN_COOLDOWN_COOKIE = 'github_login_cooldown';
+export const GITHUB_OAUTH_STATE_COOKIE = 'github_oauth_state';
+export const GITHUB_OAUTH_REDIRECT_COOKIE = 'github_oauth_redirect';
 
 const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+const MAX_RECENT_REPOS = 5;
+const LOGIN_COOLDOWN_MAX_AGE = 15;
+const OAUTH_REQUEST_MAX_AGE = 60 * 10;
 
 interface GitHubSessionSnapshot {
 	v: 1;
@@ -34,8 +45,33 @@ interface CookieTarget {
 	cookies: Pick<Cookies, 'delete'>;
 }
 
+function isGitHubRepositoryIdentity(value: unknown): value is GitHubRepositoryIdentity {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+
+	return (
+		'owner' in value &&
+		typeof value.owner === 'string' &&
+		'name' in value &&
+		typeof value.name === 'string' &&
+		'full_name' in value &&
+		typeof value.full_name === 'string'
+	);
+}
+
+function isRecentGitHubRepositorySnapshot(value: unknown): value is RecentGitHubRepositorySnapshot {
+	return (
+		isGitHubRepositoryIdentity(value) && 'openedAt' in value && typeof value.openedAt === 'string'
+	);
+}
+
+export function isGitHubOAuthConfigured(): boolean {
+	return Boolean(env.GITHUB_CLIENT_ID?.trim() && env.GITHUB_CLIENT_SECRET?.trim());
+}
+
 export function getGitHubClientId(): string {
-	const clientId = process.env.GITHUB_CLIENT_ID?.trim();
+	const clientId = env.GITHUB_CLIENT_ID?.trim();
 
 	if (!clientId) {
 		throw httpError(
@@ -52,7 +88,7 @@ export function getGitHubOAuthCredentials(): {
 	clientSecret: string;
 } {
 	const clientId = getGitHubClientId();
-	const clientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
+	const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
 
 	if (!clientSecret) {
 		throw httpError(
@@ -67,13 +103,22 @@ export function getGitHubOAuthCredentials(): {
 	};
 }
 
-export function getGitHubCookieOptions() {
+export function getGitHubCookieOptions(
+	overrides: Partial<{
+		maxAge: number;
+		httpOnly: boolean;
+		secure: boolean;
+		sameSite: 'lax' | 'strict' | 'none';
+		path: string;
+	}> = {}
+) {
 	return {
 		path: '/',
 		httpOnly: true,
-		secure: process.env.NODE_ENV === 'production',
+		secure: env.NODE_ENV === 'production',
 		sameSite: 'lax' as const,
-		maxAge: SESSION_COOKIE_MAX_AGE
+		maxAge: SESSION_COOKIE_MAX_AGE,
+		...overrides
 	};
 }
 
@@ -145,7 +190,7 @@ export function readGitHubSession(cookies: Pick<Cookies, 'get'>): {
 }
 
 export function persistSelectedGitHubRepository(
-	cookies: Pick<Cookies, 'set' | 'delete'>,
+	cookies: Pick<Cookies, 'get' | 'set' | 'delete'>,
 	repository: GitHubRepositoryIdentity,
 	rootConfig: RootConfig | null
 ): void {
@@ -165,6 +210,7 @@ export function persistSelectedGitHubRepository(
 		}),
 		options
 	);
+	persistRecentGitHubRepository(cookies, repository);
 }
 
 export function readSelectedGitHubRepositorySession(cookies: Pick<Cookies, 'get'>): {
@@ -178,12 +224,101 @@ export function readSelectedGitHubRepositorySession(cookies: Pick<Cookies, 'get'
 	};
 }
 
+export function persistRecentGitHubRepository(
+	cookies: Pick<Cookies, 'get' | 'set'>,
+	repository: GitHubRepositoryIdentity
+): void {
+	const recentRepos = readRecentGitHubRepositories(cookies);
+	const nextRecentRepos = [
+		{
+			...repository,
+			openedAt: new Date().toISOString()
+		},
+		...recentRepos.filter((entry) => entry.full_name !== repository.full_name)
+	].slice(0, MAX_RECENT_REPOS);
+
+	cookies.set(RECENT_REPOS_COOKIE, JSON.stringify(nextRecentRepos), getGitHubCookieOptions());
+}
+
+export function readRecentGitHubRepositories(
+	cookies: Pick<Cookies, 'get'>
+): RecentGitHubRepositorySnapshot[] {
+	const rawValue = cookies.get(RECENT_REPOS_COOKIE);
+
+	if (!rawValue) {
+		return [];
+	}
+
+	try {
+		const parsed = JSON.parse(rawValue) as unknown;
+
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+
+		return parsed.filter(isRecentGitHubRepositorySnapshot);
+	} catch {
+		return [];
+	}
+}
+
 export function clearGitHubSession(cookies: Pick<Cookies, 'delete'>): void {
 	cookies.delete(GITHUB_TOKEN_COOKIE, { path: '/' });
 	cookies.delete(GITHUB_SESSION_COOKIE, { path: '/' });
 	cookies.delete(GITHUB_REPO_SESSION_COOKIE, { path: '/' });
 	cookies.delete(SELECTED_REPO_COOKIE, { path: '/' });
 	cookies.delete(SELECTED_BACKEND_COOKIE, { path: '/' });
+	cookies.delete(RECENT_REPOS_COOKIE, { path: '/' });
+	cookies.delete(GITHUB_LOGIN_COOLDOWN_COOKIE, { path: '/' });
+	clearGitHubOAuthRequest(cookies);
+}
+
+export function markGitHubLoginAttempt(cookies: Pick<Cookies, 'set'>): void {
+	cookies.set(
+		GITHUB_LOGIN_COOLDOWN_COOKIE,
+		'1',
+		getGitHubCookieOptions({ maxAge: LOGIN_COOLDOWN_MAX_AGE })
+	);
+}
+
+export function hasRecentGitHubLoginAttempt(cookies: Pick<Cookies, 'get'>): boolean {
+	return cookies.get(GITHUB_LOGIN_COOLDOWN_COOKIE) === '1';
+}
+
+export function createGitHubOAuthState(): string {
+	return randomBytes(32).toString('hex');
+}
+
+export function persistGitHubOAuthRequest(
+	cookies: Pick<Cookies, 'set'>,
+	request: {
+		state: string;
+		redirectTo: string;
+	}
+): void {
+	const options = getGitHubCookieOptions({ maxAge: OAUTH_REQUEST_MAX_AGE });
+
+	cookies.set(GITHUB_OAUTH_STATE_COOKIE, request.state, options);
+	cookies.set(
+		GITHUB_OAUTH_REDIRECT_COOKIE,
+		sanitizeAuthRedirectTarget(request.redirectTo, '/repos'),
+		options
+	);
+}
+
+export function readGitHubOAuthRequest(cookies: Pick<Cookies, 'get'>): {
+	state: string | null;
+	redirectTo: string;
+} {
+	return {
+		state: cookies.get(GITHUB_OAUTH_STATE_COOKIE) ?? null,
+		redirectTo: sanitizeAuthRedirectTarget(cookies.get(GITHUB_OAUTH_REDIRECT_COOKIE), '/repos')
+	};
+}
+
+export function clearGitHubOAuthRequest(cookies: Pick<Cookies, 'delete'>): void {
+	cookies.delete(GITHUB_OAUTH_STATE_COOKIE, { path: '/' });
+	cookies.delete(GITHUB_OAUTH_REDIRECT_COOKIE, { path: '/' });
 }
 
 export function isGitHubUnauthorizedError(value: unknown): boolean {
@@ -228,7 +363,12 @@ export function handleGitHubSessionError(
 	clearGitHubSession(target.cookies);
 
 	if (options?.redirectTo) {
-		throw redirect(302, `/auth/login?redirect=${options.redirectTo}`);
+		throw redirect(
+			302,
+			buildPathWithQuery('/repos', {
+				returnTo: sanitizeAuthRedirectTarget(options.redirectTo, '/repos')
+			})
+		);
 	}
 
 	throw httpError(401, 'GitHub session expired. Please log in again.');

@@ -13,25 +13,26 @@ describe('routes/publish/+page', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/auth/login?redirect=/publish'
+			location: '/repos?returnTo=%2Fpublish'
 		});
 	});
 
 	it('loads publish review data from the thin API', async () => {
-		const fetch = vi.fn(async () =>
-			new Response(
-				JSON.stringify({
-					draftBranch: { name: 'preview-2026-04-05' },
-					configsWithChanges: [],
-					commits: []
-				}),
-				{
-					status: 200,
-					headers: {
-						'content-type': 'application/json'
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						draftBranch: { name: 'preview-2026-04-05' },
+						configsWithChanges: [],
+						commits: []
+					}),
+					{
+						status: 200,
+						headers: {
+							'content-type': 'application/json'
+						}
 					}
-				}
-			)
+				)
 		);
 
 		await expect(
@@ -88,7 +89,7 @@ describe('routes/publish/+page', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/auth/login?redirect=/publish'
+			location: '/repos?returnTo=%2Fpublish'
 		});
 	});
 });
