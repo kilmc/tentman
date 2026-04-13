@@ -63,11 +63,15 @@ async function getPathHandle(
 			try {
 				return await current.getFileHandle(segment, { create: options?.create });
 			} catch (error) {
-				if (options?.create) {
-					return current.getDirectoryHandle(segment, { create: true });
-				}
+				try {
+					return await current.getDirectoryHandle(segment, { create: options?.create });
+				} catch {
+					if (options?.create) {
+						throw error;
+					}
 
-				throw error;
+					throw error;
+				}
 			}
 		}
 
@@ -75,6 +79,15 @@ async function getPathHandle(
 	}
 
 	return current;
+}
+
+async function pathExists(root: FileSystemDirectoryHandle, path: string): Promise<boolean> {
+	try {
+		await getPathHandle(root, path);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 async function getDirectoryHandle(
@@ -340,13 +353,8 @@ export function createLocalRepositoryBackend(
 			return listDirectoryEntries(rootHandle, path);
 		},
 
-		async fileExists(path: string, _options?: RepositoryReadOptions) {
-			try {
-				await getPathHandle(rootHandle, path);
-				return true;
-			} catch {
-				return false;
-			}
+		fileExists(path: string, _options?: RepositoryReadOptions) {
+			return pathExists(rootHandle, path);
 		}
 	};
 }

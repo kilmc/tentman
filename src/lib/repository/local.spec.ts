@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadJavaScriptModuleFromText } from '$lib/repository/local';
+import { createLocalRepositoryBackend, loadJavaScriptModuleFromText } from '$lib/repository/local';
 
 describe('loadJavaScriptModuleFromText', () => {
 	it('imports module source through a blob url and revokes the url afterward', async () => {
@@ -38,5 +38,62 @@ describe('loadJavaScriptModuleFromText', () => {
 		await expect(moduleBlob.text()).resolves.toContain(
 			'//# sourceURL=tentman/blocks/gallery.adapter.js'
 		);
+	});
+});
+
+describe('createLocalRepositoryBackend', () => {
+	it('treats directories as existing paths for local discovery helpers', async () => {
+		function createDirectoryHandle(
+			directories: Record<string, FileSystemDirectoryHandle>
+		): FileSystemDirectoryHandle {
+			const entries = async function* () {};
+
+			return {
+				kind: 'directory',
+				name: 'mock-directory',
+				async isSameEntry() {
+					return false;
+				},
+				async getDirectoryHandle(name: string) {
+					const directory = directories[name];
+					if (!directory) {
+						throw new Error(`Missing directory: ${name}`);
+					}
+
+					return directory;
+				},
+				async getFileHandle() {
+					throw new Error('Not a file');
+				},
+				async removeEntry() {
+					throw new Error('Not implemented');
+				},
+				async resolve() {
+					return null;
+				},
+				entries,
+				keys: entries,
+				values: entries,
+				[Symbol.asyncIterator]() {
+					return entries();
+				}
+			} as unknown as FileSystemDirectoryHandle;
+		}
+
+		const instructionsHandle = createDirectoryHandle({});
+		const tentmanHandle = createDirectoryHandle({
+			instructions: instructionsHandle
+		});
+		const instructionsDirectory = {
+			tentman: tentmanHandle
+		};
+		const rootHandle = createDirectoryHandle(instructionsDirectory);
+
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+
+		await expect(backend.fileExists('tentman/instructions')).resolves.toBe(true);
 	});
 });

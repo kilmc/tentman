@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { localContent } from '$lib/stores/local-content';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const hasChanges = $derived(data.summary.changedPages.length > 0);
+	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
+	const hasConfigs = $derived(isLocalMode ? $localContent.configs.length > 0 : data.summary.hasConfigs);
 </script>
 
 <div class="grid gap-6">
@@ -19,7 +22,33 @@
 		</p>
 	</section>
 
-	{#if !data.summary.hasConfigs}
+	<section class="rounded-xl border border-stone-200 bg-white p-5">
+		<div class="flex flex-wrap items-start justify-between gap-4">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">New work</p>
+				<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">
+					Instructions preview
+				</h2>
+				<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+					Preview scaffold-style repo changes from
+					<code class="rounded bg-stone-100 px-1 py-0.5 text-xs"> tentman/instructions </code>
+					with a friendly confirmation screen before any apply step exists.
+					{#if !isLocalMode}
+						The first slice is currently wired for local browser-backed repos only.
+					{/if}
+				</p>
+			</div>
+
+			<a
+				href={resolve('/pages/instructions')}
+				class="inline-flex min-h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50"
+			>
+				Open Instructions
+			</a>
+		</div>
+	</section>
+
+	{#if !hasConfigs}
 		<section class="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
 			<h2 class="text-xl font-semibold text-yellow-950">No content configs found</h2>
 			<p class="mt-2 text-sm text-yellow-900">
