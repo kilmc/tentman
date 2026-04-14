@@ -224,12 +224,13 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			data: layoutData
 		});
 
-		await expect.element(screen.getByRole('button', { name: 'Edit navigation' })).toBeVisible();
+		await expect.element(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
 		await expect.element(screen.getByRole('link', { name: 'About Page' })).toBeVisible();
 		await expect.element(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
 		await expect.element(screen.getByText('Hello world')).not.toBeInTheDocument();
 
-		await screen.getByRole('button', { name: 'Edit navigation' }).click();
+		await screen.getByRole('button', { name: 'Site settings' }).click();
+		await screen.getByText('Edit navigation').click();
 
 		await expect.element(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 		await expect.element(screen.getByText('About Page')).toBeVisible();
@@ -238,7 +239,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 
 		await screen.getByRole('button', { name: 'Cancel' }).click();
 
-		await expect.element(screen.getByRole('button', { name: 'Edit navigation' })).toBeVisible();
+		await expect.element(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
 	});
 
 	it('renders collection items in the collection index pane beside the editor', async () => {

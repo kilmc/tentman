@@ -184,6 +184,20 @@ describe('instruction planner', () => {
 				slug: 'press-kit',
 				showInNavigation: true
 			},
+			inputSummary: [
+				{
+					label: 'Page title',
+					value: 'Press Kit'
+				},
+				{
+					label: 'URL slug',
+					value: 'press-kit'
+				},
+				{
+					label: 'Show in navigation',
+					value: 'Yes'
+				}
+			],
 			confirmationTitle: 'Create Press Kit',
 			confirmationSummary: [
 				'This will create a new page at /press-kit.',
@@ -296,6 +310,12 @@ describe('instruction planner', () => {
 		expect(plan.confirmationSummary).toEqual([
 			'Tentman will create a navigation manifest and add this item.'
 		]);
+		expect(plan.inputSummary).toEqual([
+			{
+				label: 'Config id',
+				value: 'press-kit'
+			}
+		]);
 	});
 
 	it('includes fallback conflict guidance when confirmation copy is omitted', async () => {
@@ -394,16 +414,16 @@ describe('instruction planner', () => {
 		expect(instruction).toBeTruthy();
 
 		const plan = await planInstructionExecution(backend, instruction!, {
-			title: 'News',
-			slug: 'news',
+			title: 'Fixture Smoke Page',
+			slug: 'fixture-smoke-page',
 			showInNavigation: true
 		});
 
 		expect(plan.files.map((file) => file.path)).toEqual([
-			'src/content/pages/news.json',
-			'src/routes/news/+page.server.ts',
-			'src/routes/news/+page.svelte',
-			'tentman/configs/news.tentman.json'
+			'src/content/pages/fixture-smoke-page.json',
+			'src/routes/fixture-smoke-page/+page.server.ts',
+			'src/routes/fixture-smoke-page/+page.svelte',
+			'tentman/configs/fixture-smoke-page.tentman.json'
 		]);
 		expect(plan.planErrors).toEqual([]);
 	});

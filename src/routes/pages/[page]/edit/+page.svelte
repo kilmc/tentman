@@ -92,7 +92,16 @@
 	async function loadLocalContent(pageSlug: string) {
 		const requestId = ++localLoadRequest;
 
+		discoveredConfig = null;
+		blockConfigs = [];
+		packageBlocks = [];
+		blockRegistry = null;
+		content = null;
 		contentError = null;
+		blockRegistryError = null;
+		localError = null;
+		formGenerator = null;
+		hasUnsavedChanges = false;
 		await localContent.refresh();
 		const repoState = get(localRepo);
 		const contentState = get(localContent);

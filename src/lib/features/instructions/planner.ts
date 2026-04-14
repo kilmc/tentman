@@ -14,6 +14,7 @@ import type {
 	InstructionConditionalLine,
 	InstructionExecutionPlan,
 	InstructionInputError,
+	InstructionInputSummaryItem,
 	InstructionInputValues,
 	PlannedFileCreate,
 	PlannedNavigationChange
@@ -83,6 +84,46 @@ function resolveConditionalLines(
 		}
 
 		return [renderStringTemplate(line.text, values)];
+	});
+}
+
+function buildInputSummary(
+	instruction: DiscoveredInstruction,
+	values: InstructionInputValues
+): InstructionInputSummaryItem[] {
+	return instruction.definition.inputs.flatMap((input) => {
+		const value = values[input.id];
+
+		if (input.type === 'boolean') {
+			return [
+				{
+					label: input.label,
+					value: value ? 'Yes' : 'No'
+				}
+			];
+		}
+
+		const stringValue = String(value ?? '').trim();
+		if (stringValue.length === 0) {
+			return [];
+		}
+
+		if (input.type === 'select' && input.options) {
+			const selectedOption = input.options.find((option) => option.value === stringValue);
+			return [
+				{
+					label: input.label,
+					value: selectedOption?.label ?? stringValue
+				}
+			];
+		}
+
+		return [
+			{
+				label: input.label,
+				value: stringValue
+			}
+		];
 	});
 }
 
@@ -352,6 +393,7 @@ export async function planInstructionExecution(
 		instructionId: instruction.definition.id,
 		instructionLabel: instruction.definition.label,
 		inputValues: normalizedValues,
+		inputSummary: buildInputSummary(instruction, normalizedValues),
 		confirmationTitle: instruction.definition.confirmation?.title
 			? renderStringTemplate(instruction.definition.confirmation.title, normalizedValues)
 			: `Create ${instruction.definition.label}`,

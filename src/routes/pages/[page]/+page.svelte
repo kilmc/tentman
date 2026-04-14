@@ -224,7 +224,13 @@
 	async function loadLocalPage(pageSlug: string) {
 		const requestId = ++localLoadRequest;
 
+		discoveredConfig = null;
+		blockConfigs = [];
+		packageBlocks = [];
+		localBlockRegistry = null;
+		content = null;
 		contentError = null;
+		blockRegistryError = null;
 		await localContent.refresh();
 
 		const repoState = get(localRepo);

@@ -54,7 +54,13 @@
 	async function loadLocalItem(pageSlug: string, itemId: string) {
 		const requestId = ++localLoadRequest;
 
+		discoveredConfig = null;
+		blockConfigs = [];
+		packageBlocks = [];
+		localBlockRegistry = null;
+		item = null;
 		contentError = null;
+		blockRegistryError = null;
 		await localContent.refresh();
 
 		const repoState = get(localRepo);

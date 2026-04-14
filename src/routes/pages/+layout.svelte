@@ -117,6 +117,10 @@
 			return 'Overview';
 		}
 
+		if (page.url.pathname === '/pages/new' || page.url.pathname === '/pages/instructions') {
+			return 'Add Page';
+		}
+
 		if (page.url.pathname.endsWith('/settings')) {
 			return 'Settings';
 		}

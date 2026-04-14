@@ -259,7 +259,7 @@ const services: InstructionsWorkspaceServices = {
 	applyInstructionExecutionPlan
 };
 
-describe('routes/pages/instructions/+page.svelte', () => {
+describe('InstructionsWorkspace', () => {
 	beforeEach(() => {
 		instructionsPageMocks.invalidateAll.mockClear();
 		instructionsPageMocks.hydrate.mockClear();
@@ -320,20 +320,20 @@ describe('routes/pages/instructions/+page.svelte', () => {
 
 		await screen.getByLabelText('Page title').fill('Press Kit');
 		await screen.getByLabelText('URL slug').fill('Press Kit');
-		await screen.getByRole('button', { name: 'Review changes' }).click();
+		await screen.getByRole('button', { name: 'Continue' }).click();
 
-		await expect
-			.element(screen.getByText('This will create a new page at /press-kit.'))
-			.toBeVisible();
+		await expect.element(screen.getByRole('heading', { name: 'Create Press Kit' })).toBeVisible();
+		await expect.element(screen.getByText('Page title')).toBeVisible();
+		await expect.element(screen.getByText('Press Kit', { exact: true })).toBeVisible();
+		await expect.element(screen.getByText('URL slug')).toBeVisible();
+		await expect.element(screen.getByText('press-kit', { exact: true })).toBeVisible();
 		await expect
 			.element(screen.getByText('This page will be added to Tentman navigation.'))
 			.toBeVisible();
-		await expect.element(screen.getByText('src/routes/press-kit/+page.svelte')).toBeVisible();
-		await expect.element(screen.getByText('skip-existing')).toBeVisible();
 
-		await screen.getByRole('button', { name: 'Apply locally' }).click();
+		await screen.getByRole('button', { name: 'Create page' }).click();
 
-		await expect.element(screen.getByText('Create page applied locally')).toBeVisible();
+		await expect.element(screen.getByText('Created Press Kit')).toBeVisible();
 		expect(instructionsPageMocks.files['tentman/configs/press-kit.tentman.json']).toContain(
 			'"press-kit"'
 		);
@@ -343,6 +343,5 @@ describe('routes/pages/instructions/+page.svelte', () => {
 		expect(instructionsPageMocks.files['src/routes/press-kit/+page.svelte']).toBe(
 			'<h1>Existing page</h1>\n'
 		);
-		expect(instructionsPageMocks.invalidateAll).toHaveBeenCalled();
 	});
 });

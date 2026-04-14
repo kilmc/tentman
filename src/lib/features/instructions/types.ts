@@ -80,6 +80,11 @@ export interface InstructionInputError {
 	message: string;
 }
 
+export interface InstructionInputSummaryItem {
+	label: string;
+	value: string;
+}
+
 export interface PlannedFileCreate {
 	path: string;
 	content: string;
@@ -100,6 +105,7 @@ export interface InstructionExecutionPlan {
 	instructionId: string;
 	instructionLabel: string;
 	inputValues: InstructionInputValues;
+	inputSummary: InstructionInputSummaryItem[];
 	confirmationTitle: string;
 	confirmationSummary: string[];
 	notes: string[];

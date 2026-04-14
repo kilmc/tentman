@@ -60,6 +60,20 @@ const basePlan: InstructionExecutionPlan = {
 		slug: 'press-kit',
 		showInNavigation: true
 	},
+	inputSummary: [
+		{
+			label: 'Page title',
+			value: 'Press Kit'
+		},
+		{
+			label: 'URL slug',
+			value: 'press-kit'
+		},
+		{
+			label: 'Show in navigation',
+			value: 'Yes'
+		}
+	],
 	confirmationTitle: 'Create Press Kit',
 	confirmationSummary: ['This will create a new page at /press-kit.'],
 	notes: [],

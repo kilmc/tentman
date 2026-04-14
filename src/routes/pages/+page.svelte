@@ -27,23 +27,19 @@
 			<div>
 				<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">New work</p>
 				<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">
-					Instructions preview
+					Add a page
 				</h2>
 				<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-					Preview scaffold-style repo changes from
-					<code class="rounded bg-stone-100 px-1 py-0.5 text-xs"> tentman/instructions </code>
-					with a friendly confirmation screen before any apply step exists.
-					{#if !isLocalMode}
-						The first slice is currently wired for local browser-backed repos only.
-					{/if}
+					Create a new page with a guided setup flow, then confirm it before anything is
+					saved.
 				</p>
 			</div>
 
 			<a
-				href={resolve('/pages/instructions')}
+				href={resolve('/pages/new')}
 				class="inline-flex min-h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50"
 			>
-				Open Instructions
+				Add page
 			</a>
 		</div>
 	</section>

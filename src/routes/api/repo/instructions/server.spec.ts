@@ -125,6 +125,12 @@ describe('/api/repo/instructions', () => {
 			inputValues: {
 				slug: 'press-kit'
 			},
+			inputSummary: [
+				{
+					label: 'Slug',
+					value: 'press-kit'
+				}
+			],
 			confirmationTitle: 'Create Press Kit',
 			confirmationSummary: ['This will create a new page at /press-kit.'],
 			notes: [],
@@ -198,6 +204,12 @@ describe('/api/repo/instructions', () => {
 			instructionId: 'create-page',
 			instructionLabel: 'Create page',
 			inputValues: { slug: 'press-kit' },
+			inputSummary: [
+				{
+					label: 'Slug',
+					value: 'press-kit'
+				}
+			],
 			confirmationTitle: 'Create Press Kit',
 			confirmationSummary: ['This will create a new page at /press-kit.'],
 			notes: [],
