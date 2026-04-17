@@ -161,6 +161,8 @@ describe('parseRootConfig', () => {
 			"blocksDir": "./tentman/blocks",
 			"configsDir": "./tentman/configs",
 			"assetsDir": "./static/images",
+			"pluginsDir": "./tentman/plugins",
+			"plugins": ["buy-button"],
 			"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"]
 		}`);
 
@@ -169,7 +171,59 @@ describe('parseRootConfig', () => {
 			blocksDir: './tentman/blocks',
 			configsDir: './tentman/configs',
 			assetsDir: './static/images',
+			pluginsDir: './tentman/plugins',
+			plugins: ['buy-button'],
 			blockPackages: ['@tentman/blocks-media', '@acme/tentman-blocks']
 		});
+	});
+
+	it('parses markdown field plugin allowlists', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"content": {
+				"mode": "file",
+				"path": "./content/posts.json"
+			},
+			"blocks": [
+				{
+					"id": "body",
+					"type": "markdown",
+					"plugins": ["buy-button"]
+				}
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks).toMatchObject([
+			{
+				id: 'body',
+				type: 'markdown',
+				plugins: ['buy-button']
+			}
+		]);
+	});
+
+	it('rejects field-level plugins on non-markdown fields', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Posts",
+				"content": {
+					"mode": "file",
+					"path": "./content/posts.json"
+				},
+				"blocks": [
+					{
+						"id": "title",
+						"type": "text",
+						"plugins": ["buy-button"]
+					}
+				]
+			}`)
+		).toThrow(/only supported on markdown fields/);
 	});
 });

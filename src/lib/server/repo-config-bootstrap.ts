@@ -4,9 +4,8 @@ import {
 	normalizeRepoConfigsBootstrap,
 	type RepoConfigsBootstrap
 } from '$lib/repository/config-bootstrap';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { getCachedConfigs } from '$lib/stores/config-cache';
-import { createGitHubServerClient } from '$lib/server/auth/github';
+import { requireGitHubRepository } from '$lib/server/page-context';
 
 export async function loadSelectedGitHubRepoConfigs(
 	locals: App.Locals,
@@ -20,8 +19,7 @@ export async function loadSelectedGitHubRepoConfigs(
 		throw error(400, 'No repository selected');
 	}
 
-	const octokit = createGitHubServerClient(locals.githubToken, cookies);
-	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
+	const { backend } = requireGitHubRepository({ locals, cookies });
 	const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
 		getCachedConfigs(backend),
 		backend.discoverBlockConfigs(),

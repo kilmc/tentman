@@ -17,6 +17,7 @@ export interface BaseBlockUsage {
 	collection?: boolean;
 	itemLabel?: string;
 	assetsDir?: string;
+	plugins?: string[];
 	generated?: boolean;
 	show?: 'primary' | 'secondary';
 	minLength?: number;
@@ -90,6 +91,8 @@ export interface RootConfig {
 	blocksDir?: string;
 	configsDir?: string;
 	assetsDir?: string;
+	pluginsDir?: string;
+	plugins?: string[];
 	blockPackages?: string[];
 	netlify?: {
 		siteName: string;

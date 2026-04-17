@@ -1,3 +1,4 @@
+// SERVER_JUSTIFICATION: session
 import { error, json } from '@sveltejs/kit';
 import { buildSessionBootstrap } from '$lib/server/session-bootstrap';
 import {

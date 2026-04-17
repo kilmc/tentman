@@ -60,7 +60,8 @@ describe('GET /api/session', () => {
 			},
 			rootConfig: {
 				siteName: 'Acme Docs'
-			}
+			},
+			recentRepos: []
 		});
 	});
 });

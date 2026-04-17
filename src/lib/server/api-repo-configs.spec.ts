@@ -4,27 +4,17 @@ vi.mock('$lib/stores/config-cache', () => ({
 	getCachedConfigs: vi.fn()
 }));
 
-vi.mock('$lib/repository/github', () => ({
-	createGitHubRepositoryBackend: vi.fn(() => ({
-		discoverBlockConfigs: vi.fn(async () => []),
-		readRootConfig: vi.fn(async () => null)
-	}))
+const pageContextMocks = vi.hoisted(() => ({
+	requireGitHubRepository: vi.fn()
 }));
 
-vi.mock('$lib/server/auth/github', async () => {
-	const actual =
-		await vi.importActual<typeof import('$lib/server/auth/github')>('$lib/server/auth/github');
-
-	return {
-		...actual,
-		createGitHubServerClient: vi.fn(() => ({ rest: {} }))
-	};
-});
+vi.mock('$lib/server/page-context', () => ({
+	requireGitHubRepository: pageContextMocks.requireGitHubRepository
+}));
 
 import { GET } from '../../routes/api/repo/configs/+server';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import {
-	createGitHubServerClient,
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
 	GITHUB_TOKEN_COOKIE,
@@ -40,6 +30,13 @@ function createCookies() {
 describe('GET /api/repo/configs', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		pageContextMocks.requireGitHubRepository.mockReturnValue({
+			backend: {
+				discoverBlockConfigs: vi.fn(async () => []),
+				readRootConfig: vi.fn(async () => null),
+				fileExists: vi.fn(async () => false)
+			}
+		});
 	});
 
 	it('returns config discovery data for the selected repository', async () => {
@@ -72,7 +69,6 @@ describe('GET /api/repo/configs', () => {
 			cookies
 		} as never);
 
-		expect(createGitHubServerClient).toHaveBeenCalledWith('secret-token', cookies);
 		expect(await response.json()).toEqual({
 			configs: [
 				{
@@ -89,7 +85,13 @@ describe('GET /api/repo/configs', () => {
 				}
 			],
 			blockConfigs: [],
-			rootConfig: null
+			rootConfig: null,
+			navigationManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: false,
+				manifest: null,
+				error: null
+			}
 		});
 	});
 

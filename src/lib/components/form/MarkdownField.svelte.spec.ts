@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { createMarkdownPluginExtensions } from '$lib/plugins/markdown';
+import type { UnifiedLocalPlugin } from '$lib/plugins/types';
 
 const draftAssetStoreMocks = vi.hoisted(() => ({
 	create: vi.fn(),
@@ -44,6 +46,10 @@ const localContentState = vi.hoisted(() =>
 	})
 );
 
+const pluginLoaderMocks = vi.hoisted(() => ({
+	loadMarkdownPluginsForMode: vi.fn()
+}));
+
 vi.mock('$app/state', () => ({
 	page: {
 		data: {
@@ -83,7 +89,158 @@ vi.mock('$lib/stores/local-content', () => ({
 	}
 }));
 
+vi.mock('$lib/plugins/browser', () => ({
+	loadMarkdownPluginsForMode: pluginLoaderMocks.loadMarkdownPluginsForMode
+}));
+
 import MarkdownField from './MarkdownField.svelte';
+
+function createBuyButtonPlugin() {
+	const plugin: UnifiedLocalPlugin = {
+		id: 'buy-button',
+		version: '0.1.0',
+		capabilities: ['markdown', 'preview'],
+		markdown: {
+			htmlInlineNodes: [
+				{
+					id: 'buy-button',
+					nodeName: 'buyButton',
+					selector: 'a[data-tentman-plugin="buy-button"]',
+					attributes: [
+						{
+							name: 'href',
+							default: '',
+							parse(element: HTMLElement) {
+								return element.getAttribute('href');
+							}
+						},
+						{
+							name: 'label',
+							default: 'Buy online',
+							parse(element: HTMLElement) {
+								return element.getAttribute('data-label') ?? element.textContent;
+							}
+						},
+						{
+							name: 'variant',
+							default: 'default',
+							parse(element: HTMLElement) {
+								return element.getAttribute('data-variant') ?? 'default';
+							}
+						}
+					],
+					renderHTML(attributes: Record<string, unknown>) {
+						const label = String(attributes.label ?? 'Buy online');
+						return {
+							tag: 'a',
+							attributes: {
+								'data-tentman-plugin': 'buy-button',
+								href: String(attributes.href ?? ''),
+								'data-label': label,
+								'data-variant': String(attributes.variant ?? 'default')
+							},
+							text: label
+						};
+					},
+					editorView: {
+						label(attributes: Record<string, unknown>) {
+							return `Buy button: ${String(attributes.label ?? 'Buy online')}`;
+						},
+						className(attributes: Record<string, unknown>) {
+							return String(attributes.variant ?? 'default') === 'secondary'
+								? 'border-stone-400 bg-white text-stone-800'
+								: 'border-emerald-600 bg-emerald-600 text-white';
+						}
+					},
+					toolbarItems: [
+						{
+							id: 'buy-button',
+							label: 'Buy Button',
+							buttonLabel: 'Buy Button',
+							isActive(editor: any) {
+								return editor.isActive('buyButton');
+							},
+							dialog: {
+								title: 'Buy button',
+								submitLabel: 'Save button',
+								fields: [
+									{
+										id: 'href',
+										label: 'URL',
+										type: 'url',
+										required: true
+									},
+									{
+										id: 'label',
+										label: 'Label',
+										type: 'text',
+										defaultValue: 'Buy online',
+										required: true
+									},
+									{
+										id: 'variant',
+										label: 'Variant',
+										type: 'select',
+										defaultValue: 'default',
+										options: [
+											{ label: 'Default', value: 'default' },
+											{ label: 'Secondary', value: 'secondary' }
+										]
+									}
+								],
+								getInitialValues(editor: any) {
+									const currentAttributes = editor.isActive('buyButton')
+										? editor.getAttributes('buyButton')
+										: {};
+
+									return {
+										href: String(currentAttributes.href ?? ''),
+										label: String(currentAttributes.label ?? 'Buy online'),
+										variant: String(currentAttributes.variant ?? 'default')
+									};
+								},
+								validate(values: Record<string, string>) {
+									return values.href.trim() ? null : 'A buy button needs a URL.';
+								},
+								submit(editor: any, values: Record<string, string>) {
+									const attrs = {
+										href: values.href.trim(),
+										label: values.label.trim() || 'Buy online',
+										variant: values.variant === 'secondary' ? 'secondary' : 'default'
+									};
+
+									if (editor.isActive('buyButton')) {
+										editor.chain().focus().updateAttributes('buyButton', attrs).run();
+										return;
+									}
+
+									editor
+										.chain()
+										.focus()
+										.insertContent({
+											type: 'buyButton',
+											attrs
+										})
+										.run();
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	};
+
+	return {
+		plugin,
+		result: {
+			plugins: [{ id: 'buy-button', path: 'tentman/plugins/buy-button/plugin.js', plugin }],
+			extensions: createMarkdownPluginExtensions([plugin]),
+			toolbarItems: plugin.markdown?.htmlInlineNodes?.[0]?.toolbarItems ?? [],
+			errors: []
+		}
+	};
+}
 
 function createDraftAssetResult(ref: string) {
 	return {
@@ -117,7 +274,14 @@ describe('components/form/MarkdownField.svelte', () => {
 		draftAssetStoreMocks.getMetadataForContent.mockReset();
 		draftAssetStoreMocks.collectFromContent.mockReset();
 		draftAssetStoreMocks.gc.mockReset();
+		pluginLoaderMocks.loadMarkdownPluginsForMode.mockReset();
 		draftAssetStoreMocks.delete.mockResolvedValue(undefined);
+		pluginLoaderMocks.loadMarkdownPluginsForMode.mockResolvedValue({
+			plugins: [],
+			extensions: [],
+			toolbarItems: [],
+			errors: []
+		});
 	});
 
 	it('initializes rich content from markdown and preserves content when switching tabs', async () => {
@@ -140,6 +304,13 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expect
 			.element(screen.getByLabelText('Body'))
 			.toHaveValue('# Hello world\n\n![Hero](draft-asset:hero)');
+
+		await screen.getByRole('button', { name: 'Rich' }).click();
+
+		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await expect
+			.element(screen.getByRole('img', { name: 'Hero' }))
+			.toHaveAttribute('src', 'blob:hero');
 	});
 
 	it('stages inline images from the toolbar, updates markdown, and cleans up removed refs', async () => {
@@ -190,7 +361,7 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expect.element(screen.getByText('10/8')).toBeVisible();
 	});
 
-	it('updates toolbar pressed states when keyboard shortcuts toggle formatting', async () => {
+	it('updates toolbar pressed states when toolbar actions toggle formatting', async () => {
 		const screen = render(MarkdownField, {
 			label: 'Body',
 			value: 'Hello world'
@@ -216,14 +387,7 @@ describe('components/form/MarkdownField.svelte', () => {
 		selection?.removeAllRanges();
 		selection?.addRange(range);
 
-		richEditor.dispatchEvent(
-			new KeyboardEvent('keydown', {
-				key: 'b',
-				metaKey: true,
-				bubbles: true,
-				cancelable: true
-			})
-		);
+		await screen.getByRole('button', { name: 'Bold' }).click();
 
 		await expect
 			.element(screen.getByRole('button', { name: 'Bold' }))
@@ -231,5 +395,93 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 		await expect.element(screen.getByLabelText('Body')).toHaveValue('**Hello world**');
+	});
+
+	it('inserts buy buttons as stable html markers when the plugin is enabled', async () => {
+		const buyButton = createBuyButtonPlugin();
+		pluginLoaderMocks.loadMarkdownPluginsForMode.mockResolvedValue(buyButton.result);
+
+		const screen = render(MarkdownField, {
+			fieldId: 'body',
+			label: 'Body',
+			value: '',
+			plugins: ['buy-button']
+		});
+
+		await screen.getByRole('button', { name: 'Buy Button' }).click();
+		await screen.getByLabelText('URL *').fill('https://example.com/buy');
+		await screen.getByLabelText('Label *').fill('Buy tickets');
+
+		const variantSelect = document.querySelector('select');
+		if (!(variantSelect instanceof HTMLSelectElement)) {
+			throw new Error('Expected buy button variant select');
+		}
+		variantSelect.value = 'secondary';
+		variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+		await screen.getByRole('button', { name: 'Save button' }).click();
+		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+
+		await screen.getByRole('button', { name: 'Markdown' }).click();
+		await expect
+			.element(screen.getByLabelText('Body'))
+			.toHaveValue(
+				'<a data-tentman-plugin="buy-button" href="https://example.com/buy" data-label="Buy tickets" data-variant="secondary">Buy tickets</a>'
+			);
+	});
+
+	it('focuses and dismisses plugin dialogs from the keyboard', async () => {
+		const buyButton = createBuyButtonPlugin();
+		pluginLoaderMocks.loadMarkdownPluginsForMode.mockResolvedValue(buyButton.result);
+
+		const screen = render(MarkdownField, {
+			fieldId: 'body',
+			label: 'Body',
+			value: '',
+			plugins: ['buy-button']
+		});
+
+		await screen.getByRole('button', { name: 'Buy Button' }).click();
+
+		const urlInput = screen.getByLabelText('URL *');
+		await expect.poll(() => document.activeElement === urlInput.element()).toBe(true);
+		expect(document.body.style.overflow).toBe('hidden');
+
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+		await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
+		await expect.poll(() => document.body.style.overflow).toBe('');
+		await expect.poll(() => document.activeElement?.getAttribute('aria-label')).toBe('Buy Button');
+	});
+
+	it('edits a selected buy button through the plugin dialog', async () => {
+		const buyButton = createBuyButtonPlugin();
+		pluginLoaderMocks.loadMarkdownPluginsForMode.mockResolvedValue(buyButton.result);
+
+		const screen = render(MarkdownField, {
+			fieldId: 'body',
+			label: 'Body',
+			value:
+				'<a data-tentman-plugin="buy-button" href="https://example.com/old" data-label="Old label" data-variant="default">Old label</a>',
+			plugins: ['buy-button']
+		});
+
+		await screen.getByText('Buy button: Old label').click();
+		await screen.getByRole('button', { name: 'Buy Button' }).click();
+
+		await expect.element(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
+		await expect.element(screen.getByLabelText('Label *')).toHaveValue('Old label');
+
+		await screen.getByLabelText('URL *').fill('https://example.com/new');
+		await screen.getByLabelText('Label *').fill('New label');
+		await screen.getByRole('button', { name: 'Save button' }).click();
+
+		await expect.element(screen.getByText('Buy button: New label')).toBeVisible();
+		await screen.getByRole('button', { name: 'Markdown' }).click();
+		await expect
+			.element(screen.getByLabelText('Body'))
+			.toHaveValue(
+				'<a data-tentman-plugin="buy-button" href="https://example.com/new" data-label="New label" data-variant="default">New label</a>'
+			);
 	});
 });

@@ -1,9 +1,13 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { get } from 'svelte/store';
 	import { DropdownMenu, Separator, Toolbar } from 'bits-ui';
 	import { page } from '$app/state';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import ToolbarIcon from '$lib/features/markdown-editor/ToolbarIcon.svelte';
+	import { loadMarkdownPluginsForMode } from '$lib/plugins/browser';
+	import type { MarkdownToolbarItemContribution } from '$lib/plugins/types';
+	import { localContent } from '$lib/stores/local-content';
 	import {
 		collectDraftAssetRefsFromString,
 		getDraftAssetRepoKey
@@ -13,6 +17,7 @@
 	import type { Editor } from '@tiptap/core';
 
 	interface Props {
+		fieldId?: string;
 		label: string;
 		value: string;
 		required?: boolean;
@@ -20,12 +25,14 @@
 		rows?: number;
 		minLength?: number;
 		maxLength?: number;
+		plugins?: string[];
 		onchange?: () => void;
 		storagePath?: string;
 		assetsDir?: string;
 	}
 
 	let {
+		fieldId = undefined,
 		label,
 		value = $bindable(''),
 		required = false,
@@ -33,6 +40,7 @@
 		rows = 12,
 		minLength,
 		maxLength,
+		plugins = [],
 		onchange,
 		storagePath = 'static/images/',
 		assetsDir
@@ -43,12 +51,18 @@
 	let editorHost = $state<HTMLDivElement | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let editorLoadError = $state<string | null>(null);
+	let pluginLoadError = $state<string | null>(null);
 	let uploadError = $state<string | null>(null);
 	let editorUiVersion = $state(0);
 	let structureMenuOpen = $state(false);
 	let listMenuOpen = $state(false);
 	let structureMenuAnchor = $state<HTMLButtonElement | null>(null);
 	let listMenuAnchor = $state<HTMLButtonElement | null>(null);
+	let pluginDialogItem = $state<PluginToolbarButton | null>(null);
+	let pluginDialogValues = $state<Record<string, string>>({});
+	let pluginDialogError = $state<string | null>(null);
+	let pluginDialogForm = $state<HTMLFormElement | null>(null);
+	let pluginDialogReturnFocus = $state<HTMLElement | null>(null);
 
 	const textareaId = `markdown-field-${Math.random().toString(36).substring(2, 9)}`;
 	type ToolbarIconName =
@@ -105,6 +119,10 @@
 		select?: () => void;
 	}
 
+	interface PluginToolbarButton extends MarkdownToolbarItemContribution {
+		buttonLabel: string;
+	}
+
 	const repoKey = $derived(
 		getDraftAssetRepoKey({
 			selectedBackend: page.data.selectedBackend,
@@ -117,6 +135,7 @@
 		minLength !== undefined && characterCount > 0 && characterCount < minLength
 	);
 	const toolbarDisabled = $derived(!richEditor || editorLoadError !== null);
+	let pluginToolbarButtons = $state<PluginToolbarButton[]>([]);
 
 	function getEditor(): Editor | null {
 		editorUiVersion;
@@ -261,6 +280,16 @@
 		}
 	}
 
+	function getActiveRootConfig() {
+		return page.data.selectedBackend?.kind === 'local'
+			? get(localContent).rootConfig
+			: (page.data.rootConfig ?? null);
+	}
+
+	function getPluginMode(): 'local' | 'github' {
+		return page.data.selectedBackend?.kind === 'local' ? 'local' : 'github';
+	}
+
 	function handleMarkdownInput(event: Event) {
 		uploadError = null;
 		const nextMarkdown = (event.currentTarget as HTMLTextAreaElement).value;
@@ -281,9 +310,17 @@
 		return item.isActive(editor);
 	}
 
-	function activateToolbarItem(item: ActionToolbarButton | InlineToggleButton) {
+	function activateToolbarItem(
+		item: ActionToolbarButton | InlineToggleButton | PluginToolbarButton,
+		trigger?: HTMLElement
+	) {
 		if ('select' in item && item.select) {
 			item.select();
+			return;
+		}
+
+		if ('dialog' in item && item.dialog) {
+			void openPluginDialog(item, trigger);
 			return;
 		}
 
@@ -292,6 +329,88 @@
 		}
 
 		handleToolbarAction(item.run);
+	}
+
+	async function openPluginDialog(item: PluginToolbarButton, trigger?: HTMLElement) {
+		const editor = getEditor();
+		if (!editor || !item.dialog) {
+			return;
+		}
+
+		pluginDialogReturnFocus = trigger ?? (document.activeElement as HTMLElement | null);
+		pluginDialogItem = item;
+		pluginDialogError = null;
+		pluginDialogValues = {
+			...Object.fromEntries(
+				item.dialog.fields.map((field) => [field.id, field.defaultValue ?? ''])
+			),
+			...(item.dialog.getInitialValues?.(editor) ?? {})
+		};
+
+		await tick();
+		pluginDialogForm
+			?.querySelector<
+				HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+			>('input, select, textarea')
+			?.focus();
+	}
+
+	function closePluginDialog() {
+		pluginDialogItem = null;
+		pluginDialogValues = {};
+		pluginDialogError = null;
+		const returnFocus = pluginDialogReturnFocus;
+		pluginDialogReturnFocus = null;
+
+		if (returnFocus?.isConnected) {
+			queueMicrotask(() => returnFocus.focus());
+		}
+	}
+
+	function handlePluginDialogKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Escape' || !pluginDialogItem) {
+			return;
+		}
+
+		event.preventDefault();
+		closePluginDialog();
+	}
+
+	function setPluginDialogValue(fieldId: string, nextValue: string) {
+		pluginDialogValues = {
+			...pluginDialogValues,
+			[fieldId]: nextValue
+		};
+		pluginDialogError = null;
+	}
+
+	function submitPluginDialog() {
+		const editor = getEditor();
+		const item = pluginDialogItem;
+
+		if (!editor || !item?.dialog) {
+			return;
+		}
+
+		const missingRequiredField = item.dialog.fields.find(
+			(field) => field.required && !pluginDialogValues[field.id]?.trim()
+		);
+
+		if (missingRequiredField) {
+			pluginDialogError = `${missingRequiredField.label} is required.`;
+			return;
+		}
+
+		const validationError = item.dialog.validate?.(pluginDialogValues);
+		if (validationError) {
+			pluginDialogError = validationError;
+			return;
+		}
+
+		handleToolbarAction((activeEditor) => {
+			item.dialog?.submit(activeEditor, pluginDialogValues);
+		});
+		closePluginDialog();
 	}
 
 	const structureOptions: StructureOption[] = [
@@ -520,16 +639,35 @@
 			}
 
 			const { createMarkdownEditor } = await import('$lib/features/markdown-editor/create-editor');
+			const pluginResult = await loadMarkdownPluginsForMode(
+				{
+					id: fieldId ?? textareaId,
+					type: 'markdown',
+					plugins
+				},
+				getActiveRootConfig(),
+				getPluginMode(),
+				{
+					scopeKey: repoKey ?? getPluginMode()
+				}
+			);
 
 			if (!mounted || !editorHost) {
 				return;
 			}
+
+			pluginToolbarButtons = pluginResult.toolbarItems.map((item) => ({
+				...item,
+				buttonLabel: item.buttonLabel ?? item.label
+			}));
+			pluginLoadError = pluginResult.errors.length > 0 ? pluginResult.errors.join(' ') : null;
 
 			richEditor = createMarkdownEditor({
 				markdown: value,
 				placeholder,
 				assetsDir,
 				storagePath,
+				extensions: pluginResult.extensions,
 				stageImage,
 				onMarkdownChange(nextMarkdown) {
 					applyMarkdownChange(nextMarkdown);
@@ -568,7 +706,22 @@
 
 		richEditor.setMarkdown(value);
 	});
+
+	$effect(() => {
+		if (!pluginDialogItem) {
+			return;
+		}
+
+		const previousOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+
+		return () => {
+			document.body.style.overflow = previousOverflow;
+		};
+	});
 </script>
+
+<svelte:window onkeydown={handlePluginDialogKeydown} />
 
 <div class="mb-4">
 	<div class="mb-1 flex items-center justify-between">
@@ -612,216 +765,341 @@
 		</div>
 	{/if}
 
-	{#if activeTab === 'rich'}
-		<div
-			class="overflow-hidden rounded border bg-white"
-			class:border-red-300={isOverLimit || isUnderMin}
-			class:border-gray-300={!isOverLimit && !isUnderMin}
-		>
-			<div class="border-b border-stone-200 bg-stone-50 p-3">
-				<Toolbar.Root
-					aria-label="Markdown formatting"
-					class="flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-white p-2 shadow-sm"
-				>
-					<DropdownMenu.Root
-						open={structureMenuOpen}
-						onOpenChange={(open) => (structureMenuOpen = open)}
-					>
-						<Toolbar.Button disabled={toolbarDisabled}>
-							{#snippet child({ props })}
-								<button
-									{...props}
-									bind:this={structureMenuAnchor}
-									class={toolbarTriggerClass(activeStructureValue !== 'paragraph')}
-									aria-label="Text structure"
-									aria-haspopup="menu"
-									aria-expanded={structureMenuOpen}
-									title="Text structure"
-									onclick={() => (structureMenuOpen = !structureMenuOpen)}
-								>
-									<ToolbarIcon name={activeStructureOption.icon} class="size-4" />
-									<ToolbarIcon name="chevronDown" class="size-3.5" />
-								</button>
-							{/snippet}
-						</Toolbar.Button>
-
-						<DropdownMenu.Portal>
-							<DropdownMenu.Content
-								sideOffset={8}
-								align="start"
-								customAnchor={structureMenuAnchor}
-								class={dropdownContentClass()}
-							>
-								<DropdownMenu.RadioGroup
-									value={activeStructureValue}
-									onValueChange={(value) => applyStructureValue(value as StructureValue)}
-								>
-									{#each structureOptions as option (option.value)}
-										<DropdownMenu.RadioItem value={option.value}>
-											{#snippet child({ props, checked })}
-												<div {...props} class={dropdownRadioItemClass(checked)}>
-													<div class="flex items-center gap-2">
-														<ToolbarIcon name={option.icon} class="size-4" />
-														<span>{option.label}</span>
-													</div>
-													{#if checked}
-														<ToolbarIcon name="check" class="size-4" />
-													{/if}
-												</div>
-											{/snippet}
-										</DropdownMenu.RadioItem>
-									{/each}
-								</DropdownMenu.RadioGroup>
-							</DropdownMenu.Content>
-						</DropdownMenu.Portal>
-					</DropdownMenu.Root>
-
-					<Separator.Root
-						orientation="vertical"
-						decorative
-						class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
-					/>
-
-					<Toolbar.Group
-						type="multiple"
-						value={activeInlineValues}
-						onValueChange={handleInlineFormatChange}
-						class="isolate flex items-center"
-					>
-						{#each inlineToggleButtons as item, index (item.value)}
-							<Toolbar.GroupItem value={item.value} disabled={toolbarDisabled}>
-								{#snippet child({ props, pressed })}
-									<button
-										{...props}
-										class={toggleGroupButtonClass(
-											pressed,
-											inlineToggleButtons.length === 1
-												? 'only'
-												: index === 0
-													? 'start'
-													: index === inlineToggleButtons.length - 1
-														? 'end'
-														: 'middle'
-										)}
-										aria-label={item.label}
-										title={item.label}
-									>
-										<ToolbarIcon name={item.icon} class="size-4" />
-									</button>
-								{/snippet}
-							</Toolbar.GroupItem>
-						{/each}
-					</Toolbar.Group>
-
-					<Separator.Root
-						orientation="vertical"
-						decorative
-						class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
-					/>
-
-					<DropdownMenu.Root open={listMenuOpen} onOpenChange={(open) => (listMenuOpen = open)}>
-						<Toolbar.Button disabled={toolbarDisabled}>
-							{#snippet child({ props })}
-								<button
-									{...props}
-									bind:this={listMenuAnchor}
-									class={toolbarTriggerClass(activeListValue !== 'none')}
-									aria-label="List style"
-									aria-haspopup="menu"
-									aria-expanded={listMenuOpen}
-									title="List style"
-									onclick={() => (listMenuOpen = !listMenuOpen)}
-								>
-									<ToolbarIcon name={activeListIcon} class="size-4" />
-									<ToolbarIcon name="chevronDown" class="size-3.5" />
-								</button>
-							{/snippet}
-						</Toolbar.Button>
-
-						<DropdownMenu.Portal>
-							<DropdownMenu.Content
-								sideOffset={8}
-								align="start"
-								customAnchor={listMenuAnchor}
-								class={dropdownContentClass()}
-							>
-								<DropdownMenu.RadioGroup
-									value={activeListValue}
-									onValueChange={(value) => applyListValue(value as ListValue)}
-								>
-									{#each listOptions as option (option.value)}
-										<DropdownMenu.RadioItem value={option.value}>
-											{#snippet child({ props, checked })}
-												<div {...props} class={dropdownRadioItemClass(checked)}>
-													<div class="flex items-center gap-2">
-														<ToolbarIcon name={option.icon} class="size-4" />
-														<span>{option.label}</span>
-													</div>
-													{#if checked}
-														<ToolbarIcon name="check" class="size-4" />
-													{/if}
-												</div>
-											{/snippet}
-										</DropdownMenu.RadioItem>
-									{/each}
-								</DropdownMenu.RadioGroup>
-							</DropdownMenu.Content>
-						</DropdownMenu.Portal>
-					</DropdownMenu.Root>
-
-					<Separator.Root
-						orientation="vertical"
-						decorative
-						class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
-					/>
-
-					<div class="flex flex-wrap gap-1">
-						{#each actionButtons as item (item.id)}
-							<Toolbar.Button disabled={toolbarDisabled}>
-								{#snippet child({ props })}
-									<button
-										{...props}
-										class={toolbarButtonClass(isToolbarItemActive(item))}
-										aria-label={item.label}
-										title={item.label}
-										aria-pressed={item.toggle ? isToolbarItemActive(item) : undefined}
-										onclick={() => activateToolbarItem(item)}
-									>
-										<ToolbarIcon name={item.icon} class="size-4" />
-									</button>
-								{/snippet}
-							</Toolbar.Button>
-						{/each}
-					</div>
-				</Toolbar.Root>
-			</div>
-
-			<input
-				bind:this={fileInput}
-				type="file"
-				accept="image/*"
-				data-testid="markdown-image-input"
-				class="hidden"
-				onchange={(event) => {
-					const input = event.currentTarget as HTMLInputElement;
-					const files = Array.from(input.files ?? []);
-					void handleImageFiles(files).finally(() => {
-						input.value = '';
-					});
-				}}
-			/>
-
-			{#if editorLoadError}
-				<div class="px-4 py-3 text-sm text-red-700">{editorLoadError}</div>
-			{:else if !richEditor}
-				<div class="px-4 py-3 text-sm text-gray-500">Loading rich editor...</div>
-			{/if}
-
-			<div bind:this={editorHost} data-testid="markdown-rich-editor"></div>
+	{#if pluginLoadError}
+		<div class="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+			<p class="font-medium">Plugin issue</p>
+			<p class="mt-1 text-amber-800">{pluginLoadError}</p>
 		</div>
+	{/if}
+
+	<div
+		class:hidden={activeTab !== 'rich'}
+		class="overflow-hidden rounded border bg-white"
+		class:border-red-300={isOverLimit || isUnderMin}
+		class:border-gray-300={!isOverLimit && !isUnderMin}
+	>
+		<div class="border-b border-stone-200 bg-stone-50 p-3">
+			<Toolbar.Root
+				aria-label="Markdown formatting"
+				class="flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-white p-2 shadow-sm"
+			>
+				<DropdownMenu.Root
+					open={structureMenuOpen}
+					onOpenChange={(open) => (structureMenuOpen = open)}
+				>
+					<Toolbar.Button disabled={toolbarDisabled}>
+						{#snippet child({ props })}
+							<button
+								{...props}
+								bind:this={structureMenuAnchor}
+								class={toolbarTriggerClass(activeStructureValue !== 'paragraph')}
+								aria-label="Text structure"
+								aria-haspopup="menu"
+								aria-expanded={structureMenuOpen}
+								title="Text structure"
+								onclick={() => (structureMenuOpen = !structureMenuOpen)}
+							>
+								<ToolbarIcon name={activeStructureOption.icon} class="size-4" />
+								<ToolbarIcon name="chevronDown" class="size-3.5" />
+							</button>
+						{/snippet}
+					</Toolbar.Button>
+
+					<DropdownMenu.Portal>
+						<DropdownMenu.Content
+							sideOffset={8}
+							align="start"
+							customAnchor={structureMenuAnchor}
+							class={dropdownContentClass()}
+						>
+							<DropdownMenu.RadioGroup
+								value={activeStructureValue}
+								onValueChange={(value) => applyStructureValue(value as StructureValue)}
+							>
+								{#each structureOptions as option (option.value)}
+									<DropdownMenu.RadioItem value={option.value}>
+										{#snippet child({ props, checked })}
+											<div {...props} class={dropdownRadioItemClass(checked)}>
+												<div class="flex items-center gap-2">
+													<ToolbarIcon name={option.icon} class="size-4" />
+													<span>{option.label}</span>
+												</div>
+												{#if checked}
+													<ToolbarIcon name="check" class="size-4" />
+												{/if}
+											</div>
+										{/snippet}
+									</DropdownMenu.RadioItem>
+								{/each}
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Content>
+					</DropdownMenu.Portal>
+				</DropdownMenu.Root>
+
+				<Separator.Root
+					orientation="vertical"
+					decorative
+					class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
+				/>
+
+				<Toolbar.Group
+					type="multiple"
+					value={activeInlineValues}
+					onValueChange={handleInlineFormatChange}
+					class="isolate flex items-center"
+				>
+					{#each inlineToggleButtons as item, index (item.value)}
+						<Toolbar.GroupItem value={item.value} disabled={toolbarDisabled}>
+							{#snippet child({ props, pressed })}
+								<button
+									{...props}
+									class={toggleGroupButtonClass(
+										pressed,
+										inlineToggleButtons.length === 1
+											? 'only'
+											: index === 0
+												? 'start'
+												: index === inlineToggleButtons.length - 1
+													? 'end'
+													: 'middle'
+									)}
+									aria-label={item.label}
+									title={item.label}
+								>
+									<ToolbarIcon name={item.icon} class="size-4" />
+								</button>
+							{/snippet}
+						</Toolbar.GroupItem>
+					{/each}
+				</Toolbar.Group>
+
+				<Separator.Root
+					orientation="vertical"
+					decorative
+					class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
+				/>
+
+				<DropdownMenu.Root open={listMenuOpen} onOpenChange={(open) => (listMenuOpen = open)}>
+					<Toolbar.Button disabled={toolbarDisabled}>
+						{#snippet child({ props })}
+							<button
+								{...props}
+								bind:this={listMenuAnchor}
+								class={toolbarTriggerClass(activeListValue !== 'none')}
+								aria-label="List style"
+								aria-haspopup="menu"
+								aria-expanded={listMenuOpen}
+								title="List style"
+								onclick={() => (listMenuOpen = !listMenuOpen)}
+							>
+								<ToolbarIcon name={activeListIcon} class="size-4" />
+								<ToolbarIcon name="chevronDown" class="size-3.5" />
+							</button>
+						{/snippet}
+					</Toolbar.Button>
+
+					<DropdownMenu.Portal>
+						<DropdownMenu.Content
+							sideOffset={8}
+							align="start"
+							customAnchor={listMenuAnchor}
+							class={dropdownContentClass()}
+						>
+							<DropdownMenu.RadioGroup
+								value={activeListValue}
+								onValueChange={(value) => applyListValue(value as ListValue)}
+							>
+								{#each listOptions as option (option.value)}
+									<DropdownMenu.RadioItem value={option.value}>
+										{#snippet child({ props, checked })}
+											<div {...props} class={dropdownRadioItemClass(checked)}>
+												<div class="flex items-center gap-2">
+													<ToolbarIcon name={option.icon} class="size-4" />
+													<span>{option.label}</span>
+												</div>
+												{#if checked}
+													<ToolbarIcon name="check" class="size-4" />
+												{/if}
+											</div>
+										{/snippet}
+									</DropdownMenu.RadioItem>
+								{/each}
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Content>
+					</DropdownMenu.Portal>
+				</DropdownMenu.Root>
+
+				<Separator.Root
+					orientation="vertical"
+					decorative
+					class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
+				/>
+
+				<div class="flex flex-wrap gap-1">
+					{#each actionButtons as item (item.id)}
+						<Toolbar.Button disabled={toolbarDisabled}>
+							{#snippet child({ props })}
+								<button
+									{...props}
+									class={toolbarButtonClass(isToolbarItemActive(item))}
+									aria-label={item.label}
+									title={item.label}
+									aria-pressed={item.toggle ? isToolbarItemActive(item) : undefined}
+									onclick={(event) => activateToolbarItem(item, event.currentTarget)}
+								>
+									<ToolbarIcon name={item.icon} class="size-4" />
+								</button>
+							{/snippet}
+						</Toolbar.Button>
+					{/each}
+
+					{#each pluginToolbarButtons as item (item.id)}
+						<Toolbar.Button disabled={toolbarDisabled}>
+							{#snippet child({ props })}
+								<button
+									{...props}
+									class="inline-flex h-10 items-center justify-center rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300"
+									aria-label={item.label}
+									title={item.label}
+									aria-pressed={item.isActive ? isToolbarItemActive(item) : undefined}
+									onclick={(event) => activateToolbarItem(item, event.currentTarget)}
+								>
+									{item.buttonLabel}
+								</button>
+							{/snippet}
+						</Toolbar.Button>
+					{/each}
+				</div>
+			</Toolbar.Root>
+		</div>
+
+		<input
+			bind:this={fileInput}
+			type="file"
+			accept="image/*"
+			data-testid="markdown-image-input"
+			class="hidden"
+			onchange={(event) => {
+				const input = event.currentTarget as HTMLInputElement;
+				const files = Array.from(input.files ?? []);
+				void handleImageFiles(files).finally(() => {
+					input.value = '';
+				});
+			}}
+		/>
+
+		{#if editorLoadError}
+			<div class="px-4 py-3 text-sm text-red-700">{editorLoadError}</div>
+		{:else if !richEditor}
+			<div class="px-4 py-3 text-sm text-gray-500">Loading rich editor...</div>
+		{/if}
+
+		<div bind:this={editorHost} data-testid="markdown-rich-editor"></div>
+	</div>
+	{#if activeTab === 'rich'}
 		<p class="mt-1 text-xs text-gray-500">
 			Rich editing is client-only. Images are staged locally until you explicitly save.
 		</p>
+
+		{#if pluginDialogItem?.dialog}
+			<div
+				class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/35 p-4"
+				role="presentation"
+				onclick={(event) => {
+					if (event.target === event.currentTarget) {
+						closePluginDialog();
+					}
+				}}
+			>
+				<div
+					class="w-full max-w-md rounded-lg border border-stone-200 bg-white p-5 shadow-xl"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="markdown-plugin-dialog-title"
+				>
+					<form
+						bind:this={pluginDialogForm}
+						onsubmit={(event) => {
+							event.preventDefault();
+							submitPluginDialog();
+						}}
+					>
+						<div class="mb-4 flex items-start justify-between gap-4">
+							<h2 id="markdown-plugin-dialog-title" class="text-base font-semibold text-stone-950">
+								{pluginDialogItem.dialog.title}
+							</h2>
+							<button
+								type="button"
+								class="rounded-md px-2 py-1 text-sm font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+								aria-label="Close"
+								onclick={closePluginDialog}
+							>
+								Close
+							</button>
+						</div>
+
+						<div class="space-y-4">
+							{#each pluginDialogItem.dialog.fields as field (field.id)}
+								<label class="block text-sm font-medium text-stone-700">
+									<span class="mb-1 block">
+										{field.label}
+										{#if field.required}
+											<span class="text-red-600">*</span>
+										{/if}
+									</span>
+
+									{#if field.type === 'select'}
+										<select
+											class="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
+											value={pluginDialogValues[field.id] ?? ''}
+											required={field.required}
+											onchange={(event) =>
+												setPluginDialogValue(field.id, event.currentTarget.value)}
+										>
+											{#each field.options ?? [] as option (option.value)}
+												<option value={option.value}>{option.label}</option>
+											{/each}
+										</select>
+									{:else}
+										<input
+											class="w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
+											type={field.type === 'url' ? 'url' : 'text'}
+											value={pluginDialogValues[field.id] ?? ''}
+											required={field.required}
+											oninput={(event) => setPluginDialogValue(field.id, event.currentTarget.value)}
+										/>
+									{/if}
+								</label>
+							{/each}
+						</div>
+
+						{#if pluginDialogError}
+							<div
+								class="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+							>
+								{pluginDialogError}
+							</div>
+						{/if}
+
+						<div class="mt-5 flex justify-end gap-2">
+							<button
+								type="button"
+								class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+								onclick={closePluginDialog}
+							>
+								Cancel
+							</button>
+							<button
+								type="submit"
+								class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+							>
+								{pluginDialogItem.dialog.submitLabel ?? 'Insert'}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		{/if}
 	{:else}
 		<textarea
 			id={textareaId}

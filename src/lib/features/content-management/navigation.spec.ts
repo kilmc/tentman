@@ -57,8 +57,8 @@ describe('content navigation helpers', () => {
 				{ title: 'Second Post', slug: 'second-post' }
 			])
 		).toEqual([
-			{ itemId: 'hello-world', title: 'Hello World' },
-			{ itemId: 'second-post', title: 'Second Post' }
+			{ itemId: 'hello-world', title: 'Hello World', sortDate: null },
+			{ itemId: 'second-post', title: 'Second Post', sortDate: null }
 		]);
 	});
 
@@ -136,12 +136,12 @@ describe('content navigation helpers', () => {
 				{
 					id: 'featured',
 					label: 'Featured',
-					items: [{ itemId: 'second-post', title: 'Second Post' }]
+					items: [{ itemId: 'second-post', title: 'Second Post', sortDate: null }]
 				}
 			],
 			items: [
-				{ itemId: 'hello-world', title: 'Hello World' },
-				{ itemId: 'third-post', title: 'Third Post' }
+				{ itemId: 'hello-world', title: 'Hello World', sortDate: null },
+				{ itemId: 'third-post', title: 'Third Post', sortDate: null }
 			]
 		});
 	});

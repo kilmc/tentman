@@ -142,6 +142,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	const collection = readOptionalBoolean(input, 'collection', context);
 	const itemLabel = readOptionalString(input, 'itemLabel', context);
 	const assetsDir = readOptionalString(input, 'assetsDir', context);
+	const plugins = readOptionalStringArray(input, 'plugins', context);
 	const generated = readOptionalBoolean(input, 'generated', context);
 	const show = input.show;
 	const minLength = input.minLength;
@@ -174,12 +175,17 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(collection !== undefined && { collection }),
 			...(itemLabel && { itemLabel }),
 			...(assetsDir && { assetsDir }),
+			...(plugins && { plugins }),
 			...(generated !== undefined && { generated }),
 			...(show && { show }),
 			...(minLength !== undefined && { minLength }),
 			...(maxLength !== undefined && { maxLength }),
 			blocks
 		};
+	}
+
+	if (plugins && type !== 'markdown') {
+		throw new Error(`${context}.plugins is only supported on markdown fields in v1`);
 	}
 
 	return {
@@ -190,6 +196,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		...(collection !== undefined && { collection }),
 		...(itemLabel && { itemLabel }),
 		...(assetsDir && { assetsDir }),
+		...(plugins && { plugins }),
 		...(generated !== undefined && { generated }),
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
@@ -540,6 +547,8 @@ export function parseRootConfig(content: string): RootConfig {
 	const blocksDir = readOptionalString(parsed, 'blocksDir', 'root');
 	const configsDir = readOptionalString(parsed, 'configsDir', 'root');
 	const assetsDir = readOptionalString(parsed, 'assetsDir', 'root');
+	const pluginsDir = readOptionalString(parsed, 'pluginsDir', 'root');
+	const plugins = readOptionalStringArray(parsed, 'plugins', 'root');
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
 
 	if (siteName) {
@@ -556,6 +565,14 @@ export function parseRootConfig(content: string): RootConfig {
 
 	if (assetsDir) {
 		rootConfig.assetsDir = assetsDir;
+	}
+
+	if (pluginsDir) {
+		rootConfig.pluginsDir = pluginsDir;
+	}
+
+	if (plugins) {
+		rootConfig.plugins = plugins;
 	}
 
 	if (blockPackages) {

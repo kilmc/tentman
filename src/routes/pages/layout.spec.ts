@@ -1,25 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-	loadSelectedGitHubRepoConfigs: vi.fn(),
-	handleGitHubSessionError: vi.fn()
+	loadRepoConfigsBootstrap: vi.fn()
 }));
 
-vi.mock('$lib/server/repo-config-bootstrap', () => ({
-	loadSelectedGitHubRepoConfigs: mocks.loadSelectedGitHubRepoConfigs
-}));
+vi.mock('$lib/repository/config-bootstrap', async () => {
+	const actual = await vi.importActual<typeof import('$lib/repository/config-bootstrap')>(
+		'$lib/repository/config-bootstrap'
+	);
 
-vi.mock('$lib/server/auth/github', () => ({
-	handleGitHubSessionError: mocks.handleGitHubSessionError
-}));
+	return {
+		...actual,
+		loadRepoConfigsBootstrap: mocks.loadRepoConfigsBootstrap
+	};
+});
 
-import { load } from './+layout.server';
+import { load } from './+layout';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 describe('routes/pages/+layout', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mocks.loadSelectedGitHubRepoConfigs.mockResolvedValue({
+		mocks.loadRepoConfigsBootstrap.mockResolvedValue({
 			configs: [
 				{
 					slug: 'posts',
@@ -43,18 +45,20 @@ describe('routes/pages/+layout', () => {
 	it('returns empty configs when the GitHub bootstrap is not yet available', async () => {
 		expect(
 			await load({
-				locals: {
+				parent: async () => ({
 					isAuthenticated: false
-				},
-				cookies: {}
+				}),
+				fetch: vi.fn()
 			} as never)
 		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
 	});
 
-	it('loads repo configs from the current server-selected GitHub repo', async () => {
+	it('loads repo configs through the thin repo configs endpoint for GitHub mode', async () => {
+		const fetcher = vi.fn();
+
 		expect(
 			await load({
-				locals: {
+				parent: async () => ({
 					isAuthenticated: true,
 					selectedRepo: {
 						owner: 'acme',
@@ -69,10 +73,8 @@ describe('routes/pages/+layout', () => {
 							full_name: 'acme/docs'
 						}
 					}
-				},
-				cookies: {
-					delete: () => {}
-				}
+				}),
+				fetch: fetcher
 			} as never)
 		).toEqual({
 			configs: [
@@ -93,12 +95,13 @@ describe('routes/pages/+layout', () => {
 			rootConfig: null,
 			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 		});
+		expect(mocks.loadRepoConfigsBootstrap).toHaveBeenCalledWith(fetcher);
 	});
 
 	it('returns empty configs when local mode is active, even if a stale GitHub repo snapshot exists', async () => {
 		expect(
 			await load({
-				locals: {
+				parent: async () => ({
 					isAuthenticated: true,
 					selectedRepo: {
 						owner: 'acme',
@@ -112,22 +115,21 @@ describe('routes/pages/+layout', () => {
 							pathLabel: '~/Sites/docs'
 						}
 					}
-				},
-				cookies: {}
+				}),
+				fetch: vi.fn()
 			} as never)
 		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
 	});
 
 	it('redirects to login when repo config bootstrap returns 401', async () => {
-		mocks.loadSelectedGitHubRepoConfigs.mockRejectedValueOnce({
+		mocks.loadRepoConfigsBootstrap.mockRejectedValueOnce({
 			status: 401
 		});
 
 		await expect(
 			load({
-				locals: {
+				parent: async () => ({
 					isAuthenticated: true,
-					githubToken: 'secret-token',
 					selectedRepo: {
 						owner: 'acme',
 						name: 'docs',
@@ -141,15 +143,12 @@ describe('routes/pages/+layout', () => {
 							full_name: 'acme/docs'
 						}
 					}
-				},
-				cookies: {
-					delete: () => {}
-				}
+				}),
+				fetch: vi.fn()
 			} as never)
 		).rejects.toMatchObject({
-			status: 401
+			status: 302,
+			location: '/repos?returnTo=%2Fpages'
 		});
-
-		expect(mocks.handleGitHubSessionError).toHaveBeenCalledOnce();
 	});
 });

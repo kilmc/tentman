@@ -19,6 +19,7 @@
 		{ id: 'content-modes', label: 'Content Modes' },
 		{ id: 'block-configs', label: 'Block Configs' },
 		{ id: 'package-blocks', label: 'Package Blocks' },
+		{ id: 'markdown-plugins', label: 'Markdown Plugins' },
 		{ id: 'manual-navigation', label: 'Manual Navigation' },
 		{ id: 'custom-adapters', label: 'Custom Adapters' },
 		{ id: 'discovery', label: 'Discovery and Paths' },
@@ -53,6 +54,21 @@
 			type: 'string',
 			purpose: 'Provide a default image upload path.',
 			notes: 'A block can still override this locally with its own `assetsDir`.'
+		},
+		{
+			field: 'pluginsDir',
+			required: 'No',
+			type: 'string',
+			purpose: 'Directory containing repo-local Tentman plugins.',
+			notes:
+				'Defaults to `tentman/plugins`; plugin module entrypoints must live inside this directory.'
+		},
+		{
+			field: 'plugins',
+			required: 'No',
+			type: 'string[]',
+			purpose: 'Registers repo-local plugins that fields may opt into.',
+			notes: 'Registration does not activate a plugin by itself.'
 		},
 		{
 			field: 'blockPackages',
@@ -227,6 +243,13 @@
 			notes: 'Most relevant for image-oriented blocks.'
 		},
 		{
+			field: 'plugins',
+			required: 'No',
+			type: 'string[]',
+			purpose: 'Enables registered plugins for this block.',
+			notes: 'Currently supported for markdown blocks.'
+		},
+		{
 			field: 'generated',
 			required: 'No',
 			type: 'boolean',
@@ -314,6 +337,7 @@
 		'Custom adapter paths resolve relative to the reusable block config file that declares them.',
 		'If `configsDir` is set, Tentman only discovers top-level content configs inside that directory.',
 		'If `blocksDir` is set, Tentman discovers reusable block configs there and excludes them from top-level content discovery.',
+		'If `pluginsDir` is set, GitHub-backed plugin module loading only serves `plugin.js` or `plugin.mjs` entrypoints from that directory.',
 		'Files whose names start with an underscore are skipped during top-level content discovery.',
 		'Manual navigation uses the fixed manifest path `tentman/navigation-manifest.json`.',
 		'JSON is the only supported manual navigation manifest format in v1.',
@@ -327,6 +351,8 @@
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
   "assetsDir": "./static/images",
+  "pluginsDir": "./tentman/plugins",
+  "plugins": ["buy-button"],
   "blockPackages": ["@tentman/blocks-media"],
   "netlify": {
     "siteName": "my-site"
@@ -350,7 +376,7 @@
     { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
     { "id": "date", "type": "date", "label": "Publish Date", "show": "secondary" },
-    { "id": "body", "type": "markdown", "label": "Body", "required": true }
+    { "id": "body", "type": "markdown", "label": "Body", "required": true, "plugins": ["buy-button"] }
   ]
 }`;
 
@@ -411,6 +437,56 @@
       }
     }
   ]
+};`;
+
+	const markdownPluginExample = `// tentman/plugins/callout-chip/plugin.js
+export default {
+  id: "callout-chip",
+  version: "0.1.0",
+  capabilities: ["markdown", "preview"],
+  markdown: {
+    htmlInlineNodes: [
+      {
+        id: "callout-chip",
+        nodeName: "calloutChip",
+        selector: "span[data-tentman-plugin=\\"callout-chip\\"]",
+        attributes: [
+          {
+            name: "label",
+            default: "Note",
+            parse(element) {
+              return element.getAttribute("data-label") ?? element.textContent ?? "Note";
+            }
+          }
+        ],
+        renderHTML(attributes) {
+          const label = String(attributes.label ?? "Note");
+
+          return {
+            tag: "span",
+            attributes: {
+              "data-tentman-plugin": "callout-chip",
+              "data-label": label
+            },
+            text: label
+          };
+        },
+        editorView: {
+          label(attributes) {
+            return \`Callout: \${String(attributes.label ?? "Note")}\`;
+          }
+        }
+      }
+    ]
+  },
+  preview: {
+    transformMarkdown(markdown) {
+      return markdown.replace(
+        /<span\\s+([^>]*?)data-tentman-plugin=(["'])callout-chip\\2([^>]*)>(.*?)<\\/span>/gis,
+        "<span $1$3 class=\\"tentman-preview-callout-chip\\">$4</span>"
+      );
+    }
+  }
 };`;
 
 	const navigationManifestExample = `{
@@ -738,6 +814,64 @@
 			<li>
 				An optional `adapter` export may sit next to `config`, and its `type` must match the block
 				id.
+			</li>
+		</ul>
+	</section>
+
+	<section id="markdown-plugins" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Markdown Plugins</h2>
+		<div class="mt-4 space-y-4 text-base leading-7 text-stone-700">
+			<p>
+				Repo-local markdown plugins extend individual markdown fields with rich editor atoms,
+				toolbar actions, dialogs, markdown serialization, and Tentman preview transforms.
+			</p>
+			<p>
+				Register plugin ids in the root config, then opt in per markdown block. Registration makes a
+				plugin available; field-level
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">plugins</code> decides where it runs.
+			</p>
+		</div>
+
+		<div class="mt-6 grid gap-6 lg:grid-cols-2">
+			<div class="overflow-x-auto rounded border border-stone-200 bg-stone-950">
+				<pre class="p-4 text-sm leading-6 text-stone-100"><code>{rootConfigExample}</code></pre>
+			</div>
+			<div class="overflow-x-auto rounded border border-stone-200 bg-stone-950">
+				<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentConfigExample}</code></pre>
+			</div>
+		</div>
+
+		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{markdownPluginExample}</code></pre>
+		</div>
+
+		<ul class="mt-4 list-disc space-y-2 pl-6 text-base leading-7 text-stone-700">
+			<li>
+				Plugin entrypoints are plain ESM JavaScript files named
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">plugin.js</code> or
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">plugin.mjs</code> under
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">pluginsDir</code>.
+			</li>
+			<li>
+				Markdown plugins usually serialize stable inline HTML markers with
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">data-tentman-plugin</code>
+				attributes. The raw Markdown tab shows that stored source of truth.
+			</li>
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">preview.transformMarkdown</code>
+				only affects Tentman admin previews. It does not run inside the consumer website.
+			</li>
+			<li>
+				The consumer site must render the stored marker itself. Use a markdown renderer that
+				supports safe inline HTML, such as mdsvex in a SvelteKit app, or add a site-side allowlist
+				transform for the marker shape.
+			</li>
+			<li>
+				Site styling also belongs to the consumer site. Style markers with selectors like
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+					>[data-tentman-plugin="callout-chip"]</code
+				>
+				or transform them in the site rendering pipeline.
 			</li>
 		</ul>
 	</section>

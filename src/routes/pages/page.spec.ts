@@ -1,31 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$lib/server/page-context', () => ({
-	requireGitHubRepository: vi.fn(),
-	handleGitHubRouteError: vi.fn()
+const overviewMocks = vi.hoisted(() => ({
+	loadPagesOverviewSummary: vi.fn()
 }));
 
-vi.mock('$lib/server/auth/github', () => ({
-	isGitHubOAuthConfigured: vi.fn(() => true)
-}));
+vi.mock('$lib/features/content-management/overview-summary', async () => {
+	const actual = await vi.importActual<
+		typeof import('$lib/features/content-management/overview-summary')
+	>('$lib/features/content-management/overview-summary');
 
-vi.mock('$lib/features/draft-publishing/service', () => ({
-	getLatestPreviewBranchName: vi.fn()
-}));
+	return {
+		...actual,
+		loadPagesOverviewSummary: overviewMocks.loadPagesOverviewSummary
+	};
+});
 
-vi.mock('$lib/utils/draft-comparison', () => ({
-	compareDraftToBranch: vi.fn()
-}));
-
-import { load } from './+page.server';
-import { compareDraftToBranch } from '$lib/utils/draft-comparison';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
-import { requireGitHubRepository } from '$lib/server/page-context';
+import { load } from './+page';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
-describe('routes/pages/+page.server', () => {
+describe('routes/pages/+page', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		overviewMocks.loadPagesOverviewSummary.mockResolvedValue({
+			draftBranch: null,
+			changedPages: [],
+			totalChanges: 0,
+			hasConfigs: true
+		});
 	});
 
 	it('returns an empty overview summary in local mode', async () => {
@@ -43,50 +44,8 @@ describe('routes/pages/+page.server', () => {
 					},
 					configs: [],
 					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
-				})
-			} as never)
-		).toEqual({
-			summary: {
-				draftBranch: null,
-				changedPages: [],
-				totalChanges: 0,
-				hasConfigs: false
-			}
-		});
-	});
-
-	it('treats current local locals as authoritative over stale parent GitHub state', async () => {
-		expect(
-			await load({
-				parent: async () => ({
-					isAuthenticated: true,
-					selectedRepo: {
-						owner: 'acme',
-						name: 'docs',
-						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
-					},
-					configs: [],
-					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				}),
-				locals: {
-					isAuthenticated: true,
-					selectedBackend: {
-						kind: 'local',
-						repo: {
-							name: 'Docs',
-							pathLabel: '~/Sites/docs'
-						}
-					}
-				},
-				cookies: {}
+				fetch: vi.fn()
 			} as never)
 		).toEqual({
 			summary: {
@@ -96,6 +55,7 @@ describe('routes/pages/+page.server', () => {
 				hasConfigs: false
 			}
 		});
+		expect(overviewMocks.loadPagesOverviewSummary).not.toHaveBeenCalled();
 	});
 
 	it('redirects unauthenticated users to repos instead of forcing oauth', async () => {
@@ -107,7 +67,8 @@ describe('routes/pages/+page.server', () => {
 					selectedBackend: null,
 					configs: [],
 					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
-				})
+				}),
+				fetch: vi.fn()
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
@@ -115,59 +76,25 @@ describe('routes/pages/+page.server', () => {
 		});
 	});
 
-	it('prefers the current server locals when parent auth data is stale', async () => {
-		vi.mocked(requireGitHubRepository).mockReturnValue({
-			octokit: {},
-			owner: 'acme',
-			name: 'docs'
-		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue(undefined);
-
-		expect(
-			await load({
+	it('redirects authenticated users without a selected repo to repos', async () => {
+		await expect(
+			load({
 				parent: async () => ({
-					isAuthenticated: false,
+					isAuthenticated: true,
 					selectedRepo: null,
 					selectedBackend: null,
 					configs: [],
 					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				}),
-				locals: {
-					isAuthenticated: true,
-					selectedRepo: {
-						owner: 'acme',
-						name: 'docs',
-						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
-					}
-				},
-				cookies: {}
+				fetch: vi.fn()
 			} as never)
-		).toEqual({
-			summary: {
-				draftBranch: null,
-				changedPages: [],
-				totalChanges: 0,
-				hasConfigs: false
-			}
+		).rejects.toMatchObject({
+			status: 302,
+			location: '/repos?returnTo=%2Fpages&debugFailure=pages-overview-missing-repo'
 		});
 	});
 
-	it('does not crash when parent repo bootstrap data is missing', async () => {
-		vi.mocked(requireGitHubRepository).mockReturnValue({
-			octokit: {},
-			owner: 'acme',
-			name: 'docs'
-		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue(undefined);
-
+	it('does not call the summary endpoint when repo bootstrap data is missing', async () => {
 		expect(
 			await load({
 				parent: async () => ({
@@ -186,23 +113,7 @@ describe('routes/pages/+page.server', () => {
 						}
 					}
 				}),
-				locals: {
-					isAuthenticated: true,
-					selectedRepo: {
-						owner: 'acme',
-						name: 'docs',
-						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
-					}
-				},
-				cookies: {}
+				fetch: vi.fn()
 			} as never)
 		).toEqual({
 			summary: {
@@ -212,26 +123,39 @@ describe('routes/pages/+page.server', () => {
 				hasConfigs: false
 			}
 		});
+		expect(overviewMocks.loadPagesOverviewSummary).not.toHaveBeenCalled();
 	});
 
-	it('summarizes the changed pages for the overview screen', async () => {
-		vi.mocked(requireGitHubRepository).mockReturnValue({
-			octokit: {},
-			owner: 'acme',
-			name: 'docs'
-		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('preview-2026-04-06');
-		vi.mocked(compareDraftToBranch)
-			.mockResolvedValueOnce({
-				modified: [],
-				created: [],
-				deleted: []
-			})
-			.mockResolvedValueOnce({
-				modified: [{ itemId: 'hello-world' }],
-				created: [{ itemId: 'second-post' }],
-				deleted: []
-			});
+	it('loads the changed pages overview through the thin summary endpoint', async () => {
+		const fetcher = vi.fn();
+		overviewMocks.loadPagesOverviewSummary.mockResolvedValue({
+			draftBranch: 'preview-2026-04-06',
+			changedPages: [
+				{
+					slug: 'posts',
+					label: 'Posts',
+					changeCount: 2,
+					isCollection: true
+				}
+			],
+			totalChanges: 2,
+			hasConfigs: true
+		});
+		const configs = [
+			{
+				slug: 'posts',
+				path: 'content/posts.tentman.json',
+				config: {
+					id: 'posts',
+					label: 'Posts',
+					collection: true,
+					content: {
+						mode: 'directory'
+					},
+					blocks: []
+				}
+			}
+		];
 
 		expect(
 			await load({
@@ -250,38 +174,10 @@ describe('routes/pages/+page.server', () => {
 							full_name: 'acme/docs'
 						}
 					},
-					configs: [
-						{
-							slug: 'about',
-							path: 'content/about.tentman.json',
-							config: {
-								id: 'about',
-								label: 'About Page',
-								collection: false,
-								content: {
-									mode: 'file'
-								},
-								blocks: []
-							}
-						},
-						{
-							slug: 'posts',
-							path: 'content/posts.tentman.json',
-							config: {
-								id: 'posts',
-								label: 'Posts',
-								collection: true,
-								content: {
-									mode: 'directory'
-								},
-								blocks: []
-							}
-						}
-					],
+					configs,
 					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				}),
-				locals: {},
-				cookies: {}
+				fetch: fetcher
 			} as never)
 		).toEqual({
 			summary: {
@@ -297,6 +193,10 @@ describe('routes/pages/+page.server', () => {
 				totalChanges: 2,
 				hasConfigs: true
 			}
+		});
+		expect(overviewMocks.loadPagesOverviewSummary).toHaveBeenCalledWith(fetcher, {
+			configs,
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 		});
 	});
 });

@@ -6,6 +6,7 @@ import {
 	loadNavigationManifestState,
 	type NavigationManifestState
 } from '$lib/features/content-management/navigation-manifest';
+import { clearPluginRegistryCache } from '$lib/plugins/browser';
 import { localRepo } from '$lib/stores/local-repo';
 import type { RootConfig } from '$lib/config/root-config';
 
@@ -94,10 +95,15 @@ function createStore() {
 
 			if (options.force) {
 				backend.invalidateDiscoveryCache();
+				clearPluginRegistryCache();
 			}
 
 			const shouldClearForRepoChange =
 				currentState.backendKey !== null && currentState.backendKey !== backend.cacheKey;
+
+			if (shouldClearForRepoChange) {
+				clearPluginRegistryCache();
+			}
 
 			update((state) => ({
 				...state,

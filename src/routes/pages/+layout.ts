@@ -1,16 +1,19 @@
-import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
+import { redirect } from '@sveltejs/kit';
+import {
+	EMPTY_REPO_CONFIGS_BOOTSTRAP,
+	loadRepoConfigsBootstrap
+} from '$lib/repository/config-bootstrap';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
-import { handleGitHubSessionError } from '$lib/server/auth/github';
-import { loadSelectedGitHubRepoConfigs } from '$lib/server/repo-config-bootstrap';
 import { logDevRouting } from '$lib/utils/dev-routing-log';
-import type { LayoutServerLoad } from './$types';
+import type { LayoutLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals, cookies }) => {
+export const load: LayoutLoad = async ({ parent, fetch }) => {
+	const parentData = await parent();
 	const workspace = resolveWorkspaceState({
-		isAuthenticated: locals.isAuthenticated,
-		selectedBackend: locals.selectedBackend ?? null,
-		selectedRepo: locals.selectedRepo ?? null,
-		rootConfig: locals.rootConfig ?? null
+		isAuthenticated: parentData.isAuthenticated,
+		selectedBackend: parentData.selectedBackend ?? null,
+		selectedRepo: parentData.selectedRepo ?? null,
+		rootConfig: parentData.rootConfig ?? null
 	});
 
 	logDevRouting('pages-layout:workspace', {
@@ -26,7 +29,7 @@ export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	}
 
 	try {
-		const bootstrap = await loadSelectedGitHubRepoConfigs(locals, cookies);
+		const bootstrap = await loadRepoConfigsBootstrap(fetch);
 		logDevRouting('pages-layout:bootstrap-success', {
 			selectedRepo: workspace.selectedRepo.full_name,
 			configCount: bootstrap.configs.length
@@ -38,7 +41,11 @@ export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 			status: error && typeof error === 'object' && 'status' in error ? error.status : null,
 			message: error instanceof Error ? error.message : 'Unknown error'
 		});
-		handleGitHubSessionError({ cookies }, error, { redirectTo: '/pages' });
+
+		if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
+			throw redirect(302, '/repos?returnTo=%2Fpages');
+		}
+
 		throw error;
 	}
 };

@@ -52,11 +52,13 @@
 	<TextareaField {label} bind:value {required} {minLength} {maxLength} {onchange} />
 {:else if fieldType === 'markdown'}
 	<MarkdownField
+		fieldId={block.id}
 		{label}
 		bind:value
 		{required}
 		{minLength}
 		{maxLength}
+		plugins={block.plugins}
 		{onchange}
 		storagePath={block.assetsDir ?? imagePath}
 		assetsDir={block.assetsDir}

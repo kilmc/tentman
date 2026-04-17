@@ -106,11 +106,50 @@ Useful root fields:
 - `configsDir`: restrict top-level content config discovery
 - `blocksDir`: restrict reusable block discovery
 - `assetsDir`: default upload location for image fields
+- `pluginsDir`: directory containing repo-local plugins; defaults to `tentman/plugins`
+- `plugins`: repo-local plugin ids that fields may opt into
 - `local.previewUrl`: preview link shown in local mode
 - `netlify.siteName`: enables Netlify preview links for draft branches
 - `blockPackages`: package-distributed blocks in GitHub-backed/server mode
 
 `blockPackages` is not supported in local browser-backed mode yet.
+
+### Repo-Local Markdown Plugins
+
+Markdown plugins live in the edited site repo and are registered from the root config:
+
+```json
+{
+	"pluginsDir": "./tentman/plugins",
+	"plugins": ["callout-chip"]
+}
+```
+
+Then enable registered plugins on individual markdown blocks:
+
+```json
+{
+	"id": "body",
+	"type": "markdown",
+	"label": "Body",
+	"plugins": ["callout-chip"]
+}
+```
+
+Plugin entrypoints are plain ESM files such as
+`tentman/plugins/callout-chip/plugin.js`. The current plugin host supports markdown editor
+contributions and Tentman preview transforms in both local and GitHub-backed modes.
+
+Markdown plugins typically store stable inline HTML markers, for example:
+
+```html
+<span data-tentman-plugin="callout-chip" data-tone="info" data-label="Note">Note</span>
+```
+
+Tentman can recognize those markers in the rich editor, serialize them back to markdown, and run
+plugin preview transforms inside Tentman previews. The consumer website still owns its runtime
+markdown rendering and styling. Use a site markdown renderer that supports safe inline HTML, or add
+a site-side allowlist transform for the stored marker shape.
 
 ### Directory-Backed Collection Example
 

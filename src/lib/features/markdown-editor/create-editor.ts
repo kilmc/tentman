@@ -1,4 +1,4 @@
-import { Editor, type JSONContent } from '@tiptap/core';
+import { Editor, type Extensions, type JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Image, { type ImageOptions } from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -16,6 +16,7 @@ interface CreateMarkdownEditorOptions {
 	placeholder?: string;
 	assetsDir?: string;
 	storagePath?: string;
+	extensions?: Extensions;
 	onMarkdownChange(markdown: string): void;
 	onUiChange?: () => void;
 	onError?: (message: string) => void;
@@ -112,7 +113,8 @@ export function createMarkdownEditor(
 					});
 				}
 			}),
-			Markdown
+			Markdown,
+			...(options.extensions ?? [])
 		],
 		onCreate: () => {
 			options.onUiChange?.();

@@ -97,7 +97,8 @@ describe('GET /api/repo/collection-items', () => {
 			items: [
 				{
 					itemId: 'hello-world',
-					title: 'Hello world'
+					title: 'Hello world',
+					sortDate: null
 				}
 			],
 			groups: []
