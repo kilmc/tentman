@@ -35,6 +35,7 @@
 				class="tm-icon-btn tm-icon-btn-ghost"
 				onclick={onToggleCollection}
 				aria-label={`${collectionCollapsed ? 'Show' : 'Hide'} collection panel`}
+				title={`${collectionCollapsed ? 'Show' : 'Hide'} collection panel`}
 			>
 				{#if collectionCollapsed}
 					<SidebarOpen class="h-4 w-4" />

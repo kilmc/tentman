@@ -9,6 +9,7 @@
 	import { page } from '$app/state';
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
+	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { traceRouting } from '$lib/utils/routing-trace';
 
@@ -57,6 +58,7 @@
 	$effect(() => {
 		if (!isLocalMode) {
 			localContent.reset();
+			localPreviewUrl.set(null);
 			return;
 		}
 
@@ -64,6 +66,10 @@
 			await localRepo.hydrate();
 			await localContent.refresh();
 		})();
+	});
+
+	$effect(() => {
+		localPreviewUrl.set(isLocalMode ? ($localContent.rootConfig?.local?.previewUrl ?? null) : null);
 	});
 
 	async function handleSwitchRepository() {

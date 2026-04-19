@@ -80,7 +80,7 @@
 		{required}
 		{onchange}
 		storagePath={block.assetsDir ?? imagePath}
-		assetsDir={block.assetsDir}
+		assetsDir={block.assetsDir ?? imagePath}
 	/>
 {:else if fieldType === 'array'}
 	<ArrayField

@@ -8,6 +8,9 @@
 	const hasChanges = $derived(data.summary.changedPages.length > 0);
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const hasConfigs = $derived(isLocalMode ? $localContent.configs.length > 0 : data.summary.hasConfigs);
+	const canAddPage = $derived(
+		isLocalMode ? $localContent.instructionDiscovery.instructions.length > 0 : data.canAddPage
+	);
 </script>
 
 <div class="grid gap-6">
@@ -22,27 +25,29 @@
 		</p>
 	</section>
 
-	<section class="rounded-xl border border-stone-200 bg-white p-5">
-		<div class="flex flex-wrap items-start justify-between gap-4">
-			<div>
-				<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">New work</p>
-				<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">
-					Add a page
-				</h2>
-				<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-					Create a new page with a guided setup flow, then confirm it before anything is
-					saved.
-				</p>
-			</div>
+	{#if canAddPage}
+		<section class="rounded-xl border border-stone-200 bg-white p-5">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div>
+					<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">New work</p>
+					<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">
+						Add a page
+					</h2>
+					<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+						Create a new page with a guided setup flow, then confirm it before anything is
+						saved.
+					</p>
+				</div>
 
-			<a
-				href={resolve('/pages/new')}
-				class="inline-flex min-h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50"
-			>
-				Add page
-			</a>
-		</div>
-	</section>
+				<a
+					href={resolve('/pages/new')}
+					class="inline-flex min-h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50"
+				>
+					Add page
+				</a>
+			</div>
+		</section>
+	{/if}
 
 	{#if !hasConfigs}
 		<section class="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
@@ -101,11 +106,11 @@
 		>
 			<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">Current state</p>
 			<h2 class="mt-3 text-2xl font-bold tracking-[-0.04em] text-stone-950">
-				Nothing to report at the moment
+				No changes detected
 			</h2>
 			<p class="mt-3 text-sm leading-6 text-stone-600">
-				Once draft changes are in play, this page will list the sections of the site that need
-				attention.
+				When Tentman can see saved draft changes, this page will list the affected sections of
+				the site.
 			</p>
 		</section>
 	{/if}

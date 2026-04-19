@@ -21,10 +21,12 @@ export const load: PageLoad = async ({ parent, fetch }) => {
 	const configs = parentData.configs ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.configs;
 	const navigationManifest =
 		parentData.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest;
+	const canAddPage = (parentData.instructionDiscovery?.instructions.length ?? 0) > 0;
 
 	if (workspace.mode === 'local') {
 		return {
-			summary: createEmptyPagesOverviewSummary(configs.length > 0)
+			summary: createEmptyPagesOverviewSummary(configs.length > 0),
+			canAddPage: false
 		};
 	}
 
@@ -56,7 +58,8 @@ export const load: PageLoad = async ({ parent, fetch }) => {
 
 	if (orderedConfigs.length === 0) {
 		return {
-			summary: createEmptyPagesOverviewSummary(false)
+			summary: createEmptyPagesOverviewSummary(false),
+			canAddPage
 		};
 	}
 
@@ -65,13 +68,15 @@ export const load: PageLoad = async ({ parent, fetch }) => {
 			summary: await loadPagesOverviewSummary(fetch, {
 				configs,
 				navigationManifest
-			})
+			}),
+			canAddPage
 		};
 	} catch (error) {
 		console.error('Failed to load pages overview summary:', error);
 
 		return {
-			summary: createEmptyPagesOverviewSummary(true)
+			summary: createEmptyPagesOverviewSummary(true),
+			canAddPage
 		};
 	}
 };

@@ -2,6 +2,8 @@ import type { BlockRegistry } from '$lib/blocks/registry';
 import { createLoadedBlockRegistry } from '$lib/blocks/registry';
 import { get, writable } from 'svelte/store';
 import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
+import { discoverInstructions } from '$lib/features/instructions/discovery';
+import type { InstructionDiscoveryResult } from '$lib/features/instructions/types';
 import {
 	loadNavigationManifestState,
 	type NavigationManifestState
@@ -19,6 +21,7 @@ type LocalContentState = {
 	blockRegistryError: string | null;
 	rootConfig: RootConfig | null;
 	navigationManifest: NavigationManifestState;
+	instructionDiscovery: InstructionDiscoveryResult;
 	error: string | null;
 };
 
@@ -36,6 +39,10 @@ function createStore() {
 			exists: false,
 			manifest: null,
 			error: null
+		},
+		instructionDiscovery: {
+			instructions: [],
+			issues: []
 		},
 		error: null
 	});
@@ -66,6 +73,10 @@ function createStore() {
 						exists: false,
 						manifest: null,
 						error: null
+					},
+					instructionDiscovery: {
+						instructions: [],
+						issues: []
 					},
 					error: 'No local repository is open.'
 				});
@@ -122,17 +133,25 @@ function createStore() {
 							error: null
 						}
 					: state.navigationManifest,
+				instructionDiscovery: shouldClearForRepoChange
+					? {
+							instructions: [],
+							issues: []
+						}
+					: state.instructionDiscovery,
 				error: null
 			}));
 
 			inFlightRefresh = (async () => {
 				try {
-					const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
-						backend.discoverConfigs(),
-						backend.discoverBlockConfigs(),
-						backend.readRootConfig(),
-						loadNavigationManifestState(backend)
-					]);
+					const [configs, blockConfigs, rootConfig, navigationManifest, instructionDiscovery] =
+						await Promise.all([
+							backend.discoverConfigs(),
+							backend.discoverBlockConfigs(),
+							backend.readRootConfig(),
+							loadNavigationManifestState(backend),
+							discoverInstructions(backend)
+						]);
 
 					let blockRegistry: BlockRegistry | null = null;
 					let blockRegistryError: string | null = null;
@@ -160,6 +179,7 @@ function createStore() {
 						blockRegistryError,
 						rootConfig,
 						navigationManifest,
+						instructionDiscovery,
 						error: null
 					});
 				} catch (error) {
@@ -176,6 +196,10 @@ function createStore() {
 							exists: false,
 							manifest: null,
 							error: null
+						},
+						instructionDiscovery: {
+							instructions: [],
+							issues: []
 						},
 						error:
 							error instanceof Error ? error.message : 'Failed to load local repository content'
@@ -203,6 +227,10 @@ function createStore() {
 					exists: false,
 					manifest: null,
 					error: null
+				},
+				instructionDiscovery: {
+					instructions: [],
+					issues: []
 				},
 				error: null
 			});

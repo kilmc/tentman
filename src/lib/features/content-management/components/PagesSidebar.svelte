@@ -21,6 +21,7 @@
 		isAuthenticated?: boolean;
 		isLocalMode?: boolean;
 		canEditNavigation?: boolean;
+		canAddPage?: boolean;
 		isEditingNavigation?: boolean;
 		preparingNavigationEditor?: boolean;
 		savingNavigation?: boolean;
@@ -43,6 +44,7 @@
 		isAuthenticated = false,
 		isLocalMode = false,
 		canEditNavigation = false,
+		canAddPage = false,
 		isEditingNavigation = false,
 		preparingNavigationEditor = false,
 		savingNavigation = false,
@@ -228,7 +230,7 @@
 				<X class="h-4 w-4" />
 				Done editing
 			</button>
-		{:else}
+		{:else if canAddPage}
 			<a href={resolve('/pages/new')} class="tm-btn tm-btn-ghost">
 				<Plus class="h-4 w-4" />
 				Add page

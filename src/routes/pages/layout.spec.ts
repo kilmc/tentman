@@ -18,6 +18,11 @@ vi.mock('$lib/repository/config-bootstrap', async () => {
 import { load } from './+layout';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
+const emptyInstructionDiscovery = {
+	instructions: [],
+	issues: []
+};
+
 describe('routes/pages/+layout', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -50,7 +55,10 @@ describe('routes/pages/+layout', () => {
 				}),
 				fetch: vi.fn()
 			} as never)
-		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
+		).toEqual({
+			...EMPTY_REPO_CONFIGS_BOOTSTRAP,
+			instructionDiscovery: emptyInstructionDiscovery
+		});
 	});
 
 	it('loads repo configs through the thin repo configs endpoint for GitHub mode', async () => {
@@ -93,7 +101,8 @@ describe('routes/pages/+layout', () => {
 			],
 			blockConfigs: [],
 			rootConfig: null,
-			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			instructionDiscovery: emptyInstructionDiscovery
 		});
 		expect(mocks.loadRepoConfigsBootstrap).toHaveBeenCalledWith(fetcher);
 	});
@@ -118,7 +127,10 @@ describe('routes/pages/+layout', () => {
 				}),
 				fetch: vi.fn()
 			} as never)
-		).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
+		).toEqual({
+			...EMPTY_REPO_CONFIGS_BOOTSTRAP,
+			instructionDiscovery: emptyInstructionDiscovery
+		});
 	});
 
 	it('redirects to login when repo config bootstrap returns 401', async () => {

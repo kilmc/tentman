@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { get } from 'svelte/store';
 	import type { PageData } from './$types';
 	import {
@@ -10,12 +11,26 @@
 	} from '$lib/features/content-management/navigation-manifest';
 	import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
 	import { localContent } from '$lib/stores/local-content';
+	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import { localRepo } from '$lib/stores/local-repo';
+	import {
+		buildLocalPreviewUrlFromPort,
+		getPreviewPortFromUrl,
+		writeLocalPreviewUrl
+	} from '$lib/config/root-config-editor';
 
 	let { data }: { data: PageData } = $props();
 
 	const CONFIG_ID_COMMIT_MESSAGE = 'Add Tentman content config ids';
 	const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
+	const LOCAL_PREVIEW_COMMIT_MESSAGE = 'Update Tentman local preview URL';
+
+	let saving = $state(false);
+	let savingPreviewPort = $state(false);
+	let actionError = $state<string | null>(null);
+	let actionMessage = $state<string | null>(null);
+	let previewPortInput = $state('');
+	let previewPortSource = $state<string | null>(null);
 
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const manifestState = $derived(
@@ -28,10 +43,11 @@
 		)
 	);
 	const setup = $derived(getManualNavigationSetupState(configs, manifestState));
-
-	let saving = $state(false);
-	let actionError = $state<string | null>(null);
-	let actionMessage = $state<string | null>(null);
+	const rootConfig = $derived(isLocalMode ? $localContent.rootConfig : data.rootConfig);
+	const currentPreviewUrl = $derived(rootConfig?.local?.previewUrl ?? null);
+	const previewPortChanged = $derived(
+		previewPortInput.trim() !== getPreviewPortFromUrl(currentPreviewUrl)
+	);
 
 	async function refreshAfterMutation(message: string) {
 		actionMessage = message;
@@ -134,6 +150,49 @@
 			saving = false;
 		}
 	}
+
+	async function handleSavePreviewPort() {
+		if (!isLocalMode || savingPreviewPort) {
+			return;
+		}
+
+		savingPreviewPort = true;
+		actionError = null;
+		actionMessage = null;
+
+		try {
+			const repoState = get(localRepo);
+			if (!repoState.backend) {
+				throw new Error('No local repository is open.');
+			}
+
+			const previewUrl = buildLocalPreviewUrlFromPort(previewPortInput, currentPreviewUrl);
+			if (new URL(previewUrl).origin === page.url.origin) {
+				throw new Error('Use the site preview port, not the Tentman app port.');
+			}
+
+			await writeLocalPreviewUrl(repoState.backend, previewUrl, {
+				message: LOCAL_PREVIEW_COMMIT_MESSAGE
+			});
+			previewPortInput = getPreviewPortFromUrl(previewUrl);
+			previewPortSource = previewUrl;
+			localPreviewUrl.set(previewUrl);
+			await refreshAfterMutation('Local preview port updated.');
+		} catch (error) {
+			actionError = error instanceof Error ? error.message : 'Failed to update local preview port';
+		} finally {
+			savingPreviewPort = false;
+		}
+	}
+
+	$effect(() => {
+		if (savingPreviewPort || currentPreviewUrl === previewPortSource) {
+			return;
+		}
+
+		previewPortInput = getPreviewPortFromUrl(currentPreviewUrl);
+		previewPortSource = currentPreviewUrl;
+	});
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -159,6 +218,62 @@
 	{/if}
 
 	<div class="space-y-4">
+		{#if isLocalMode}
+			<section class="rounded-md border border-stone-200 bg-white p-4">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<h2 class="text-base font-semibold text-stone-950">Local preview</h2>
+						<p class="mt-2 text-sm text-stone-600">
+							Preview URL:
+							<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">
+								{currentPreviewUrl ?? 'Not set'}
+							</code>
+						</p>
+						{#if !currentPreviewUrl}
+							<p class="mt-2 text-sm text-yellow-800">
+								Absolute image paths like <code class="rounded bg-yellow-100 px-1 py-0.5 text-xs"
+									>/images/example.jpg</code
+								>
+								need a local preview port before they can render inside Tentman.
+							</p>
+						{/if}
+						<p class="mt-2 text-xs text-stone-500">
+							Use the site server port, not Tentman's current port
+							<code class="rounded bg-stone-100 px-1 py-0.5">{page.url.port}</code>.
+						</p>
+					</div>
+				</div>
+
+				<form
+					class="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+					onsubmit={(event) => {
+						event.preventDefault();
+						void handleSavePreviewPort();
+					}}
+				>
+					<label class="grid gap-1.5">
+						<span class="text-sm font-medium text-stone-700">Preview port</span>
+						<input
+							type="text"
+							inputmode="numeric"
+							pattern="[0-9]*"
+							bind:value={previewPortInput}
+							class="min-h-10 rounded-md border border-stone-300 px-3 text-sm focus:border-stone-950 focus:ring-1 focus:ring-stone-950 focus:outline-none"
+							placeholder="5173"
+						/>
+					</label>
+
+					<button
+						type="submit"
+						class="inline-flex min-h-10 items-center justify-center self-end rounded-md bg-stone-950 px-4 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+						disabled={savingPreviewPort || !previewPortChanged}
+					>
+						{savingPreviewPort ? 'Saving...' : 'Save port'}
+					</button>
+				</form>
+			</section>
+		{/if}
+
 		<section class="rounded-md border border-stone-200 bg-white p-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { localContent } from '$lib/stores/local-content';
+	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import { resolveClientAssetUrl } from '$lib/features/draft-assets/image-resolver';
 
 	interface Props {
@@ -17,7 +18,7 @@
 
 	$effect(() => {
 		const nextRequestId = ++requestId;
-		const previewBaseUrl = $localContent.rootConfig?.local?.previewUrl;
+		const previewBaseUrl = $localPreviewUrl ?? $localContent.rootConfig?.local?.previewUrl;
 
 		void resolveClientAssetUrl(src, {
 			assetsDir: assetsDir ?? storagePath,

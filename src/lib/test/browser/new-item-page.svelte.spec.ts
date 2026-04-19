@@ -52,6 +52,8 @@ const localFlowMocks = vi.hoisted(() => {
 		blockRegistry: unknown;
 		blockRegistryError: string | null;
 		rootConfig: unknown;
+		navigationManifest: unknown;
+		instructionDiscovery: unknown;
 		error: string | null;
 	};
 	const backend = {
@@ -89,6 +91,16 @@ const localFlowMocks = vi.hoisted(() => {
 		blockRegistry: null,
 		blockRegistryError: null,
 		rootConfig: null,
+		navigationManifest: {
+			path: 'tentman/navigation-manifest.json',
+			exists: false,
+			manifest: null,
+			error: null
+		},
+		instructionDiscovery: {
+			instructions: [],
+			issues: []
+		},
 		error: null
 	});
 
@@ -106,6 +118,16 @@ const localFlowMocks = vi.hoisted(() => {
 				blockRegistry: {} as never,
 				blockRegistryError: null,
 				rootConfig: null,
+				navigationManifest: {
+					path: 'tentman/navigation-manifest.json',
+					exists: false,
+					manifest: null,
+					error: null
+				},
+				instructionDiscovery: {
+					instructions: [],
+					issues: []
+				},
 				error: null
 			});
 		}),
@@ -186,6 +208,16 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			blockRegistry: null,
 			blockRegistryError: null,
 			rootConfig: null,
+			navigationManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: false,
+				manifest: null,
+				error: null
+			},
+			instructionDiscovery: {
+				instructions: [],
+				issues: []
+			},
 			error: null
 		});
 		setMockFormGeneratorResult({

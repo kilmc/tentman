@@ -32,4 +32,13 @@ describe('draft-assets/image-resolver', () => {
 		).resolves.toBe('/images/hero.png');
 		expect(resolveUrl).not.toHaveBeenCalled();
 	});
+
+	it('resolves absolute public paths against the local preview base URL', async () => {
+		await expect(
+			resolveClientAssetUrl('/images/projects/hero.jpg', {
+				previewBaseUrl: 'http://localhost:4173/'
+			})
+		).resolves.toBe('http://localhost:4173/images/projects/hero.jpg');
+		expect(resolveUrl).not.toHaveBeenCalled();
+	});
 });

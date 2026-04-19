@@ -6,7 +6,7 @@ function formatDisplayableValue(value: unknown): string | null {
 		return null;
 	}
 
-	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+	if (typeof value === 'string') {
 		const label = String(value).trim();
 		return label.length > 0 ? label : null;
 	}
@@ -29,8 +29,13 @@ export function getRepeatableItemLabel(
 
 	if (item && typeof item === 'object' && !Array.isArray(item)) {
 		const record = item as ContentRecord;
+		const textBlocks = blocks.filter((block) =>
+			['text', 'textarea', 'markdown', 'email', 'url'].includes(block.type)
+		);
+		const imageBlocks = blocks.filter((block) => block.type === 'image');
+		const labelBlocks = [...textBlocks, ...imageBlocks];
 
-		for (const block of blocks) {
+		for (const block of labelBlocks) {
 			const valueLabel = formatDisplayableValue(record[block.id]);
 			if (valueLabel) {
 				return prefix ? `${prefix} ${index + 1}: ${valueLabel}` : valueLabel;

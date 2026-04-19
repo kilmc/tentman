@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve -- links are resolved before branch query strings are appended */
 	import { resolve } from '$app/paths';
 	import type { DndEvent } from 'svelte-dnd-action';
 	import { SHADOW_ITEM_MARKER_PROPERTY_NAME, dragHandle, dragHandleZone } from 'svelte-dnd-action';
@@ -8,7 +9,6 @@
 	import ChevronDown from 'lucide-svelte/icons/chevron-down';
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
 	import Plus from 'lucide-svelte/icons/plus';
-	import Shuffle from 'lucide-svelte/icons/shuffle';
 	import X from 'lucide-svelte/icons/x';
 	import type {
 		CollectionNavigationGroup,
@@ -150,12 +150,8 @@
 		editableUngroupedItems = event.detail.items;
 	}
 
-	function getItemHref(itemId: string) {
-		return `${resolve(`/pages/${slug}/${itemId}/edit`)}${branchQuery}`;
-	}
-
-	function getNewHref() {
-		return `${resolve(`/pages/${slug}/new`)}${branchQuery}`;
+	function getItemLinkLabel(item: CollectionNavigationItem) {
+		return currentItemId === item.itemId ? `${item.title}, current ${itemLabel}` : item.title;
 	}
 
 	function toggleSortDirection() {
@@ -193,7 +189,7 @@
 </script>
 
 <aside
-	class="grid min-h-0 border-b border-stone-200 bg-white lg:w-80 lg:border-r lg:border-b-0"
+	class="grid min-h-0 min-w-0 border-b border-stone-200 bg-white lg:border-r lg:border-b-0"
 	aria-label={label}
 >
 	<div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
@@ -277,7 +273,11 @@
 					</details>
 				</div>
 
-				<a href={getNewHref()} class="tm-icon-btn" aria-label={`New ${itemLabel}`}>
+				<a
+					href={resolve(`/pages/${slug}/new`) + branchQuery}
+					class="tm-icon-btn"
+					aria-label={`New ${itemLabel}`}
+				>
 					<Plus class="h-4 w-4" />
 				</a>
 			</div>
@@ -407,9 +407,11 @@
 								</h3>
 								{#each group.items as item (item.itemId)}
 									<a
-										href={getItemHref(item.itemId)}
-										class="tm-nav-link grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm"
+										href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+										class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 										class:tm-nav-link-active={currentItemId === item.itemId}
+										aria-label={getItemLinkLabel(item)}
+										title={item.title}
 									>
 										<span class="truncate font-medium">{item.title}</span>
 										<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
@@ -423,9 +425,11 @@
 						<section class="grid gap-1">
 							{#each items as item (item.itemId)}
 								<a
-									href={getItemHref(item.itemId)}
-									class="tm-nav-link grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm"
+									href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+									class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 									class:tm-nav-link-active={currentItemId === item.itemId}
+									aria-label={getItemLinkLabel(item)}
+									title={item.title}
 								>
 									<span class="truncate font-medium">{item.title}</span>
 									<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
@@ -438,9 +442,11 @@
 				<div class="grid gap-1">
 					{#each visibleItems as item (item.itemId)}
 						<a
-							href={getItemHref(item.itemId)}
-							class="tm-nav-link grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm"
+							href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+							class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 							class:tm-nav-link-active={currentItemId === item.itemId}
+							aria-label={getItemLinkLabel(item)}
+							title={item.title}
 						>
 							<span class="truncate font-medium">{item.title}</span>
 							<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>

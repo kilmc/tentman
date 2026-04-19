@@ -2,8 +2,8 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { Snippet } from 'svelte';
-	import { get } from 'svelte/store';
+	import { setContext, type Snippet } from 'svelte';
+	import { get, writable } from 'svelte/store';
 	import {
 		SHADOW_ITEM_MARKER_PROPERTY_NAME,
 		SHADOW_PLACEHOLDER_ITEM_ID,
@@ -15,6 +15,12 @@
 	import CollectionIndex from '$lib/features/content-management/components/CollectionIndex.svelte';
 	import PagesSidebar from '$lib/features/content-management/components/PagesSidebar.svelte';
 	import PagesTopbar from '$lib/features/content-management/components/PagesTopbar.svelte';
+	import RepeatablePanelHost from '$lib/components/form/RepeatablePanelHost.svelte';
+	import {
+		FORM_WORKSPACE_PANEL,
+		type FormWorkspacePanelContext,
+		type RepeatableWorkspacePanel
+	} from '$lib/features/forms/workspace-panel';
 	import type { WorkspaceNavItem } from '$lib/features/content-management/components/workspace-types';
 	import {
 		areNavigationDraftsEqual,
@@ -49,6 +55,14 @@
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 	const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
+	const activeWorkspacePanel = writable<RepeatableWorkspacePanel | null>(null);
+
+	setContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL, {
+		activePanel: activeWorkspacePanel,
+		setActivePanel(panel) {
+			activeWorkspacePanel.set(panel);
+		}
+	});
 
 	let localCollectionItemsBySlug = $state<CollectionItemsBySlug>({});
 	let githubCollectionItemsBySlug = $state<CollectionItemsBySlug>({});
@@ -84,7 +98,30 @@
 	const shouldShowCollectionIndex = $derived(
 		!!currentConfig?.config.collection && !isEditingNavigation && !isPreviewChangesRoute
 	);
+	const showCollectionPanel = $derived(
+		shouldShowCollectionIndex && !!currentConfig && !isCollectionIndexCollapsed
+	);
+	const workspaceGridClass = $derived.by(() => {
+		if (showCollectionPanel && $activeWorkspacePanel) {
+			return 'grid min-h-0 overflow-hidden lg:grid-cols-[minmax(0,2fr)_minmax(0,5fr)_minmax(0,3fr)]';
+		}
+
+		if (showCollectionPanel) {
+			return 'grid min-h-0 overflow-hidden lg:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]';
+		}
+
+		if ($activeWorkspacePanel) {
+			return 'grid min-h-0 overflow-hidden lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]';
+		}
+
+		return 'grid min-h-0 overflow-hidden';
+	});
 	const canEditNavigation = $derived(setup.status === 'active' && manifestState.manifest !== null);
+	const canAddPage = $derived(
+		isLocalMode
+			? $localContent.instructionDiscovery.instructions.length > 0
+			: (data.instructionDiscovery?.instructions.length ?? 0) > 0
+	);
 	const hasUnsavedNavigationChanges = $derived(
 		isEditingNavigation &&
 			navigationDraft !== null &&
@@ -250,7 +287,23 @@
 			return;
 		}
 
-		await localContent.refresh({ force: true });
+		try {
+			await localContent.refresh({ force: true });
+			const state = get(localContent);
+
+			if (state.status === 'error') {
+				toasts.error(state.error ?? 'Failed to rescan repo.');
+				return;
+			}
+
+			const configCount = state.configs.length;
+			const blockCount = state.blockConfigs.length;
+			toasts.success(
+				`Found ${configCount} content ${configCount === 1 ? 'config' : 'configs'} and ${blockCount} ${blockCount === 1 ? 'block' : 'blocks'}.`
+			);
+		} catch (error) {
+			toasts.error(error instanceof Error ? error.message : 'Failed to rescan repo.');
+		}
 	}
 
 	async function loadGitHubCollectionItems(
@@ -542,6 +595,7 @@
 		isAuthenticated={data.isAuthenticated}
 		{isLocalMode}
 		{canEditNavigation}
+		{canAddPage}
 		{isEditingNavigation}
 		{preparingNavigationEditor}
 		{savingNavigation}
@@ -567,10 +621,10 @@
 			onToggleCollection={() => (isCollectionIndexCollapsed = !isCollectionIndexCollapsed)}
 		/>
 
-		{#if shouldShowCollectionIndex && currentConfig && !isCollectionIndexCollapsed}
-			{@const navigation = getCollectionItems(currentConfig.slug)}
-			{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
-			<div class="grid min-h-0 overflow-hidden lg:grid-cols-[17.5rem_minmax(0,1fr)]">
+		<div class={workspaceGridClass} data-testid="pages-workspace-grid">
+			{#if showCollectionPanel && currentConfig}
+				{@const navigation = getCollectionItems(currentConfig.slug)}
+				{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
 				<CollectionIndex
 					slug={currentConfig.slug}
 					label={currentConfig.config.label}
@@ -587,18 +641,25 @@
 					onsavecustomorder={(collection: NavigationDraftCollection) =>
 						void saveCollectionCustomOrder(currentConfig, collection)}
 				/>
-				<section class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-					<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
-						{@render children?.()}
-					</div>
-				</section>
-			</div>
-		{:else}
-			<section class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+			{/if}
+
+			<section
+				class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6"
+				data-testid="pages-content-panel"
+			>
 				<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
 					{@render children?.()}
 				</div>
 			</section>
-		{/if}
+
+			{#if $activeWorkspacePanel}
+				<section
+					class="min-h-0 min-w-0 overflow-hidden border-l border-stone-200 bg-white"
+					data-testid="pages-repeatable-panel"
+				>
+					<RepeatablePanelHost panel={$activeWorkspacePanel} framed={false} />
+				</section>
+			{/if}
+		</div>
 	</main>
 </div>

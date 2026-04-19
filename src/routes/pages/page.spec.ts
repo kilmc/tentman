@@ -53,7 +53,8 @@ describe('routes/pages/+page', () => {
 				changedPages: [],
 				totalChanges: 0,
 				hasConfigs: false
-			}
+			},
+			canAddPage: false
 		});
 		expect(overviewMocks.loadPagesOverviewSummary).not.toHaveBeenCalled();
 	});
@@ -121,7 +122,8 @@ describe('routes/pages/+page', () => {
 				changedPages: [],
 				totalChanges: 0,
 				hasConfigs: false
-			}
+			},
+			canAddPage: false
 		});
 		expect(overviewMocks.loadPagesOverviewSummary).not.toHaveBeenCalled();
 	});
@@ -175,7 +177,22 @@ describe('routes/pages/+page', () => {
 						}
 					},
 					configs,
-					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+					instructionDiscovery: {
+						instructions: [
+							{
+								path: 'tentman/instructions/create-page',
+								definition: {
+									id: 'create-page',
+									label: 'Create page',
+									description: 'Create a page.',
+									inputs: []
+								},
+								templates: []
+							}
+						],
+						issues: []
+					}
 				}),
 				fetch: fetcher
 			} as never)
@@ -192,7 +209,8 @@ describe('routes/pages/+page', () => {
 				],
 				totalChanges: 2,
 				hasConfigs: true
-			}
+			},
+			canAddPage: true
 		});
 		expect(overviewMocks.loadPagesOverviewSummary).toHaveBeenCalledWith(fetcher, {
 			configs,

@@ -38,7 +38,7 @@ const sidebarEditorMocks = vi.hoisted(() => {
 		error: null
 	});
 
-	const localContentStore = createStoreState({
+	const localContentReadyState = {
 		status: 'ready' as const,
 		backendKey: 'local:docs',
 		configs: [
@@ -102,11 +102,28 @@ const sidebarEditorMocks = vi.hoisted(() => {
 			},
 			error: null
 		},
+		instructionDiscovery: {
+			instructions: [
+				{
+					path: 'tentman/instructions/create-page',
+					definition: {
+						id: 'create-page',
+						label: 'Create page',
+						description: 'Create a page.',
+						inputs: []
+					},
+					templates: []
+				}
+			],
+			issues: []
+		},
 		error: null
-	});
+	};
+	const localContentStore = createStoreState(localContentReadyState);
 
 	return {
 		backend,
+		localContentReadyState,
 		page: {
 			params: {} as Record<string, string>,
 			url: new URL('http://localhost/pages')
@@ -180,6 +197,7 @@ vi.mock('$lib/utils/routing', () => ({
 }));
 
 import PagesLayout from '../../../routes/pages/+layout.svelte';
+import PagesLayoutRepeatableWorkspaceHarness from '$lib/test/fixtures/PagesLayoutRepeatableWorkspaceHarness.svelte';
 
 const layoutData = {
 	isAuthenticated: false,
@@ -202,6 +220,21 @@ const layoutData = {
 		exists: false,
 		manifest: null,
 		error: null
+	},
+	instructionDiscovery: {
+		instructions: [
+			{
+				path: 'tentman/instructions/create-page',
+				definition: {
+					id: 'create-page',
+					label: 'Create page',
+					description: 'Create a page.',
+					inputs: []
+				},
+				templates: []
+			}
+		],
+		issues: []
 	}
 };
 
@@ -215,6 +248,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		sidebarEditorMocks.invalidateAll.mockClear();
 		sidebarEditorMocks.toasts.success.mockClear();
 		sidebarEditorMocks.toasts.error.mockClear();
+		sidebarEditorMocks.localContentStore.set(sidebarEditorMocks.localContentReadyState);
 		sidebarEditorMocks.page.params = {};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages');
 	});
@@ -242,6 +276,42 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expect.element(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
 	});
 
+	it('shows local rescan feedback from discovered config and block counts', async () => {
+		const screen = render(PagesLayout, {
+			data: layoutData
+		});
+
+		await screen.getByRole('button', { name: 'Site settings' }).click();
+		await screen.getByText('Rescan repo').click();
+
+		expect(sidebarEditorMocks.refresh).toHaveBeenCalledWith({ force: true });
+		expect(sidebarEditorMocks.toasts.success).toHaveBeenCalledWith(
+			'Found 2 content configs and 0 blocks.'
+		);
+	});
+
+	it('hides the sidebar Add page link when no instructions are available', async () => {
+		sidebarEditorMocks.localContentStore.set({
+			...sidebarEditorMocks.localContentReadyState,
+			instructionDiscovery: {
+				instructions: [],
+				issues: []
+			}
+		});
+
+		const screen = render(PagesLayout, {
+			data: {
+				...layoutData,
+				instructionDiscovery: {
+					instructions: [],
+					issues: []
+				}
+			}
+		});
+
+		await expect.element(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
+	});
+
 	it('renders collection items in the collection index pane beside the editor', async () => {
 		sidebarEditorMocks.page.params = {
 			page: 'blog',
@@ -262,5 +332,33 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expect.element(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
 		await expect.element(screen.getByText('Ungrouped')).toBeVisible();
 		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();
+	});
+
+	it('renders the repeatable editor as a workspace panel sibling of the content panel', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog',
+			itemId: 'hello-world'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
+
+		const screen = render(PagesLayoutRepeatableWorkspaceHarness, {
+			data: layoutData
+		});
+
+		await screen.getByRole('button', { name: 'Edit Section 1: Opening' }).click();
+
+		await expect.element(screen.getByRole('heading', { name: 'Section 1: Opening' })).toBeVisible();
+		await expect.element(screen.getByTestId('pages-repeatable-panel')).toBeInTheDocument();
+
+		const workspaceGrid = document.querySelector('[data-testid="pages-workspace-grid"]');
+		const contentPanel = document.querySelector('[data-testid="pages-content-panel"]');
+		const repeatablePanel = document.querySelector('[data-testid="pages-repeatable-panel"]');
+
+		expect(workspaceGrid).not.toBeNull();
+		expect(contentPanel).not.toBeNull();
+		expect(repeatablePanel).not.toBeNull();
+		expect(Array.from(workspaceGrid?.children ?? [])).toContain(contentPanel);
+		expect(Array.from(workspaceGrid?.children ?? [])).toContain(repeatablePanel);
+		expect(contentPanel?.contains(repeatablePanel)).toBe(false);
 	});
 });
