@@ -5,7 +5,7 @@
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { enhance } from '$app/forms';
-	import { goto, beforeNavigate } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
@@ -24,6 +24,8 @@
 		fetchContentDocument,
 		saveContentDocument
 	} from '$lib/content/service';
+	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
+	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -57,8 +59,8 @@
 		return createBlockRegistry(blockConfigs, { packageBlocks });
 	});
 
-	function handleFieldsChanged() {
-		hasUnsavedChanges = true;
+	function handleDirtyStateChange(state: FormDirtyState) {
+		hasUnsavedChanges = state.isDirty;
 	}
 
 	function applyRemoteData() {
@@ -73,12 +75,9 @@
 		localError = null;
 	}
 
-	beforeNavigate(({ cancel }) => {
-		if (hasUnsavedChanges && !saving) {
-			if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
-				cancel();
-			}
-		}
+	registerUnsavedChangesGuard({
+		hasUnsavedChanges: () => hasUnsavedChanges,
+		isSaving: () => saving || deleting
 	});
 
 	onMount(() => {
@@ -164,24 +163,29 @@
 		draftBranchStore.setBranch(data.branch, repoFullName);
 	});
 
-	function validateForm(event?: SubmitEvent) {
-		if (!formGenerator) return false;
-		const { data: formData, errors } = formGenerator.validate();
-		if (errors.length > 0) {
+	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
+		if (!formGenerator) {
 			event?.preventDefault();
-			return false;
+			return null;
+		}
+
+		const result = formGenerator.prepareSubmit();
+		if (!result.ok || (result.errors?.length ?? 0) > 0) {
+			event?.preventDefault();
+			return null;
 		}
 
 		const hiddenInput = currentForm?.querySelector('input[name="data"]');
 		if (hiddenInput) {
-			(hiddenInput as HTMLInputElement).value = JSON.stringify(formData);
+			(hiddenInput as HTMLInputElement).value = JSON.stringify(result.data);
 		}
 
-		return true;
+		return result.data as ContentRecord;
 	}
 
 	async function handleLocalSave() {
-		if (!validateForm() || !formGenerator || !discoveredConfig) {
+		const formData = prepareFormSubmit();
+		if (!formData || !discoveredConfig) {
 			return;
 		}
 
@@ -191,7 +195,6 @@
 			return;
 		}
 
-		const { data: formData } = formGenerator.validate();
 		saving = true;
 		hasUnsavedChanges = false;
 		localError = null;
@@ -267,9 +270,18 @@
 
 <div class="min-w-0">
 	<div class="mb-5">
-		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
-			{getItemTitle()}
-		</h1>
+		<div class="flex flex-wrap items-center gap-2">
+			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
+				{getItemTitle()}
+			</h1>
+			{#if hasUnsavedChanges}
+				<span
+					class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
+				>
+					Unsaved changes
+				</span>
+			{/if}
+		</div>
 		{#if config}
 			<p class="mt-1 text-sm text-stone-500">{getConfigItemLabel(config)}</p>
 		{/if}
@@ -326,7 +338,7 @@
 						initialData={item}
 						existingItems={[]}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
-						onvalidate={handleFieldsChanged}
+						ondirtystatechange={handleDirtyStateChange}
 					/>
 				{/key}
 			{/if}
@@ -354,7 +366,7 @@
 			bind:this={currentForm}
 			method="POST"
 			action="?/saveToPreview"
-			onsubmit={validateForm}
+			onsubmit={prepareFormSubmit}
 			use:enhance={() => {
 				saving = true;
 				hasUnsavedChanges = false;
@@ -386,7 +398,7 @@
 						initialData={item}
 						existingItems={[]}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
-						onvalidate={handleFieldsChanged}
+						ondirtystatechange={handleDirtyStateChange}
 					/>
 				{/key}
 			{/if}

@@ -68,7 +68,22 @@ export function parseCollectionItem(
 	};
 }
 
+function assertSerializableContentRecord(item: ContentRecord): void {
+	if (!item || typeof item !== 'object' || Array.isArray(item)) {
+		throw new Error('Content item must be an object before it can be saved.');
+	}
+
+	const numericKeys = Object.keys(item).filter((key) => /^\d+$/.test(key));
+	if (numericKeys.length > 0) {
+		throw new Error(
+			`Content item contains unexpected numeric keys (${numericKeys.slice(0, 5).join(', ')}). This usually means a text field was accidentally spread into the saved record.`
+		);
+	}
+}
+
 export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean): string {
+	assertSerializableContentRecord(item);
+
 	if (isMarkdown) {
 		ensureBufferGlobal();
 		const { body, ...frontmatterData } = item;

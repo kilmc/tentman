@@ -6,6 +6,11 @@
 	import type { ParsedContentConfig } from '$lib/config/parse';
 	import { buildFormData } from '$lib/features/forms/helpers';
 	import {
+		createFormEditSession,
+		type FormDirtyState,
+		type PrepareSubmitResult
+	} from '$lib/features/forms/edit-session';
+	import {
 		FORM_WORKSPACE_PANEL,
 		type FormWorkspacePanelContext,
 		type RepeatableWorkspacePanel
@@ -25,6 +30,8 @@
 		blockRegistry?: BlockRegistry;
 		// Function to get current form data - called by parent before submit
 		onvalidate?: (data: ContentRecord, errors: ValidationError[]) => void;
+		onchange?: (data: ContentRecord) => void;
+		ondirtystatechange?: (state: FormDirtyState) => void;
 	}
 
 	let {
@@ -35,7 +42,9 @@
 		realtimeValidation = false,
 		blockConfigs = [],
 		blockRegistry: providedBlockRegistry = undefined,
-		onvalidate
+		onvalidate,
+		onchange,
+		ondirtystatechange
 	}: Props = $props();
 
 	function cloneInitialData(value: Record<string, any>): Record<string, any> {
@@ -50,33 +59,43 @@
 	const parentWorkspacePanel = hasContext(FORM_WORKSPACE_PANEL)
 		? getContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL)
 		: null;
-	const activeWorkspacePanel =
-		parentWorkspacePanel?.activePanel ?? writable<RepeatableWorkspacePanel | null>(null);
 	const ownsWorkspacePanel = parentWorkspacePanel === null;
+	const ownedActivePanel = writable<RepeatableWorkspacePanel | null>(null);
 	const workspacePanel = parentWorkspacePanel ?? {
-		activePanel: activeWorkspacePanel,
+		activePanel: ownedActivePanel,
 		setActivePanel(panel: RepeatableWorkspacePanel | null) {
-			activeWorkspacePanel.set(panel);
-		}
+			ownedActivePanel.set(panel);
+		},
+		session: null
 	};
+	const activeWorkspacePanel = workspacePanel.activePanel;
 
 	if (ownsWorkspacePanel) {
 		setContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL, workspacePanel);
 	}
 
-	// FormGenerator owns its own state - initialize once with structuredClone
-	let formData = $state<Record<string, any>>(
-		buildFormData(config, cloneInitialData(initialData), blockRegistry)
-	);
+	const initialFormData = buildFormData(config, cloneInitialData(initialData), blockRegistry);
+	const editSession = createFormEditSession(initialFormData, {
+		onChange(state) {
+			formData = editSession.getData();
+			ondirtystatechange?.(state);
+			onchange?.(formData);
+		},
+		onPanelChange(panel) {
+			workspacePanel.setActivePanel(panel);
+		}
+	});
+	workspacePanel.session = editSession;
+
+	let formData = $state<Record<string, any>>(editSession.getData());
 	let validationErrors = $state<ValidationError[]>([]);
 	let showErrors = $state(false);
 	let touchedFields = $state<Set<string>>(new Set()); // Track which fields have been interacted with
 
-	// Validate and return errors - can be called by parent
-	export function validate(): { data: Record<string, any>; errors: ValidationError[] } {
+	function validateData(data: ContentRecord): { data: ContentRecord; errors: ValidationError[] } {
 		const errors = validateFormData(
 			config,
-			formData,
+			data,
 			{
 				existingItems,
 				currentItemId
@@ -85,19 +104,56 @@
 		);
 		validationErrors = errors;
 		showErrors = true;
+		onvalidate?.(data, errors);
+		return { data, errors };
+	}
 
-		// Call onvalidate callback if provided
-		onvalidate?.(formData, errors);
+	// Validate and return errors - can be called by parent
+	export function validate(): { data: Record<string, any>; errors: ValidationError[] } {
+		return validateData(editSession.getData());
+	}
 
-		return { data: formData, errors };
+	export function prepareSubmit(): PrepareSubmitResult & { errors?: ValidationError[] } {
+		const prepared = editSession.prepareSubmit();
+		formData = editSession.getData();
+
+		if (!prepared.ok) {
+			const errors = [
+				{
+					field: '_panel',
+					message: prepared.message
+				}
+			];
+			validationErrors = errors;
+			showErrors = true;
+			return {
+				...prepared,
+				errors
+			};
+		}
+
+		const { errors } = validateData(prepared.data);
+		return {
+			...prepared,
+			errors
+		};
 	}
 
 	// Get current form data without validation
 	export function getData(): Record<string, any> {
-		return formData;
+		return editSession.getData();
+	}
+
+	export function getDirtyState(): FormDirtyState {
+		return editSession.getDirtyState();
+	}
+
+	export function markSaved(data?: ContentRecord): void {
+		editSession.markSaved(data);
 	}
 
 	function handleFieldChange(fieldName: string) {
+		editSession.updateData(formData);
 		// Mark field as touched
 		touchedFields.add(fieldName);
 
@@ -118,7 +174,9 @@
 		} else {
 			// Clear errors for this field when user makes changes (submit-time validation mode)
 			if (showErrors) {
-				validationErrors = validationErrors.filter((err) => err.field !== fieldName);
+				validationErrors = validationErrors.filter(
+					(err) => err.field !== fieldName && err.field !== '_panel'
+				);
 			}
 		}
 	}
@@ -132,7 +190,11 @@
 	}
 
 	onDestroy(() => {
-		if ($activeWorkspacePanel) {
+		if (workspacePanel.session === editSession) {
+			workspacePanel.session = null;
+		}
+		editSession.destroy();
+		if (ownsWorkspacePanel && $activeWorkspacePanel) {
 			workspacePanel.setActivePanel(null);
 		}
 	});

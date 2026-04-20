@@ -86,6 +86,20 @@ describe('content-management/transforms', () => {
 		}
 	});
 
+	it('rejects records with numeric keys before writing markdown frontmatter', () => {
+		expect(() =>
+			serializeCollectionItem(
+				{
+					0: '<',
+					1: 's',
+					title: 'Broken',
+					body: 'Body copy'
+				},
+				true
+			)
+		).toThrow(/unexpected numeric keys/);
+	});
+
 	it('renders template placeholders from item data', () => {
 		expect(processTemplate('Title: {{title}}', { title: 'Hello' })).toBe('Title: Hello');
 	});

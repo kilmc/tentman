@@ -9,7 +9,6 @@
 	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
@@ -18,6 +17,8 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument, saveContentDocument } from '$lib/content/service';
+	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
+	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -48,8 +49,8 @@
 		return createBlockRegistry(blockConfigs, { packageBlocks });
 	});
 
-	function handleFieldsChanged() {
-		hasUnsavedChanges = true;
+	function handleDirtyStateChange(state: FormDirtyState) {
+		hasUnsavedChanges = state.isDirty;
 	}
 
 	function applyRemoteData() {
@@ -64,12 +65,9 @@
 		localError = null;
 	}
 
-	beforeNavigate(({ cancel }) => {
-		if (hasUnsavedChanges && !saving) {
-			if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
-				cancel();
-			}
-		}
+	registerUnsavedChangesGuard({
+		hasUnsavedChanges: () => hasUnsavedChanges,
+		isSaving: () => saving
 	});
 
 	onMount(() => {
@@ -162,19 +160,35 @@
 		draftBranchStore.setBranch(data.branch, repoFullName);
 	});
 
+	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
+		if (!formGenerator) {
+			event?.preventDefault();
+			return null;
+		}
+
+		const result = formGenerator.prepareSubmit();
+		if (!result.ok || (result.errors?.length ?? 0) > 0) {
+			event?.preventDefault();
+			return null;
+		}
+
+		const hiddenInput = currentForm?.querySelector('input[name="data"]');
+		if (hiddenInput) {
+			(hiddenInput as HTMLInputElement).value = JSON.stringify(result.data);
+		}
+
+		return result.data as ContentRecord;
+	}
+
 	async function handleLocalSave() {
-		if (!formGenerator || !discoveredConfig || !config) {
+		const formData = prepareFormSubmit();
+		if (!formData || !discoveredConfig || !config) {
 			return;
 		}
 
 		const repoState = get(localRepo);
 		if (!repoState.backend) {
 			localError = 'No local repository is open.';
-			return;
-		}
-
-		const { data: formData, errors } = formGenerator.validate();
-		if (errors.length > 0) {
 			return;
 		}
 
@@ -206,6 +220,16 @@
 </script>
 
 <div class="min-w-0">
+	{#if hasUnsavedChanges}
+		<div class="mb-5">
+			<span
+				class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
+			>
+				Unsaved changes
+			</span>
+		</div>
+	{/if}
+
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Editing draft content</p>
@@ -254,7 +278,7 @@
 						initialData={content}
 						existingItems={[]}
 						currentItemId={undefined}
-						onvalidate={handleFieldsChanged}
+						ondirtystatechange={handleDirtyStateChange}
 					/>
 				{/key}
 			{/if}
@@ -275,6 +299,7 @@
 			bind:this={currentForm}
 			method="POST"
 			action="?/saveToPreview"
+			onsubmit={prepareFormSubmit}
 			use:enhance={() => {
 				saving = true;
 				hasUnsavedChanges = false;
@@ -303,7 +328,7 @@
 						initialData={content}
 						existingItems={[]}
 						currentItemId={undefined}
-						onvalidate={handleFieldsChanged}
+						ondirtystatechange={handleDirtyStateChange}
 					/>
 				{/key}
 			{/if}

@@ -8,7 +8,6 @@
 	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
@@ -16,6 +15,9 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { createContentDocument } from '$lib/content/service';
+	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
+	import type { FormDirtyState } from '$lib/features/forms/edit-session';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -28,7 +30,8 @@
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
-	let hasUnsavedChanges = $state(false);
+	let formHasUnsavedChanges = $state(false);
+	let filenameHasUnsavedChanges = $state(false);
 	let filename = $state('');
 	let filenameError = $state('');
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
@@ -37,6 +40,7 @@
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(discoveredConfig?.config.content.mode === 'directory');
+	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
 	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const githubBlockRegistry = $derived.by(() => {
 		if (isLocalMode || blockRegistryError) {
@@ -46,8 +50,8 @@
 		return createBlockRegistry(blockConfigs, { packageBlocks });
 	});
 
-	function handleFieldsChanged() {
-		hasUnsavedChanges = true;
+	function handleDirtyStateChange(state: FormDirtyState) {
+		formHasUnsavedChanges = state.isDirty;
 	}
 
 	function applyRemoteData() {
@@ -56,18 +60,16 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistry = null;
 		blockRegistryError = data.blockRegistryError ?? null;
-		hasUnsavedChanges = false;
+		formHasUnsavedChanges = false;
+		filenameHasUnsavedChanges = false;
 		localError = null;
 		filename = '';
 		filenameError = '';
 	}
 
-	beforeNavigate(({ cancel }) => {
-		if (hasUnsavedChanges && !saving) {
-			if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
-				cancel();
-			}
-		}
+	registerUnsavedChangesGuard({
+		hasUnsavedChanges: () => hasUnsavedChanges,
+		isSaving: () => saving
 	});
 
 	onMount(() => {
@@ -102,7 +104,8 @@
 		packageBlocks = [];
 		blockRegistry = contentState.blockRegistry;
 		blockRegistryError = contentState.blockRegistryError;
-		hasUnsavedChanges = false;
+		formHasUnsavedChanges = false;
+		filenameHasUnsavedChanges = false;
 		localError = null;
 		filename = '';
 		filenameError = '';
@@ -118,13 +121,16 @@
 		applyRemoteData();
 	});
 
-	function validateLocalForm(event?: SubmitEvent) {
-		if (!formGenerator || !discoveredConfig) return false;
-
-		const { data: formData, errors } = formGenerator.validate();
-		if (errors.length > 0) {
+	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
+		if (!formGenerator || !discoveredConfig) {
 			event?.preventDefault();
-			return false;
+			return null;
+		}
+
+		const result = formGenerator.prepareSubmit();
+		if (!result.ok || (result.errors?.length ?? 0) > 0) {
+			event?.preventDefault();
+			return null;
 		}
 
 		if (requiresFilename) {
@@ -132,26 +138,27 @@
 			if (!trimmedFilename) {
 				filenameError = 'Filename is required';
 				event?.preventDefault();
-				return false;
+				return null;
 			}
 
 			if (/[<>:"/\\|?*]/.test(trimmedFilename)) {
 				filenameError = 'Filename contains invalid characters';
 				event?.preventDefault();
-				return false;
+				return null;
 			}
 		}
 
 		const hiddenInput = currentForm?.querySelector('input[name="data"]');
 		if (hiddenInput) {
-			(hiddenInput as HTMLInputElement).value = JSON.stringify(formData);
+			(hiddenInput as HTMLInputElement).value = JSON.stringify(result.data);
 		}
 
-		return true;
+		return result.data as ContentRecord;
 	}
 
 	async function handleLocalCreate() {
-		if (!validateLocalForm() || !formGenerator || !discoveredConfig) {
+		const formData = prepareFormSubmit();
+		if (!formData || !discoveredConfig) {
 			return;
 		}
 
@@ -161,9 +168,9 @@
 			return;
 		}
 
-		const { data: formData } = formGenerator.validate();
 		saving = true;
-		hasUnsavedChanges = false;
+		formHasUnsavedChanges = false;
+		filenameHasUnsavedChanges = false;
 		localError = null;
 
 		try {
@@ -183,7 +190,7 @@
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
 		} catch (error) {
-			hasUnsavedChanges = true;
+			formHasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to create item';
 		} finally {
 			saving = false;
@@ -193,9 +200,18 @@
 
 <div class="min-w-0">
 	<div class="mb-5">
-		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
-			New {config ? getConfigItemLabel(config) : 'Item'}
-		</h1>
+		<div class="flex flex-wrap items-center gap-2">
+			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
+				New {config ? getConfigItemLabel(config) : 'Item'}
+			</h1>
+			{#if hasUnsavedChanges}
+				<span
+					class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
+				>
+					Unsaved changes
+				</span>
+			{/if}
+		</div>
 	</div>
 
 	{#if form?.error || localError}
@@ -222,7 +238,7 @@
 							bind:value={filename}
 							oninput={() => {
 								filenameError = '';
-								hasUnsavedChanges = true;
+								filenameHasUnsavedChanges = true;
 							}}
 							placeholder="e.g., 2025-11-30 or my-update"
 							class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
@@ -259,7 +275,7 @@
 					initialData={{}}
 					existingItems={[]}
 					currentItemId={undefined}
-					onvalidate={handleFieldsChanged}
+					ondirtystatechange={handleDirtyStateChange}
 				/>
 			{/if}
 
@@ -280,10 +296,11 @@
 			bind:this={currentForm}
 			method="POST"
 			action="?/createToPreview"
-			onsubmit={validateLocalForm}
+			onsubmit={prepareFormSubmit}
 			use:enhance={() => {
 				saving = true;
-				hasUnsavedChanges = false;
+				formHasUnsavedChanges = false;
+				filenameHasUnsavedChanges = false;
 				return async ({ update }) => {
 					await update();
 					saving = false;
@@ -308,7 +325,7 @@
 							bind:value={filename}
 							oninput={() => {
 								filenameError = '';
-								hasUnsavedChanges = true;
+								filenameHasUnsavedChanges = true;
 							}}
 							placeholder="e.g., 2025-11-30 or my-update"
 							class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
@@ -341,7 +358,7 @@
 					initialData={{}}
 					existingItems={[]}
 					currentItemId={undefined}
-					onvalidate={handleFieldsChanged}
+					ondirtystatechange={handleDirtyStateChange}
 				/>
 			{/if}
 

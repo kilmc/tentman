@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { getContext, hasContext } from 'svelte';
-	import { get, writable } from 'svelte/store';
+	import { writable } from 'svelte/store';
 	import Plus from 'lucide-svelte/icons/plus';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import type { BlockUsage } from '$lib/config/types';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
+	import { parseFieldPath } from '$lib/features/forms/edit-session';
 	import {
 		FORM_WORKSPACE_PANEL,
 		type FormWorkspacePanelContext,
 		type RepeatableWorkspacePanel
 	} from '$lib/features/forms/workspace-panel';
 	import { getRepeatableItemLabel } from '$lib/features/forms/repeatable-labels';
-	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
+	import type { ContentRecord } from '$lib/features/content-management/types';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 
 	interface Props {
@@ -45,7 +46,8 @@
 			activePanel,
 			setActivePanel(panel: RepeatableWorkspacePanel | null) {
 				activePanel.set(panel);
-			}
+			},
+			session: null
 		} satisfies FormWorkspacePanelContext;
 	})();
 
@@ -114,62 +116,18 @@
 		return imageValue.length > 0 ? imageValue : null;
 	}
 
-	function getFieldKey() {
-		const segment = fieldPath?.split('.').at(-1);
-		return segment?.replace(/\[\d+\]$/, '') ?? null;
-	}
-
-	function getPreviousPanelWithValue(nextValue: unknown[]) {
-		const activePanel = get(activeWorkspacePanel);
-		const previousPanel =
-			activePanel?.id === panelId ? (activePanel.previousPanel ?? null) : (activePanel ?? null);
-		return applyValueToPreviousPanel(previousPanel, nextValue);
-	}
-
-	function applyValueToPreviousPanel(
-		previousPanel: RepeatableWorkspacePanel | null,
-		nextValue: unknown[]
-	) {
-		const fieldKey = getFieldKey();
-
-		if (!previousPanel || !fieldKey) {
-			return previousPanel;
-		}
-
-		return {
-			...previousPanel,
-			selectedItem: {
-				...previousPanel.selectedItem,
-				[fieldKey]: nextValue as ContentValue
-			}
-		} satisfies RepeatableWorkspacePanel;
-	}
-
-	function removePanelItem(index: number, previousPanel: RepeatableWorkspacePanel | null) {
-		const nextValue = value.filter((_, itemIndex) => itemIndex !== index);
-		value = nextValue;
-		if (selectedIndex >= index) {
-			selectedIndex = Math.max(0, selectedIndex - 1);
-		}
-		clampSelectedIndex();
-		const nextPreviousPanel = applyValueToPreviousPanel(previousPanel, nextValue);
-		if (nextPreviousPanel) {
-			workspacePanel.setActivePanel(nextPreviousPanel);
-		} else if (nextValue.length > 0) {
-			openPanel(selectedIndex);
-		} else {
-			workspacePanel.setActivePanel(null);
-		}
-		onchange?.();
-	}
-
 	function createPanel(index: number): RepeatableWorkspacePanel | null {
 		const item = value[index];
-		if (!isStructuredRepeatable || !item || typeof item !== 'object' || Array.isArray(item)) {
+		if (
+			!workspacePanel.session ||
+			!fieldPath ||
+			!isStructuredRepeatable ||
+			!item ||
+			typeof item !== 'object' ||
+			Array.isArray(item)
+		) {
 			return null;
 		}
-
-		const previousPanel = getPreviousPanelWithValue(value);
 
 		return {
 			id: panelId,
@@ -180,24 +138,21 @@
 			blocks,
 			selectedIndex: index,
 			selectedItem: item as ContentRecord,
-			previousPanel,
+			arrayPath: parseFieldPath(fieldPath),
 			fieldPath,
 			imagePath,
 			blockRegistry,
-			close: () => workspacePanel.setActivePanel(previousPanel),
-			remove: () => removePanelItem(index, previousPanel),
-			save: (nextItem) => saveStructuredItem(index, nextItem)
+			isDirty: false
 		};
 	}
 
 	function createDraftPanel(): RepeatableWorkspacePanel | null {
-		if (!isStructuredRepeatable) {
+		if (!workspacePanel.session || !fieldPath || !isStructuredRepeatable) {
 			return null;
 		}
 
 		const draftItem = buildBlockFormData(blocks, {}, blockRegistry);
 		const draftIndex = value.length;
-		const previousPanel = getPreviousPanelWithValue(value);
 
 		return {
 			id: panelId,
@@ -208,19 +163,18 @@
 			blocks,
 			selectedIndex: draftIndex,
 			selectedItem: draftItem,
-			previousPanel,
+			arrayPath: parseFieldPath(fieldPath),
 			fieldPath,
 			imagePath,
 			blockRegistry,
-			close: () => workspacePanel.setActivePanel(previousPanel),
-			save: (nextItem) => saveStructuredNewItem(nextItem)
+			isDirty: false
 		};
 	}
 
 	function openPanel(index: number = selectedIndex) {
 		const panel = createPanel(index);
 		if (panel) {
-			workspacePanel.setActivePanel(panel);
+			workspacePanel.session?.openPanel(panel);
 		}
 	}
 
@@ -228,7 +182,7 @@
 		if (isStructuredRepeatable) {
 			const panel = createDraftPanel();
 			if (panel) {
-				workspacePanel.setActivePanel(panel);
+				workspacePanel.session?.openPanel(panel);
 			}
 			return;
 		}
@@ -246,14 +200,6 @@
 			selectedIndex = Math.max(0, selectedIndex - 1);
 		}
 		clampSelectedIndex();
-		const previousPanel = getPreviousPanelWithValue(nextValue);
-		if (previousPanel) {
-			workspacePanel.setActivePanel(previousPanel);
-		} else if (nextValue.length > 0) {
-			openPanel(selectedIndex);
-		} else {
-			workspacePanel.setActivePanel(null);
-		}
 		onchange?.();
 	}
 
@@ -267,41 +213,8 @@
 		onchange?.();
 	}
 
-	function saveStructuredItem(index: number, nextItem: ContentRecord) {
-		const nextValue = value.map((item, itemIndex) =>
-			itemIndex === index && item && typeof item === 'object' && !Array.isArray(item)
-				? nextItem
-				: item
-		);
-		value = nextValue;
-		selectedIndex = index;
-		if (get(activeWorkspacePanel)?.id === panelId) {
-			openPanel(index);
-		}
-		onchange?.();
-	}
-
-	function saveStructuredNewItem(nextItem: ContentRecord) {
-		const nextValue = [...value, nextItem];
-		value = nextValue;
-		selectedIndex = nextValue.length - 1;
-		if (get(activeWorkspacePanel)?.id === panelId) {
-			openPanel(selectedIndex);
-		}
-		onchange?.();
-	}
-
 	$effect(() => {
 		clampSelectedIndex();
-
-		if (
-			isStructuredRepeatable &&
-			value.length === 0 &&
-			$activeWorkspacePanel?.id === panelId &&
-			$activeWorkspacePanel.mode === 'edit'
-		) {
-			workspacePanel.setActivePanel(getPreviousPanelWithValue(value));
-		}
 	});
 </script>
 

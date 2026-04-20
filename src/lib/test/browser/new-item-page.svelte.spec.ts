@@ -135,7 +135,8 @@ const localFlowMocks = vi.hoisted(() => {
 		createContentDocument: vi.fn(),
 		deleteDraftAsset: vi.fn(),
 		goto: vi.fn(),
-		resolve: vi.fn((path: string) => path)
+		resolve: vi.fn((path: string) => path),
+		beforeNavigateCallbacks: [] as Array<(navigation: { cancel: () => void }) => void>
 	};
 });
 
@@ -147,7 +148,9 @@ vi.mock('$app/forms', () => ({
 
 vi.mock('$app/navigation', () => ({
 	goto: localFlowMocks.goto,
-	beforeNavigate: () => {}
+	beforeNavigate: (callback: (navigation: { cancel: () => void }) => void) => {
+		localFlowMocks.beforeNavigateCallbacks.push(callback);
+	}
 }));
 
 vi.mock('$app/paths', () => ({
@@ -200,6 +203,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 		localFlowMocks.deleteDraftAsset.mockReset();
 		localFlowMocks.goto.mockReset();
 		localFlowMocks.resolve.mockClear();
+		localFlowMocks.beforeNavigateCallbacks = [];
 		localFlowMocks.localContentStore.set({
 			status: 'idle',
 			backendKey: null,
@@ -282,5 +286,36 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 		expect(localFlowMocks.deleteDraftAsset.mock.invocationCallOrder[0]).toBeGreaterThan(
 			localFlowMocks.createContentDocument.mock.invocationCallOrder[0]
 		);
+	});
+
+	it('shows dirty state from the form session and blocks navigation when discarded', async () => {
+		const screen = render(NewItemPage, {
+			data: {
+				mode: 'local',
+				pageSlug: 'posts',
+				discoveredConfig: null,
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null,
+				branch: null
+			},
+			form: undefined as never
+		});
+
+		await expect.element(screen.getByText('Unsaved changes')).not.toBeInTheDocument();
+
+		await screen.getByTestId('mock-form-dirty').click();
+
+		await expect.element(screen.getByText('Unsaved changes')).toBeVisible();
+
+		const cancel = vi.fn();
+		const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+		localFlowMocks.beforeNavigateCallbacks.at(-1)?.({ cancel });
+
+		expect(confirm).toHaveBeenCalledWith(
+			'You have unsaved changes. Are you sure you want to leave?'
+		);
+		expect(cancel).toHaveBeenCalled();
+		confirm.mockRestore();
 	});
 });
