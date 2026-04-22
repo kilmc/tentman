@@ -253,9 +253,10 @@
 		{
 			field: 'options',
 			required: 'Select only',
-			type: 'string[] | { value: string, label: string }[]',
-			purpose: 'Configures static choices for select fields.',
-			notes: 'String options are stored as-is and displayed with generated labels.'
+			type: 'string[] | { value: string, label: string }[] | tentman.navigationGroups source',
+			purpose: 'Configures choices for select fields.',
+			notes:
+				'Static options stay local to the field. Tentman navigation group sources read from the manual navigation manifest. Generic JSON-backed sources are not implemented yet.'
 		},
 		{
 			field: 'generated',
@@ -385,6 +386,16 @@
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
     { "id": "date", "type": "date", "label": "Publish Date", "show": "secondary" },
     { "id": "layout", "type": "select", "label": "Layout", "options": ["stack", "inline"] },
+    {
+      "id": "group",
+      "type": "select",
+      "label": "Group",
+      "options": {
+        "source": "tentman.navigationGroups",
+        "collection": "blog",
+        "addOption": true
+      }
+    },
     { "id": "body", "type": "markdown", "label": "Body", "required": true, "plugins": ["buy-button"] }
   ]
 }`;
@@ -905,6 +916,25 @@ export default {
 				<li>Unlisted existing configs or items are appended in discovered/default order.</li>
 				<li>Missing manifest references are ignored.</li>
 				<li>Grouped collection navigation is supported in the manifest loader.</li>
+				<li>
+					Select fields can source author-facing group options from a manifest collection with
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+						>source: "tentman.navigationGroups"</code
+					>.
+				</li>
+				<li>
+					When
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">addOption: true</code> is set,
+					Tentman lets authors add groups inline and writes the internal
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">items: []</code> shape.
+				</li>
+				<li>
+					Generic JSON-backed select option sources are intentionally not implemented yet.
+				</li>
+				<li>
+					Saving a content item stores only the selected group id. Changing a field value does not
+					currently move the item between manifest group membership arrays automatically.
+				</li>
 				<li>If no manifest exists, Tentman keeps its discovery-based ordering behavior.</li>
 			</ul>
 			<p>

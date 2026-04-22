@@ -2,6 +2,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { findContentItem } from '$lib/features/content-management/item';
+import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
@@ -70,12 +71,14 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 		const { blockConfigs, packageBlocks, blockRegistryError } =
 			await loadGitHubBlockRegistryData(backend);
+		const navigationManifest = await loadNavigationManifestState(backend, { ref: branch });
 
 		return json({
 			discoveredConfig,
 			blockConfigs,
 			packageBlocks,
 			blockRegistryError,
+			navigationManifest,
 			item,
 			contentError,
 			itemId,

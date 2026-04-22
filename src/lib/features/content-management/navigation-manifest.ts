@@ -12,7 +12,7 @@ export const NAVIGATION_MANIFEST_PATH = 'tentman/navigation-manifest.json';
 
 export interface NavigationManifestGroup {
 	id: string;
-	label: string;
+	label?: string;
 	items: string[];
 }
 
@@ -107,13 +107,16 @@ function parseNavigationManifestCollection(
 				throw new Error(`${context}.groups[${index}].id must be a non-empty string`);
 			}
 
-			if (typeof group.label !== 'string' || group.label.length === 0) {
-				throw new Error(`${context}.groups[${index}].label must be a non-empty string`);
+			if (
+				group.label !== undefined &&
+				(typeof group.label !== 'string' || group.label.length === 0)
+			) {
+				throw new Error(`${context}.groups[${index}].label must be a non-empty string when present`);
 			}
 
 			return {
 				id: group.id,
-				label: group.label,
+				...(group.label && { label: group.label }),
 				items: readStringArray(group.items ?? [], `${context}.groups[${index}].items`)
 			};
 		})

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { BlockUsage } from '$lib/config/types';
 	import type { BlockRegistry } from '$lib/blocks/registry';
+	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
@@ -14,6 +15,8 @@
 		onchange?: () => void;
 		imagePath?: string;
 		blockRegistry: BlockRegistry;
+		navigationManifest?: NavigationManifest | null;
+		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	}
 
 	let {
@@ -24,7 +27,9 @@
 		required = false,
 		onchange,
 		imagePath,
-		blockRegistry
+		blockRegistry,
+		navigationManifest,
+		onaddselectoption
 	}: Props = $props();
 
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -48,6 +53,8 @@
 				fieldPath={fieldPath ? `${fieldPath}.${block.id}` : block.id}
 				{imagePath}
 				{blockRegistry}
+				{navigationManifest}
+				{onaddselectoption}
 				onchange={() => onchange?.()}
 			/>
 		{/each}

@@ -4,6 +4,7 @@ import type {
 	ContentConfig,
 	DirectoryContentMode,
 	FileContentMode,
+	NavigationGroupsSelectBlockOptions,
 	PrimitiveBlockType,
 	RootConfig,
 	SelectBlockOptions
@@ -125,9 +126,7 @@ function readRequiredString(value: Record<string, unknown>, key: string, context
 	return candidate;
 }
 
-function readSelectOptions(value: Record<string, unknown>, context: string): SelectBlockOptions {
-	const candidate = value.options;
-
+function readStaticSelectOptions(candidate: unknown, context: string): SelectBlockOptions {
 	if (!Array.isArray(candidate) || candidate.length === 0) {
 		throw new Error(`${context}.options must be a non-empty array`);
 	}
@@ -149,6 +148,49 @@ function readSelectOptions(value: Record<string, unknown>, context: string): Sel
 			label: readRequiredString(item, 'label', itemContext)
 		};
 	});
+}
+
+function readNavigationGroupsSelectOptions(
+	value: Record<string, unknown>,
+	context: string
+): NavigationGroupsSelectBlockOptions {
+	const source = value.source;
+
+	if (source !== 'tentman.navigationGroups') {
+		throw new Error(`${context}.options.source must be "tentman.navigationGroups"`);
+	}
+
+	const collection = readRequiredString(value, 'collection', `${context}.options`);
+	const addOption = readOptionalBoolean(value, 'addOption', `${context}.options`);
+	const supportedKeys = new Set(['source', 'collection', 'addOption']);
+	const unsupportedKeys = Object.keys(value).filter((key) => !supportedKeys.has(key));
+
+	if (unsupportedKeys.length > 0) {
+		throw new Error(
+			`${context}.options has unsupported key${unsupportedKeys.length === 1 ? '' : 's'}: ${unsupportedKeys.join(', ')}`
+		);
+	}
+
+	return {
+		source,
+		collection,
+		...(addOption !== undefined && { addOption })
+	};
+}
+
+function readSelectOptions(value: Record<string, unknown>, context: string): SelectBlockOptions {
+	const candidate = value.options;
+
+	if (Array.isArray(candidate)) {
+		return readStaticSelectOptions(candidate, context);
+	}
+
+	assertObject(
+		candidate,
+		`${context}.options must be a non-empty array or a sourced options object`
+	);
+
+	return readNavigationGroupsSelectOptions(candidate, context);
 }
 
 function getLabelFromOptionValue(value: string): string {

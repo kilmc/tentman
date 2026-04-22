@@ -32,7 +32,8 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/form-config', {
-			slug: params.page
+			slug: params.page,
+			branch
 		})
 	);
 

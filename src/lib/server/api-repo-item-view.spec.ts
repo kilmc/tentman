@@ -12,6 +12,15 @@ vi.mock('$lib/server/block-registry-data', () => ({
 	loadGitHubBlockRegistryData: vi.fn()
 }));
 
+vi.mock('$lib/features/content-management/navigation-manifest', () => ({
+	loadNavigationManifestState: vi.fn(async () => ({
+		path: 'tentman/navigation-manifest.json',
+		exists: false,
+		manifest: null,
+		error: null
+	}))
+}));
+
 import { GET } from '../../routes/api/repo/item-view/+server';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { requireDiscoveredConfig } from '$lib/server/page-context';

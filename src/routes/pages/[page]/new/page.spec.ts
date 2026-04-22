@@ -77,6 +77,8 @@ describe('routes/pages/[page]/new/+page', () => {
 			branch: 'preview-2026-04-06'
 		});
 
-		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=posts');
+		expect(fetch).toHaveBeenCalledWith(
+			'/api/repo/form-config?slug=posts&branch=preview-2026-04-06'
+		);
 	});
 });

@@ -8,6 +8,7 @@ import {
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
+import { addNavigationGroupToManifest } from '$lib/features/content-management/navigation-group-options';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { invalidateCache } from '$lib/stores/config-cache';
@@ -26,6 +27,12 @@ type NavigationManifestMutation =
 	| {
 			action: 'save-manifest';
 			manifest: unknown;
+	  }
+	| {
+			action: 'add-collection-group';
+			collection: string;
+			id: string;
+			label: string;
 	  };
 
 function assertMutation(value: unknown): NavigationManifestMutation {
@@ -33,13 +40,34 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		throw error(400, 'Invalid navigation manifest request');
 	}
 
-	const mutation = value as { action?: unknown; manifest?: unknown };
+	const mutation = value as {
+		action?: unknown;
+		manifest?: unknown;
+		collection?: unknown;
+		id?: unknown;
+		label?: unknown;
+	};
 
 	if (mutation.action === 'enable' || mutation.action === 'add-missing-config-ids') {
 		return mutation as NavigationManifestMutation;
 	}
 
 	if (mutation.action === 'save-manifest') {
+		return mutation as NavigationManifestMutation;
+	}
+
+	if (mutation.action === 'add-collection-group') {
+		if (
+			typeof mutation.collection !== 'string' ||
+			mutation.collection.length === 0 ||
+			typeof mutation.id !== 'string' ||
+			mutation.id.length === 0 ||
+			typeof mutation.label !== 'string' ||
+			mutation.label.length === 0
+		) {
+			throw error(400, 'New navigation group requires collection, id, and label');
+		}
+
 		return mutation as NavigationManifestMutation;
 	}
 
@@ -80,6 +108,22 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 
 		if (mutation.action === 'save-manifest') {
 			const manifest = parseNavigationManifest(JSON.stringify(mutation.manifest));
+			await writeNavigationManifest(backend, manifest, {
+				message: MANIFEST_COMMIT_MESSAGE
+			});
+		}
+
+		if (mutation.action === 'add-collection-group') {
+			const manifestState = await loadNavigationManifestState(backend);
+			if (manifestState.error) {
+				throw error(400, `Could not parse navigation manifest: ${manifestState.error}`);
+			}
+
+			const manifest = addNavigationGroupToManifest(manifestState.manifest, {
+				collection: mutation.collection,
+				id: mutation.id,
+				label: mutation.label
+			});
 			await writeNavigationManifest(backend, manifest, {
 				message: MANIFEST_COMMIT_MESSAGE
 			});

@@ -8,6 +8,7 @@
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import type { BlockUsage } from '$lib/config/types';
 	import type { BlockRegistry } from '$lib/blocks/registry';
+	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import { parseFieldPath } from '$lib/features/forms/edit-session';
 	import {
@@ -29,6 +30,8 @@
 		onchange?: () => void;
 		imagePath?: string;
 		blockRegistry: BlockRegistry;
+		navigationManifest?: NavigationManifest | null;
+		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	}
 
 	type RepeatableDragItem = {
@@ -47,7 +50,9 @@
 		required = false,
 		onchange,
 		imagePath,
-		blockRegistry
+		blockRegistry,
+		navigationManifest,
+		onaddselectoption
 	}: Props = $props();
 
 	const fallbackPanelState = (() => {
@@ -188,6 +193,8 @@
 			fieldPath,
 			imagePath,
 			blockRegistry,
+			navigationManifest,
+			onaddselectoption,
 			isDirty: false
 		};
 	}
@@ -213,6 +220,8 @@
 			fieldPath,
 			imagePath,
 			blockRegistry,
+			navigationManifest,
+			onaddselectoption,
 			isDirty: false
 		};
 	}

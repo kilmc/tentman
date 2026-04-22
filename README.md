@@ -320,8 +320,30 @@ Common block fields:
 - `show`
 - `minLength`
 - `maxLength`
-- `options` for `select` fields; supports `["stack", "inline"]` or
-  `[{ "value": "stack", "label": "Stack" }]`
+- `options` for `select` fields; supports static choices like `["stack", "inline"]` or
+  `[{ "value": "stack", "label": "Stack" }]`, plus Tentman-owned navigation group choices:
+
+```json
+{
+  "id": "group",
+  "type": "select",
+  "label": "Group",
+  "required": true,
+  "options": {
+    "source": "tentman.navigationGroups",
+    "collection": "projects",
+    "addOption": true
+  }
+}
+```
+
+For `source: "tentman.navigationGroups"`, Tentman reads groups from
+`tentman/navigation-manifest.json`, stores the selected group `id` in the content item, and
+displays each group `label` with an `id` fallback. `addOption: true` lets authors add a new group
+inline; Tentman creates or updates the manifest group as `{ "id", "label", "items": [] }`.
+Generic JSON-backed select option sources are not implemented yet. Saving a content item stores
+only the selected group id; Tentman does not yet automatically move existing item ids between
+manifest group `items` arrays when this field changes.
 - `assetsDir`
 - `generated`
 - top-level content config `id` for stable manual navigation

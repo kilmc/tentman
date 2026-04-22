@@ -31,7 +31,7 @@ function cloneGroups(
 ): NavigationDraftGroup[] {
 	return groups.map((group) => ({
 		id: group.id,
-		label: group.label,
+		label: group.label || group.id,
 		items: [...group.items]
 	}));
 }

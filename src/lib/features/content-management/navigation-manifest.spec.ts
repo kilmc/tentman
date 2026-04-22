@@ -92,6 +92,30 @@ describe('navigation manifest helpers', () => {
 		});
 	});
 
+	it('parses collection groups without labels for id-fallback displays', () => {
+		expect(
+			parseNavigationManifest(`{
+				"version": 1,
+				"collections": {
+					"projects": {
+						"items": [],
+						"groups": [
+							{ "id": "archive", "items": [] }
+						]
+					}
+				}
+			}`)
+		).toEqual({
+			version: 1,
+			collections: {
+				projects: {
+					items: [],
+					groups: [{ id: 'archive', items: [] }]
+				}
+			}
+		});
+	});
+
 	it('suggests ids only for configs that are still missing them', () => {
 		expect(
 			getMissingContentConfigIds([

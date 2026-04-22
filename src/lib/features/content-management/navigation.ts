@@ -187,7 +187,7 @@ function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 	const groupedItemIds = new Set<string>();
 	const groups = manifestCollection.groups.map((group) => ({
 		id: group.id,
-		label: group.label,
+		label: group.label || group.id,
 		items: group.items.flatMap((itemId) => {
 			const item = itemMap.get(itemId);
 			if (!item) {

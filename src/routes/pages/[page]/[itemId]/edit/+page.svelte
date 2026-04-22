@@ -26,6 +26,9 @@
 	} from '$lib/content/service';
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
+	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
+	import { writeNavigationManifest } from '$lib/features/content-management/navigation-manifest';
+	import { addNavigationGroupToManifest } from '$lib/features/content-management/navigation-group-options';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -44,6 +47,7 @@
 	let showDeleteConfirm = $state(false);
 	let deleting = $state(false);
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
+	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
 
@@ -71,6 +75,7 @@
 		item = data.item;
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
+		navigationManifest = data.navigationManifest ?? null;
 		hasUnsavedChanges = false;
 		localError = null;
 	}
@@ -115,6 +120,7 @@
 		packageBlocks = [];
 		blockRegistry = contentState.blockRegistry;
 		blockRegistryError = contentState.blockRegistryError;
+		navigationManifest = contentState.navigationManifest;
 		hasUnsavedChanges = false;
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
@@ -153,6 +159,39 @@
 		localLoadRequest += 1;
 		applyRemoteData();
 	});
+
+	async function handleAddSelectOption(input: { collection: string; id: string; label: string }) {
+		if (isLocalMode) {
+			const repoState = get(localRepo);
+			if (!repoState.backend) {
+				throw new Error('No local repository is open.');
+			}
+
+			const manifest = addNavigationGroupToManifest(navigationManifest?.manifest, input);
+			await writeNavigationManifest(repoState.backend, manifest);
+			await localContent.refresh({ force: true });
+			navigationManifest = get(localContent).navigationManifest;
+			return;
+		}
+
+		const response = await fetch('/api/repo/navigation-manifest', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json'
+			},
+			body: JSON.stringify({
+				action: 'add-collection-group',
+				...input
+			})
+		});
+
+		if (!response.ok) {
+			throw new Error(await response.text());
+		}
+
+		const result = await response.json();
+		navigationManifest = result.navigationManifest;
+	}
 
 	$effect(() => {
 		if (!data.branch || !data.selectedRepo || isLocalMode) {
@@ -338,6 +377,8 @@
 						initialData={item}
 						existingItems={[]}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
+						navigationManifest={navigationManifest?.manifest}
+						onaddselectoption={handleAddSelectOption}
 						ondirtystatechange={handleDirtyStateChange}
 					/>
 				{/key}
@@ -398,6 +439,8 @@
 						initialData={item}
 						existingItems={[]}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
+						navigationManifest={navigationManifest?.manifest}
+						onaddselectoption={handleAddSelectOption}
 						ondirtystatechange={handleDirtyStateChange}
 					/>
 				{/key}

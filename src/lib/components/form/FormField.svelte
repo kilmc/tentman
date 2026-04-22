@@ -2,6 +2,11 @@
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
+	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
+	import {
+		isNavigationGroupsSelectOptions,
+		resolveSelectOptions
+	} from '$lib/features/content-management/navigation-group-options';
 	import TextField from './TextField.svelte';
 	import TextareaField from './TextareaField.svelte';
 	import NumberField from './NumberField.svelte';
@@ -22,10 +27,20 @@
 		onchange?: () => void;
 		imagePath?: string; // Custom image storage path from config
 		blockRegistry: BlockRegistry;
+		navigationManifest?: NavigationManifest | null;
+		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	}
 
-	let { block, value = $bindable(), fieldPath, onchange, imagePath, blockRegistry }: Props =
-		$props();
+	let {
+		block,
+		value = $bindable(),
+		fieldPath,
+		onchange,
+		imagePath,
+		blockRegistry,
+		navigationManifest,
+		onaddselectoption
+	}: Props = $props();
 
 	function getBlockLabel(id: string): string {
 		return id
@@ -45,6 +60,10 @@
 			? 'array'
 			: 'object'
 		: block.type;
+	const selectOptions = $derived(resolveSelectOptions(block.options, navigationManifest));
+	const sourceOptions = $derived(
+		isNavigationGroupsSelectOptions(block.options) ? block.options : undefined
+	);
 </script>
 
 {#if fieldType === 'text'}
@@ -69,7 +88,15 @@
 {:else if fieldType === 'url'}
 	<UrlField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'select'}
-	<SelectField {label} bind:value options={block.options} {required} {onchange} />
+	<SelectField
+		{label}
+		bind:value
+		options={selectOptions}
+		{sourceOptions}
+		{required}
+		{onchange}
+		onaddoption={onaddselectoption}
+	/>
 {:else if fieldType === 'number'}
 	<NumberField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'date'}
@@ -96,6 +123,8 @@
 		{onchange}
 		{imagePath}
 		{blockRegistry}
+		{navigationManifest}
+		{onaddselectoption}
 	/>
 {:else if fieldType === 'object'}
 	<StructuredBlockField
@@ -107,6 +136,8 @@
 		{onchange}
 		{imagePath}
 		{blockRegistry}
+		{navigationManifest}
+		{onaddselectoption}
 	/>
 {:else}
 	<div class="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">

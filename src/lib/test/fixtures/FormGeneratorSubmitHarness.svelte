@@ -2,6 +2,7 @@
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import type { ParsedContentConfig } from '$lib/config/parse';
+	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 
@@ -9,9 +10,12 @@
 		config: ParsedContentConfig;
 		initialData?: ContentRecord;
 		blockRegistry?: BlockRegistry;
+		navigationManifest?: NavigationManifest | null;
+		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	}
 
-	let { config, initialData = {}, blockRegistry }: Props = $props();
+	let { config, initialData = {}, blockRegistry, navigationManifest, onaddselectoption }: Props =
+		$props();
 
 	let formGenerator = $state<FormGenerator | null>(null);
 	let preparedData = $state('');
@@ -44,6 +48,8 @@
 	{config}
 	{initialData}
 	{blockRegistry}
+	{navigationManifest}
+	{onaddselectoption}
 	ondirtystatechange={handleDirtyStateChange}
 />
 

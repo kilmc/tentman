@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import FormGeneratorSubmitHarness from '$lib/test/fixtures/FormGeneratorSubmitHarness.svelte';
 
@@ -36,7 +36,7 @@ describe('components/form/SelectField.svelte', () => {
 		}
 
 		await expect.element(screen.getByLabelText('Layout')).toHaveValue('stack');
-		await expect.element(screen.getByRole('option', { name: 'Inline row' })).toBeVisible();
+		expect(Array.from(select.options).map((option) => option.textContent)).toContain('Inline row');
 
 		select.value = 'inline';
 		select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -75,5 +75,95 @@ describe('components/form/SelectField.svelte', () => {
 
 		await expect.element(screen.getByTestId('submit-error')).toHaveTextContent('Layout is required');
 		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent('');
+	});
+
+	it('renders sourced group options from a navigation manifest', async () => {
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Projects',
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: [
+					{
+						id: 'group',
+						type: 'select',
+						label: 'Group',
+						required: true,
+						options: {
+							source: 'tentman.navigationGroups',
+							collection: 'projects'
+						}
+					}
+				]
+			},
+			navigationManifest: {
+				version: 1,
+				collections: {
+					projects: {
+						items: [],
+						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+					}
+				}
+			},
+			initialData: {
+				group: 'identity'
+			}
+		});
+
+		await expect.element(screen.getByLabelText('Group')).toHaveValue('identity');
+		const select = document.querySelector('select');
+		if (!(select instanceof HTMLSelectElement)) {
+			throw new Error('Expected group select');
+		}
+		expect(Array.from(select.options).map((option) => option.textContent)).toContain('Identity');
+	});
+
+	it('adds a new navigation group and selects it', async () => {
+		const addOption = vi.fn(async () => {});
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Projects',
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: [
+					{
+						id: 'group',
+						type: 'select',
+						label: 'Group',
+						options: {
+							source: 'tentman.navigationGroups',
+							collection: 'projects',
+							addOption: true
+						}
+					}
+				]
+			},
+			navigationManifest: null,
+			onaddselectoption: addOption,
+			initialData: {
+				group: ''
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Add group' }).click();
+		await screen.getByPlaceholder('Group title').fill('Identity & Motion');
+		await expect.element(screen.getByPlaceholder('group-id')).toHaveValue('identity-motion');
+		await screen.getByRole('button', { name: 'Add', exact: true }).click();
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+
+		expect(addOption).toHaveBeenCalledWith({
+			collection: 'projects',
+			id: 'identity-motion',
+			label: 'Identity & Motion'
+		});
+		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent(
+			'{"group":"identity-motion"}'
+		);
 	});
 });

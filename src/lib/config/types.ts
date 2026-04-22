@@ -15,7 +15,15 @@ export interface SelectBlockOption {
 	label: string;
 }
 
-export type SelectBlockOptions = SelectBlockOption[];
+export type StaticSelectBlockOptions = SelectBlockOption[];
+
+export interface NavigationGroupsSelectBlockOptions {
+	source: 'tentman.navigationGroups';
+	collection: string;
+	addOption?: boolean;
+}
+
+export type SelectBlockOptions = StaticSelectBlockOptions | NavigationGroupsSelectBlockOptions;
 
 export interface BaseBlockUsage {
 	id: string;

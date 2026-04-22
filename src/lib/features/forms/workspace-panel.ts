@@ -1,6 +1,7 @@
 import type { Writable } from 'svelte/store';
 import type { BlockRegistry } from '$lib/blocks/registry';
 import type { BlockUsage } from '$lib/config/types';
+import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 import type { ContentRecord } from '$lib/features/content-management/types';
 import type {
 	ContentPath,
@@ -23,6 +24,8 @@ export interface RepeatableWorkspacePanel {
 	fieldPath?: string;
 	imagePath?: string;
 	blockRegistry: BlockRegistry;
+	navigationManifest?: NavigationManifest | null;
+	onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	isDirty: boolean;
 	submitError?: string;
 }

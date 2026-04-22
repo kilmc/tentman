@@ -174,4 +174,55 @@ describe('POST /api/repo/navigation-manifest', () => {
 			}
 		);
 	});
+
+	it('adds a collection group through the manifest endpoint', async () => {
+		vi.mocked(getCachedConfigs).mockResolvedValue([] as never);
+		vi.mocked(loadNavigationManifestState).mockResolvedValueOnce({
+			path: 'tentman/navigation-manifest.json',
+			exists: false,
+			manifest: null,
+			error: null
+		});
+
+		await POST({
+			request: new Request('http://localhost/api/repo/navigation-manifest', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json'
+				},
+				body: JSON.stringify({
+					action: 'add-collection-group',
+					collection: 'projects',
+					id: 'identity',
+					label: 'Identity'
+				})
+			}),
+			locals: {
+				isAuthenticated: true,
+				githubToken: 'secret-token',
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				}
+			},
+			cookies: createCookies()
+		} as never);
+
+		expect(writeNavigationManifest).toHaveBeenCalledWith(
+			expect.anything(),
+			{
+				version: 1,
+				collections: {
+					projects: {
+						items: [],
+						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+					}
+				}
+			},
+			{
+				message: 'Update Tentman navigation manifest'
+			}
+		);
+	});
 });

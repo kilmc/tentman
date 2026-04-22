@@ -39,5 +39,7 @@
 	bind:value
 	imagePath={panel.imagePath}
 	blockRegistry={panel.blockRegistry}
+	navigationManifest={panel.navigationManifest}
+	onaddselectoption={panel.onaddselectoption}
 	onchange={handleChange}
 />

@@ -128,6 +128,72 @@ describe('parseConfigFile', () => {
 		});
 	});
 
+	it('parses select blocks with Tentman navigation group sourced options', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Projects",
+			"id": "projects",
+			"itemLabel": "Project",
+			"collection": true,
+			"idField": "slug",
+			"content": {
+				"mode": "directory",
+				"path": "./projects",
+				"template": "./project.md"
+			},
+			"blocks": [
+				{
+					"id": "group",
+					"type": "select",
+					"label": "Group",
+					"required": true,
+					"options": {
+						"source": "tentman.navigationGroups",
+						"collection": "projects",
+						"addOption": true
+					}
+				}
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks[0]).toMatchObject({
+			id: 'group',
+			type: 'select',
+			options: {
+				source: 'tentman.navigationGroups',
+				collection: 'projects',
+				addOption: true
+			}
+		});
+	});
+
+	it('rejects unsupported sourced select option objects', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Projects",
+				"content": {
+					"mode": "file",
+					"path": "./projects.json"
+				},
+				"blocks": [
+					{
+						"id": "group",
+						"type": "select",
+						"options": {
+							"source": "json",
+							"path": "./groups.json"
+						}
+					}
+				]
+			}`)
+		).toThrow(/options\.source must be "tentman\.navigationGroups"/);
+	});
+
 	it('rejects invalid select option shapes', () => {
 		expect(() =>
 			parseConfigFile(`{

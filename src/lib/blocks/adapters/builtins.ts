@@ -1,6 +1,7 @@
 import type { ContentValue } from '$lib/features/content-management/types';
 import type { PrimitiveBlockType } from '$lib/config/types';
 import type { BlockAdapter, BlockAdapterUsage } from '$lib/blocks/adapters/types';
+import { isNavigationGroupsSelectOptions } from '$lib/features/content-management/navigation-group-options';
 
 function getBlockLabel(usage: BlockAdapterUsage): string {
 	return usage.label ?? usage.id;
@@ -218,6 +219,10 @@ const selectAdapter: BlockAdapter = {
 		}
 
 		const options = usage.options ?? [];
+		if (isNavigationGroupsSelectOptions(options)) {
+			return [];
+		}
+
 		return options.some((option) => option.value === value)
 			? []
 			: [`${getBlockLabel(usage)} must be one of the configured options`];

@@ -8,6 +8,15 @@ vi.mock('$lib/server/block-registry-data', () => ({
 	loadGitHubBlockRegistryData: vi.fn()
 }));
 
+vi.mock('$lib/features/content-management/navigation-manifest', () => ({
+	loadNavigationManifestState: vi.fn(async () => ({
+		path: 'tentman/navigation-manifest.json',
+		exists: false,
+		manifest: null,
+		error: null
+	}))
+}));
+
 import { GET } from '../../routes/api/repo/form-config/+server';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
@@ -64,7 +73,14 @@ describe('GET /api/repo/form-config', () => {
 			blockConfigs: [],
 			packageBlocks: [],
 			blockRegistryError: null,
+			navigationManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: false,
+				manifest: null,
+				error: null
+			},
 			pageSlug: 'posts',
+			branch: null,
 			mode: 'github'
 		});
 	});

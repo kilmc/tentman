@@ -16,6 +16,7 @@
 		type RepeatableWorkspacePanel
 	} from '$lib/features/forms/workspace-panel';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
+	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 	import RepeatablePanelHost from './RepeatablePanelHost.svelte';
@@ -32,6 +33,8 @@
 		onvalidate?: (data: ContentRecord, errors: ValidationError[]) => void;
 		onchange?: (data: ContentRecord) => void;
 		ondirtystatechange?: (state: FormDirtyState) => void;
+		navigationManifest?: NavigationManifest | null;
+		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	}
 
 	let {
@@ -44,7 +47,9 @@
 		blockRegistry: providedBlockRegistry = undefined,
 		onvalidate,
 		onchange,
-		ondirtystatechange
+		ondirtystatechange,
+		navigationManifest,
+		onaddselectoption
 	}: Props = $props();
 
 	function cloneInitialData(value: Record<string, any>): Record<string, any> {
@@ -244,6 +249,8 @@
 					fieldPath={block.id}
 					imagePath={config.imagePath}
 					{blockRegistry}
+					{navigationManifest}
+					{onaddselectoption}
 					onchange={() => handleFieldChange(block.id)}
 				/>
 				{#if showErrors && getFieldError(block.id)}
