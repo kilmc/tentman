@@ -1,4 +1,4 @@
-type FieldType = 'text' | 'date' | 'image' | 'boolean' | 'textarea';
+type FieldType = 'text' | 'date' | 'image' | 'boolean' | 'textarea' | 'select';
 
 type ConfigFields = { label: string; type: FieldType };
 type Config = {

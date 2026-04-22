@@ -9,6 +9,7 @@
 	import BooleanField from './BooleanField.svelte';
 	import EmailField from './EmailField.svelte';
 	import UrlField from './UrlField.svelte';
+	import SelectField from './SelectField.svelte';
 	import MarkdownField from './MarkdownField.svelte';
 	import ImageField from './ImageField.svelte';
 	import ArrayField from './ArrayField.svelte';
@@ -67,6 +68,8 @@
 	<EmailField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'url'}
 	<UrlField {label} bind:value {required} {onchange} />
+{:else if fieldType === 'select'}
+	<SelectField {label} bind:value options={block.options} {required} {onchange} />
 {:else if fieldType === 'number'}
 	<NumberField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'date'}

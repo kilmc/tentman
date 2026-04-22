@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { getContext, hasContext } from 'svelte';
 	import { writable } from 'svelte/store';
+	import type { DndEvent } from 'svelte-dnd-action';
+	import { SHADOW_ITEM_MARKER_PROPERTY_NAME, dragHandle, dragHandleZone } from 'svelte-dnd-action';
+	import GripVertical from 'lucide-svelte/icons/grip-vertical';
 	import Plus from 'lucide-svelte/icons/plus';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import type { BlockUsage } from '$lib/config/types';
@@ -13,7 +16,7 @@
 		type RepeatableWorkspacePanel
 	} from '$lib/features/forms/workspace-panel';
 	import { getRepeatableItemLabel } from '$lib/features/forms/repeatable-labels';
-	import type { ContentRecord } from '$lib/features/content-management/types';
+	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 
 	interface Props {
@@ -27,6 +30,13 @@
 		imagePath?: string;
 		blockRegistry: BlockRegistry;
 	}
+
+	type RepeatableDragItem = {
+		id: string;
+		index: number;
+		item: unknown;
+		[SHADOW_ITEM_MARKER_PROPERTY_NAME]?: boolean;
+	};
 
 	let {
 		label,
@@ -57,10 +67,14 @@
 	const activeWorkspacePanel = workspacePanel.activePanel;
 
 	let selectedIndex = $state(0);
+	let nextDragId = 0;
+	const dragIdsByItem = new WeakMap<object, string>();
 
 	const isStructuredRepeatable = $derived(blocks.length > 0);
 	const previewImageBlock = $derived(blocks.find((block) => block.type === 'image') ?? null);
 	const panelId = $derived(fieldPath ? `repeatable:${fieldPath}` : `repeatable:${label}`);
+	const flipDurationMs = 150;
+	const dragItems = $derived(getDragItems());
 	const isPanelOpen = $derived(
 		isStructuredRepeatable &&
 			value.length > 0 &&
@@ -84,6 +98,10 @@
 		return getRepeatableItemLabel(value[index], index, blocks, itemLabel);
 	}
 
+	function getPanelTitleForItem(item: unknown, index: number) {
+		return getRepeatableItemLabel(item, index, blocks, itemLabel);
+	}
+
 	function getCreatePanelTitle() {
 		return `New ${itemLabel ?? 'item'}`;
 	}
@@ -93,12 +111,40 @@
 	}
 
 	function getItemDisplayLabel(index: number) {
-		const title = getPanelTitle(index);
+		return getItemDisplayLabelForItem(value[index], index);
+	}
+
+	function getItemDisplayLabelForItem(item: unknown, index: number) {
+		const title = getPanelTitleForItem(item, index);
 		const prefix = `${getItemOrdinalLabel(index)}: `;
 		if (title === getItemOrdinalLabel(index)) {
 			return 'Untitled';
 		}
 		return title.startsWith(prefix) ? title.slice(prefix.length) : title;
+	}
+
+	function getDragItemId(item: unknown, index: number) {
+		if (!item || typeof item !== 'object') {
+			return `${panelId}:primitive:${index}:${String(item)}`;
+		}
+
+		const existingId = dragIdsByItem.get(item);
+		if (existingId) {
+			return existingId;
+		}
+
+		const nextId = `${panelId}:item:${nextDragId}`;
+		nextDragId += 1;
+		dragIdsByItem.set(item, nextId);
+		return nextId;
+	}
+
+	function getDragItems(): RepeatableDragItem[] {
+		return value.map((item, index) => ({
+			id: getDragItemId(item, index),
+			index,
+			item
+		}));
 	}
 
 	function getItemImageValue(item: unknown) {
@@ -213,6 +259,31 @@
 		onchange?.();
 	}
 
+	function reorderItems(nextItems: RepeatableDragItem[]) {
+		const indexMap = new Map(nextItems.map((item, index) => [item.index, index]));
+		value = nextItems.map((item) => item.item);
+		selectedIndex = indexMap.get(selectedIndex) ?? selectedIndex;
+
+		if (workspacePanel.session && fieldPath) {
+			workspacePanel.session.reorderArrayItems(
+				parseFieldPath(fieldPath),
+				value as ContentValue[],
+				indexMap
+			);
+			return;
+		}
+
+		onchange?.();
+	}
+
+	function handleDragConsider(event: CustomEvent<DndEvent<RepeatableDragItem>>) {
+		reorderItems(event.detail.items);
+	}
+
+	function handleDragFinalize(event: CustomEvent<DndEvent<RepeatableDragItem>>) {
+		reorderItems(event.detail.items);
+	}
+
 	$effect(() => {
 		clampSelectedIndex();
 	});
@@ -267,48 +338,74 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="grid gap-2" aria-label={`${label} items`}>
-			{#each value as item, index (index)}
+		<div
+			class="grid gap-2"
+			aria-label={`${label} items`}
+			use:dragHandleZone={{
+				items: dragItems,
+				type: `repeatable:${fieldPath ?? label}`,
+				flipDurationMs,
+				delayTouchStart: true
+			}}
+			onconsider={handleDragConsider}
+			onfinalize={handleDragFinalize}
+		>
+			{#each dragItems as dragItem, index (`${dragItem.id}:${dragItem[SHADOW_ITEM_MARKER_PROPERTY_NAME] ? 'shadow' : 'real'}`)}
+				{@const item = dragItem.item}
 				{@const imageValue = getItemImageValue(item)}
-				<button
-					type="button"
-					class="tm-nav-link grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-r-md border-y border-r border-l-2 border-y-stone-200 border-r-stone-200 px-3 py-2 text-left text-sm"
-					class:tm-nav-link-active={isPanelOpen && selectedIndex === index}
-					onclick={() => selectItem(index)}
-					aria-pressed={isPanelOpen && selectedIndex === index}
-					aria-label={`Edit ${getPanelTitle(index)}`}
-					title={`Edit ${getPanelTitle(index)}`}
+				<div
+					class="grid min-h-10 grid-cols-[auto_minmax(0,1fr)] items-center rounded-md border border-stone-200 bg-white text-sm text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-50"
+					class:border-stone-950={isPanelOpen && selectedIndex === index}
+					class:bg-stone-100={isPanelOpen && selectedIndex === index}
+					class:text-stone-950={isPanelOpen && selectedIndex === index}
+					data-is-dnd-shadow-item-hint={dragItem[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
 				>
-					<span
-						class={imageValue
-							? 'grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3'
-							: 'grid min-w-0 grid-cols-[minmax(0,1fr)] items-center gap-3'}
+					<button
+						type="button"
+						use:dragHandle
+						class="inline-flex h-full min-h-10 w-9 items-center justify-center text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none"
+						aria-label={`Drag ${getPanelTitleForItem(item, index)}`}
 					>
-						{#if imageValue}
-							<span
-								class="block h-9 w-9 overflow-hidden rounded border border-stone-200 bg-stone-100"
-								aria-hidden="true"
-								data-testid={`repeatable-preview-${index}`}
-							>
-								<AssetImage
-									value={imageValue}
-									alt=""
-									assetsDir={previewImageBlock?.assetsDir ?? imagePath}
-									class="h-full w-full object-cover"
-								/>
-							</span>
-						{/if}
-						<span class="grid min-w-0 gap-0.5">
-							<span class="text-[0.68rem] leading-none font-semibold text-stone-500 uppercase">
-								{getItemOrdinalLabel(index)}
-							</span>
-							<span class="truncate font-medium">
-								{getItemDisplayLabel(index)}
+						<GripVertical class="h-4 w-4" />
+					</button>
+					<button
+						type="button"
+						class="grid min-h-10 min-w-0 items-center px-3 py-2 text-left"
+						onclick={() => selectItem(index)}
+						aria-pressed={isPanelOpen && selectedIndex === index}
+						aria-label={`Edit ${getPanelTitleForItem(item, index)}`}
+						title={`Edit ${getPanelTitleForItem(item, index)}`}
+					>
+						<span
+							class={imageValue
+								? 'grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3'
+								: 'grid min-w-0 grid-cols-[minmax(0,1fr)] items-center gap-3'}
+						>
+							{#if imageValue}
+								<span
+									class="block h-9 w-9 overflow-hidden rounded border border-stone-200 bg-stone-100"
+									aria-hidden="true"
+									data-testid={`repeatable-preview-${index}`}
+								>
+									<AssetImage
+										value={imageValue}
+										alt=""
+										assetsDir={previewImageBlock?.assetsDir ?? imagePath}
+										class="h-full w-full object-cover"
+									/>
+								</span>
+							{/if}
+							<span class="grid min-w-0 gap-0.5">
+								<span class="text-[0.68rem] leading-none font-semibold text-stone-500 uppercase">
+									{getItemOrdinalLabel(index)}
+								</span>
+								<span class="truncate font-medium">
+									{getItemDisplayLabelForItem(item, index)}
+								</span>
 							</span>
 						</span>
-					</span>
-					<span class="text-xs font-semibold text-stone-500" aria-hidden="true">Edit</span>
-				</button>
+					</button>
+				</div>
 			{/each}
 		</div>
 

@@ -57,7 +57,7 @@ describe('components/form/ArrayField.svelte', () => {
 
 		await expect.element(screen.getByRole('heading', { name: 'Section 2: Credits' })).toBeVisible();
 		await expect.element(screen.getByLabelText('Title')).toHaveValue('Credits');
-		await expect.element(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+		await expect.element(screen.getByRole('button', { name: 'Save' })).not.toBeInTheDocument();
 
 		await screen.getByLabelText('Title').fill('Acknowledgements');
 		await expect.element(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled();
@@ -146,7 +146,7 @@ describe('components/form/ArrayField.svelte', () => {
 			.not.toBeInTheDocument();
 	});
 
-	it('discarding a new structured repeatable draft with Back does not add it', async () => {
+	it('discarding a new structured repeatable draft with Cancel does not add it', async () => {
 		const screen = render(FormGenerator, {
 			config: {
 				type: 'content',
@@ -180,7 +180,7 @@ describe('components/form/ArrayField.svelte', () => {
 			.element(screen.getByRole('button', { name: 'Add', exact: true }))
 			.not.toBeDisabled();
 
-		await screen.getByRole('button', { name: 'Back to Images' }).click();
+		await screen.getByRole('button', { name: 'Cancel' }).click();
 
 		await expect
 			.element(screen.getByRole('heading', { name: 'New Image' }))
@@ -286,7 +286,7 @@ describe('components/form/ArrayField.svelte', () => {
 			.not.toBeInTheDocument();
 		await expect.element(screen.getByLabelText('Gallery ID')).not.toBeInTheDocument();
 
-		await screen.getByRole('button', { name: 'Back to Images' }).click();
+		document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 
 		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
 		await expect
@@ -294,6 +294,7 @@ describe('components/form/ArrayField.svelte', () => {
 			.toBeVisible();
 
 		await screen.getByRole('button', { name: 'Edit Image 1: Opening view' }).click();
+		await screen.getByLabelText('Image 1: Opening view actions').click();
 		await screen.getByRole('button', { name: 'Remove Image 1: Opening view' }).click();
 
 		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
@@ -409,7 +410,7 @@ describe('components/form/ArrayField.svelte', () => {
 		await screen.getByRole('button', { name: 'Add', exact: true }).click();
 
 		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
-		await screen.getByRole('button', { name: 'Back to Galleries' }).click();
+		document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 
 		await expect
 			.element(screen.getByRole('heading', { name: 'Gallery 1: main' }))
@@ -455,7 +456,7 @@ describe('components/form/ArrayField.svelte', () => {
 		await expect.element(screen.getByLabelText('Body')).toHaveValue('');
 	});
 
-	it('keeps the repeatable panel footer available and closes after removing the last item', async () => {
+	it('keeps removal in the overflow menu and closes after removing the last item', async () => {
 		const screen = render(FormGenerator, {
 			config: {
 				type: 'content',
@@ -485,11 +486,12 @@ describe('components/form/ArrayField.svelte', () => {
 		await expect
 			.element(screen.getByRole('heading', { name: 'Section 1: Only section' }))
 			.toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Back to Sections' })).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-		await expect.element(screen.getByRole('button', { name: 'Remove' })).toBeVisible();
+		await expect.element(screen.getByRole('button', { name: 'Back to Sections' })).not.toBeInTheDocument();
+		await expect.element(screen.getByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+		await expect.element(screen.getByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
 
-		await screen.getByRole('button', { name: 'Remove' }).click();
+		await screen.getByLabelText('Section 1: Only section actions').click();
+		await screen.getByRole('button', { name: 'Remove Section 1: Only section' }).click();
 
 		await expect
 			.element(screen.getByRole('heading', { name: 'Section 1: Only section' }))
@@ -569,7 +571,7 @@ describe('components/form/ArrayField.svelte', () => {
 
 		await expect
 			.element(screen.getByTestId('submit-error'))
-			.toHaveTextContent('Add New Image or go back before saving the page.');
+			.toHaveTextContent('Add New Image or cancel before saving the page.');
 		await expect.element(screen.getByRole('heading', { name: 'New Image' })).toBeVisible();
 		await expect
 			.element(screen.getByRole('button', { name: /Edit Image 1/ }))

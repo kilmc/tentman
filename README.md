@@ -307,6 +307,7 @@ Built-in block types:
 - `date`
 - `boolean`
 - `image`
+- `select`
 
 Common block fields:
 
@@ -319,6 +320,8 @@ Common block fields:
 - `show`
 - `minLength`
 - `maxLength`
+- `options` for `select` fields; supports `["stack", "inline"]` or
+  `[{ "value": "stack", "label": "Stack" }]`
 - `assetsDir`
 - `generated`
 - top-level content config `id` for stable manual navigation

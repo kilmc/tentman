@@ -5,7 +5,8 @@ import type {
 	DirectoryContentMode,
 	FileContentMode,
 	PrimitiveBlockType,
-	RootConfig
+	RootConfig,
+	SelectBlockOptions
 } from '$lib/config/types';
 
 export interface ParsedContentConfig extends ContentConfig {
@@ -31,6 +32,7 @@ type LegacyFieldInput =
 			maxLength?: unknown;
 			itemLabel?: unknown;
 			assetsDir?: unknown;
+			options?: unknown;
 	  };
 type LegacyFieldArrayItem = {
 	property?: unknown;
@@ -44,6 +46,7 @@ type LegacyFieldArrayItem = {
 	maxLength?: unknown;
 	itemLabel?: unknown;
 	assetsDir?: unknown;
+	options?: unknown;
 };
 
 function assertObject(value: unknown, message: string): asserts value is Record<string, unknown> {
@@ -122,6 +125,40 @@ function readRequiredString(value: Record<string, unknown>, key: string, context
 	return candidate;
 }
 
+function readSelectOptions(value: Record<string, unknown>, context: string): SelectBlockOptions {
+	const candidate = value.options;
+
+	if (!Array.isArray(candidate) || candidate.length === 0) {
+		throw new Error(`${context}.options must be a non-empty array`);
+	}
+
+	return candidate.map((item, index) => {
+		const itemContext = `${context}.options[${index}]`;
+
+		if (typeof item === 'string' && item.length > 0) {
+			return {
+				value: item,
+				label: getLabelFromOptionValue(item)
+			};
+		}
+
+		assertObject(item, `${itemContext} must be a non-empty string or an option object`);
+
+		return {
+			value: readRequiredString(item, 'value', itemContext),
+			label: readRequiredString(item, 'label', itemContext)
+		};
+	});
+}
+
+function getLabelFromOptionValue(value: string): string {
+	return value
+		.replace(/[-_]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function readBlocks(value: Record<string, unknown>, context: string): BlockUsage[] {
 	const blocks = value.blocks;
 
@@ -147,6 +184,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	const show = input.show;
 	const minLength = input.minLength;
 	const maxLength = input.maxLength;
+	const options = type === 'select' ? readSelectOptions(input, context) : undefined;
 
 	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
 		throw new Error(`${context}.show must be "primary" or "secondary"`);
@@ -188,6 +226,10 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		throw new Error(`${context}.plugins is only supported on markdown fields in v1`);
 	}
 
+	if (type !== 'select' && 'options' in input && input.options !== undefined) {
+		throw new Error(`${context}.options is only supported on select fields`);
+	}
+
 	return {
 		id,
 		type,
@@ -200,7 +242,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		...(generated !== undefined && { generated }),
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
-		...(maxLength !== undefined && { maxLength })
+		...(maxLength !== undefined && { maxLength }),
+		...(options && { options })
 	};
 }
 
@@ -312,6 +355,7 @@ function isLegacyFieldType(type: string): type is LegacyFieldType {
 		type === 'date' ||
 		type === 'boolean' ||
 		type === 'image' ||
+		type === 'select' ||
 		type === 'array'
 	);
 }
@@ -343,6 +387,10 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	const maxLength = rawField.maxLength;
 	const itemLabel = readOptionalString(rawField as Record<string, unknown>, 'itemLabel', context);
 	const assetsDir = readOptionalString(rawField as Record<string, unknown>, 'assetsDir', context);
+	const options =
+		type === 'select'
+			? readSelectOptions(rawField as Record<string, unknown>, context)
+			: undefined;
 
 	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
 		throw new Error(`${context}.show must be "primary" or "secondary"`);
@@ -382,7 +430,8 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),
-		...(assetsDir && { assetsDir })
+		...(assetsDir && { assetsDir }),
+		...(options && { options })
 	};
 }
 
@@ -411,6 +460,7 @@ function parseLegacyFieldObjectEntry(
 	const maxLength = input.maxLength;
 	const itemLabel = readOptionalString(input, 'itemLabel', context);
 	const assetsDir = readOptionalString(input, 'assetsDir', context);
+	const options = type === 'select' ? readSelectOptions(input, context) : undefined;
 
 	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
 		throw new Error(`${context}.show must be "primary" or "secondary"`);
@@ -450,7 +500,8 @@ function parseLegacyFieldObjectEntry(
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),
-		...(assetsDir && { assetsDir })
+		...(assetsDir && { assetsDir }),
+		...(options && { options })
 	};
 }
 

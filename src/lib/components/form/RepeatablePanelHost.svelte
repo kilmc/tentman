@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { getContext, hasContext } from 'svelte';
+	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
+	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import type { RepeatableWorkspacePanel } from '$lib/features/forms/workspace-panel';
 	import {
 		FORM_WORKSPACE_PANEL,
@@ -14,12 +16,15 @@
 	}
 
 	let { panel, framed = true }: Props = $props();
+	let panelElement = $state<HTMLElement | null>(null);
+	let actionMenu = $state<HTMLDetailsElement | null>(null);
 	const workspacePanel = hasContext(FORM_WORKSPACE_PANEL)
 		? getContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL)
 		: null;
 
 	const isDirty = $derived(panel.isDirty);
 	const primaryActionLabel = $derived(panel.mode === 'create' ? 'Add' : 'Save');
+	const showFooter = $derived(panel.mode === 'create' || isDirty || !!panel.submitError);
 
 	function getPanelKey(panel: RepeatableWorkspacePanel): string {
 		return [panel.id, panel.mode, panel.selectedIndex, panel.title].join(':');
@@ -41,13 +46,32 @@
 		workspacePanel?.session?.closePanel();
 	}
 
+	function cancelPanel() {
+		workspacePanel?.session?.discardPanel();
+	}
+
 	function removeItem() {
 		workspacePanel?.session?.removePanelItem();
 	}
+
+	$effect(() => {
+		const handlePointerDown = (event: PointerEvent) => {
+			const target = event.target;
+			if (!(target instanceof Node) || !panelElement || panelElement.contains(target)) {
+				return;
+			}
+
+			closePanel();
+		};
+
+		document.addEventListener('pointerdown', handlePointerDown, true);
+		return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+	});
 </script>
 
 {#key getPanelKey(panel)}
 	<aside
+		bind:this={panelElement}
 		class="grid h-full max-h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-white"
 		class:rounded-md={framed}
 		class:border={framed}
@@ -55,27 +79,6 @@
 		aria-label={`${panel.label} editor`}
 	>
 		<div class="grid gap-3 border-b border-stone-200 px-4 py-4">
-			<button
-				type="button"
-				onclick={closePanel}
-				class="inline-flex w-fit items-center gap-1 text-xs font-semibold text-stone-500 transition-colors hover:text-stone-950"
-				title={`Back to ${panel.listLabel}`}
-			>
-				<svg
-					class="h-3.5 w-3.5"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					aria-hidden="true"
-				>
-					<path d="m15 18-6-6 6-6" />
-				</svg>
-				Back to {panel.listLabel}
-			</button>
-
 			<div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
 				<div class="min-w-0">
 					<p class="text-[0.7rem] font-semibold tracking-[0.16em] text-stone-500 uppercase">
@@ -92,7 +95,29 @@
 						{/if}
 					</div>
 				</div>
-				<span class="h-2 w-2 rounded-full bg-stone-950" aria-hidden="true"></span>
+				{#if panel.mode === 'edit'}
+					<details bind:this={actionMenu} class="relative">
+						<summary class="tm-icon-btn list-none" aria-label={`${panel.title} actions`}>
+							<MoreHorizontal class="h-4 w-4" />
+						</summary>
+						<div
+							class="absolute top-full right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
+						>
+							<button
+								type="button"
+								onclick={() => {
+									actionMenu?.removeAttribute('open');
+									removeItem();
+								}}
+								class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+								aria-label={`Remove ${panel.title}`}
+							>
+								<Trash2 class="h-4 w-4" />
+								<span>Remove {panel.label}</span>
+							</button>
+						</div>
+					</details>
+				{/if}
 			</div>
 		</div>
 
@@ -109,40 +134,41 @@
 			</div>
 		</div>
 
-		<div
-			class={panel.mode === 'create'
-				? 'grid grid-cols-1 gap-2 border-t border-stone-200 px-4 py-4'
-				: 'grid grid-cols-2 gap-2 border-t border-stone-200 px-4 py-4'}
-		>
-			<button
-				type="button"
-				onclick={saveChanges}
-				disabled={!isDirty}
-				class="tm-btn tm-btn-primary w-full"
-				title={`${primaryActionLabel} ${panel.title}`}
+		{#if showFooter}
+			<div
+				class={panel.mode === 'create'
+					? 'grid grid-cols-2 gap-2 border-t border-stone-200 px-4 py-4'
+					: 'grid grid-cols-1 gap-2 border-t border-stone-200 px-4 py-4'}
 			>
-				{primaryActionLabel}
-			</button>
-			{#if panel.mode === 'edit'}
+				{#if panel.mode === 'create'}
+					<button
+						type="button"
+						onclick={cancelPanel}
+						class="tm-btn tm-btn-secondary w-full"
+						title={`Cancel ${panel.title}`}
+					>
+						Cancel
+					</button>
+				{/if}
 				<button
 					type="button"
-					onclick={removeItem}
-					class="tm-btn w-full border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-					aria-label={`Remove ${panel.title}`}
-					title={`Remove ${panel.title}`}
+					onclick={saveChanges}
+					disabled={!isDirty}
+					class="tm-btn tm-btn-primary w-full"
+					title={`${primaryActionLabel} ${panel.title}`}
 				>
-					Remove
+					{primaryActionLabel}
 				</button>
-			{/if}
-			{#if panel.submitError}
-				<p
-					class={panel.mode === 'create'
-						? 'text-sm font-medium text-red-700'
-						: 'col-span-2 text-sm font-medium text-red-700'}
-				>
-					{panel.submitError}
-				</p>
-			{/if}
-		</div>
+				{#if panel.submitError}
+					<p
+						class={panel.mode === 'create'
+							? 'col-span-2 text-sm font-medium text-red-700'
+							: 'text-sm font-medium text-red-700'}
+					>
+						{panel.submitError}
+					</p>
+				{/if}
+			</div>
+		{/if}
 	</aside>
 {/key}

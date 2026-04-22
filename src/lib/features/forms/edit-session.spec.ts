@@ -105,7 +105,89 @@ describe('features/forms/edit-session', () => {
 		expect(result.data).toEqual({ sections: [] });
 		expect(session.getActivePanel()).toMatchObject({
 			mode: 'create',
-			submitError: 'Add New Section or go back before saving the page.'
+			submitError: 'Add New Section or cancel before saving the page.'
+		});
+	});
+
+	it('reorders top-level repeatable items and keeps the active panel index aligned', () => {
+		const session = createFormEditSession({
+			sections: [{ title: 'Intro' }, { title: 'Credits' }]
+		});
+
+		session.openPanel({
+			id: 'repeatable:sections',
+			mode: 'edit',
+			label: 'Section',
+			listLabel: 'Sections',
+			title: 'Section 2: Credits',
+			blocks: [{ id: 'title', type: 'text', label: 'Title' }],
+			selectedIndex: 1,
+			selectedItem: { title: 'Credits' },
+			arrayPath: ['sections'],
+			fieldPath: 'sections',
+			blockRegistry
+		});
+
+		session.reorderArrayItems(
+			['sections'],
+			[{ title: 'Credits' }, { title: 'Intro' }],
+			new Map([
+				[1, 0],
+				[0, 1]
+			])
+		);
+
+		expect(session.getData()).toEqual({
+			sections: [{ title: 'Credits' }, { title: 'Intro' }]
+		});
+		expect(session.getActivePanel()).toMatchObject({
+			selectedIndex: 0,
+			selectedItem: { title: 'Credits' }
+		});
+	});
+
+	it('reorders nested repeatable items inside their parent draft', () => {
+		const session = createFormEditSession({
+			galleries: [{ id: 'main', images: [{ alt: 'Opening' }, { alt: 'Detail' }] }]
+		});
+
+		session.openPanel({
+			id: 'repeatable:galleries',
+			mode: 'edit',
+			label: 'Gallery',
+			listLabel: 'Galleries',
+			title: 'Gallery 1: main',
+			blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
+			selectedIndex: 0,
+			selectedItem: { id: 'main', images: [{ alt: 'Opening' }, { alt: 'Detail' }] },
+			arrayPath: ['galleries'],
+			fieldPath: 'galleries',
+			blockRegistry
+		});
+
+		session.reorderArrayItems(
+			['galleries', 0, 'images'],
+			[{ alt: 'Detail' }, { alt: 'Opening' }],
+			new Map([
+				[1, 0],
+				[0, 1]
+			])
+		);
+
+		expect(session.getData()).toEqual({
+			galleries: [{ id: 'main', images: [{ alt: 'Opening' }, { alt: 'Detail' }] }]
+		});
+		expect(session.getActivePanel()).toMatchObject({
+			selectedItem: {
+				id: 'main',
+				images: [{ alt: 'Detail' }, { alt: 'Opening' }]
+			},
+			isDirty: true
+		});
+
+		session.commitPanel();
+		expect(session.getData()).toEqual({
+			galleries: [{ id: 'main', images: [{ alt: 'Detail' }, { alt: 'Opening' }] }]
 		});
 	});
 

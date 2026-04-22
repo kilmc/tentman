@@ -7,7 +7,15 @@ export type PrimitiveBlockType =
 	| 'number'
 	| 'date'
 	| 'boolean'
-	| 'image';
+	| 'image'
+	| 'select';
+
+export interface SelectBlockOption {
+	value: string;
+	label: string;
+}
+
+export type SelectBlockOptions = SelectBlockOption[];
 
 export interface BaseBlockUsage {
 	id: string;
@@ -22,6 +30,7 @@ export interface BaseBlockUsage {
 	show?: 'primary' | 'secondary';
 	minLength?: number;
 	maxLength?: number;
+	options?: SelectBlockOptions;
 }
 
 export interface PrimitiveBlockUsage extends BaseBlockUsage {

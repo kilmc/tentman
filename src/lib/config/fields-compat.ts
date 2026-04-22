@@ -1,4 +1,4 @@
-import type { BlockUsage, PrimitiveBlockType } from '$lib/config/types';
+import type { BlockUsage, PrimitiveBlockType, SelectBlockOptions } from '$lib/config/types';
 
 export type FieldType = PrimitiveBlockType | 'array';
 
@@ -11,6 +11,7 @@ export interface FieldOptions {
 	fields?: Record<string, FieldDefinition>;
 	minLength?: number;
 	maxLength?: number;
+	options?: SelectBlockOptions;
 }
 
 export type FieldDefinition = FieldType | FieldOptions;
@@ -64,7 +65,8 @@ function toFieldDefinition(block: BlockUsage): FieldDefinition {
 		...(block.generated !== undefined && { generated: block.generated }),
 		...(block.show && { show: block.show }),
 		...(block.minLength !== undefined && { minLength: block.minLength }),
-		...(block.maxLength !== undefined && { maxLength: block.maxLength })
+		...(block.maxLength !== undefined && { maxLength: block.maxLength }),
+		...(block.options && { options: block.options })
 	};
 }
 

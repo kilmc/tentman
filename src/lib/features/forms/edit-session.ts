@@ -55,6 +55,11 @@ export interface FormEditSession {
 	getActivePanel: () => RepeatablePanelView | null;
 	openPanel: (panel: OpenRepeatablePanelInput) => void;
 	updatePanelField: (blockId: string, value: ContentValue | undefined) => void;
+	reorderArrayItems: (
+		arrayPath: ContentPath,
+		nextItems: ContentValue[],
+		indexMap?: Map<number, number>
+	) => void;
 	commitPanel: () => void;
 	closePanel: () => void;
 	discardPanel: () => void;
@@ -145,6 +150,35 @@ export function createFormEditSession(
 		notify();
 	}
 
+	function reorderArrayItems(
+		arrayPath: ContentPath,
+		nextItems: ContentValue[],
+		indexMap: Map<number, number> = new Map()
+	) {
+		const active = getActiveEntry();
+		const parent = active && pathStartsWith(arrayPath, [...active.arrayPath, active.selectedIndex])
+			? active
+			: null;
+
+		if (parent) {
+			parent.draftItem = setValueAtPath(
+				parent.draftItem,
+				arrayPath.slice(parent.arrayPath.length + 1),
+				nextItems
+			) as ContentRecord;
+		} else {
+			data = setValueAtPath(data, arrayPath, nextItems) as ContentRecord;
+		}
+
+		for (const panel of panelStack) {
+			if (pathsEqual(panel.arrayPath, arrayPath)) {
+				panel.selectedIndex = indexMap.get(panel.selectedIndex) ?? panel.selectedIndex;
+			}
+		}
+
+		notify();
+	}
+
 	function commitPanel() {
 		const active = getActiveEntry();
 		if (!active || !isPanelDirty(active)) {
@@ -196,7 +230,7 @@ export function createFormEditSession(
 	function prepareSubmit(): PrepareSubmitResult {
 		const active = getActiveEntry();
 		if (active?.mode === 'create' && isPanelDirty(active)) {
-			active.submitError = `Add ${active.title} or go back before saving the page.`;
+			active.submitError = `Add ${active.title} or cancel before saving the page.`;
 			notify();
 			return {
 				ok: false,
@@ -286,6 +320,7 @@ export function createFormEditSession(
 		getActivePanel,
 		openPanel,
 		updatePanelField,
+		reorderArrayItems,
 		commitPanel,
 		closePanel,
 		discardPanel,
@@ -357,6 +392,10 @@ function isNestedPanel(parent: PanelEntry, child: PanelEntry): boolean {
 
 function pathStartsWith(path: ContentPath, prefix: ContentPath): boolean {
 	return prefix.every((segment, index) => path[index] === segment);
+}
+
+function pathsEqual(left: ContentPath, right: ContentPath): boolean {
+	return left.length === right.length && left.every((segment, index) => right[index] === segment);
 }
 
 function getRelativeArrayPath(parent: PanelEntry, child: PanelEntry): ContentPath {

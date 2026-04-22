@@ -7,7 +7,11 @@ const includeBrowserProject = process.env.VITEST_BROWSER === '1';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	optimizeDeps: {
-		include: ['lucide-svelte/icons/sidebar-close', 'lucide-svelte/icons/sidebar-open']
+		include: [
+			'lucide-svelte/icons/more-horizontal',
+			'lucide-svelte/icons/sidebar-close',
+			'lucide-svelte/icons/sidebar-open'
+		]
 	},
 	test: {
 		expect: { requireAssertions: true },

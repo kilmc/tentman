@@ -8,7 +8,8 @@
 		'number',
 		'date',
 		'boolean',
-		'image'
+		'image',
+		'select'
 	];
 
 	const tableOfContents = [
@@ -250,6 +251,13 @@
 			notes: 'Currently supported for markdown blocks.'
 		},
 		{
+			field: 'options',
+			required: 'Select only',
+			type: 'string[] | { value: string, label: string }[]',
+			purpose: 'Configures static choices for select fields.',
+			notes: 'String options are stored as-is and displayed with generated labels.'
+		},
+		{
 			field: 'generated',
 			required: 'No',
 			type: 'boolean',
@@ -372,10 +380,11 @@
     "template": "./templates/post.md",
     "filename": "{{slug}}"
   },
-  "blocks": [
+ "blocks": [
     { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
     { "id": "date", "type": "date", "label": "Publish Date", "show": "secondary" },
+    { "id": "layout", "type": "select", "label": "Layout", "options": ["stack", "inline"] },
     { "id": "body", "type": "markdown", "label": "Body", "required": true, "plugins": ["buy-button"] }
   ]
 }`;

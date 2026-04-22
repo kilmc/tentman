@@ -64,6 +64,102 @@ describe('parseConfigFile', () => {
 		});
 	});
 
+	it('parses select blocks with string shorthand options', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Gallery",
+			"content": {
+				"mode": "file",
+				"path": "./gallery.json"
+			},
+			"blocks": [
+				{ "id": "layout", "type": "select", "label": "Layout", "options": ["stack", "inline"] }
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks).toMatchObject([
+			{
+				id: 'layout',
+				type: 'select',
+				options: [
+					{ value: 'stack', label: 'Stack' },
+					{ value: 'inline', label: 'Inline' }
+				]
+			}
+		]);
+	});
+
+	it('parses select blocks with explicit option labels', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Gallery",
+			"content": {
+				"mode": "file",
+				"path": "./gallery.json"
+			},
+			"blocks": [
+				{
+					"id": "layout",
+					"type": "select",
+					"label": "Layout",
+					"options": [
+						{ "value": "stack", "label": "Stack" },
+						{ "value": "inline", "label": "Inline row" }
+					]
+				}
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks[0]).toMatchObject({
+			id: 'layout',
+			type: 'select',
+			options: [
+				{ value: 'stack', label: 'Stack' },
+				{ value: 'inline', label: 'Inline row' }
+			]
+		});
+	});
+
+	it('rejects invalid select option shapes', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Gallery",
+				"content": {
+					"mode": "file",
+					"path": "./gallery.json"
+				},
+				"blocks": [
+					{ "id": "layout", "type": "select", "options": [{ "value": "stack" }] }
+				]
+			}`)
+		).toThrow(/options\[0\]\.label is required/);
+	});
+
+	it('rejects options on non-select fields', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Gallery",
+				"content": {
+					"mode": "file",
+					"path": "./gallery.json"
+				},
+				"blocks": [
+					{ "id": "layout", "type": "text", "options": ["stack"] }
+				]
+			}`)
+		).toThrow(/options is only supported on select fields/);
+	});
+
 	it('rejects top-level content configs with embedded mode', () => {
 		expect(() =>
 			parseConfigFile(`{

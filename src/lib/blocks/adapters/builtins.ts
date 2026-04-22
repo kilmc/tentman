@@ -198,6 +198,32 @@ const imageAdapter: BlockAdapter = {
 	}
 };
 
+const selectAdapter: BlockAdapter = {
+	type: 'select',
+	getDefaultValue() {
+		return '';
+	},
+	validate(value, usage) {
+		const requiredErrors = validateRequired(value, usage);
+		if (requiredErrors.length > 0) {
+			return requiredErrors;
+		}
+
+		if (value === undefined || value === null || value === '') {
+			return [];
+		}
+
+		if (typeof value !== 'string') {
+			return [`${getBlockLabel(usage)} must be one of the configured options`];
+		}
+
+		const options = usage.options ?? [];
+		return options.some((option) => option.value === value)
+			? []
+			: [`${getBlockLabel(usage)} must be one of the configured options`];
+	}
+};
+
 export const BUILT_IN_BLOCK_ADAPTERS: Record<PrimitiveBlockType, BlockAdapter> = {
 	text: textAdapter,
 	textarea: textareaAdapter,
@@ -207,5 +233,6 @@ export const BUILT_IN_BLOCK_ADAPTERS: Record<PrimitiveBlockType, BlockAdapter> =
 	number: numberAdapter,
 	date: dateAdapter,
 	boolean: booleanAdapter,
-	image: imageAdapter
+	image: imageAdapter,
+	select: selectAdapter
 };
