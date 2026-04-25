@@ -8,6 +8,10 @@ export function parseRootConfig(content: string): RootConfig {
 	return parseRootConfigContent(content);
 }
 
+export function shouldUseLocalConfigCache(rootConfig: RootConfig | null | undefined): boolean {
+	return rootConfig?.debug?.cacheConfigs ?? true;
+}
+
 /**
  * Fetches the root configuration file (.tentman.json) from a repository.
  * This file contains site-wide settings like Netlify site name for preview URLs.

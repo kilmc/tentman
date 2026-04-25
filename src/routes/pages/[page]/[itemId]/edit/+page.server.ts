@@ -4,7 +4,7 @@ import type { Actions } from './$types';
 import { deleteContentDocument } from '$lib/content/service';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
-import { findContentItem } from '$lib/features/content-management/item';
+import { findContentItemByRoute } from '$lib/features/content-management/item';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
 export const actions: Actions = {
@@ -36,7 +36,7 @@ export const actions: Actions = {
 				);
 
 				if (Array.isArray(content)) {
-					const item = findContentItem(content, discoveredConfig.config, itemId);
+					const item = findContentItemByRoute(content, discoveredConfig.config, itemId);
 
 					if (item?._filename) {
 						deleteOptions.filename = item._filename;

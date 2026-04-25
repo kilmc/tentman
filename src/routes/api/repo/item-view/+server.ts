@@ -1,7 +1,7 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { findContentItem } from '$lib/features/content-management/item';
+import { findContentItemByRoute } from '$lib/features/content-management/item';
 import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
@@ -46,7 +46,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			);
 
 			if (Array.isArray(content)) {
-				item = findContentItem(content, discoveredConfig.config, itemId);
+				item = findContentItemByRoute(content, discoveredConfig.config, itemId);
 
 				if (!item && discoveredConfig.config.content.mode === 'file') {
 					const index = Number.parseInt(itemId, 10);

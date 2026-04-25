@@ -11,15 +11,15 @@
 		type PrepareSubmitResult
 	} from '$lib/features/forms/edit-session';
 	import {
-		FORM_WORKSPACE_PANEL,
-		type FormWorkspacePanelContext,
-		type RepeatableWorkspacePanel
-	} from '$lib/features/forms/workspace-panel';
+		FORM_SIDE_PANEL,
+		type FormSidePanelContext,
+		type FormSidePanelState
+	} from '$lib/features/forms/side-panel';
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
-	import RepeatablePanelHost from './RepeatablePanelHost.svelte';
+	import SidePanelHost from './SidePanelHost.svelte';
 
 	interface Props {
 		config: ParsedContentConfig;
@@ -61,22 +61,22 @@
 	}
 
 	const blockRegistry = providedBlockRegistry ?? createBlockRegistry(blockConfigs);
-	const parentWorkspacePanel = hasContext(FORM_WORKSPACE_PANEL)
-		? getContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL)
+	const parentSidePanel = hasContext(FORM_SIDE_PANEL)
+		? getContext<FormSidePanelContext>(FORM_SIDE_PANEL)
 		: null;
-	const ownsWorkspacePanel = parentWorkspacePanel === null;
-	const ownedActivePanel = writable<RepeatableWorkspacePanel | null>(null);
-	const workspacePanel = parentWorkspacePanel ?? {
+	const ownsSidePanel = parentSidePanel === null;
+	const ownedActivePanel = writable<FormSidePanelState | null>(null);
+	const sidePanel = parentSidePanel ?? {
 		activePanel: ownedActivePanel,
-		setActivePanel(panel: RepeatableWorkspacePanel | null) {
+		setActivePanel(panel: FormSidePanelState | null) {
 			ownedActivePanel.set(panel);
 		},
 		session: null
 	};
-	const activeWorkspacePanel = workspacePanel.activePanel;
+	const activeSidePanel = sidePanel.activePanel;
 
-	if (ownsWorkspacePanel) {
-		setContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL, workspacePanel);
+	if (ownsSidePanel) {
+		setContext<FormSidePanelContext>(FORM_SIDE_PANEL, sidePanel);
 	}
 
 	const initialFormData = buildFormData(config, cloneInitialData(initialData), blockRegistry);
@@ -87,10 +87,10 @@
 			onchange?.(formData);
 		},
 		onPanelChange(panel) {
-			workspacePanel.setActivePanel(panel);
+			sidePanel.setActivePanel(panel);
 		}
 	});
-	workspacePanel.session = editSession;
+	sidePanel.session = editSession;
 
 	let formData = $state<Record<string, any>>(editSession.getData());
 	let validationErrors = $state<ValidationError[]>([]);
@@ -195,12 +195,12 @@
 	}
 
 	onDestroy(() => {
-		if (workspacePanel.session === editSession) {
-			workspacePanel.session = null;
+		if (sidePanel.session === editSession) {
+			sidePanel.session = null;
 		}
 		editSession.destroy();
-		if (ownsWorkspacePanel && $activeWorkspacePanel) {
-			workspacePanel.setActivePanel(null);
+		if (ownsSidePanel && $activeSidePanel) {
+			sidePanel.setActivePanel(null);
 		}
 	});
 </script>
@@ -269,9 +269,9 @@
 		{/each}
 	</div>
 
-	{#if ownsWorkspacePanel && $activeWorkspacePanel}
+	{#if ownsSidePanel && $activeSidePanel}
 		<div class="min-h-0 min-w-0">
-			<RepeatablePanelHost panel={$activeWorkspacePanel} />
+			<SidePanelHost panel={$activeSidePanel} />
 		</div>
 	{/if}
 </div>

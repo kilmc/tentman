@@ -1,6 +1,8 @@
 import type {
 	BlockConfig,
 	BlockUsage,
+	CollectionBehaviorConfig,
+	CollectionGroupConfig,
 	ContentConfig,
 	DirectoryContentMode,
 	FileContentMode,
@@ -211,6 +213,50 @@ function readBlocks(value: Record<string, unknown>, context: string): BlockUsage
 	return blocks.map((block, index) => parseBlockUsage(block, `${context}.blocks[${index}]`));
 }
 
+function parseCollectionGroupConfig(input: unknown, context: string): CollectionGroupConfig {
+	assertObject(input, `${context} must be an object`);
+
+	return {
+		...(readOptionalString(input, '_tentmanId', context) && {
+			_tentmanId: readOptionalString(input, '_tentmanId', context)
+		}),
+		label: readRequiredString(input, 'label', context),
+		...(readOptionalString(input, 'slug', context) && {
+			slug: readOptionalString(input, 'slug', context)
+		})
+	};
+}
+
+function parseCollectionBehaviorConfig(
+	input: unknown,
+	context: string
+): CollectionBehaviorConfig | true | undefined {
+	if (input === undefined) {
+		return undefined;
+	}
+
+	if (input === true) {
+		return true;
+	}
+
+	assertObject(input, `${context} must be true or an object`);
+
+	const sorting = input.sorting;
+	if (sorting !== undefined && sorting !== 'manual') {
+		throw new Error(`${context}.sorting must be "manual" when present`);
+	}
+
+	const groups = input.groups;
+	if (groups !== undefined && !Array.isArray(groups)) {
+		throw new Error(`${context}.groups must be an array when present`);
+	}
+
+	return {
+		...(sorting === 'manual' ? { sorting } : {}),
+		...(groups ? { groups: groups.map((group, index) => parseCollectionGroupConfig(group, `${context}.groups[${index}]`)) } : {})
+	};
+}
+
 function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	assertObject(input, `${context} must be an object`);
 
@@ -319,7 +365,7 @@ function parseContentMode(input: unknown, context: string): FileContentMode | Di
 }
 
 function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig {
-	const collection = readOptionalBoolean(input, 'collection', 'config');
+	const collection = parseCollectionBehaviorConfig(input.collection, 'config.collection');
 	const content = parseContentMode(input.content, 'config.content');
 
 	const config: ParsedContentConfig = {
@@ -327,6 +373,9 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 		label: readRequiredString(input, 'label', 'config'),
 		...(readOptionalString(input, 'id', 'config') && {
 			id: readOptionalString(input, 'id', 'config')
+		}),
+		...(readOptionalString(input, '_tentmanId', 'config') && {
+			_tentmanId: readOptionalString(input, '_tentmanId', 'config')
 		}),
 		...(readOptionalString(input, 'itemLabel', 'config') && {
 			itemLabel: readOptionalString(input, 'itemLabel', 'config')
@@ -613,6 +662,9 @@ function parseLegacyContentConfig(input: Record<string, unknown>): ParsedContent
 		...(readOptionalString(input, 'id', 'config') && {
 			id: readOptionalString(input, 'id', 'config')
 		}),
+		...(readOptionalString(input, '_tentmanId', 'config') && {
+			_tentmanId: readOptionalString(input, '_tentmanId', 'config')
+		}),
 		...(readOptionalString(input, 'itemLabel', 'config') && {
 			itemLabel: readOptionalString(input, 'itemLabel', 'config')
 		}),
@@ -643,6 +695,8 @@ export function parseRootConfig(content: string): RootConfig {
 	const pluginsDir = readOptionalString(parsed, 'pluginsDir', 'root');
 	const plugins = readOptionalStringArray(parsed, 'plugins', 'root');
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
+	const debugConfig = parsed.debug;
+	const contentConfig = parsed.content;
 
 	if (siteName) {
 		rootConfig.siteName = siteName;
@@ -670,6 +724,27 @@ export function parseRootConfig(content: string): RootConfig {
 
 	if (blockPackages) {
 		rootConfig.blockPackages = blockPackages;
+	}
+
+	if (debugConfig !== undefined) {
+		assertObject(debugConfig, 'root.debug must be an object');
+
+		const cacheConfigs = readOptionalBoolean(debugConfig, 'cacheConfigs', 'root.debug');
+		rootConfig.debug = {
+			...(cacheConfigs !== undefined ? { cacheConfigs } : {})
+		};
+	}
+
+	if (contentConfig !== undefined) {
+		assertObject(contentConfig, 'root.content must be an object');
+
+		if (contentConfig.sorting !== undefined && contentConfig.sorting !== 'manual') {
+			throw new Error('root.content.sorting must be "manual" when present');
+		}
+
+		rootConfig.content = {
+			...(contentConfig.sorting === 'manual' ? { sorting: 'manual' as const } : {})
+		};
 	}
 
 	if (netlify && typeof netlify === 'object') {

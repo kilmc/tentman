@@ -6,6 +6,7 @@ import {
 	type ParsedBlockConfig,
 	type ParsedContentConfig
 } from '$lib/config/parse';
+import { normalizeRuntimeDiscoveredConfigIdentity } from '$lib/features/content-management/stable-identity';
 import { parseRootConfig } from '$lib/config/root-config';
 import type { RootConfig } from '$lib/config/root-config';
 import { slugify } from '$lib/utils';
@@ -202,8 +203,10 @@ export async function discoverGitHubConfigs(
 			})
 		);
 
-		// Filter out nulls and return
-		return configs.filter((c): c is DiscoveredConfig => c !== null);
+		return normalizeRuntimeDiscoveredConfigIdentity(
+			configs.filter((c): c is DiscoveredConfig => c !== null),
+			rootConfig
+		);
 	} catch (err) {
 		console.error('Failed to discover configs:', err);
 		throw new Error('Failed to discover configuration files in repository');

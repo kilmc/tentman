@@ -40,7 +40,73 @@ describe('parseConfigFile', () => {
 			required: true,
 			show: 'primary'
 		});
-		expect(parsed.collection).toBe(true);
+		expect(parsed.collection).toEqual(true);
+	});
+
+	it('parses manual collection behavior and config-backed groups', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Projects",
+			"_tentmanId": "projects",
+			"itemLabel": "Project",
+			"collection": {
+				"sorting": "manual",
+				"groups": [
+					{ "_tentmanId": "identity", "label": "Identity", "slug": "identity" }
+				]
+			},
+			"idField": "slug",
+			"content": {
+				"mode": "directory",
+				"path": "./projects",
+				"template": "./project.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" },
+				{ "id": "slug", "type": "text", "label": "Slug" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed._tentmanId).toBe('projects');
+		expect(parsed.collection).toEqual({
+			sorting: 'manual',
+			groups: [{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' }]
+		});
+	});
+
+	it('accepts collection groups before Tentman ids have been repaired', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Projects",
+			"itemLabel": "Project",
+			"collection": {
+				"sorting": "manual",
+				"groups": [
+					{ "label": "Identity", "slug": "identity" }
+				]
+			},
+			"content": {
+				"mode": "directory",
+				"path": "./projects",
+				"template": "./project.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed.collection).toEqual({
+			sorting: 'manual',
+			groups: [{ label: 'Identity', slug: 'identity' }]
+		});
 	});
 
 	it('parses block configs in the new explicit schema', () => {
@@ -325,7 +391,10 @@ describe('parseRootConfig', () => {
 			"assetsDir": "./static/images",
 			"pluginsDir": "./tentman/plugins",
 			"plugins": ["buy-button"],
-			"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"]
+			"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"],
+			"debug": {
+				"cacheConfigs": false
+			}
 		}`);
 
 		expect(parsed).toEqual({
@@ -335,7 +404,24 @@ describe('parseRootConfig', () => {
 			assetsDir: './static/images',
 			pluginsDir: './tentman/plugins',
 			plugins: ['buy-button'],
-			blockPackages: ['@tentman/blocks-media', '@acme/tentman-blocks']
+			blockPackages: ['@tentman/blocks-media', '@acme/tentman-blocks'],
+			debug: {
+				cacheConfigs: false
+			}
+		});
+	});
+
+	it('parses root manual sorting settings', () => {
+		expect(
+			parseRootConfig(`{
+				"content": {
+					"sorting": "manual"
+				}
+			}`)
+		).toEqual({
+			content: {
+				sorting: 'manual'
+			}
 		});
 	});
 

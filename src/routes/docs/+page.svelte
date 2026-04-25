@@ -80,6 +80,22 @@
 				'Supported in GitHub-backed/server mode. Local browser-backed mode does not load them yet.'
 		},
 		{
+			field: 'debug.cacheConfigs',
+			required: 'No',
+			type: 'boolean',
+			purpose: 'Enable or disable the local browser-backed config cache.',
+			notes:
+				'Defaults to `true`. Set it to `false` while developing when config files change frequently and you want every load to rescan disk.'
+		},
+		{
+			field: 'content.sorting',
+			required: 'No',
+			type: '"manual"',
+			purpose: 'Opt in to top-level manual ordering.',
+			notes:
+				'When enabled, Tentman writes stable `_tentmanId` values into top-level content configs as needed and uses them in the navigation manifest.'
+		},
+		{
 			field: 'netlify.siteName',
 			required: 'No',
 			type: 'string',
@@ -114,9 +130,17 @@
 			field: 'id',
 			required: 'No',
 			type: 'string',
-			purpose: 'Stable config identifier used by manual navigation.',
+			purpose: 'Optional author-defined config identifier.',
 			notes:
-				'Required in practice for top-level manual ordering via `tentman/navigation-manifest.json`.'
+				'This is no longer Tentman’s internal stable identity for manual ordering. Existing values may be used during migration.'
+		},
+		{
+			field: '_tentmanId',
+			required: 'No',
+			type: 'string',
+			purpose: 'Tentman-managed stable config identifier.',
+			notes:
+				'Added automatically when you opt into top-level manual ordering with `content.sorting: "manual"`.'
 		},
 		{
 			field: 'content',
@@ -135,9 +159,10 @@
 		{
 			field: 'collection',
 			required: 'No',
-			type: 'boolean',
+			type: 'boolean | { sorting?: "manual"; groups?: CollectionGroupConfig[] }',
 			purpose: 'Marks the config as multi-item content.',
-			notes: 'Directory mode defaults to collection behavior.'
+			notes:
+				'Use `true` for the simple form, or the object form to opt into manual ordering and config-backed groups. Directory mode defaults to collection behavior.'
 		},
 		{
 			field: 'itemLabel',
@@ -150,8 +175,9 @@
 			field: 'idField',
 			required: 'No',
 			type: 'string',
-			purpose: 'Stable field used to identify items.',
-			notes: 'Recommended for collections and required in practice for manual collection ordering.'
+			purpose: 'Author-facing route or slug field for collection items.',
+			notes:
+				'Recommended for collections and still required for manual collection ordering, but Tentman’s internal stable item identity is `_tentmanId`.'
 		}
 	];
 
@@ -349,6 +375,7 @@
 		'If `pluginsDir` is set, GitHub-backed plugin module loading only serves `plugin.js` or `plugin.mjs` entrypoints from that directory.',
 		'Files whose names start with an underscore are skipped during top-level content discovery.',
 		'Manual navigation uses the fixed manifest path `tentman/navigation-manifest.json`.',
+		'Opting into manual ordering lets Tentman write stable `_tentmanId` values into configs, collection items, and collection groups when needed.',
 		'JSON is the only supported manual navigation manifest format in v1.',
 		'Package blocks come from installed packages listed in `root.blockPackages`.',
 		'Package blocks are not available in local browser-backed mode yet.',
@@ -359,6 +386,9 @@
   "siteName": "Field Notes",
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
+  "content": {
+    "sorting": "manual"
+  },
   "assetsDir": "./static/images",
   "pluginsDir": "./tentman/plugins",
   "plugins": ["buy-button"],
@@ -371,9 +401,17 @@
 	const contentConfigExample = `{
   "type": "content",
   "label": "Blog Posts",
-  "id": "blog",
   "itemLabel": "Blog Post",
-  "collection": true,
+  "collection": {
+    "sorting": "manual",
+    "groups": [
+      {
+        "_tentmanId": "blog-featured",
+        "label": "Featured posts",
+        "slug": "featured"
+      }
+    ]
+  },
   "idField": "slug",
   "content": {
     "mode": "directory",
@@ -512,16 +550,17 @@ export default {
 	const navigationManifestExample = `{
   "version": 1,
   "content": {
-    "items": ["about", "contact", "blog"]
+    "items": ["page-about", "page-contact", "content-blog"]
   },
   "collections": {
-    "blog": {
-      "items": ["testing-content-workflows", "designing-a-realistic-fixture", "blooop"],
+    "content-blog": {
+      "items": ["post-testing-content-workflows", "post-designing-a-realistic-fixture", "post-blooop"],
       "groups": [
         {
-          "id": "featured",
+          "id": "blog-featured",
           "label": "Featured posts",
-          "items": ["testing-content-workflows", "designing-a-realistic-fixture"]
+          "slug": "featured",
+          "items": ["post-testing-content-workflows", "post-designing-a-realistic-fixture"]
         }
       ]
     }
@@ -622,6 +661,11 @@ export default {
 					Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">content.mode: "file"</code>
 					for singleton pages or JSON collections.
 				</li>
+				<li>
+					Only opt into manual ordering when you need it. Tentman will add stable
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+					values during setup instead of requiring you to author them up front.
+				</li>
 			</ol>
 		</div>
 	</section>
@@ -631,6 +675,13 @@ export default {
 		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
 			The root <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">.tentman.json</code> file is
 			optional. Keep it for project-wide defaults like discovery paths, preview links, and package blocks.
+		</p>
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			If you turn on top-level manual ordering with
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">content.sorting: "manual"</code>,
+			Tentman will add stable top-level
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+			values to content configs as part of setup or repair.
 		</p>
 
 		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
@@ -668,6 +719,13 @@ export default {
 		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
 			A content config describes one editable thing: what it is called, how it is stored, and which
 			fields make up the editor.
+		</p>
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			For manual ordering features, Tentman now owns the stable identity layer. Keep
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>
+			for author-facing routes or slugs, and let Tentman add
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+			where it needs stable internal references.
 		</p>
 
 		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
@@ -906,10 +964,24 @@ export default {
 				>. JSON is the only supported manifest format in v1.
 			</p>
 			<p>
-				Top-level manual ordering requires stable top-level content config
-				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">id</code> values. Manual collection
-				ordering also requires
-				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>.
+				Top-level manual ordering is enabled with root
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">content.sorting: "manual"</code>.
+				Tentman uses top-level config
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+				values internally, while manual collection ordering is enabled with
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+					>collection: {'{'} "sorting": "manual" {'}'}</code
+				>
+				and still uses an author-facing
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>
+				for routes/slugs.
+			</p>
+			<p>
+				You do not need to add these stable ids by hand first. When you opt into top-level or
+				collection manual ordering, Tentman can write missing
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+				values into content configs, collection items, and config-backed groups, repair duplicates,
+				and rewrite legacy manifest references during setup.
 			</p>
 			<ul class="list-disc space-y-2 pl-6">
 				<li>If a manifest section exists, Tentman uses it first.</li>
@@ -917,7 +989,8 @@ export default {
 				<li>Missing manifest references are ignored.</li>
 				<li>Grouped collection navigation is supported in the manifest loader.</li>
 				<li>
-					Select fields can source author-facing group options from a manifest collection with
+					Select fields can source author-facing group options from config-backed collection groups
+					with
 					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
 						>source: "tentman.navigationGroups"</code
 					>.
@@ -925,8 +998,8 @@ export default {
 				<li>
 					When
 					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">addOption: true</code> is set,
-					Tentman lets authors add groups inline and writes the internal
-					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">items: []</code> shape.
+					Tentman lets authors add groups inline and stores the definition in
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.groups</code>.
 				</li>
 				<li>
 					Generic JSON-backed select option sources are intentionally not implemented yet.
@@ -939,7 +1012,11 @@ export default {
 			</ul>
 			<p>
 				In the Tentman UI, enable this from Site settings in the top bar settings menu. Guided setup
-				can add missing config ids, explain when collection ordering is blocked by a missing
+				can add or repair
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+				values, migrate legacy group definitions into
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.groups</code>,
+				explain when collection ordering is blocked by a missing
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>, and generate the
 				initial manifest from the current discovered order.
 			</p>
@@ -999,6 +1076,12 @@ export default {
 		<h2 class="text-2xl font-semibold text-stone-950">Examples</h2>
 		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
 			If you are starting from scratch, most projects only need one or two of these shapes.
+		</p>
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			These examples show the steady-state config shapes. If you enable manual ordering later, Tentman
+			can add or reconcile the stable
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
+			values it needs instead of requiring a manual migration first.
 		</p>
 
 		<div class="mt-6 space-y-6">

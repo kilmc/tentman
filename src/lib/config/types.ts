@@ -80,12 +80,24 @@ export interface DirectoryContentMode {
 
 export type ContentMode = EmbeddedContentMode | FileContentMode | DirectoryContentMode;
 
+export interface CollectionGroupConfig {
+	_tentmanId?: string;
+	label: string;
+	slug?: string;
+}
+
+export interface CollectionBehaviorConfig {
+	sorting?: 'manual';
+	groups?: CollectionGroupConfig[];
+}
+
 export interface ContentConfig {
 	type: 'content';
 	label: string;
 	id?: string;
+	_tentmanId?: string;
 	itemLabel?: string;
-	collection?: boolean;
+	collection?: boolean | CollectionBehaviorConfig;
 	idField?: string;
 	content: FileContentMode | DirectoryContentMode;
 	blocks: BlockUsage[];
@@ -111,6 +123,12 @@ export interface RootConfig {
 	pluginsDir?: string;
 	plugins?: string[];
 	blockPackages?: string[];
+	debug?: {
+		cacheConfigs?: boolean;
+	};
+	content?: {
+		sorting?: 'manual';
+	};
 	netlify?: {
 		siteName: string;
 	};

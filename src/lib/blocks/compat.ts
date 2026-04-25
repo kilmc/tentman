@@ -9,6 +9,7 @@ export function toBlockAdapterUsageFromBlock(block: BlockUsage): BlockAdapterUsa
 		...(block.required !== undefined && { required: block.required }),
 		...(block.collection !== undefined && { collection: block.collection }),
 		...(block.minLength !== undefined && { minLength: block.minLength }),
-		...(block.maxLength !== undefined && { maxLength: block.maxLength })
+		...(block.maxLength !== undefined && { maxLength: block.maxLength }),
+		...(block.type === 'select' && block.options ? { options: block.options } : {})
 	};
 }

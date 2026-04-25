@@ -54,7 +54,11 @@ export const load: PageLoad = async ({ parent, fetch }) => {
 		);
 	}
 
-	const orderedConfigs = orderDiscoveredConfigs(configs, navigationManifest.manifest);
+	const orderedConfigs = orderDiscoveredConfigs(
+		configs,
+		navigationManifest.manifest,
+		parentData.rootConfig ?? null
+	);
 
 	if (orderedConfigs.length === 0) {
 		return {

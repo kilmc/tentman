@@ -116,4 +116,43 @@ describe('structured block adapters', () => {
 			{ field: 'gallery', message: 'Gallery item 1: Caption is required' }
 		]);
 	});
+
+	it('preserves nested select options during validation', () => {
+		const config = parseConfigFile(`{
+			"type": "content",
+			"label": "Projects",
+			"content": { "mode": "file", "path": "./projects.json" },
+			"blocks": [
+				{
+					"id": "gallery",
+					"type": "block",
+					"label": "Gallery",
+					"blocks": [
+						{
+							"id": "layout",
+							"type": "select",
+							"label": "Layout",
+							"required": true,
+							"options": ["stack", "inline"]
+						}
+					]
+				}
+			]
+		}`);
+
+		if (config.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(
+			validateFormData(
+				config,
+				{
+					gallery: { layout: 'inline' }
+				},
+				undefined,
+				createBlockRegistry([])
+			)
+		).toEqual([]);
+	});
 });

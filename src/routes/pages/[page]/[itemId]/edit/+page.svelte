@@ -14,7 +14,10 @@
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
-	import { findContentItem, formatContentValue } from '$lib/features/content-management/item';
+	import {
+		findContentItemByRoute,
+		formatContentValue
+	} from '$lib/features/content-management/item';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
@@ -28,7 +31,10 @@
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 	import { writeNavigationManifest } from '$lib/features/content-management/navigation-manifest';
-	import { addNavigationGroupToManifest } from '$lib/features/content-management/navigation-group-options';
+	import {
+		addCollectionGroupToConfigSource,
+		addNavigationGroupToManifest
+	} from '$lib/features/content-management/navigation-group-options';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -139,7 +145,7 @@
 			}
 
 			if (Array.isArray(loadedContent)) {
-				item = findContentItem(loadedContent, discoveredConfig.config, itemId) ?? null;
+				item = findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
 			}
 		} catch (error) {
 			if (requestId !== localLoadRequest) {
@@ -167,6 +173,15 @@
 				throw new Error('No local repository is open.');
 			}
 
+			if (!discoveredConfig) {
+				throw new Error('Collection config not found.');
+			}
+
+			const configSource = await repoState.backend.readTextFile(discoveredConfig.path);
+			await repoState.backend.writeTextFile(
+				discoveredConfig.path,
+				addCollectionGroupToConfigSource(configSource, input)
+			);
 			const manifest = addNavigationGroupToManifest(navigationManifest?.manifest, input);
 			await writeNavigationManifest(repoState.backend, manifest);
 			await localContent.refresh({ force: true });
@@ -181,6 +196,7 @@
 			},
 			body: JSON.stringify({
 				action: 'add-collection-group',
+				branchName: get(draftBranchStore).branchName,
 				...input
 			})
 		});
@@ -191,6 +207,9 @@
 
 		const result = await response.json();
 		navigationManifest = result.navigationManifest;
+		if (result.branchName && data.selectedRepo) {
+			draftBranchStore.setBranch(result.branchName, data.selectedRepo.full_name);
+		}
 	}
 
 	$effect(() => {

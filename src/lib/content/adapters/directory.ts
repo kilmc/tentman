@@ -3,10 +3,16 @@ import type { ParsedContentConfig } from '$lib/config/parse';
 import { generateCommitMessage } from '$lib/github/commit';
 import {
 	buildCollectionFilePath,
+	getCollectionFilenameBase,
 	parseCollectionItem,
 	processTemplate,
 	serializeCollectionItem
 } from '$lib/features/content-management/transforms';
+import { getItemSlug } from '$lib/features/content-management/item';
+import {
+	ensureTentmanItemId,
+	normalizeRuntimeCollectionItemIds
+} from '$lib/features/content-management/stable-identity';
 import { ensureBufferGlobal, getUtf8ByteLength } from '$lib/utils/text';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { resolveConfigPath } from '$lib/utils/validation';
@@ -106,9 +112,13 @@ async function previewDirectoryContent(
 	const info = getDirectoryInfo(context);
 
 	if (options?.isNew) {
-		const filename = ensureFilename(options.newFilename || 'new-item', info.templateExt);
+		const nextData = ensureTentmanItemId(asDirectoryBackedConfig(context), data);
+		const filename = ensureFilename(
+			options.newFilename || getCollectionFilenameBase(asDirectoryBackedConfig(context), nextData),
+			info.templateExt
+		);
 		const filePath = buildCollectionFilePath(info.resolvedDirectoryPath, filename);
-		const newContent = await buildCreatedContent(context, data, info, options?.branch);
+		const newContent = await buildCreatedContent(context, nextData, info, options?.branch);
 
 		return {
 			files: [
@@ -129,7 +139,8 @@ async function previewDirectoryContent(
 
 	const oldFilePath = buildCollectionFilePath(info.resolvedDirectoryPath, options.filename);
 	const oldContent = await context.backend.readTextFile(oldFilePath, { ref: options.branch });
-	const newContent = serializeCollectionItem(data, info.isMarkdown);
+	const nextData = ensureTentmanItemId(asDirectoryBackedConfig(context), data);
+	const newContent = serializeCollectionItem(nextData, info.isMarkdown);
 
 	if (options.newFilename && options.newFilename !== options.filename) {
 		const newFilename = ensureFilename(options.newFilename, info.templateExt);
@@ -201,7 +212,10 @@ async function fetchDirectoryContent(
 		})
 	);
 
-	return items.filter((item): item is ContentRecord => item !== null);
+	return normalizeRuntimeCollectionItemIds(
+		context.config,
+		items.filter((item): item is ContentRecord => item !== null)
+	);
 }
 
 async function saveDirectoryContent(
@@ -215,9 +229,10 @@ async function saveDirectoryContent(
 
 	const info = getDirectoryInfo(context);
 	const oldFilePath = buildCollectionFilePath(info.resolvedDirectoryPath, options.filename);
-	const content = serializeCollectionItem(data, info.isMarkdown);
+	const nextData = ensureTentmanItemId(asDirectoryBackedConfig(context), data);
+	const content = serializeCollectionItem(nextData, info.isMarkdown);
 	const config = asDirectoryBackedConfig(context);
-	const itemIdentifier = config.idField ? String(data[config.idField]) : options.filename;
+	const itemIdentifier = getItemSlug(config, nextData) ?? options.filename;
 
 	if (options.newFilename && options.newFilename !== options.filename) {
 		const newFilename = ensureFilename(options.newFilename, info.templateExt);
@@ -252,10 +267,14 @@ async function createDirectoryContent(
 ): Promise<void> {
 	const info = getDirectoryInfo(context);
 	const config = asDirectoryBackedConfig(context);
-	const content = await buildCreatedContent(context, data, info, options?.branch);
-	const filename = ensureFilename(options?.filename || 'new-item', info.templateExt);
+	const nextData = ensureTentmanItemId(config, data);
+	const content = await buildCreatedContent(context, nextData, info, options?.branch);
+	const filename = ensureFilename(
+		options?.filename || getCollectionFilenameBase(config, nextData),
+		info.templateExt
+	);
 	const filePath = buildCollectionFilePath(info.resolvedDirectoryPath, filename);
-	const itemIdentifier = config.idField ? String(data[config.idField]) : filename;
+	const itemIdentifier = getItemSlug(config, nextData) ?? filename;
 	const message = generateCommitMessage('create', config.label, itemIdentifier);
 
 	await context.backend.writeTextFile(filePath, content, getWriteOptions(options?.branch, message));

@@ -1,4 +1,5 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
+import { getCollectionGroups } from '$lib/features/content-management/config';
 import type {
 	NavigationManifest,
 	NavigationManifestGroup
@@ -53,7 +54,7 @@ function getCollectionDraft(
 	manifest: NavigationManifest | null | undefined,
 	collectionNavigationBySlug: CollectionNavigationMap
 ): NavigationDraftCollection | null {
-	const configId = config.config.id;
+	const configId = config.config._tentmanId;
 	if (!config.config.collection || !configId) {
 		return null;
 	}
@@ -83,27 +84,46 @@ function getCollectionDraft(
 			manifestSection.items,
 			manifestSection.groups
 		),
-		groups: cloneGroups(manifestSection.groups ?? [])
+		groups: getCollectionGroups(config.config).flatMap((group) => {
+			if (!group._tentmanId) {
+				return [];
+			}
+
+			const manifestGroup = (manifestSection.groups ?? []).find(
+				(candidate) => candidate.id === group._tentmanId
+			);
+
+			return [
+				{
+					id: group._tentmanId,
+					label: group.label,
+					items: [...(manifestGroup?.items ?? [])]
+				}
+			];
+		})
 	};
 }
 
 export function createNavigationDraft(
 	configs: DiscoveredConfig[],
 	manifest: NavigationManifest | null | undefined,
-	collectionNavigationBySlug: CollectionNavigationMap
+	collectionNavigationBySlug: CollectionNavigationMap,
+	rootConfig?: { content?: { sorting?: 'manual' } } | null
 ): NavigationDraft {
-	const orderedConfigs = orderDiscoveredConfigs(configs, manifest);
+	const orderedConfigs = orderDiscoveredConfigs(configs, manifest, rootConfig);
 
 	return {
-		contentOrder: orderedConfigs.flatMap((config) => (config.config.id ? [config.config.id] : [])),
+		contentOrder: orderedConfigs.flatMap((config) =>
+			config.config._tentmanId ? [config.config._tentmanId] : []
+		),
 		collections: Object.fromEntries(
 			orderedConfigs.flatMap((config) => {
 				const draft = getCollectionDraft(config, manifest, collectionNavigationBySlug);
-				if (!draft || !config.config.id) {
+				if (!draft || !config.config._tentmanId) {
 					return [];
 				}
 
-				return [[config.config.id, draft] as const];
+				return [[config.config._tentmanId, draft] as const];
 			})
 		)
 	};

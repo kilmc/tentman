@@ -27,26 +27,12 @@ export const actions: Actions = {
 			const encodedData = Buffer.from(JSON.stringify(contentData)).toString('base64url');
 
 			// Directory-backed collections need an explicit filename
-			const newFilename =
-				discoveredConfig.config.content.mode === 'directory'
-					? (formData.get('newFilename') as string)
-					: undefined;
-
-			if (discoveredConfig.config.content.mode === 'directory') {
-				if (!newFilename) {
-					return fail(400, {
-						error: 'Filename is required for collection items'
-					});
-				}
-			}
-
 			// Redirect to preview-changes page
 			throw redirect(
 				303,
 				buildPathWithQuery(`/pages/${params.page}/${itemId}/preview-changes`, {
 					data: encodedData,
 					new: 'true',
-					newFilename: newFilename?.trim(),
 					branch
 				})
 			);

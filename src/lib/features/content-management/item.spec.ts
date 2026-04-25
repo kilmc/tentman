@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatContentValue, getContentItemId } from './item';
+import { findContentItemByRoute, formatContentValue, getItemId, getItemRoute } from './item';
 import {
 	isParsedContentConfig,
 	parseConfigFile,
@@ -20,7 +20,7 @@ const arrayConfig = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
-	"collection": true,
+	"collection": { "sorting": "manual" },
 	"idField": "slug",
 	"content": {
 		"mode": "file",
@@ -37,7 +37,7 @@ const collectionConfig = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
-	"collection": true,
+	"collection": { "sorting": "manual" },
 	"idField": "slug",
 	"content": {
 		"mode": "directory",
@@ -53,11 +53,22 @@ const collectionConfig = parseContentConfigFixture(`{
 
 describe('content-management/item', () => {
 	it('resolves item ids for array content', () => {
-		expect(getContentItemId(arrayConfig, { slug: 'hello-world' })).toBe('hello-world');
+		expect(getItemId({ _tentmanId: 'post-1', slug: 'hello-world' })).toBe('post-1');
+		expect(getItemRoute(arrayConfig, { _tentmanId: 'post-1', slug: 'hello-world' })).toBe(
+			'hello-world'
+		);
 	});
 
-	it('resolves item ids for collection content from filenames', () => {
-		expect(getContentItemId(collectionConfig, { _filename: 'hello-world.md' })).toBe('hello-world');
+	it('falls back to the Tentman id for routes when no slug field is available', () => {
+		expect(getItemRoute(collectionConfig, { _tentmanId: 'post-2' })).toBe('post-2');
+	});
+
+	it('finds items by stable Tentman id as well as route slug', () => {
+		const item = { _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello World' };
+		const items = [item];
+
+		expect(findContentItemByRoute(items, collectionConfig, 'hello-world')).toBe(item);
+		expect(findContentItemByRoute(items, collectionConfig, 'post-1')).toBe(item);
 	});
 
 	it('formats display values consistently', () => {

@@ -7,6 +7,7 @@
 
 	const hasChanges = $derived(data.summary.changedPages.length > 0);
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
+	const localDiscoveryError = $derived(isLocalMode ? $localContent.error : null);
 	const hasConfigs = $derived(isLocalMode ? $localContent.configs.length > 0 : data.summary.hasConfigs);
 	const canAddPage = $derived(
 		isLocalMode ? $localContent.instructionDiscovery.instructions.length > 0 : data.canAddPage
@@ -49,7 +50,12 @@
 		</section>
 	{/if}
 
-	{#if !hasConfigs}
+	{#if localDiscoveryError}
+		<section class="rounded-xl border border-red-200 bg-red-50 p-5">
+			<h2 class="text-xl font-semibold text-red-950">Tentman couldn’t read this repo’s config</h2>
+			<p class="mt-2 text-sm text-red-900">{localDiscoveryError}</p>
+		</section>
+	{:else if !hasConfigs}
 		<section class="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
 			<h2 class="text-xl font-semibold text-yellow-950">No content configs found</h2>
 			<p class="mt-2 text-sm text-yellow-900">

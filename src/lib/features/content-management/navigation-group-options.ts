@@ -4,6 +4,7 @@ import type {
 	SelectBlockOptions
 } from '$lib/config/types';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
+import { createTentmanId } from '$lib/features/content-management/stable-identity';
 
 export interface NewNavigationGroupInput {
 	collection: string;
@@ -137,4 +138,60 @@ export function addNavigationGroupToManifest(
 	};
 
 	return nextManifest;
+}
+
+export function addCollectionGroupToConfigSource(
+	source: string,
+	input: NewNavigationGroupInput
+): string {
+	const parsed = JSON.parse(source) as unknown;
+
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		throw new Error('Content config must be a JSON object');
+	}
+
+	const config = parsed as Record<string, unknown>;
+	if (config.type !== 'content') {
+		throw new Error('Only content configs can receive collection groups');
+	}
+
+	const collection = config.collection;
+	const nextGroup = {
+		_tentmanId: createTentmanId(),
+		label: input.label.trim(),
+		slug: input.id.trim()
+	};
+
+	if (collection === true) {
+		config.collection = {
+			groups: [nextGroup]
+		};
+		return `${JSON.stringify(config, null, '\t')}\n`;
+	}
+
+	if (!collection || typeof collection !== 'object' || Array.isArray(collection)) {
+		throw new Error('Collection groups can only be added to collection content configs');
+	}
+
+	const collectionConfig = collection as Record<string, unknown>;
+	const currentGroups = Array.isArray(collectionConfig.groups)
+		? (collectionConfig.groups as Array<Record<string, unknown>>)
+		: [];
+
+	if (
+		currentGroups.some(
+			(group) =>
+				(typeof group.slug === 'string' && group.slug === nextGroup.slug) ||
+				(typeof group.label === 'string' && group.label === nextGroup.label)
+		)
+	) {
+		throw new Error(`A group with slug "${nextGroup.slug}" already exists`);
+	}
+
+	config.collection = {
+		...collectionConfig,
+		groups: [...currentGroups, nextGroup]
+	};
+
+	return `${JSON.stringify(config, null, '\t')}\n`;
 }

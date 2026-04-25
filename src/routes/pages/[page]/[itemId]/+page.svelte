@@ -12,7 +12,7 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument } from '$lib/content/service';
-	import { findContentItem } from '$lib/features/content-management/item';
+	import { findContentItemByRoute } from '$lib/features/content-management/item';
 
 	let { data }: { data: PageData } = $props();
 
@@ -98,7 +98,7 @@
 			}
 
 			if (Array.isArray(loadedContent)) {
-				item = findContentItem(loadedContent, discoveredConfig.config, itemId) ?? null;
+				item = findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
 			}
 		} catch (error) {
 			if (requestId !== localLoadRequest) {

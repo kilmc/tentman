@@ -11,8 +11,12 @@ import type { ParsedContentConfig } from '$lib/config/parse';
 const collectionConfig: ParsedContentConfig = {
 	type: 'content',
 	label: 'Blog Posts',
+	_tentmanId: 'posts',
 	itemLabel: 'Blog Post',
-	collection: true,
+	collection: {
+		sorting: 'manual',
+		groups: [{ _tentmanId: 'featured', label: 'Featured', slug: 'featured' }]
+	},
 	idField: 'slug',
 	content: {
 		mode: 'directory',
@@ -42,23 +46,29 @@ describe('content navigation helpers', () => {
 
 	it('builds item titles from visible content fields', () => {
 		expect(
-			getContentItemTitle(collectionConfig, { title: 'Hello World', slug: 'hello-world' })
+			getContentItemTitle(collectionConfig, {
+				_tentmanId: 'post-1',
+				title: 'Hello World',
+				slug: 'hello-world'
+			})
 		).toBe('Hello World');
 	});
 
-	it('falls back to the item id when a visible title is missing', () => {
-		expect(getContentItemTitle(collectionConfig, { slug: 'hello-world' })).toBe('hello-world');
+	it('falls back to the item route when a visible title is missing', () => {
+		expect(
+			getContentItemTitle(collectionConfig, { _tentmanId: 'post-1', slug: 'hello-world' })
+		).toBe('hello-world');
 	});
 
-	it('builds collection navigation items with ids and titles', () => {
+	it('builds collection navigation items with stable ids and titles', () => {
 		expect(
 			getCollectionNavigationItems(collectionConfig, [
-				{ title: 'Hello World', slug: 'hello-world' },
-				{ title: 'Second Post', slug: 'second-post' }
+				{ _tentmanId: 'post-1', title: 'Hello World', slug: 'hello-world' },
+				{ _tentmanId: 'post-2', title: 'Second Post', slug: 'second-post' }
 			])
 		).toEqual([
-			{ itemId: 'hello-world', title: 'Hello World', sortDate: null },
-			{ itemId: 'second-post', title: 'Second Post', sortDate: null }
+			{ itemId: 'post-1', title: 'Hello World', sortDate: null },
+			{ itemId: 'post-2', title: 'Second Post', sortDate: null }
 		]);
 	});
 
@@ -71,7 +81,8 @@ describe('content navigation helpers', () => {
 						path: 'content/about.tentman.json',
 						config: {
 							...collectionConfig,
-							id: 'about',
+							_tentmanId: 'about',
+							collection: false,
 							label: 'About'
 						}
 					},
@@ -80,7 +91,7 @@ describe('content navigation helpers', () => {
 						path: 'content/posts.tentman.json',
 						config: {
 							...collectionConfig,
-							id: 'posts'
+							_tentmanId: 'posts'
 						}
 					},
 					{
@@ -88,7 +99,8 @@ describe('content navigation helpers', () => {
 						path: 'content/contact.tentman.json',
 						config: {
 							...collectionConfig,
-							id: 'contact',
+							_tentmanId: 'contact',
+							collection: false,
 							label: 'Contact'
 						}
 					}
@@ -98,7 +110,8 @@ describe('content navigation helpers', () => {
 					content: {
 						items: ['posts', 'about']
 					}
-				}
+				},
+				{ content: { sorting: 'manual' } }
 			).map((config) => config.slug)
 		).toEqual(['posts', 'about', 'contact']);
 	});
@@ -106,25 +119,22 @@ describe('content navigation helpers', () => {
 	it('uses grouped collection navigation from the manifest and appends ungrouped items', () => {
 		expect(
 			getOrderedCollectionNavigation(
-				{
-					...collectionConfig,
-					id: 'posts'
-				},
+				collectionConfig,
 				[
-					{ title: 'Hello World', slug: 'hello-world' },
-					{ title: 'Second Post', slug: 'second-post' },
-					{ title: 'Third Post', slug: 'third-post' }
+					{ _tentmanId: 'post-1', title: 'Hello World', slug: 'hello-world' },
+					{ _tentmanId: 'post-2', title: 'Second Post', slug: 'second-post' },
+					{ _tentmanId: 'post-3', title: 'Third Post', slug: 'third-post' }
 				],
 				{
 					version: 1,
 					collections: {
 						posts: {
-							items: ['second-post', 'hello-world'],
+							items: ['post-2', 'post-1'],
 							groups: [
 								{
 									id: 'featured',
 									label: 'Featured',
-									items: ['second-post']
+									items: ['post-2']
 								}
 							]
 						}
@@ -136,12 +146,12 @@ describe('content navigation helpers', () => {
 				{
 					id: 'featured',
 					label: 'Featured',
-					items: [{ itemId: 'second-post', title: 'Second Post', sortDate: null }]
+					items: [{ itemId: 'post-2', title: 'Second Post', sortDate: null }]
 				}
 			],
 			items: [
-				{ itemId: 'hello-world', title: 'Hello World', sortDate: null },
-				{ itemId: 'third-post', title: 'Third Post', sortDate: null }
+				{ itemId: 'post-1', title: 'Hello World', sortDate: null },
+				{ itemId: 'post-3', title: 'Third Post', sortDate: null }
 			]
 		});
 	});

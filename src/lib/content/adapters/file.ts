@@ -2,6 +2,11 @@ import { JSONPath } from 'jsonpath-plus';
 import { findBlockById } from '$lib/config/blocks';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { generateCommitMessage } from '$lib/github/commit';
+import { getItemId, getItemRoute, getItemSlug } from '$lib/features/content-management/item';
+import {
+	ensureTentmanItemId,
+	normalizeRuntimeCollectionItemIds
+} from '$lib/features/content-management/stable-identity';
 import { detectJsonIndent, toJsonFileContent } from '$lib/features/content-management/transforms';
 import { getUtf8ByteLength } from '$lib/utils/text';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
@@ -98,6 +103,17 @@ function maybeAssignGeneratedId(config: FileCollectionConfig, item: ContentRecor
 	}
 }
 
+function getItemIndexByRouteOrId(
+	items: ContentRecord[],
+	config: ParsedContentConfig,
+	itemRouteOrId: string
+): number {
+	return items.findIndex(
+		(item) =>
+			getItemRoute(config, item) === itemRouteOrId || getItemId(item) === itemRouteOrId
+	);
+}
+
 async function previewFileContent(
 	context: ContentOperationContext,
 	data: ContentRecord,
@@ -147,22 +163,23 @@ async function previewFileContent(
 	const json = JSON.parse(oldContent) as JsonContainer;
 	const indent = detectJsonIndent(oldContent);
 	const items = getArrayItems(json, config);
+	const nextData = ensureTentmanItemId(config, data);
 
 	if (options?.isNew) {
-		items.push(data);
-	} else if (config.idField && options?.itemId !== undefined) {
-		const index = items.findIndex((item) => item[config.idField!] === options.itemId);
+		items.push(nextData);
+	} else if (options?.itemId !== undefined) {
+		const index = getItemIndexByRouteOrId(items, config, options.itemId);
 		if (index === -1) {
 			throw new Error('Item not found in file-backed collection');
 		}
 
-		items[index] = data;
+		items[index] = nextData;
 	} else if (options?.itemIndex !== undefined) {
 		if (options.itemIndex < 0 || options.itemIndex >= items.length) {
 			throw new Error('Item not found in file-backed collection');
 		}
 
-		items[options.itemIndex] = data;
+		items[options.itemIndex] = nextData;
 	} else {
 		throw new Error('itemId or itemIndex is required to preview file-backed collection updates');
 	}
@@ -198,7 +215,7 @@ async function fetchFileContent(
 
 	const json = JSON.parse(raw);
 	const items = getArrayItems(json as JsonContainer, config);
-	return items;
+	return normalizeRuntimeCollectionItemIds(config, items);
 }
 
 async function saveFileContent(
@@ -224,23 +241,22 @@ async function saveFileContent(
 
 	const { filePath, json, indent } = await readJsonFile(context, options?.branch);
 	const items = getArrayItems(json, config);
+	const nextData = ensureTentmanItemId(config, data);
 
 	let itemIdentifier: string | undefined;
 	let itemFound = false;
 
-	if (config.idField && options?.itemId !== undefined) {
-		const index = items.findIndex((item) => item[config.idField!] === options.itemId);
+	if (options?.itemId !== undefined) {
+		const index = getItemIndexByRouteOrId(items, config, options.itemId);
 		if (index !== -1) {
-			items[index] = data;
-			itemIdentifier = String(options.itemId);
+			items[index] = nextData;
+			itemIdentifier = getItemSlug(config, nextData) ?? String(options.itemId);
 			itemFound = true;
 		}
 	} else if (options?.itemIndex !== undefined) {
 		if (options.itemIndex >= 0 && options.itemIndex < items.length) {
-			items[options.itemIndex] = data;
-			itemIdentifier = config.idField
-				? String(data[config.idField])
-				: `item ${options.itemIndex + 1}`;
+			items[options.itemIndex] = nextData;
+			itemIdentifier = getItemSlug(config, nextData) ?? `item ${options.itemIndex + 1}`;
 			itemFound = true;
 		}
 	}
@@ -272,13 +288,13 @@ async function createFileContent(
 
 	const { filePath, json, indent } = await readJsonFile(context, options?.branch);
 	const items = getArrayItems(json, config);
-	const newItem = { ...data };
+	const newItem = ensureTentmanItemId(config, { ...data });
 
 	maybeAssignGeneratedId(config, newItem);
 	items.push(newItem);
 	writeArrayItems(json, config, items);
 
-	const itemIdentifier = config.idField ? String(newItem[config.idField]) : 'new item';
+	const itemIdentifier = getItemSlug(config, newItem) ?? 'new item';
 	const message = generateCommitMessage('create', config.label, itemIdentifier);
 
 	await context.backend.writeTextFile(
@@ -304,19 +320,17 @@ async function deleteFileContent(
 	let itemIdentifier: string | undefined;
 	let itemFound = false;
 
-	if (config.idField && options.itemId !== undefined) {
-		const index = items.findIndex((item) => item[config.idField!] === options.itemId);
+	if (options.itemId !== undefined) {
+		const index = getItemIndexByRouteOrId(items, config, options.itemId);
 		if (index !== -1) {
-			itemIdentifier = String(options.itemId);
+			itemIdentifier = getItemSlug(config, items[index]!) ?? String(options.itemId);
 			items.splice(index, 1);
 			itemFound = true;
 		}
 	} else if (options.itemIndex !== undefined) {
 		if (options.itemIndex >= 0 && options.itemIndex < items.length) {
 			const item = items[options.itemIndex];
-			itemIdentifier = config.idField
-				? String(item[config.idField])
-				: `item ${options.itemIndex + 1}`;
+			itemIdentifier = getItemSlug(config, item) ?? `item ${options.itemIndex + 1}`;
 			items.splice(options.itemIndex, 1);
 			itemFound = true;
 		}

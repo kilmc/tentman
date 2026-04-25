@@ -1,5 +1,6 @@
 import matter from 'gray-matter';
 import type { ParsedContentConfig } from '$lib/config/parse';
+import { getItemId, getItemSlug } from '$lib/features/content-management/item';
 import { decodeBase64ToUtf8, ensureBufferGlobal } from '$lib/utils/text';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type { ContentRecord, TemplateInfo, ContentValue } from './types';
@@ -105,4 +106,19 @@ export function processTemplate(template: string, data: ContentRecord): string {
 
 export function buildCollectionFilePath(templateDir: string, filename: string): string {
 	return templateDir ? `${templateDir}/${filename}` : filename;
+}
+
+export function stripFileExtension(filename: string): string {
+	return filename.replace(/\.[^/.]+$/, '');
+}
+
+export function getCollectionFilenameBase(
+	config: DirectoryBackedConfig,
+	data: ContentRecord
+): string {
+	if (config.content.filename) {
+		return processTemplate(config.content.filename, data);
+	}
+
+	return getItemSlug(config, data) ?? getItemId(data) ?? 'item';
 }

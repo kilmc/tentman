@@ -16,7 +16,7 @@ vi.mock('$lib/server/auth/github', async () => {
 });
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
-	buildNavigationManifestFromRepository: vi.fn(async () => ({
+	reconcileManualNavigationSetup: vi.fn(async () => ({
 		version: 1,
 		content: {
 			items: ['about', 'posts']
@@ -34,6 +34,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 		error: null
 	})),
 	parseNavigationManifest: vi.fn((value: string) => JSON.parse(value)),
+	writeRootManualSorting: vi.fn(async () => {}),
 	writeMissingContentConfigIds: vi.fn(async () => []),
 	writeNavigationManifest: vi.fn(async () => {})
 }));
@@ -43,18 +44,44 @@ vi.mock('$lib/repository/github', () => ({
 		kind: 'github',
 		cacheKey: 'github:acme/docs',
 		label: 'acme/docs',
-		supportsDraftBranches: true
+		supportsDraftBranches: true,
+		readRootConfig: vi.fn(async () => null),
+		readTextFile: vi.fn(async () =>
+			JSON.stringify({
+				type: 'content',
+				label: 'Projects',
+				collection: {
+					sorting: 'manual'
+				},
+				content: {
+					mode: 'directory',
+					path: './projects',
+					template: './project.md'
+				},
+				blocks: []
+			})
+		),
+		writeTextFile: vi.fn(async () => {})
 	}))
+}));
+
+vi.mock('$lib/features/draft-publishing/service', () => ({
+	ensureDraftBranch: vi.fn(async () => ({
+		branchName: 'preview-2026-04-24',
+		created: false
+	})),
+	getLatestPreviewBranchName: vi.fn(async () => 'preview-2026-04-24')
 }));
 
 import { POST } from '../../routes/api/repo/navigation-manifest/+server';
 import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
 import {
-	buildNavigationManifestFromRepository,
 	loadNavigationManifestState,
+	reconcileManualNavigationSetup,
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
+import { ensureDraftBranch, getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 
 function createCookies() {
 	return {
@@ -122,11 +149,20 @@ describe('POST /api/repo/navigation-manifest', () => {
 		} as never);
 
 		expect(writeMissingContentConfigIds).toHaveBeenCalled();
-		expect(invalidateCache).toHaveBeenCalledWith('github:acme/docs');
-		expect(buildNavigationManifestFromRepository).toHaveBeenCalled();
+		expect(getLatestPreviewBranchName).toHaveBeenCalled();
+		expect(ensureDraftBranch).toHaveBeenCalledWith(
+			expect.anything(),
+			'acme',
+			'docs',
+			'preview-2026-04-24'
+		);
+		expect(reconcileManualNavigationSetup).toHaveBeenCalled();
 		expect(writeNavigationManifest).toHaveBeenCalled();
 		expect(await response.json()).toEqual({
-			navigationManifest: await loadNavigationManifestState({} as never)
+			navigationManifest: await loadNavigationManifestState({} as never, {
+				ref: 'preview-2026-04-24'
+			}),
+			branchName: 'preview-2026-04-24'
 		});
 	});
 
@@ -170,13 +206,31 @@ describe('POST /api/repo/navigation-manifest', () => {
 				}
 			},
 			{
-				message: 'Update Tentman navigation manifest'
+				message: 'Update Tentman navigation manifest',
+				ref: 'preview-2026-04-24'
 			}
 		);
 	});
 
 	it('adds a collection group through the manifest endpoint', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([] as never);
+		vi.mocked(getCachedConfigs).mockResolvedValue([
+			{
+				slug: 'projects',
+				path: 'content/projects.tentman.json',
+				config: {
+					type: 'content',
+					_tentmanId: 'projects',
+					label: 'Projects',
+					collection: {
+						sorting: 'manual'
+					},
+					content: {
+						mode: 'directory'
+					},
+					blocks: []
+				}
+			}
+		] as never);
 		vi.mocked(loadNavigationManifestState).mockResolvedValueOnce({
 			path: 'tentman/navigation-manifest.json',
 			exists: false,
@@ -213,6 +267,9 @@ describe('POST /api/repo/navigation-manifest', () => {
 			expect.anything(),
 			{
 				version: 1,
+				content: {
+					items: ['about', 'posts']
+				},
 				collections: {
 					projects: {
 						items: [],
@@ -221,7 +278,8 @@ describe('POST /api/repo/navigation-manifest', () => {
 				}
 			},
 			{
-				message: 'Update Tentman navigation manifest'
+				message: 'Update Tentman navigation manifest',
+				ref: 'preview-2026-04-24'
 			}
 		);
 	});

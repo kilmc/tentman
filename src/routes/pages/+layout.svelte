@@ -12,15 +12,15 @@
 	import type { LayoutData } from './$types';
 	import type { DiscoveredConfig } from '$lib/config/discovery';
 	import { fetchContentDocument } from '$lib/content/service';
-	import CollectionIndex from '$lib/features/content-management/components/CollectionIndex.svelte';
-	import PagesSidebar from '$lib/features/content-management/components/PagesSidebar.svelte';
-	import PagesTopbar from '$lib/features/content-management/components/PagesTopbar.svelte';
-	import RepeatablePanelHost from '$lib/components/form/RepeatablePanelHost.svelte';
+	import CollectionPanel from '$lib/features/content-management/components/CollectionPanel.svelte';
+	import Sidebar from '$lib/features/content-management/components/Sidebar.svelte';
+	import Header from '$lib/features/content-management/components/Header.svelte';
+	import SidePanelHost from '$lib/components/form/SidePanelHost.svelte';
 	import {
-		FORM_WORKSPACE_PANEL,
-		type FormWorkspacePanelContext,
-		type RepeatableWorkspacePanel
-	} from '$lib/features/forms/workspace-panel';
+		FORM_SIDE_PANEL,
+		type FormSidePanelContext,
+		type FormSidePanelState
+	} from '$lib/features/forms/side-panel';
 	import type { WorkspaceNavItem } from '$lib/features/content-management/components/workspace-types';
 	import {
 		areNavigationDraftsEqual,
@@ -54,13 +54,19 @@
 	type CollectionItemsBySlug = Record<string, OrderedCollectionNavigation>;
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
+	// Canonical layout terms:
+	// - Sidebar: left app/site navigation
+	// - Header: top action bar for the current view
+	// - Collection Panel: panel for top-level collection item management
+	// - Main Panel: primary content/view/edit surface
+	// - Side Panel: flexible right-side panel for secondary editing flows
 	const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
-	const activeWorkspacePanel = writable<RepeatableWorkspacePanel | null>(null);
+	const activeSidePanel = writable<FormSidePanelState | null>(null);
 
-	setContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL, {
-		activePanel: activeWorkspacePanel,
+	setContext<FormSidePanelContext>(FORM_SIDE_PANEL, {
+		activePanel: activeSidePanel,
 		setActivePanel(panel) {
-			activeWorkspacePanel.set(panel);
+			activeSidePanel.set(panel);
 		}
 	});
 
@@ -73,7 +79,7 @@
 	let preparingNavigationEditor = $state(false);
 	let savingNavigation = $state(false);
 	let savingCollectionOrder = $state(false);
-	let isCollectionIndexCollapsed = $state(false);
+	let isCollectionPanelCollapsed = $state(false);
 	let navigationDraft = $state<NavigationDraft | null>(null);
 	let initialNavigationDraft = $state<NavigationDraft | null>(null);
 	let topLevelEditorItems = $state<WorkspaceNavItem[]>([]);
@@ -84,8 +90,9 @@
 	);
 	const availableConfigs = $derived(isLocalMode ? $localContent.configs : data.configs);
 	const navigationManifest = $derived(manifestState.manifest);
-	const configs = $derived(orderDiscoveredConfigs(availableConfigs, navigationManifest));
-	const setup = $derived(getManualNavigationSetupState(availableConfigs, manifestState));
+	const rootConfig = $derived(isLocalMode ? $localContent.rootConfig : data.rootConfig);
+	const configs = $derived(orderDiscoveredConfigs(availableConfigs, navigationManifest, rootConfig));
+	const setup = $derived(getManualNavigationSetupState(availableConfigs, manifestState, rootConfig));
 	const collectionItemsBySlug = $derived(
 		isLocalMode ? localCollectionItemsBySlug : githubCollectionItemsBySlug
 	);
@@ -95,14 +102,14 @@
 		configs.find((config: DiscoveredConfig) => config.slug === currentPageSlug) ?? null
 	);
 	const isPreviewChangesRoute = $derived(page.url.pathname.includes('/preview-changes'));
-	const shouldShowCollectionIndex = $derived(
+	const shouldShowCollectionPanel = $derived(
 		!!currentConfig?.config.collection && !isEditingNavigation && !isPreviewChangesRoute
 	);
 	const showCollectionPanel = $derived(
-		shouldShowCollectionIndex && !!currentConfig && !isCollectionIndexCollapsed
+		shouldShowCollectionPanel && !!currentConfig && !isCollectionPanelCollapsed
 	);
 	const workspaceGridClass = $derived.by(() => {
-		if (showCollectionPanel && $activeWorkspacePanel) {
+		if (showCollectionPanel && $activeSidePanel) {
 			return 'grid min-h-0 overflow-hidden lg:grid-cols-[minmax(0,2fr)_minmax(0,5fr)_minmax(0,3fr)]';
 		}
 
@@ -110,7 +117,7 @@
 			return 'grid min-h-0 overflow-hidden lg:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]';
 		}
 
-		if ($activeWorkspacePanel) {
+		if ($activeSidePanel) {
 			return 'grid min-h-0 overflow-hidden lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]';
 		}
 
@@ -215,19 +222,19 @@
 	}
 
 	function getConfigById(configId: string) {
-		return configs.find((config) => config.config.id === configId) ?? null;
+		return configs.find((config) => config.config._tentmanId === configId) ?? null;
 	}
 
 	function buildTopLevelEditorItems(draft: NavigationDraft): WorkspaceNavItem[] {
 		const orderedItems = draft.contentOrder.flatMap((configId) => {
 			const config = getConfigById(configId);
-			if (!config || !config.config.id) {
+			if (!config || !config.config._tentmanId) {
 				return [];
 			}
 
 			return [
 				{
-					id: config.config.id,
+					id: config.config._tentmanId,
 					slug: config.slug,
 					label: config.config.label,
 					isCollection: !!config.config.collection
@@ -238,12 +245,12 @@
 		const seenIds = new Set(orderedItems.map((item) => item.id));
 
 		for (const config of configs) {
-			if (!config.config.id || seenIds.has(config.config.id)) {
+			if (!config.config._tentmanId || seenIds.has(config.config._tentmanId)) {
 				continue;
 			}
 
 			orderedItems.push({
-				id: config.config.id,
+				id: config.config._tentmanId,
 				slug: config.slug,
 				label: config.config.label,
 				isCollection: !!config.config.collection
@@ -418,7 +425,12 @@
 		preparingNavigationEditor = true;
 
 		try {
-			const draft = createNavigationDraft(configs, navigationManifest, collectionItemsBySlug);
+			const draft = createNavigationDraft(
+				configs,
+				navigationManifest,
+				collectionItemsBySlug,
+				rootConfig
+			);
 			navigationDraft = draft;
 			initialNavigationDraft = cloneNavigationDraft(draft);
 			topLevelEditorItems = buildTopLevelEditorItems(draft);
@@ -468,7 +480,8 @@
 					},
 					body: JSON.stringify({
 						action: 'save-manifest',
-						manifest
+						manifest,
+						branchName: get(draftBranch).branchName
 					})
 				});
 
@@ -479,6 +492,13 @@
 
 				if (!response.ok) {
 					throw new Error('Failed to save navigation manifest');
+				}
+
+				const result = (await response.json()) as {
+					branchName?: string | null;
+				};
+				if (result.branchName && data.selectedRepo) {
+					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
 				}
 			}
 
@@ -496,16 +516,21 @@
 		config: DiscoveredConfig,
 		collection: NavigationDraftCollection
 	) {
-		if (!config.config.id || savingCollectionOrder) {
+		if (!config.config._tentmanId || savingCollectionOrder) {
 			return;
 		}
 
 		savingCollectionOrder = true;
 
 		try {
-			const draft = createNavigationDraft(configs, navigationManifest, collectionItemsBySlug);
+			const draft = createNavigationDraft(
+				configs,
+				navigationManifest,
+				collectionItemsBySlug,
+				rootConfig
+			);
 			const manifest = serializeNavigationDraft(
-				setNavigationDraftCollection(draft, config.config.id, collection)
+				setNavigationDraftCollection(draft, config.config._tentmanId, collection)
 			);
 
 			if (isLocalMode) {
@@ -527,7 +552,8 @@
 					},
 					body: JSON.stringify({
 						action: 'save-manifest',
-						manifest
+						manifest,
+						branchName: get(draftBranch).branchName
 					})
 				});
 
@@ -538,6 +564,13 @@
 
 				if (!response.ok) {
 					throw new Error('Failed to save collection order');
+				}
+
+				const result = (await response.json()) as {
+					branchName?: string | null;
+				};
+				if (result.branchName && data.selectedRepo) {
+					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
 				}
 
 				await loadGitHubCollectionItems(config, { force: true });
@@ -587,7 +620,7 @@
 	class="grid h-screen overflow-hidden bg-white text-stone-950 lg:grid-cols-[15.5rem_minmax(0,1fr)]"
 	data-sveltekit-preload-data="hover"
 >
-	<PagesSidebar
+	<Sidebar
 		{siteName}
 		{repoLabel}
 		{configs}
@@ -611,22 +644,22 @@
 	/>
 
 	<main class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-		<PagesTopbar
+		<Header
 			title={workspaceTitle}
 			{previewUrl}
 			showPublish={data.isAuthenticated && !!$draftBranch.branchName}
 			publishHref={resolve('/publish')}
-			showCollectionToggle={shouldShowCollectionIndex}
-			collectionCollapsed={isCollectionIndexCollapsed}
-			onToggleCollection={() => (isCollectionIndexCollapsed = !isCollectionIndexCollapsed)}
+			showCollectionToggle={shouldShowCollectionPanel}
+			collectionCollapsed={isCollectionPanelCollapsed}
+			onToggleCollection={() => (isCollectionPanelCollapsed = !isCollectionPanelCollapsed)}
 		/>
 
 		<div class={workspaceGridClass} data-testid="pages-workspace-grid">
 			{#if showCollectionPanel && currentConfig}
 				{@const navigation = getCollectionItems(currentConfig.slug)}
 				{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
-				<CollectionIndex
-					slug={currentConfig.slug}
+					<CollectionPanel
+						slug={currentConfig.slug}
 					label={currentConfig.config.label}
 					itemLabel={getConfigItemLabel(currentConfig.config)}
 					items={navigation.items}
@@ -643,23 +676,23 @@
 				/>
 			{/if}
 
-			<section
-				class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6"
-				data-testid="pages-content-panel"
-			>
-				<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
-					{@render children?.()}
-				</div>
-			</section>
-
-			{#if $activeWorkspacePanel}
 				<section
-					class="min-h-0 min-w-0 overflow-hidden border-l border-stone-200 bg-white"
-					data-testid="pages-repeatable-panel"
+					class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6"
+					data-testid="pages-main-panel"
 				>
-					<RepeatablePanelHost panel={$activeWorkspacePanel} framed={false} />
+					<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
+						{@render children?.()}
+					</div>
 				</section>
-			{/if}
+
+				{#if $activeSidePanel}
+					<section
+						class="min-h-0 min-w-0 overflow-hidden border-l border-stone-200 bg-white"
+						data-testid="pages-side-panel"
+					>
+						<SidePanelHost panel={$activeSidePanel} framed={false} />
+					</section>
+				{/if}
 		</div>
 	</main>
 </div>

@@ -1,7 +1,8 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { getCardFields } from '$lib/features/forms/helpers';
-import { formatContentValue, getContentItemId } from '$lib/features/content-management/item';
+import { getCollectionGroups } from '$lib/features/content-management/config';
+import { formatContentValue, getItemId, getItemRoute } from '$lib/features/content-management/item';
 import type {
 	NavigationManifest,
 	NavigationManifestCollection
@@ -80,7 +81,7 @@ export function getContentItemTitle(config: ParsedContentConfig, item: ContentRe
 		return formattedValue;
 	}
 
-	return item._filename ?? getContentItemId(config, item) ?? getConfigItemLabel(config);
+	return getItemRoute(config, item) ?? getItemId(item) ?? getConfigItemLabel(config);
 }
 
 export function getCollectionNavigationItems(
@@ -94,7 +95,7 @@ export function getCollectionNavigationItems(
 	const dateFieldId = config.blocks.find((block) => block.type === 'date')?.id;
 
 	return content.flatMap((item) => {
-		const itemId = getContentItemId(config, item);
+		const itemId = getItemId(item);
 
 		if (!itemId) {
 			return [];
@@ -159,15 +160,16 @@ function getManifestCollection(
 	manifest: NavigationManifest | null | undefined,
 	config: ParsedContentConfig
 ): NavigationManifestCollection | null {
-	if (!manifest?.collections || !config.id) {
+	if (!manifest?.collections || !config._tentmanId) {
 		return null;
 	}
 
-	return manifest.collections[config.id] ?? null;
+	return manifest.collections[config._tentmanId] ?? null;
 }
 
 function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 	items: T[],
+	config: ParsedContentConfig,
 	manifestCollection: NavigationManifestCollection | null
 ): { items: T[]; groups: Array<{ id: string; label: string; items: T[] }> } {
 	if (!manifestCollection) {
@@ -175,8 +177,9 @@ function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 	}
 
 	const orderedItems = orderItemsByManifest(items, manifestCollection.items);
+	const configGroups = getCollectionGroups(config);
 
-	if (!manifestCollection.groups?.length) {
+	if (!configGroups.length) {
 		return {
 			items: orderedItems,
 			groups: []
@@ -185,19 +188,30 @@ function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 
 	const itemMap = new Map(orderedItems.map((item) => [item.itemId, item]));
 	const groupedItemIds = new Set<string>();
-	const groups = manifestCollection.groups.map((group) => ({
-		id: group.id,
-		label: group.label || group.id,
-		items: group.items.flatMap((itemId) => {
-			const item = itemMap.get(itemId);
-			if (!item) {
-				return [];
-			}
+	const groupMemberships = new Map(
+		(manifestCollection.groups ?? []).map((group) => [group.id, group.items] as const)
+	);
+	const groups = configGroups.flatMap((group) => {
+		if (!group._tentmanId) {
+			return [];
+		}
 
-			groupedItemIds.add(itemId);
-			return [item];
-		})
-	}));
+		return [
+			{
+				id: group._tentmanId,
+				label: group.label,
+				items: (groupMemberships.get(group._tentmanId) ?? []).flatMap((itemId) => {
+					const item = itemMap.get(itemId);
+					if (!item) {
+						return [];
+					}
+
+					groupedItemIds.add(itemId);
+					return [item];
+				})
+			}
+		];
+	});
 
 	return {
 		groups,
@@ -207,15 +221,20 @@ function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 
 export function orderDiscoveredConfigs(
 	configs: DiscoveredConfig[],
-	manifest: NavigationManifest | null | undefined
+	manifest: NavigationManifest | null | undefined,
+	rootConfig?: { content?: { sorting?: 'manual' } } | null
 ): DiscoveredConfig[] {
+	if (rootConfig?.content?.sorting !== 'manual') {
+		return configs;
+	}
+
 	const manifestIds = manifest?.content?.items;
 	if (!manifestIds?.length) {
 		return configs;
 	}
 
 	const configsWithIds = configs.flatMap((config) =>
-		config.config.id ? [[config.config.id, config] as const] : []
+		config.config._tentmanId ? [[config.config._tentmanId, config] as const] : []
 	);
 	const configMap = new Map(configsWithIds);
 	const orderedConfigs: DiscoveredConfig[] = [];
@@ -248,7 +267,7 @@ export function getOrderedCollectionNavigation(
 	manifest: NavigationManifest | null | undefined
 ): OrderedCollectionNavigation {
 	const items = getCollectionNavigationItems(config, content);
-	return splitOrderedItemsIntoGroups(items, getManifestCollection(manifest, config));
+	return splitOrderedItemsIntoGroups(items, config, getManifestCollection(manifest, config));
 }
 
 export function getFirstCollectionItemId(
@@ -281,7 +300,7 @@ export function getOrderedCollectionRecords(
 	}
 
 	const records = content.flatMap((item) => {
-		const itemId = getContentItemId(config, item);
+		const itemId = getItemId(item);
 		if (!itemId) {
 			return [];
 		}
@@ -299,5 +318,5 @@ export function getOrderedCollectionRecords(
 		];
 	});
 
-	return splitOrderedItemsIntoGroups(records, getManifestCollection(manifest, config));
+	return splitOrderedItemsIntoGroups(records, config, getManifestCollection(manifest, config));
 }

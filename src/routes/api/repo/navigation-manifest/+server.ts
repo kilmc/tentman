@@ -2,16 +2,20 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
-	buildNavigationManifestFromRepository,
 	loadNavigationManifestState,
 	parseNavigationManifest,
+	reconcileManualNavigationSetup,
+	writeRootManualSorting,
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
-import { addNavigationGroupToManifest } from '$lib/features/content-management/navigation-group-options';
+import {
+	addCollectionGroupToConfigSource,
+	addNavigationGroupToManifest
+} from '$lib/features/content-management/navigation-group-options';
+import { ensureDraftBranch, getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
-import { invalidateCache } from '$lib/stores/config-cache';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 
 const CONFIG_ID_COMMIT_MESSAGE = 'Add Tentman content config ids';
@@ -20,19 +24,27 @@ const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
 type NavigationManifestMutation =
 	| {
 			action: 'enable';
+			branchName?: string;
+	  }
+	| {
+			action: 'repair';
+			branchName?: string;
 	  }
 	| {
 			action: 'add-missing-config-ids';
+			branchName?: string;
 	  }
 	| {
 			action: 'save-manifest';
 			manifest: unknown;
+			branchName?: string;
 	  }
 	| {
 			action: 'add-collection-group';
 			collection: string;
 			id: string;
 			label: string;
+			branchName?: string;
 	  };
 
 function assertMutation(value: unknown): NavigationManifestMutation {
@@ -46,9 +58,14 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		collection?: unknown;
 		id?: unknown;
 		label?: unknown;
+		branchName?: unknown;
 	};
 
-	if (mutation.action === 'enable' || mutation.action === 'add-missing-config-ids') {
+	if (
+		mutation.action === 'enable' ||
+		mutation.action === 'repair' ||
+		mutation.action === 'add-missing-config-ids'
+	) {
 		return mutation as NavigationManifestMutation;
 	}
 
@@ -83,38 +100,118 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 		throw error(400, 'No repository selected');
 	}
 
+	const { owner, name } = locals.selectedRepo;
 	const octokit = createGitHubServerClient(locals.githubToken, cookies);
 	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
 
 	try {
 		const mutation = assertMutation(await request.json());
-		const configs = await getCachedConfigs(backend);
+		const [configs, rootConfig, manifestState] = await Promise.all([
+			getCachedConfigs(backend),
+			backend.readRootConfig(),
+			loadNavigationManifestState(backend)
+		]);
+		const requestedBranchName =
+			typeof mutation.branchName === 'string' && mutation.branchName.length > 0
+				? mutation.branchName
+				: null;
+		const existingDraftBranch = requestedBranchName ?? (await getLatestPreviewBranchName(octokit, owner, name));
+		const requiresDraftBranch = mutation.action !== undefined;
+		const draftBranch = requiresDraftBranch
+			? await ensureDraftBranch(octokit, owner, name, existingDraftBranch)
+			: null;
+		const writeOptions = draftBranch
+			? {
+					ref: draftBranch.branchName
+				}
+			: {};
+		const nextConfigs = configs.map((config) => ({
+			...config,
+			config: {
+				...config.config
+			}
+		}));
 
-		if (mutation.action === 'add-missing-config-ids' || mutation.action === 'enable') {
-			await writeMissingContentConfigIds(backend, configs, {
-				message: CONFIG_ID_COMMIT_MESSAGE
+		if (
+			mutation.action === 'add-missing-config-ids' ||
+			mutation.action === 'enable' ||
+			mutation.action === 'repair'
+		) {
+			const writtenConfigIds = await writeMissingContentConfigIds(backend, configs, {
+				message: CONFIG_ID_COMMIT_MESSAGE,
+				...writeOptions
 			});
-			invalidateCache(backend.cacheKey);
+			for (const writtenConfig of writtenConfigIds) {
+				const matchingConfig = nextConfigs.find((config) => config.path === writtenConfig.path);
+				if (matchingConfig) {
+					matchingConfig.config._tentmanId = writtenConfig.suggestedId;
+				}
+			}
+			if (mutation.action === 'enable') {
+				await writeRootManualSorting(backend, {
+					message: CONFIG_ID_COMMIT_MESSAGE,
+					...writeOptions
+				});
+			}
 		}
 
-		const nextConfigs = await getCachedConfigs(backend);
+		const nextRootConfig =
+			mutation.action === 'enable'
+				? {
+						...(rootConfig ?? {}),
+						content: {
+							...(rootConfig?.content ?? {}),
+							sorting: 'manual' as const
+						}
+					}
+				: rootConfig;
 
-		if (mutation.action === 'enable') {
-			const manifest = await buildNavigationManifestFromRepository(backend, nextConfigs);
+		if (mutation.action === 'enable' || mutation.action === 'repair') {
+			const manifest = await reconcileManualNavigationSetup(
+				backend,
+				nextConfigs,
+				nextRootConfig,
+				manifestState.manifest,
+				{
+					message: CONFIG_ID_COMMIT_MESSAGE,
+					...writeOptions
+				}
+			);
 			await writeNavigationManifest(backend, manifest, {
-				message: MANIFEST_COMMIT_MESSAGE
+				message: MANIFEST_COMMIT_MESSAGE,
+				...writeOptions
 			});
 		}
 
 		if (mutation.action === 'save-manifest') {
 			const manifest = parseNavigationManifest(JSON.stringify(mutation.manifest));
 			await writeNavigationManifest(backend, manifest, {
-				message: MANIFEST_COMMIT_MESSAGE
+				message: MANIFEST_COMMIT_MESSAGE,
+				...writeOptions
 			});
 		}
 
 		if (mutation.action === 'add-collection-group') {
-			const manifestState = await loadNavigationManifestState(backend);
+			const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
+			if (!collectionConfig) {
+				throw error(404, 'Collection config not found');
+			}
+
+			const configSource = await backend.readTextFile(collectionConfig.path);
+			await backend.writeTextFile(
+				collectionConfig.path,
+				addCollectionGroupToConfigSource(configSource, {
+					collection: mutation.collection,
+					id: mutation.id,
+					label: mutation.label
+				}),
+				{
+					message: MANIFEST_COMMIT_MESSAGE,
+					...writeOptions
+				}
+			);
+
+			const manifestState = await loadNavigationManifestState(backend, writeOptions);
 			if (manifestState.error) {
 				throw error(400, `Could not parse navigation manifest: ${manifestState.error}`);
 			}
@@ -125,12 +222,14 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 				label: mutation.label
 			});
 			await writeNavigationManifest(backend, manifest, {
-				message: MANIFEST_COMMIT_MESSAGE
+				message: MANIFEST_COMMIT_MESSAGE,
+				...writeOptions
 			});
 		}
 
 		return json({
-			navigationManifest: await loadNavigationManifestState(backend)
+			navigationManifest: await loadNavigationManifestState(backend, writeOptions),
+			branchName: draftBranch?.branchName ?? null
 		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);

@@ -12,6 +12,7 @@
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
+	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { createContentDocument } from '$lib/content/service';
@@ -20,7 +21,10 @@
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 	import { writeNavigationManifest } from '$lib/features/content-management/navigation-manifest';
-	import { addNavigationGroupToManifest } from '$lib/features/content-management/navigation-group-options';
+	import {
+		addCollectionGroupToConfigSource,
+		addNavigationGroupToManifest
+	} from '$lib/features/content-management/navigation-group-options';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -43,7 +47,7 @@
 	let localLoadRequest = 0;
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const requiresFilename = $derived(discoveredConfig?.config.content.mode === 'directory');
+	const requiresFilename = $derived(false);
 	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
 	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const githubBlockRegistry = $derived.by(() => {
@@ -134,6 +138,15 @@
 				throw new Error('No local repository is open.');
 			}
 
+			if (!discoveredConfig) {
+				throw new Error('Collection config not found.');
+			}
+
+			const configSource = await repoState.backend.readTextFile(discoveredConfig.path);
+			await repoState.backend.writeTextFile(
+				discoveredConfig.path,
+				addCollectionGroupToConfigSource(configSource, input)
+			);
 			const manifest = addNavigationGroupToManifest(navigationManifest?.manifest, input);
 			await writeNavigationManifest(repoState.backend, manifest);
 			await localContent.refresh({ force: true });
@@ -148,6 +161,7 @@
 			},
 			body: JSON.stringify({
 				action: 'add-collection-group',
+				branchName: get(draftBranch).branchName,
 				...input
 			})
 		});
@@ -158,6 +172,9 @@
 
 		const result = await response.json();
 		navigationManifest = result.navigationManifest;
+		if (result.branchName && data.selectedRepo) {
+			draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
+		}
 	}
 
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
@@ -170,21 +187,6 @@
 		if (!result.ok || (result.errors?.length ?? 0) > 0) {
 			event?.preventDefault();
 			return null;
-		}
-
-		if (requiresFilename) {
-			const trimmedFilename = filename.trim();
-			if (!trimmedFilename) {
-				filenameError = 'Filename is required';
-				event?.preventDefault();
-				return null;
-			}
-
-			if (/[<>:"/\\|?*]/.test(trimmedFilename)) {
-				filenameError = 'Filename contains invalid characters';
-				event?.preventDefault();
-				return null;
-			}
 		}
 
 		const hiddenInput = currentForm?.querySelector('input[name="data"]');
@@ -222,7 +224,7 @@
 				discoveredConfig.config,
 				discoveredConfig.path,
 				materialized.content,
-				requiresFilename ? { filename: filename.trim() } : undefined
+				undefined
 			);
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
 			await localContent.refresh({ force: true });

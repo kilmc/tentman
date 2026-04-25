@@ -9,9 +9,9 @@ import type {
 	RepeatablePanelMode
 } from '$lib/features/forms/edit-session';
 
-export const FORM_WORKSPACE_PANEL = Symbol('form-workspace-panel');
+export const FORM_SIDE_PANEL = Symbol('form-side-panel');
 
-export interface RepeatableWorkspacePanel {
+export interface FormSidePanelState {
 	id: string;
 	mode: RepeatablePanelMode;
 	label: string;
@@ -30,8 +30,8 @@ export interface RepeatableWorkspacePanel {
 	submitError?: string;
 }
 
-export interface FormWorkspacePanelContext {
-	activePanel: Writable<RepeatableWorkspacePanel | null>;
-	setActivePanel: (panel: RepeatableWorkspacePanel | null) => void;
+export interface FormSidePanelContext {
+	activePanel: Writable<FormSidePanelState | null>;
+	setActivePanel: (panel: FormSidePanelState | null) => void;
 	session?: FormEditSession | null;
 }

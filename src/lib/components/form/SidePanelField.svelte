@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type { BlockUsage } from '$lib/config/types';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
-	import type { RepeatableWorkspacePanel } from '$lib/features/forms/workspace-panel';
+	import type { FormSidePanelState } from '$lib/features/forms/side-panel';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 
 	interface Props {
-		panel: RepeatableWorkspacePanel;
+		panel: FormSidePanelState;
 		block: BlockUsage;
 		item: ContentRecord;
 		onfieldchange?: (blockId: string, value: ContentValue | undefined) => void;

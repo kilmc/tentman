@@ -12,10 +12,10 @@
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import { parseFieldPath } from '$lib/features/forms/edit-session';
 	import {
-		FORM_WORKSPACE_PANEL,
-		type FormWorkspacePanelContext,
-		type RepeatableWorkspacePanel
-	} from '$lib/features/forms/workspace-panel';
+		FORM_SIDE_PANEL,
+		type FormSidePanelContext,
+		type FormSidePanelState
+	} from '$lib/features/forms/side-panel';
 	import { getRepeatableItemLabel } from '$lib/features/forms/repeatable-labels';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 	import AssetImage from '$lib/components/AssetImage.svelte';
@@ -56,20 +56,20 @@
 	}: Props = $props();
 
 	const fallbackPanelState = (() => {
-		const activePanel = writable<RepeatableWorkspacePanel | null>(null);
+		const activePanel = writable<FormSidePanelState | null>(null);
 		return {
 			activePanel,
-			setActivePanel(panel: RepeatableWorkspacePanel | null) {
+			setActivePanel(panel: FormSidePanelState | null) {
 				activePanel.set(panel);
 			},
 			session: null
-		} satisfies FormWorkspacePanelContext;
+		} satisfies FormSidePanelContext;
 	})();
 
-	const workspacePanel = hasContext(FORM_WORKSPACE_PANEL)
-		? getContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL)
+	const sidePanel = hasContext(FORM_SIDE_PANEL)
+		? getContext<FormSidePanelContext>(FORM_SIDE_PANEL)
 		: fallbackPanelState;
-	const activeWorkspacePanel = workspacePanel.activePanel;
+	const activeSidePanel = sidePanel.activePanel;
 
 	let selectedIndex = $state(0);
 	let nextDragId = 0;
@@ -83,8 +83,8 @@
 	const isPanelOpen = $derived(
 		isStructuredRepeatable &&
 			value.length > 0 &&
-			$activeWorkspacePanel?.id === panelId &&
-			$activeWorkspacePanel.mode === 'edit'
+			$activeSidePanel?.id === panelId &&
+			$activeSidePanel.mode === 'edit'
 	);
 	const addItemLabel = $derived(`Add ${itemLabel ?? 'item'}`);
 
@@ -167,10 +167,10 @@
 		return imageValue.length > 0 ? imageValue : null;
 	}
 
-	function createPanel(index: number): RepeatableWorkspacePanel | null {
+	function createPanel(index: number): FormSidePanelState | null {
 		const item = value[index];
 		if (
-			!workspacePanel.session ||
+			!sidePanel.session ||
 			!fieldPath ||
 			!isStructuredRepeatable ||
 			!item ||
@@ -199,8 +199,8 @@
 		};
 	}
 
-	function createDraftPanel(): RepeatableWorkspacePanel | null {
-		if (!workspacePanel.session || !fieldPath || !isStructuredRepeatable) {
+	function createDraftPanel(): FormSidePanelState | null {
+		if (!sidePanel.session || !fieldPath || !isStructuredRepeatable) {
 			return null;
 		}
 
@@ -229,7 +229,7 @@
 	function openPanel(index: number = selectedIndex) {
 		const panel = createPanel(index);
 		if (panel) {
-			workspacePanel.session?.openPanel(panel);
+			sidePanel.session?.openPanel(panel);
 		}
 	}
 
@@ -237,7 +237,7 @@
 		if (isStructuredRepeatable) {
 			const panel = createDraftPanel();
 			if (panel) {
-				workspacePanel.session?.openPanel(panel);
+				sidePanel.session?.openPanel(panel);
 			}
 			return;
 		}
@@ -273,8 +273,8 @@
 		value = nextItems.map((item) => item.item);
 		selectedIndex = indexMap.get(selectedIndex) ?? selectedIndex;
 
-		if (workspacePanel.session && fieldPath) {
-			workspacePanel.session.reorderArrayItems(
+		if (sidePanel.session && fieldPath) {
+			sidePanel.session.reorderArrayItems(
 				parseFieldPath(fieldPath),
 				value as ContentValue[],
 				indexMap

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	addCollectionGroupToConfigSource,
 	addNavigationGroupToManifest,
 	getSelectOptionsFromNavigationGroups,
 	slugifyNavigationGroupLabel
@@ -101,6 +102,33 @@ describe('navigation group select options', () => {
 				}
 			)
 		).toThrow(/already exists/);
+	});
+
+	it('writes a new config-backed collection group definition', () => {
+		const nextSource = addCollectionGroupToConfigSource(
+			JSON.stringify({
+				type: 'content',
+				label: 'Projects',
+				collection: {
+					sorting: 'manual',
+					groups: [{ _tentmanId: 'old-group', label: 'Old', slug: 'old' }]
+				},
+				content: {
+					mode: 'directory',
+					path: './projects',
+					template: './project.md'
+				},
+				blocks: []
+			}),
+			{
+				collection: 'projects',
+				id: 'new-work',
+				label: 'New Work'
+			}
+		);
+
+		expect(nextSource).toContain('"slug": "new-work"');
+		expect(nextSource).toContain('"label": "New Work"');
 	});
 
 	it('derives editable group ids from labels', () => {

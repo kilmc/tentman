@@ -15,8 +15,9 @@ const configs: DiscoveredConfig[] = [
 		path: 'content/about.tentman.json',
 		config: {
 			type: 'content',
-			id: 'about',
+			_tentmanId: 'about',
 			label: 'About Page',
+			collection: false,
 			content: {
 				mode: 'file',
 				path: 'src/content/about.json'
@@ -29,9 +30,12 @@ const configs: DiscoveredConfig[] = [
 		path: 'content/blog.tentman.json',
 		config: {
 			type: 'content',
-			id: 'blog',
+			_tentmanId: 'blog',
 			label: 'Blog Posts',
-			collection: true,
+			collection: {
+				sorting: 'manual',
+				groups: [{ _tentmanId: 'featured', label: 'Featured', slug: 'featured' }]
+			},
 			idField: 'slug',
 			content: {
 				mode: 'directory',
@@ -42,6 +46,8 @@ const configs: DiscoveredConfig[] = [
 		}
 	}
 ];
+
+const rootConfig = { content: { sorting: 'manual' as const } };
 
 describe('navigation draft helpers', () => {
 	it('creates a draft from ordered top-level configs and loaded collection navigation', () => {
@@ -55,12 +61,12 @@ describe('navigation draft helpers', () => {
 					},
 					collections: {
 						blog: {
-							items: ['second-post', 'hello-world'],
+							items: ['post-2', 'post-1'],
 							groups: [
 								{
 									id: 'featured',
 									label: 'Featured',
-									items: ['second-post']
+									items: ['post-2']
 								}
 							]
 						}
@@ -72,15 +78,16 @@ describe('navigation draft helpers', () => {
 							{
 								id: 'featured',
 								label: 'Featured',
-								items: [{ itemId: 'second-post', title: 'Second post' }]
+								items: [{ itemId: 'post-2', title: 'Second post' }]
 							}
 						],
 						items: [
-							{ itemId: 'hello-world', title: 'Hello world' },
-							{ itemId: 'third-post', title: 'Third post' }
+							{ itemId: 'post-1', title: 'Hello world' },
+							{ itemId: 'post-3', title: 'Third post' }
 						]
 					}
-				}
+				},
+				rootConfig
 			)
 		).toEqual({
 			contentOrder: ['blog', 'about'],
@@ -90,10 +97,10 @@ describe('navigation draft helpers', () => {
 						{
 							id: 'featured',
 							label: 'Featured',
-							items: ['second-post']
+							items: ['post-2']
 						}
 					],
-					ungroupedItems: ['hello-world', 'third-post']
+					ungroupedItems: ['post-1', 'post-3']
 				}
 			}
 		});
@@ -110,18 +117,19 @@ describe('navigation draft helpers', () => {
 					},
 					collections: {
 						blog: {
-							items: ['second-post', 'hello-world', 'third-post'],
+							items: ['post-2', 'post-1', 'post-3'],
 							groups: [
 								{
 									id: 'featured',
 									label: 'Featured',
-									items: ['second-post']
+									items: ['post-2']
 								}
 							]
 						}
 					}
 				},
-				{}
+				{},
+				rootConfig
 			)
 		).toEqual({
 			contentOrder: ['about', 'blog'],
@@ -131,10 +139,10 @@ describe('navigation draft helpers', () => {
 						{
 							id: 'featured',
 							label: 'Featured',
-							items: ['second-post']
+							items: ['post-2']
 						}
 					],
-					ungroupedItems: ['hello-world', 'third-post']
+					ungroupedItems: ['post-1', 'post-3']
 				}
 			}
 		});
@@ -150,10 +158,10 @@ describe('navigation draft helpers', () => {
 							{
 								id: 'featured',
 								label: 'Featured',
-								items: ['third-post', 'second-post']
+								items: ['post-3', 'post-2']
 							}
 						],
-						ungroupedItems: ['hello-world']
+						ungroupedItems: ['post-1']
 					}
 				}
 			})
@@ -164,12 +172,12 @@ describe('navigation draft helpers', () => {
 			},
 			collections: {
 				blog: {
-					items: ['third-post', 'second-post', 'hello-world'],
+					items: ['post-3', 'post-2', 'post-1'],
 					groups: [
 						{
 							id: 'featured',
 							label: 'Featured',
-							items: ['third-post', 'second-post']
+							items: ['post-3', 'post-2']
 						}
 					]
 				}
@@ -186,20 +194,20 @@ describe('navigation draft helpers', () => {
 						{
 							id: 'featured',
 							label: 'Featured',
-							items: ['second-post']
+							items: ['post-2']
 						}
 					],
-					ungroupedItems: ['hello-world', 'third-post']
+					ungroupedItems: ['post-1', 'post-3']
 				}
 			}
 		};
 
 		const reordered = setNavigationDraftContentOrder(draft, ['blog', 'about']);
 		const regrouped = setNavigationDraftCollectionGroupItems(reordered, 'blog', 'featured', [
-			'third-post',
-			'second-post'
+			'post-3',
+			'post-2'
 		]);
-		const movedOut = setNavigationDraftCollectionUngroupedItems(regrouped, 'blog', ['hello-world']);
+		const movedOut = setNavigationDraftCollectionUngroupedItems(regrouped, 'blog', ['post-1']);
 
 		expect(movedOut).toEqual({
 			contentOrder: ['blog', 'about'],
@@ -209,16 +217,16 @@ describe('navigation draft helpers', () => {
 						{
 							id: 'featured',
 							label: 'Featured',
-							items: ['third-post', 'second-post']
+							items: ['post-3', 'post-2']
 						}
 					],
-					ungroupedItems: ['hello-world']
+					ungroupedItems: ['post-1']
 				}
 			}
 		});
 		expect(draft.contentOrder).toEqual(['about', 'blog']);
-		expect(draft.collections.blog.groups[0].items).toEqual(['second-post']);
-		expect(draft.collections.blog.ungroupedItems).toEqual(['hello-world', 'third-post']);
+		expect(draft.collections.blog.groups[0].items).toEqual(['post-2']);
+		expect(draft.collections.blog.ungroupedItems).toEqual(['post-1', 'post-3']);
 	});
 
 	it('compares drafts based on their serialized manifest output', () => {

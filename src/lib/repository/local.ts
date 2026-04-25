@@ -7,6 +7,7 @@ import {
 	parseDiscoveredBlockConfig,
 	parseDiscoveredConfig
 } from '$lib/config/discovery';
+import { normalizeRuntimeDiscoveredConfigIdentity } from '$lib/features/content-management/stable-identity';
 import { parseRootConfig, type RootConfig } from '$lib/config/root-config';
 import type {
 	RepoEntry,
@@ -188,13 +189,34 @@ async function listDirectoryEntries(
 	return entries.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+const IGNORED_DISCOVERY_DIRECTORIES = new Set([
+	'.git',
+	'.idea',
+	'.next',
+	'.nuxt',
+	'.output',
+	'.parcel-cache',
+	'.svelte-kit',
+	'.turbo',
+	'.vercel',
+	'build',
+	'coverage',
+	'dist',
+	'node_modules'
+]);
+
+function shouldSkipDiscoveryDirectory(path: string): boolean {
+	const name = path.split('/').pop() ?? path;
+	return IGNORED_DISCOVERY_DIRECTORIES.has(name);
+}
+
 async function findTentmanFiles(root: FileSystemDirectoryHandle, path = '.'): Promise<string[]> {
 	const entries = await listDirectoryEntries(root, path);
 	const configPaths: string[] = [];
 
 	for (const entry of entries) {
 		if (entry.kind === 'directory') {
-			if (entry.name === '.git') {
+			if (shouldSkipDiscoveryDirectory(entry.path)) {
 				continue;
 			}
 
@@ -229,6 +251,15 @@ export interface LocalRepositoryBackend extends RepositoryBackend {
 	loadLocalAdapterModule(path: string): Promise<unknown>;
 }
 
+interface DiscoveryIssue {
+	path: string;
+	message: string;
+}
+
+function formatDiscoveryIssue(kind: 'content config' | 'block config', issue: DiscoveryIssue): string {
+	return `Failed to parse ${kind} at ${issue.path}: ${issue.message}`;
+}
+
 export function createLocalRepositoryBackend(
 	rootHandle: FileSystemDirectoryHandle,
 	repo: LocalRepositoryIdentity
@@ -257,21 +288,94 @@ export function createLocalRepositoryBackend(
 		if (!discoveryCache) {
 			discoveryCache = (async () => {
 				const rootConfig = await readRootConfigFromDisk();
-				const tentmanFiles = await findTentmanFiles(rootHandle);
+				const discoveryRoots = Array.from(
+					new Set(
+						[rootConfig?.configsDir, rootConfig?.blocksDir]
+							.map((value) => value?.replace(/^\.\//, '').replace(/\/+$/, ''))
+							.filter((value): value is string => !!value && value.length > 0)
+					)
+				);
+				const tentmanFiles =
+					discoveryRoots.length > 0
+						? (
+								await Promise.all(
+									discoveryRoots.map(async (path) => {
+										try {
+											return await findTentmanFiles(rootHandle, path);
+										} catch {
+											return [];
+										}
+									})
+								)
+							).flat()
+						: await findTentmanFiles(rootHandle);
 				const contentPaths = getDiscoverableContentConfigPaths(tentmanFiles, rootConfig);
 				const blockPaths = getDiscoverableBlockConfigPaths(tentmanFiles, rootConfig);
-				const [configs, blockConfigs] = await Promise.all([
+				const [contentResults, blockResults] = await Promise.all([
 					Promise.all(
-						contentPaths.map(async (path) =>
-							parseDiscoveredConfig(path, await readFileText(rootHandle, path))
-						)
+						contentPaths.map(async (path) => {
+							try {
+								return {
+									config: parseDiscoveredConfig(path, await readFileText(rootHandle, path)),
+									issue: null
+								};
+							} catch (error) {
+								return {
+									config: null,
+									issue: {
+										path,
+										message:
+											error instanceof Error ? error.message : 'Failed to parse content config'
+									}
+								};
+							}
+						})
 					),
 					Promise.all(
-						blockPaths.map(async (path) =>
-							parseDiscoveredBlockConfig(path, await readFileText(rootHandle, path))
-						)
+						blockPaths.map(async (path) => {
+							try {
+								return {
+									config: parseDiscoveredBlockConfig(path, await readFileText(rootHandle, path)),
+									issue: null
+								};
+							} catch (error) {
+								return {
+									config: null,
+									issue: {
+										path,
+										message:
+											error instanceof Error ? error.message : 'Failed to parse block config'
+									}
+								};
+							}
+						})
 					)
 				]);
+				const configs = normalizeRuntimeDiscoveredConfigIdentity(
+					contentResults.flatMap((result) => (result.config ? [result.config] : [])),
+					rootConfig
+				);
+				const blockConfigs = blockResults.flatMap((result) =>
+					result.config ? [result.config] : []
+				);
+				const contentIssues = contentResults.flatMap((result) =>
+					result.issue ? [result.issue] : []
+				);
+				const blockIssues = blockResults.flatMap((result) =>
+					result.issue ? [result.issue] : []
+				);
+
+				for (const issue of [...contentIssues, ...blockIssues]) {
+					console.error(issue.message);
+				}
+
+				if (configs.length === 0 && contentIssues.length > 0) {
+					throw new Error(formatDiscoveryIssue('content config', contentIssues[0]!));
+				}
+
+				if (blockConfigs.length === 0 && blockPaths.length > 0 && blockIssues.length > 0) {
+					throw new Error(formatDiscoveryIssue('block config', blockIssues[0]!));
+				}
 
 				return {
 					rootConfig,
@@ -310,8 +414,7 @@ export function createLocalRepositoryBackend(
 		},
 
 		async readRootConfig(): Promise<RootConfig | null> {
-			const discoveryData = await loadDiscoveryData();
-			return discoveryData.rootConfig;
+			return readRootConfigFromDisk();
 		},
 
 		readTextFile(path: string, _options?: RepositoryReadOptions) {

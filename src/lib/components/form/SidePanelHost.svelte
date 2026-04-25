@@ -2,56 +2,56 @@
 	import { getContext, hasContext } from 'svelte';
 	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
-	import type { RepeatableWorkspacePanel } from '$lib/features/forms/workspace-panel';
+	import type { FormSidePanelState } from '$lib/features/forms/side-panel';
 	import {
-		FORM_WORKSPACE_PANEL,
-		type FormWorkspacePanelContext
-	} from '$lib/features/forms/workspace-panel';
+		FORM_SIDE_PANEL,
+		type FormSidePanelContext
+	} from '$lib/features/forms/side-panel';
 	import type { ContentValue } from '$lib/features/content-management/types';
-	import RepeatablePanelField from './RepeatablePanelField.svelte';
+	import SidePanelField from './SidePanelField.svelte';
 
 	interface Props {
-		panel: RepeatableWorkspacePanel;
+		panel: FormSidePanelState;
 		framed?: boolean;
 	}
 
 	let { panel, framed = true }: Props = $props();
 	let panelElement = $state<HTMLElement | null>(null);
 	let actionMenu = $state<HTMLDetailsElement | null>(null);
-	const workspacePanel = hasContext(FORM_WORKSPACE_PANEL)
-		? getContext<FormWorkspacePanelContext>(FORM_WORKSPACE_PANEL)
+	const sidePanel = hasContext(FORM_SIDE_PANEL)
+		? getContext<FormSidePanelContext>(FORM_SIDE_PANEL)
 		: null;
 
 	const isDirty = $derived(panel.isDirty);
 	const primaryActionLabel = $derived(panel.mode === 'create' ? 'Add' : 'Save');
 	const showFooter = $derived(panel.mode === 'create' || isDirty || !!panel.submitError);
 
-	function getPanelKey(panel: RepeatableWorkspacePanel): string {
+	function getPanelKey(panel: FormSidePanelState): string {
 		return [panel.id, panel.mode, panel.selectedIndex, panel.title].join(':');
 	}
 
 	function handleFieldChange(blockId: string, value: ContentValue | undefined) {
-		workspacePanel?.session?.updatePanelField(blockId, value);
+		sidePanel?.session?.updatePanelField(blockId, value);
 	}
 
 	function saveChanges() {
-		if (!isDirty || !workspacePanel?.session) {
+		if (!isDirty || !sidePanel?.session) {
 			return;
 		}
 
-		workspacePanel.session.commitPanel();
+		sidePanel.session.commitPanel();
 	}
 
 	function closePanel() {
-		workspacePanel?.session?.closePanel();
+		sidePanel?.session?.closePanel();
 	}
 
 	function cancelPanel() {
-		workspacePanel?.session?.discardPanel();
+		sidePanel?.session?.discardPanel();
 	}
 
 	function removeItem() {
-		workspacePanel?.session?.removePanelItem();
+		sidePanel?.session?.removePanelItem();
 	}
 
 	$effect(() => {
@@ -124,7 +124,7 @@
 		<div class="min-h-0 overflow-y-auto overscroll-contain px-4 py-4">
 			<div class="grid gap-2">
 				{#each panel.blocks as block (block.id)}
-					<RepeatablePanelField
+					<SidePanelField
 						{panel}
 						{block}
 						item={panel.selectedItem}

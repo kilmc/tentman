@@ -312,7 +312,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expect.element(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
 	});
 
-	it('renders collection items in the collection index pane beside the editor', async () => {
+	it('renders collection items in the collection panel beside the editor', async () => {
 		sidebarEditorMocks.page.params = {
 			page: 'blog',
 			itemId: 'hello-world'
@@ -334,7 +334,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();
 	});
 
-	it('renders the repeatable editor as a workspace panel sibling of the content panel', async () => {
+	it('renders the side panel as a sibling of the main panel', async () => {
 		sidebarEditorMocks.page.params = {
 			page: 'blog',
 			itemId: 'hello-world'
@@ -348,17 +348,17 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await screen.getByRole('button', { name: 'Edit Section 1: Opening' }).click();
 
 		await expect.element(screen.getByRole('heading', { name: 'Section 1: Opening' })).toBeVisible();
-		await expect.element(screen.getByTestId('pages-repeatable-panel')).toBeInTheDocument();
+		await expect.element(screen.getByTestId('pages-side-panel')).toBeInTheDocument();
 
 		const workspaceGrid = document.querySelector('[data-testid="pages-workspace-grid"]');
-		const contentPanel = document.querySelector('[data-testid="pages-content-panel"]');
-		const repeatablePanel = document.querySelector('[data-testid="pages-repeatable-panel"]');
+		const mainPanel = document.querySelector('[data-testid="pages-main-panel"]');
+		const sidePanel = document.querySelector('[data-testid="pages-side-panel"]');
 
 		expect(workspaceGrid).not.toBeNull();
-		expect(contentPanel).not.toBeNull();
-		expect(repeatablePanel).not.toBeNull();
-		expect(Array.from(workspaceGrid?.children ?? [])).toContain(contentPanel);
-		expect(Array.from(workspaceGrid?.children ?? [])).toContain(repeatablePanel);
-		expect(contentPanel?.contains(repeatablePanel)).toBe(false);
+		expect(mainPanel).not.toBeNull();
+		expect(sidePanel).not.toBeNull();
+		expect(Array.from(workspaceGrid?.children ?? [])).toContain(mainPanel);
+		expect(Array.from(workspaceGrid?.children ?? [])).toContain(sidePanel);
+		expect(mainPanel?.contains(sidePanel)).toBe(false);
 	});
 });
