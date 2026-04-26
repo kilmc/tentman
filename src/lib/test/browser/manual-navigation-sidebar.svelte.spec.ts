@@ -198,6 +198,7 @@ vi.mock('$lib/utils/routing', () => ({
 
 import PagesLayout from '../../../routes/pages/+layout.svelte';
 import PagesLayoutRepeatableWorkspaceHarness from '$lib/test/fixtures/PagesLayoutRepeatableWorkspaceHarness.svelte';
+import PagesLayoutObjectPanelWorkspaceHarness from '$lib/test/fixtures/PagesLayoutObjectPanelWorkspaceHarness.svelte';
 
 const layoutData = {
 	isAuthenticated: false,
@@ -360,5 +361,28 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		expect(Array.from(workspaceGrid?.children ?? [])).toContain(mainPanel);
 		expect(Array.from(workspaceGrid?.children ?? [])).toContain(sidePanel);
 		expect(mainPanel?.contains(sidePanel)).toBe(false);
+	});
+
+	it('renders object fields with nested collections as side-panel cards in the pages workspace', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'projects',
+			itemId: 'panorama-4'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/projects/panorama-4/edit');
+
+		const screen = render(PagesLayoutObjectPanelWorkspaceHarness, {
+			data: layoutData
+		});
+
+		await expect.element(screen.getByRole('button', { name: 'Edit Gallery' })).toBeVisible();
+		await expect.element(screen.getByLabelText('Layout')).not.toBeInTheDocument();
+
+		await screen.getByRole('button', { name: 'Edit Gallery' }).click();
+
+		await expect.element(screen.getByRole('heading', { name: 'Gallery' })).toBeVisible();
+		await expect.element(screen.getByLabelText('Layout')).toHaveValue('grid');
+		await expect
+			.element(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
+			.toBeVisible();
 	});
 });

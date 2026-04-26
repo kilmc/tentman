@@ -18,6 +18,7 @@
 	} from '$lib/features/forms/side-panel';
 	import { getRepeatableItemLabel } from '$lib/features/forms/repeatable-labels';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
+	import type { OpenRepeatablePanelInput } from '$lib/features/forms/edit-session';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 
 	interface Props {
@@ -167,7 +168,7 @@
 		return imageValue.length > 0 ? imageValue : null;
 	}
 
-	function createPanel(index: number): FormSidePanelState | null {
+	function createPanel(index: number): OpenRepeatablePanelInput | null {
 		const item = value[index];
 		if (
 			!sidePanel.session ||
@@ -182,6 +183,7 @@
 
 		return {
 			id: panelId,
+			kind: 'repeatable',
 			mode: 'edit',
 			label: itemLabel ?? label,
 			listLabel: label,
@@ -189,17 +191,17 @@
 			blocks,
 			selectedIndex: index,
 			selectedItem: item as ContentRecord,
+			targetPath: [...parseFieldPath(fieldPath), index],
 			arrayPath: parseFieldPath(fieldPath),
-			fieldPath,
+			itemFieldPath: `${fieldPath}[${index}]`,
 			imagePath,
 			blockRegistry,
 			navigationManifest,
-			onaddselectoption,
-			isDirty: false
+			onaddselectoption
 		};
 	}
 
-	function createDraftPanel(): FormSidePanelState | null {
+	function createDraftPanel(): OpenRepeatablePanelInput | null {
 		if (!sidePanel.session || !fieldPath || !isStructuredRepeatable) {
 			return null;
 		}
@@ -209,6 +211,7 @@
 
 		return {
 			id: panelId,
+			kind: 'repeatable',
 			mode: 'create',
 			label: itemLabel ?? label,
 			listLabel: label,
@@ -216,13 +219,13 @@
 			blocks,
 			selectedIndex: draftIndex,
 			selectedItem: draftItem,
+			targetPath: [...parseFieldPath(fieldPath), draftIndex],
 			arrayPath: parseFieldPath(fieldPath),
-			fieldPath,
+			itemFieldPath: `${fieldPath}[${draftIndex}]`,
 			imagePath,
 			blockRegistry,
 			navigationManifest,
-			onaddselectoption,
-			isDirty: false
+			onaddselectoption
 		};
 	}
 

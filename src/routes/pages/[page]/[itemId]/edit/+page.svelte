@@ -56,6 +56,7 @@
 	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	let skipNextLocalRevisionSync = $state(false);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
@@ -100,7 +101,11 @@
 		return cleanup;
 	});
 
-	async function loadLocalItem(pageSlug: string, itemId: string) {
+	async function loadLocalItem(
+		pageSlug: string,
+		itemId: string,
+		options: { refresh?: boolean } = {}
+	) {
 		const requestId = ++localLoadRequest;
 
 		discoveredConfig = null;
@@ -113,7 +118,9 @@
 		localError = null;
 		formGenerator = null;
 		hasUnsavedChanges = false;
-		await localContent.refresh();
+		if (options.refresh) {
+			await localContent.refresh();
+		}
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
 
@@ -158,12 +165,32 @@
 
 	$effect(() => {
 		if (isLocalMode) {
-			void loadLocalItem(data.pageSlug, data.itemId);
+			skipNextLocalRevisionSync = true;
+			void loadLocalItem(data.pageSlug, data.itemId, { refresh: true });
 			return;
 		}
 
+		skipNextLocalRevisionSync = false;
 		localLoadRequest += 1;
 		applyRemoteData();
+	});
+
+	$effect(() => {
+		if (!isLocalMode || hasUnsavedChanges) {
+			return;
+		}
+
+		const revision = $localContent.revision;
+		if (revision === 0) {
+			return;
+		}
+
+		if (skipNextLocalRevisionSync) {
+			skipNextLocalRevisionSync = false;
+			return;
+		}
+
+		void loadLocalItem(data.pageSlug, data.itemId);
 	});
 
 	async function handleAddSelectOption(input: { collection: string; id: string; label: string }) {

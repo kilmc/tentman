@@ -5,6 +5,7 @@ import type { NavigationManifest } from '$lib/features/content-management/naviga
 import type { ContentRecord } from '$lib/features/content-management/types';
 import type {
 	ContentPath,
+	FormPanelKind,
 	FormEditSession,
 	RepeatablePanelMode
 } from '$lib/features/forms/edit-session';
@@ -13,15 +14,17 @@ export const FORM_SIDE_PANEL = Symbol('form-side-panel');
 
 export interface FormSidePanelState {
 	id: string;
+	kind: FormPanelKind;
 	mode: RepeatablePanelMode;
 	label: string;
 	listLabel: string;
 	title: string;
 	blocks: BlockUsage[];
-	selectedIndex: number;
 	selectedItem: ContentRecord;
-	arrayPath: ContentPath;
-	fieldPath?: string;
+	targetPath: ContentPath;
+	itemFieldPath?: string;
+	selectedIndex?: number;
+	arrayPath?: ContentPath;
 	imagePath?: string;
 	blockRegistry: BlockRegistry;
 	navigationManifest?: NavigationManifest | null;

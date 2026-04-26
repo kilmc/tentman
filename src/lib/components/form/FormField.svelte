@@ -19,6 +19,8 @@
 	import ImageField from './ImageField.svelte';
 	import ArrayField from './ArrayField.svelte';
 	import StructuredBlockField from './StructuredBlockField.svelte';
+	import StructuredObjectPanelField from './StructuredObjectPanelField.svelte';
+	import { containsNestedStructuredCollection } from '$lib/features/forms/object-panel';
 
 	interface Props {
 		block: BlockUsage;
@@ -60,6 +62,11 @@
 			? 'array'
 			: 'object'
 		: block.type;
+	const shouldUseObjectPanel = $derived(
+		fieldType === 'object' &&
+			!!structuredBlocks &&
+			containsNestedStructuredCollection(structuredBlocks.blocks, blockRegistry)
+	);
 	const selectOptions = $derived(resolveSelectOptions(block.options, navigationManifest));
 	const sourceOptions = $derived(
 		isNavigationGroupsSelectOptions(block.options) ? block.options : undefined
@@ -127,18 +134,32 @@
 		{onaddselectoption}
 	/>
 {:else if fieldType === 'object'}
-	<StructuredBlockField
-		{label}
-		bind:value
-		{fieldPath}
-		blocks={structuredBlocks?.blocks ?? []}
-		{required}
-		{onchange}
-		{imagePath}
-		{blockRegistry}
-		{navigationManifest}
-		{onaddselectoption}
-	/>
+	{#if shouldUseObjectPanel}
+		<StructuredObjectPanelField
+			{label}
+			bind:value
+			{fieldPath}
+			blocks={structuredBlocks?.blocks ?? []}
+			{required}
+			{imagePath}
+			{blockRegistry}
+			{navigationManifest}
+			{onaddselectoption}
+		/>
+	{:else}
+		<StructuredBlockField
+			{label}
+			bind:value
+			{fieldPath}
+			blocks={structuredBlocks?.blocks ?? []}
+			{required}
+			{onchange}
+			{imagePath}
+			{blockRegistry}
+			{navigationManifest}
+			{onaddselectoption}
+		/>
+	{/if}
 {:else}
 	<div class="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
 		Unsupported block type: {block.type}

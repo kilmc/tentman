@@ -1,30 +1,58 @@
 import type { BlockRegistry } from '$lib/blocks/registry';
 import type { BlockUsage } from '$lib/config/types';
+import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 
 export type ContentPath = Array<string | number>;
 export type RepeatablePanelMode = 'create' | 'edit';
+export type FormPanelKind = 'repeatable' | 'object';
 
-export interface OpenRepeatablePanelInput {
+interface BasePanelInput {
 	id: string;
+	kind: FormPanelKind;
 	mode: RepeatablePanelMode;
 	label: string;
 	listLabel: string;
 	title: string;
 	blocks: BlockUsage[];
-	selectedIndex: number;
 	selectedItem: ContentRecord;
-	arrayPath: ContentPath;
-	fieldPath?: string;
+	targetPath: ContentPath;
+	itemFieldPath?: string;
 	imagePath?: string;
 	blockRegistry: BlockRegistry;
+	navigationManifest?: NavigationManifest | null;
+	onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 }
 
-export interface RepeatablePanelView extends OpenRepeatablePanelInput {
+export interface OpenRepeatablePanelInput extends BasePanelInput {
+	kind: 'repeatable';
+	selectedIndex: number;
+	arrayPath: ContentPath;
+}
+
+export interface OpenObjectPanelInput extends BasePanelInput {
+	kind: 'object';
+}
+
+export type OpenPanelInput = OpenRepeatablePanelInput | OpenObjectPanelInput;
+
+interface BasePanelView extends BasePanelInput {
 	selectedItem: ContentRecord;
 	isDirty: boolean;
 	submitError?: string;
 }
+
+export interface RepeatablePanelView extends BasePanelView {
+	kind: 'repeatable';
+	selectedIndex: number;
+	arrayPath: ContentPath;
+}
+
+export interface ObjectPanelView extends BasePanelView {
+	kind: 'object';
+}
+
+export type FormPanelView = RepeatablePanelView | ObjectPanelView;
 
 export interface FormDirtyState {
 	isDirty: boolean;
@@ -36,15 +64,15 @@ export type PrepareSubmitResult =
 	| { ok: true; data: ContentRecord }
 	| { ok: false; data: ContentRecord; message: string };
 
-interface PanelEntry extends OpenRepeatablePanelInput {
+type PanelEntry = (OpenRepeatablePanelInput | OpenObjectPanelInput) & {
 	draftItem: ContentRecord;
 	initialItem: ContentRecord;
 	submitError?: string;
-}
+};
 
 interface FormEditSessionOptions {
 	onChange?: (state: FormDirtyState) => void;
-	onPanelChange?: (panel: RepeatablePanelView | null) => void;
+	onPanelChange?: (panel: FormPanelView | null) => void;
 }
 
 export interface FormEditSession {
@@ -52,8 +80,8 @@ export interface FormEditSession {
 	setData: (data: ContentRecord) => void;
 	updateData: (data: ContentRecord) => void;
 	getDirtyState: () => FormDirtyState;
-	getActivePanel: () => RepeatablePanelView | null;
-	openPanel: (panel: OpenRepeatablePanelInput) => void;
+	getActivePanel: () => FormPanelView | null;
+	openPanel: (panel: OpenPanelInput) => void;
 	updatePanelField: (blockId: string, value: ContentValue | undefined) => void;
 	reorderArrayItems: (
 		arrayPath: ContentPath,
@@ -91,7 +119,7 @@ export function createFormEditSession(
 		return panelStack.at(-1) ?? null;
 	}
 
-	function getActivePanel(): RepeatablePanelView | null {
+	function getActivePanel(): FormPanelView | null {
 		const active = getActiveEntry();
 		return active ? toPanelView(active) : null;
 	}
@@ -111,14 +139,21 @@ export function createFormEditSession(
 		notify();
 	}
 
-	function openPanel(panel: OpenRepeatablePanelInput) {
+	function openPanel(panel: OpenPanelInput) {
 		const normalizedPanel = {
 			...panel,
-			arrayPath: [...panel.arrayPath],
+			targetPath: [...panel.targetPath],
+			itemFieldPath: panel.itemFieldPath,
+			...(panel.kind === 'repeatable'
+				? {
+						arrayPath: [...panel.arrayPath],
+						selectedIndex: panel.selectedIndex
+					}
+				: {}),
 			selectedItem: cloneContentRecord(panel.selectedItem),
 			draftItem: cloneContentRecord(panel.selectedItem),
 			initialItem: cloneContentRecord(panel.selectedItem)
-		} satisfies PanelEntry;
+		} as PanelEntry;
 
 		const active = getActiveEntry();
 		if (!active) {
@@ -156,14 +191,12 @@ export function createFormEditSession(
 		indexMap: Map<number, number> = new Map()
 	) {
 		const active = getActiveEntry();
-		const parent = active && pathStartsWith(arrayPath, [...active.arrayPath, active.selectedIndex])
-			? active
-			: null;
+		const parent = active && pathStartsWith(arrayPath, active.targetPath) ? active : null;
 
 		if (parent) {
 			parent.draftItem = setValueAtPath(
 				parent.draftItem,
-				arrayPath.slice(parent.arrayPath.length + 1),
+				arrayPath.slice(parent.targetPath.length),
 				nextItems
 			) as ContentRecord;
 		} else {
@@ -171,7 +204,7 @@ export function createFormEditSession(
 		}
 
 		for (const panel of panelStack) {
-			if (pathsEqual(panel.arrayPath, arrayPath)) {
+			if (panel.kind === 'repeatable' && pathsEqual(panel.arrayPath, arrayPath)) {
 				panel.selectedIndex = indexMap.get(panel.selectedIndex) ?? panel.selectedIndex;
 			}
 		}
@@ -215,14 +248,14 @@ export function createFormEditSession(
 
 	function removePanelItem() {
 		const active = getActiveEntry();
-		if (!active || active.mode !== 'edit') {
+		if (!active || active.kind !== 'repeatable' || active.mode !== 'edit') {
 			return;
 		}
 
 		const nextItems = getCurrentArrayForEntry(active).filter(
 			(_, index) => index !== active.selectedIndex
 		);
-		applyArrayForEntry(active, nextItems);
+		applyValueForEntry(active, nextItems);
 		panelStack = panelStack.slice(0, -1);
 		notify();
 	}
@@ -268,6 +301,14 @@ export function createFormEditSession(
 
 	function commitEntry(entry: PanelEntry) {
 		const nextItem = cloneContentRecord(entry.draftItem);
+		if (entry.kind === 'object') {
+			applyValueForEntry(entry, nextItem);
+			entry.initialItem = nextItem;
+			entry.draftItem = cloneContentRecord(nextItem);
+			entry.submitError = undefined;
+			return;
+		}
+
 		const currentItems = getCurrentArrayForEntry(entry);
 		const nextItems =
 			entry.mode === 'create'
@@ -278,33 +319,39 @@ export function createFormEditSession(
 					]
 				: currentItems.map((item, index) => (index === entry.selectedIndex ? nextItem : item));
 
-		applyArrayForEntry(entry, nextItems);
+		applyValueForEntry(entry, nextItems);
 		entry.initialItem = nextItem;
 		entry.draftItem = cloneContentRecord(nextItem);
 		entry.submitError = undefined;
 	}
 
-	function getCurrentArrayForEntry(entry: PanelEntry): ContentValue[] {
+	function getCurrentArrayForEntry(
+		entry: Extract<PanelEntry, { kind: 'repeatable' }>
+	): ContentValue[] {
 		const parent = getParentEntry(entry);
 		const source = parent ? parent.draftItem : data;
-		const path = parent ? getRelativeArrayPath(parent, entry) : entry.arrayPath;
+		const path = parent ? getRelativePath(parent, entry.arrayPath) : entry.arrayPath;
 		const value = getValueAtPath(source, path);
 		return Array.isArray(value) ? value : [];
 	}
 
-	function applyArrayForEntry(entry: PanelEntry, nextItems: ContentValue[]) {
+	function applyValueForEntry(entry: PanelEntry, nextValue: ContentValue) {
 		const parent = getParentEntry(entry);
+		const path = parent
+			? getRelativePath(
+					parent,
+					entry.kind === 'repeatable' ? entry.arrayPath : entry.targetPath
+				)
+			: entry.kind === 'repeatable'
+				? entry.arrayPath
+				: entry.targetPath;
 
 		if (parent) {
-			parent.draftItem = setValueAtPath(
-				parent.draftItem,
-				getRelativeArrayPath(parent, entry),
-				nextItems
-			) as ContentRecord;
+			parent.draftItem = setValueAtPath(parent.draftItem, path, nextValue) as ContentRecord;
 			return;
 		}
 
-		data = setValueAtPath(data, entry.arrayPath, nextItems) as ContentRecord;
+		data = setValueAtPath(data, path, nextValue) as ContentRecord;
 	}
 
 	function getParentEntry(entry: PanelEntry): PanelEntry | null {
@@ -367,7 +414,7 @@ function cloneContentValue<T extends ContentValue | ContentRecord | undefined>(v
 	}
 }
 
-function toPanelView(entry: PanelEntry): RepeatablePanelView {
+function toPanelView(entry: PanelEntry): FormPanelView {
 	const { draftItem, initialItem, submitError, ...panel } = entry;
 	return {
 		...panel,
@@ -386,8 +433,7 @@ function getFingerprint(value: unknown): string {
 }
 
 function isNestedPanel(parent: PanelEntry, child: PanelEntry): boolean {
-	const parentItemPath = [...parent.arrayPath, parent.selectedIndex];
-	return pathStartsWith(child.arrayPath, parentItemPath);
+	return pathStartsWith(child.targetPath, parent.targetPath);
 }
 
 function pathStartsWith(path: ContentPath, prefix: ContentPath): boolean {
@@ -398,8 +444,8 @@ function pathsEqual(left: ContentPath, right: ContentPath): boolean {
 	return left.length === right.length && left.every((segment, index) => right[index] === segment);
 }
 
-function getRelativeArrayPath(parent: PanelEntry, child: PanelEntry): ContentPath {
-	return child.arrayPath.slice(parent.arrayPath.length + 1);
+function getRelativePath(parent: PanelEntry, childPath: ContentPath): ContentPath {
+	return childPath.slice(parent.targetPath.length);
 }
 
 function getValueAtPath(source: ContentRecord, path: ContentPath): ContentValue | undefined {

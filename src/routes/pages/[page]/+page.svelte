@@ -85,6 +85,7 @@
 	] as const;
 	let localLoadRequest = 0;
 	let draftStatusRequest = 0;
+	let skipNextLocalRevisionSync = $state(false);
 
 	function applyRemoteData() {
 		discoveredConfig = data.discoveredConfig;
@@ -221,7 +222,7 @@
 		}
 	}
 
-	async function loadLocalPage(pageSlug: string) {
+	async function loadLocalPage(pageSlug: string, options: { refresh?: boolean } = {}) {
 		const requestId = ++localLoadRequest;
 
 		discoveredConfig = null;
@@ -231,7 +232,9 @@
 		content = null;
 		contentError = null;
 		blockRegistryError = null;
-		await localContent.refresh();
+		if (options.refresh) {
+			await localContent.refresh();
+		}
 
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
@@ -286,13 +289,33 @@
 		if (isLocalMode) {
 			draftStatusRequest += 1;
 			resetDraftStatus();
-			void loadLocalPage(data.pageSlug);
+			skipNextLocalRevisionSync = true;
+			void loadLocalPage(data.pageSlug, { refresh: true });
 			return;
 		}
 
+		skipNextLocalRevisionSync = false;
 		localLoadRequest += 1;
 		applyRemoteData();
 		void loadRemoteDraftStatus(data.pageSlug);
+	});
+
+	$effect(() => {
+		if (!isLocalMode) {
+			return;
+		}
+
+		const revision = $localContent.revision;
+		if (revision === 0) {
+			return;
+		}
+
+		if (skipNextLocalRevisionSync) {
+			skipNextLocalRevisionSync = false;
+			return;
+		}
+
+		void loadLocalPage(data.pageSlug);
 	});
 
 	function getEditHref() {

@@ -25,6 +25,7 @@
 	const isDirty = $derived(panel.isDirty);
 	const primaryActionLabel = $derived(panel.mode === 'create' ? 'Add' : 'Save');
 	const showFooter = $derived(panel.mode === 'create' || isDirty || !!panel.submitError);
+	const canRemove = $derived(panel.kind === 'repeatable' && panel.mode === 'edit');
 
 	function getPanelKey(panel: FormSidePanelState): string {
 		return [panel.id, panel.mode, panel.selectedIndex, panel.title].join(':');
@@ -95,7 +96,7 @@
 						{/if}
 					</div>
 				</div>
-				{#if panel.mode === 'edit'}
+				{#if canRemove}
 					<details bind:this={actionMenu} class="relative">
 						<summary class="tm-icon-btn list-none" aria-label={`${panel.title} actions`}>
 							<MoreHorizontal class="h-4 w-4" />

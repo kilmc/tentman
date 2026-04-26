@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { BlockUsage } from '$lib/config/types';
+import type { ContentRecord } from '$lib/features/content-management/types';
 import { createFormEditSession, parseFieldPath } from './edit-session';
 
 const blockRegistry = {
@@ -7,6 +9,44 @@ const blockRegistry = {
 	has: () => false,
 	getAdapter: () => undefined
 };
+
+function repeatablePanel(input: {
+	id: string;
+	mode: 'create' | 'edit';
+	label: string;
+	listLabel: string;
+	title: string;
+	blocks: BlockUsage[];
+	selectedIndex: number;
+	selectedItem: ContentRecord;
+	arrayPath: Array<string | number>;
+	itemFieldPath: string;
+}) {
+	return {
+		kind: 'repeatable' as const,
+		targetPath: [...input.arrayPath, input.selectedIndex],
+		blockRegistry,
+		...input
+	};
+}
+
+function objectPanel(input: {
+	id: string;
+	label: string;
+	title: string;
+	blocks: BlockUsage[];
+	selectedItem: ContentRecord;
+	targetPath: Array<string | number>;
+	itemFieldPath: string;
+}) {
+	return {
+		kind: 'object' as const,
+		mode: 'edit' as const,
+		listLabel: input.label,
+		blockRegistry,
+		...input
+	};
+}
 
 describe('features/forms/edit-session', () => {
 	it('tracks root dirty state and returns clean when data matches the baseline', () => {
@@ -27,17 +67,18 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:sections',
-			mode: 'edit',
-			label: 'Section',
-			listLabel: 'Sections',
-			title: 'Section 1: Intro',
-			blocks: [{ id: 'title', type: 'text', label: 'Title' }],
-			selectedIndex: 0,
-			selectedItem: { title: 'Intro' },
-			arrayPath: ['sections'],
-			fieldPath: 'sections',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:sections',
+				mode: 'edit',
+				label: 'Section',
+				listLabel: 'Sections',
+				title: 'Section 1: Intro',
+				blocks: [{ id: 'title', type: 'text', label: 'Title' }],
+				selectedIndex: 0,
+				selectedItem: { title: 'Intro' },
+				arrayPath: ['sections'],
+				itemFieldPath: 'sections[0]'
+			})
 		});
 		session.updatePanelField('title', 'Opening');
 
@@ -57,17 +98,18 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:sections',
-			mode: 'edit',
-			label: 'Section',
-			listLabel: 'Sections',
-			title: 'Section 1: Intro',
-			blocks: [{ id: 'title', type: 'text', label: 'Title' }],
-			selectedIndex: 0,
-			selectedItem: { title: 'Intro' },
-			arrayPath: ['sections'],
-			fieldPath: 'sections',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:sections',
+				mode: 'edit',
+				label: 'Section',
+				listLabel: 'Sections',
+				title: 'Section 1: Intro',
+				blocks: [{ id: 'title', type: 'text', label: 'Title' }],
+				selectedIndex: 0,
+				selectedItem: { title: 'Intro' },
+				arrayPath: ['sections'],
+				itemFieldPath: 'sections[0]'
+			})
 		});
 		session.updatePanelField('title', 'Opening');
 
@@ -86,17 +128,18 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:sections',
-			mode: 'create',
-			label: 'Section',
-			listLabel: 'Sections',
-			title: 'New Section',
-			blocks: [{ id: 'title', type: 'text', label: 'Title' }],
-			selectedIndex: 0,
-			selectedItem: { title: '' },
-			arrayPath: ['sections'],
-			fieldPath: 'sections',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:sections',
+				mode: 'create',
+				label: 'Section',
+				listLabel: 'Sections',
+				title: 'New Section',
+				blocks: [{ id: 'title', type: 'text', label: 'Title' }],
+				selectedIndex: 0,
+				selectedItem: { title: '' },
+				arrayPath: ['sections'],
+				itemFieldPath: 'sections[0]'
+			})
 		});
 		session.updatePanelField('title', 'Opening');
 
@@ -115,17 +158,18 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:sections',
-			mode: 'edit',
-			label: 'Section',
-			listLabel: 'Sections',
-			title: 'Section 2: Credits',
-			blocks: [{ id: 'title', type: 'text', label: 'Title' }],
-			selectedIndex: 1,
-			selectedItem: { title: 'Credits' },
-			arrayPath: ['sections'],
-			fieldPath: 'sections',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:sections',
+				mode: 'edit',
+				label: 'Section',
+				listLabel: 'Sections',
+				title: 'Section 2: Credits',
+				blocks: [{ id: 'title', type: 'text', label: 'Title' }],
+				selectedIndex: 1,
+				selectedItem: { title: 'Credits' },
+				arrayPath: ['sections'],
+				itemFieldPath: 'sections[1]'
+			})
 		});
 
 		session.reorderArrayItems(
@@ -152,17 +196,18 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:galleries',
-			mode: 'edit',
-			label: 'Gallery',
-			listLabel: 'Galleries',
-			title: 'Gallery 1: main',
-			blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
-			selectedIndex: 0,
-			selectedItem: { id: 'main', images: [{ alt: 'Opening' }, { alt: 'Detail' }] },
-			arrayPath: ['galleries'],
-			fieldPath: 'galleries',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:galleries',
+				mode: 'edit',
+				label: 'Gallery',
+				listLabel: 'Galleries',
+				title: 'Gallery 1: main',
+				blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
+				selectedIndex: 0,
+				selectedItem: { id: 'main', images: [{ alt: 'Opening' }, { alt: 'Detail' }] },
+				arrayPath: ['galleries'],
+				itemFieldPath: 'galleries[0]'
+			})
 		});
 
 		session.reorderArrayItems(
@@ -197,30 +242,32 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:galleries',
-			mode: 'edit',
-			label: 'Gallery',
-			listLabel: 'Galleries',
-			title: 'Gallery 1: main',
-			blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
-			selectedIndex: 0,
-			selectedItem: { id: 'main', images: [] },
-			arrayPath: ['galleries'],
-			fieldPath: 'galleries',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:galleries',
+				mode: 'edit',
+				label: 'Gallery',
+				listLabel: 'Galleries',
+				title: 'Gallery 1: main',
+				blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
+				selectedIndex: 0,
+				selectedItem: { id: 'main', images: [] },
+				arrayPath: ['galleries'],
+				itemFieldPath: 'galleries[0]'
+			})
 		});
 		session.openPanel({
-			id: 'repeatable:galleries[0].images',
-			mode: 'create',
-			label: 'Image',
-			listLabel: 'Images',
-			title: 'New Image',
-			blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }],
-			selectedIndex: 0,
-			selectedItem: { alt: '' },
-			arrayPath: ['galleries', 0, 'images'],
-			fieldPath: 'galleries[0].images',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:galleries[0].images',
+				mode: 'create',
+				label: 'Image',
+				listLabel: 'Images',
+				title: 'New Image',
+				blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }],
+				selectedIndex: 0,
+				selectedItem: { alt: '' },
+				arrayPath: ['galleries', 0, 'images'],
+				itemFieldPath: 'galleries[0].images[0]'
+			})
 		});
 		session.updatePanelField('alt', 'Opening');
 		session.commitPanel();
@@ -249,30 +296,32 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:galleries',
-			mode: 'edit',
-			label: 'Gallery',
-			listLabel: 'Galleries',
-			title: 'Gallery 1: main',
-			blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
-			selectedIndex: 0,
-			selectedItem: { id: 'main', images: [{ alt: 'Opening' }] },
-			arrayPath: ['galleries'],
-			fieldPath: 'galleries',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:galleries',
+				mode: 'edit',
+				label: 'Gallery',
+				listLabel: 'Galleries',
+				title: 'Gallery 1: main',
+				blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
+				selectedIndex: 0,
+				selectedItem: { id: 'main', images: [{ alt: 'Opening' }] },
+				arrayPath: ['galleries'],
+				itemFieldPath: 'galleries[0]'
+			})
 		});
 		session.openPanel({
-			id: 'repeatable:galleries[0].images',
-			mode: 'edit',
-			label: 'Image',
-			listLabel: 'Images',
-			title: 'Image 1: Opening',
-			blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }],
-			selectedIndex: 0,
-			selectedItem: { alt: 'Opening' },
-			arrayPath: ['galleries', 0, 'images'],
-			fieldPath: 'galleries[0].images',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:galleries[0].images',
+				mode: 'edit',
+				label: 'Image',
+				listLabel: 'Images',
+				title: 'Image 1: Opening',
+				blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }],
+				selectedIndex: 0,
+				selectedItem: { alt: 'Opening' },
+				arrayPath: ['galleries', 0, 'images'],
+				itemFieldPath: 'galleries[0].images[0]'
+			})
 		});
 
 		session.removePanelItem();
@@ -288,20 +337,147 @@ describe('features/forms/edit-session', () => {
 		});
 
 		session.openPanel({
-			id: 'repeatable:galleries',
-			mode: 'edit',
-			label: 'Gallery',
-			listLabel: 'Galleries',
-			title: 'Gallery 1: main',
-			blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
-			selectedIndex: 0,
-			selectedItem: { id: 'main', images: [] },
-			arrayPath: ['galleries'],
-			fieldPath: 'galleries',
-			blockRegistry
+			...repeatablePanel({
+				id: 'repeatable:galleries',
+				mode: 'edit',
+				label: 'Gallery',
+				listLabel: 'Galleries',
+				title: 'Gallery 1: main',
+				blocks: [{ id: 'id', type: 'text', label: 'Gallery ID' }],
+				selectedIndex: 0,
+				selectedItem: { id: 'main', images: [] },
+				arrayPath: ['galleries'],
+				itemFieldPath: 'galleries[0]'
+			})
 		});
 		session.removePanelItem();
 		expect(session.getData()).toEqual({ galleries: [] });
+	});
+
+	it('keeps object panel edits in draft state until the panel is committed', () => {
+		const session = createFormEditSession({
+			gallery: {
+				layout: 'grid',
+				images: []
+			}
+		});
+
+		session.openPanel(
+			objectPanel({
+				id: 'object:gallery',
+				label: 'Gallery',
+				title: 'Gallery',
+				blocks: [
+					{ id: 'layout', type: 'text', label: 'Layout' },
+					{
+						id: 'images',
+						type: 'block',
+						label: 'Images',
+						collection: true,
+						blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }]
+					}
+				],
+				selectedItem: { layout: 'grid', images: [] },
+				targetPath: ['gallery'],
+				itemFieldPath: 'gallery'
+			})
+		);
+		session.updatePanelField('layout', 'masonry');
+
+		expect(session.getData()).toEqual({
+			gallery: {
+				layout: 'grid',
+				images: []
+			}
+		});
+		expect(session.getActivePanel()).toMatchObject({
+			kind: 'object',
+			selectedItem: {
+				layout: 'masonry',
+				images: []
+			},
+			isDirty: true
+		});
+
+		session.commitPanel();
+
+		expect(session.getData()).toEqual({
+			gallery: {
+				layout: 'masonry',
+				images: []
+			}
+		});
+	});
+
+	it('stages nested repeatable changes inside an object panel before root submit', () => {
+		const session = createFormEditSession({
+			gallery: {
+				layout: 'grid',
+				images: []
+			}
+		});
+
+		session.openPanel(
+			objectPanel({
+				id: 'object:gallery',
+				label: 'Gallery',
+				title: 'Gallery',
+				blocks: [
+					{ id: 'layout', type: 'text', label: 'Layout' },
+					{
+						id: 'images',
+						type: 'block',
+						label: 'Images',
+						collection: true,
+						blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }]
+					}
+				],
+				selectedItem: { layout: 'grid', images: [] },
+				targetPath: ['gallery'],
+				itemFieldPath: 'gallery'
+			})
+		);
+		session.openPanel(
+			repeatablePanel({
+				id: 'repeatable:gallery.images',
+				mode: 'create',
+				label: 'Image',
+				listLabel: 'Images',
+				title: 'New Image',
+				blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }],
+				selectedIndex: 0,
+				selectedItem: { alt: '' },
+				arrayPath: ['gallery', 'images'],
+				itemFieldPath: 'gallery.images[0]'
+			})
+		);
+		session.updatePanelField('alt', 'Opening');
+		session.commitPanel();
+
+		expect(session.getData()).toEqual({
+			gallery: {
+				layout: 'grid',
+				images: []
+			}
+		});
+		expect(session.getActivePanel()).toMatchObject({
+			kind: 'object',
+			selectedItem: {
+				layout: 'grid',
+				images: [{ alt: 'Opening' }]
+			},
+			isDirty: true
+		});
+
+		expect(session.prepareSubmit()).toEqual({
+			ok: true,
+			data: {
+				gallery: {
+					layout: 'grid',
+					images: [{ alt: 'Opening' }]
+				}
+			}
+		});
 	});
 
 	it('parses field paths with array indices', () => {

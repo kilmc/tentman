@@ -578,6 +578,145 @@ describe('components/form/ArrayField.svelte', () => {
 			.not.toBeInTheDocument();
 	});
 
+	it('keeps simple structured objects inline when they do not contain nested collections', async () => {
+		const screen = render(FormGenerator, {
+			config: {
+				type: 'content',
+				label: 'Page',
+				content: {
+					mode: 'file',
+					path: 'src/content/page.json'
+				},
+				blocks: [
+					{
+						id: 'hero',
+						type: 'block',
+						label: 'Hero',
+						blocks: [
+							{ id: 'headline', type: 'text', label: 'Headline' },
+							{ id: 'summary', type: 'textarea', label: 'Summary' }
+						]
+					}
+				]
+			},
+			initialData: {
+				hero: {
+					headline: 'Opening',
+					summary: 'Welcome'
+				}
+			}
+		});
+
+		await expect.element(screen.getByLabelText('Headline')).toHaveValue('Opening');
+		await expect.element(screen.getByLabelText('Summary')).toHaveValue('Welcome');
+		await expect
+			.element(screen.getByRole('button', { name: 'Edit Hero' }))
+			.not.toBeInTheDocument();
+	});
+
+	it('renders structured objects with nested collections as a panel card', async () => {
+		const screen = render(FormGenerator, {
+			config: {
+				type: 'content',
+				label: 'Project',
+				content: {
+					mode: 'file',
+					path: 'src/content/project.json'
+				},
+				blocks: [
+					{
+						id: 'gallery',
+						type: 'block',
+						label: 'Gallery',
+						blocks: [
+							{ id: 'layout', type: 'text', label: 'Layout' },
+							{
+								id: 'images',
+								type: 'block',
+								label: 'Images',
+								collection: true,
+								itemLabel: 'Image',
+								blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }]
+							}
+						]
+					}
+				]
+			},
+			initialData: {
+				gallery: {
+					layout: 'grid',
+					images: [{ alt: 'Opening view' }]
+				}
+			}
+		});
+
+		await expect.element(screen.getByRole('button', { name: 'Edit Gallery' })).toBeVisible();
+		await expect.element(screen.getByLabelText('Layout')).not.toBeInTheDocument();
+		await expect
+			.element(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
+			.not.toBeInTheDocument();
+
+		await screen.getByRole('button', { name: 'Edit Gallery' }).click();
+
+		await expect.element(screen.getByRole('heading', { name: 'Gallery' })).toBeVisible();
+		await expect.element(screen.getByLabelText('Layout')).toHaveValue('grid');
+		await expect
+			.element(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
+			.toBeVisible();
+	});
+
+	it('keeps nested collection changes inside an object panel staged until page submit', async () => {
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Project',
+				content: {
+					mode: 'file',
+					path: 'src/content/project.json'
+				},
+				blocks: [
+					{
+						id: 'gallery',
+						type: 'block',
+						label: 'Gallery',
+						blocks: [
+							{ id: 'layout', type: 'text', label: 'Layout' },
+							{
+								id: 'images',
+								type: 'block',
+								label: 'Images',
+								collection: true,
+								itemLabel: 'Image',
+								blocks: [{ id: 'alt', type: 'text', label: 'Alt text' }]
+							}
+						]
+					}
+				]
+			},
+			initialData: {
+				gallery: {
+					layout: 'grid',
+					images: []
+				}
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Edit Gallery' }).click();
+		await screen.getByRole('button', { name: 'Add Image' }).click();
+		await screen.getByLabelText('Alt text').fill('Opening view');
+		await screen.getByRole('button', { name: 'Add', exact: true }).click();
+
+		await expect.element(screen.getByRole('heading', { name: 'Gallery' })).toBeVisible();
+		await expect.element(screen.getByTestId('form-dirty-state')).toHaveTextContent('dirty');
+
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+
+		await expect.element(screen.getByTestId('submit-error')).toHaveTextContent('');
+		await expect
+			.element(screen.getByTestId('prepared-data'))
+			.toHaveTextContent('{"gallery":{"layout":"grid","images":[{"alt":"Opening view"}]}}');
+	});
+
 	it('keeps primitive arrays inline', async () => {
 		const screen = render(ArrayField, {
 			label: 'Tags',

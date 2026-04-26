@@ -35,7 +35,7 @@
 
 <FormField
 	{block}
-	fieldPath={panel.fieldPath ? `${panel.fieldPath}[${panel.selectedIndex}].${block.id}` : block.id}
+	fieldPath={panel.itemFieldPath ? `${panel.itemFieldPath}.${block.id}` : block.id}
 	bind:value
 	imagePath={panel.imagePath}
 	blockRegistry={panel.blockRegistry}
