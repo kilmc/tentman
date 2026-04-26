@@ -15,6 +15,7 @@
 	import CollectionPanel from '$lib/features/content-management/components/CollectionPanel.svelte';
 	import Sidebar from '$lib/features/content-management/components/Sidebar.svelte';
 	import Header from '$lib/features/content-management/components/Header.svelte';
+	import RemountOnValue from '$lib/components/RemountOnValue.svelte';
 	import SidePanelHost from '$lib/components/form/SidePanelHost.svelte';
 	import {
 		FORM_SIDE_PANEL,
@@ -80,6 +81,7 @@
 	let savingNavigation = $state(false);
 	let savingCollectionOrder = $state(false);
 	let isCollectionPanelCollapsed = $state(false);
+	let localRescanVersion = $state(0);
 	let navigationDraft = $state<NavigationDraft | null>(null);
 	let initialNavigationDraft = $state<NavigationDraft | null>(null);
 	let topLevelEditorItems = $state<WorkspaceNavItem[]>([]);
@@ -308,6 +310,7 @@
 			toasts.success(
 				`Found ${configCount} content ${configCount === 1 ? 'config' : 'configs'} and ${blockCount} ${blockCount === 1 ? 'block' : 'blocks'}.`
 			);
+			localRescanVersion += 1;
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to rescan repo.');
 		}
@@ -681,7 +684,13 @@
 					data-testid="pages-main-panel"
 				>
 					<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
-						{@render children?.()}
+						<RemountOnValue
+							value={isLocalMode
+								? `${page.url.pathname}${page.url.search}:${localRescanVersion}`
+								: `${page.url.pathname}${page.url.search}`}
+						>
+							{@render children?.()}
+						</RemountOnValue>
 					</div>
 				</section>
 

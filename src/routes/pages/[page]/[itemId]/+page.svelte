@@ -26,7 +26,6 @@
 	let item = $state(data.item);
 	let contentError = $state(data.contentError);
 	let localLoadRequest = 0;
-	let skipNextLocalRevisionSync = $state(false);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
@@ -54,8 +53,7 @@
 
 	async function loadLocalItem(
 		pageSlug: string,
-		itemId: string,
-		options: { refresh?: boolean } = {}
+		itemId: string
 	) {
 		const requestId = ++localLoadRequest;
 
@@ -66,9 +64,7 @@
 		item = null;
 		contentError = null;
 		blockRegistryError = null;
-		if (options.refresh) {
-			await localContent.refresh();
-		}
+		await localContent.refresh();
 
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
@@ -118,32 +114,12 @@
 
 	$effect(() => {
 		if (isLocalMode) {
-			skipNextLocalRevisionSync = true;
-			void loadLocalItem(data.pageSlug, data.itemId, { refresh: true });
+			void loadLocalItem(data.pageSlug, data.itemId);
 			return;
 		}
 
-		skipNextLocalRevisionSync = false;
 		localLoadRequest += 1;
 		applyRemoteData();
-	});
-
-	$effect(() => {
-		if (!isLocalMode) {
-			return;
-		}
-
-		const revision = $localContent.revision;
-		if (revision === 0) {
-			return;
-		}
-
-		if (skipNextLocalRevisionSync) {
-			skipNextLocalRevisionSync = false;
-			return;
-		}
-
-		void loadLocalItem(data.pageSlug, data.itemId);
 	});
 
 	$effect(() => {

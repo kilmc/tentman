@@ -37,7 +37,6 @@
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
-	let skipNextLocalRevisionSync = $state(false);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const isDraftView = $derived(!isLocalMode && !!data.branch);
@@ -88,7 +87,7 @@
 		return cleanup;
 	});
 
-	async function loadLocalContent(pageSlug: string, options: { refresh?: boolean } = {}) {
+	async function loadLocalContent(pageSlug: string) {
 		const requestId = ++localLoadRequest;
 
 		discoveredConfig = null;
@@ -101,9 +100,7 @@
 		localError = null;
 		formGenerator = null;
 		hasUnsavedChanges = false;
-		if (options.refresh) {
-			await localContent.refresh();
-		}
+		await localContent.refresh();
 		const repoState = get(localRepo);
 		const contentState = get(localContent);
 
@@ -146,32 +143,12 @@
 
 	$effect(() => {
 		if (isLocalMode) {
-			skipNextLocalRevisionSync = true;
-			void loadLocalContent(data.pageSlug, { refresh: true });
+			void loadLocalContent(data.pageSlug);
 			return;
 		}
 
-		skipNextLocalRevisionSync = false;
 		localLoadRequest += 1;
 		applyRemoteData();
-	});
-
-	$effect(() => {
-		if (!isLocalMode || hasUnsavedChanges) {
-			return;
-		}
-
-		const revision = $localContent.revision;
-		if (revision === 0) {
-			return;
-		}
-
-		if (skipNextLocalRevisionSync) {
-			skipNextLocalRevisionSync = false;
-			return;
-		}
-
-		void loadLocalContent(data.pageSlug);
 	});
 
 	$effect(() => {

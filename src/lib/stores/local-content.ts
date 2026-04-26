@@ -16,7 +16,6 @@ import { shouldUseLocalConfigCache, type RootConfig } from '$lib/config/root-con
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
 	backendKey: string | null;
-	revision: number;
 	configs: DiscoveredConfig[];
 	blockConfigs: DiscoveredBlockConfig[];
 	blockRegistry: BlockRegistry | null;
@@ -122,7 +121,6 @@ function createStore() {
 	const store = writable<LocalContentState>({
 		status: 'idle',
 		backendKey: null,
-		revision: 0,
 		configs: [],
 		blockConfigs: [],
 		blockRegistry: null,
@@ -147,7 +145,6 @@ function createStore() {
 		subscribe,
 
 		async refresh(options: { force?: boolean } = {}) {
-			const currentState = get(store);
 			let repoState = get(localRepo);
 			if (!repoState.backend) {
 				await localRepo.hydrate();
@@ -158,7 +155,6 @@ function createStore() {
 				set({
 					status: 'error',
 					backendKey: null,
-					revision: currentState.revision,
 					configs: [],
 					blockConfigs: [],
 					blockRegistry: null,
@@ -182,6 +178,7 @@ function createStore() {
 			const backend = repoState.backend;
 			const rootConfig = await backend.readRootConfig();
 			const shouldUsePersistedCache = shouldUseLocalConfigCache(rootConfig);
+			const currentState = get(store);
 			if (
 				!options.force &&
 				currentState.status === 'ready' &&
@@ -255,7 +252,6 @@ function createStore() {
 					set({
 						status: 'ready',
 						backendKey: persistedState.backendKey,
-						revision: currentState.revision + 1,
 						configs: persistedState.configs,
 						blockConfigs: persistedState.blockConfigs,
 						blockRegistry,
@@ -300,7 +296,6 @@ function createStore() {
 					set({
 						status: 'ready',
 						backendKey: backend.cacheKey,
-						revision: currentState.revision + 1,
 						configs,
 						blockConfigs,
 						blockRegistry,
@@ -314,7 +309,6 @@ function createStore() {
 					set({
 						status: 'error',
 						backendKey: backend.cacheKey,
-						revision: currentState.revision,
 						configs: [],
 						blockConfigs: [],
 						blockRegistry: null,
@@ -346,7 +340,6 @@ function createStore() {
 			set({
 				status: 'idle',
 				backendKey: null,
-				revision: 0,
 				configs: [],
 				blockConfigs: [],
 				blockRegistry: null,

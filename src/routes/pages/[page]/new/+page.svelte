@@ -45,7 +45,6 @@
 	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
-	let skipNextLocalRevisionSync = $state(false);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(false);
@@ -99,12 +98,10 @@
 		return cleanup;
 	});
 
-	async function loadLocalConfig(pageSlug: string, options: { refresh?: boolean } = {}) {
+	async function loadLocalConfig(pageSlug: string) {
 		const requestId = ++localLoadRequest;
 
-		if (options.refresh) {
-			await localContent.refresh();
-		}
+		await localContent.refresh();
 		const contentState = get(localContent);
 
 		if (requestId !== localLoadRequest) {
@@ -126,32 +123,12 @@
 
 	$effect(() => {
 		if (isLocalMode) {
-			skipNextLocalRevisionSync = true;
-			void loadLocalConfig(data.pageSlug, { refresh: true });
+			void loadLocalConfig(data.pageSlug);
 			return;
 		}
 
-		skipNextLocalRevisionSync = false;
 		localLoadRequest += 1;
 		applyRemoteData();
-	});
-
-	$effect(() => {
-		if (!isLocalMode || hasUnsavedChanges) {
-			return;
-		}
-
-		const revision = $localContent.revision;
-		if (revision === 0) {
-			return;
-		}
-
-		if (skipNextLocalRevisionSync) {
-			skipNextLocalRevisionSync = false;
-			return;
-		}
-
-		void loadLocalConfig(data.pageSlug);
 	});
 
 	async function handleAddSelectOption(input: { collection: string; id: string; label: string }) {
