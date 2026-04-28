@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ChevronDown from 'lucide-svelte/icons/chevron-down';
 	import type { NavigationGroupsSelectBlockOptions, SelectBlockOption } from '$lib/config/types';
 	import { slugifyNavigationGroupLabel } from '$lib/features/content-management/navigation-group-options';
 
@@ -22,6 +23,7 @@
 		onaddoption
 	}: Props = $props();
 
+	const ADD_GROUP_VALUE = '__tentman_add_group__';
 	const selectId = `select-field-${Math.random().toString(36).substring(2, 9)}`;
 	const canAddOption = $derived(sourceOptions?.addOption === true && !!onaddoption);
 
@@ -31,12 +33,39 @@
 	let idWasEdited = $state(false);
 	let addError = $state('');
 	let adding = $state(false);
+	let previousValue = $state(value);
+	const canSubmitNewOption = $derived(newLabel.trim().length > 0 && newId.trim().length > 0);
+
+	$effect(() => {
+		if (value !== ADD_GROUP_VALUE) {
+			previousValue = value;
+		}
+	});
 
 	function handleNewLabelInput() {
 		if (!idWasEdited) {
 			newId = slugifyNavigationGroupLabel(newLabel);
 		}
 		addError = '';
+	}
+
+	function resetAddForm() {
+		showingAddForm = false;
+		newLabel = '';
+		newId = '';
+		idWasEdited = false;
+		addError = '';
+	}
+
+	function openAddForm() {
+		showingAddForm = true;
+		addError = '';
+	}
+
+	function cancelAddForm() {
+		value = previousValue;
+		onchange?.();
+		resetAddForm();
 	}
 
 	async function addOption() {
@@ -57,10 +86,7 @@
 			});
 			value = id;
 			onchange?.();
-			showingAddForm = false;
-			newLabel = '';
-			newId = '';
-			idWasEdited = false;
+			resetAddForm();
 		} catch (error) {
 			addError = error instanceof Error ? error.message : 'Could not add group';
 		} finally {
@@ -77,36 +103,37 @@
 				<span class="text-red-600">*</span>
 			{/if}
 		</label>
-		{#if canAddOption}
-			<button
-				type="button"
-				class="text-sm font-medium text-stone-700 underline decoration-stone-300 underline-offset-4 hover:text-stone-950"
-				onclick={() => {
-					showingAddForm = !showingAddForm;
-					addError = '';
-				}}
-			>
-				Add group
-			</button>
-		{/if}
 	</div>
-	<select
-		id={selectId}
-		bind:value
-		{required}
-		onchange={() => onchange?.()}
-		class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
-	>
-		<option value="" disabled={required}>Select {label}</option>
-		{#each options as option (option.value)}
-			<option value={option.value}>{option.label}</option>
-		{/each}
-	</select>
+	<div class="relative">
+		<select
+			id={selectId}
+			bind:value
+			{required}
+			onchange={() => {
+				if (canAddOption && value === ADD_GROUP_VALUE) {
+					openAddForm();
+					return;
+				}
+				onchange?.();
+			}}
+			class="w-full appearance-none rounded-md border border-gray-300 bg-white px-3 py-2 pr-11 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
+		>
+			<option value="" disabled={required}>Select {label}</option>
+			{#each options as option (option.value)}
+				<option value={option.value}>{option.label}</option>
+			{/each}
+			{#if canAddOption}
+				<option value={ADD_GROUP_VALUE}>Add group...</option>
+			{/if}
+		</select>
+		<div class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-stone-700">
+			<ChevronDown class="h-4 w-4" />
+		</div>
+	</div>
 	{#if showingAddForm && sourceOptions}
 		<div class="mt-2 rounded-md border border-stone-200 bg-stone-50 p-3">
-			<div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)_auto]">
+			<div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)_auto_auto]">
 				<label class="block">
-					<span class="sr-only">Group title</span>
 					<input
 						type="text"
 						bind:value={newLabel}
@@ -116,7 +143,6 @@
 					/>
 				</label>
 				<label class="block">
-					<span class="sr-only">Group id</span>
 					<input
 						type="text"
 						bind:value={newId}
@@ -130,9 +156,16 @@
 				</label>
 				<button
 					type="button"
-					disabled={adding}
-					onclick={addOption}
+					onclick={cancelAddForm}
 					class="tm-btn tm-btn-secondary whitespace-nowrap"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					disabled={!canSubmitNewOption || adding}
+					onclick={addOption}
+					class="tm-btn tm-btn-secondary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{adding ? 'Adding...' : 'Add'}
 				</button>

@@ -103,6 +103,7 @@
 		aria-pressed={isPanelOpen}
 		aria-label={`Edit ${label}`}
 		title={`Edit ${label}`}
+		data-form-side-panel-opener="true"
 	>
 		<span class="grid gap-0.5">
 			<span class="font-medium text-current">

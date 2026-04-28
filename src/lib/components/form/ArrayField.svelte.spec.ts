@@ -288,12 +288,18 @@ describe('components/form/ArrayField.svelte', () => {
 
 		document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 
-		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
+		await expect
+			.element(screen.getByRole('heading', { name: 'Image 1: Opening view' }))
+			.toBeVisible();
+		await expect
+			.element(screen.getByRole('heading', { name: 'Gallery 1: main' }))
+			.not.toBeInTheDocument();
 		await expect
 			.element(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
-			.toBeVisible();
+			.not.toBeInTheDocument();
 
-		await screen.getByRole('button', { name: 'Edit Image 1: Opening view' }).click();
+		await screen.getByRole('button', { name: 'Back to Gallery 1: main' }).click();
+		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
 		await screen.getByLabelText('Image 1: Opening view actions').click();
 		await screen.getByRole('button', { name: 'Remove Image 1: Opening view' }).click();
 
@@ -412,10 +418,7 @@ describe('components/form/ArrayField.svelte', () => {
 		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
 		document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 
-		await expect
-			.element(screen.getByRole('heading', { name: 'Gallery 1: main' }))
-			.not.toBeInTheDocument();
-		await screen.getByRole('button', { name: 'Edit Gallery 1: main' }).click();
+		await expect.element(screen.getByRole('heading', { name: 'Gallery 1: main' })).toBeVisible();
 		await expect
 			.element(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
 			.toBeVisible();
@@ -454,6 +457,81 @@ describe('components/form/ArrayField.svelte', () => {
 		await expect.element(screen.getByRole('heading', { name: 'Section 1: Intro' })).toBeVisible();
 		await expect.element(screen.getByLabelText('Title')).toHaveValue('Intro');
 		await expect.element(screen.getByLabelText('Body')).toHaveValue('');
+	});
+
+	it('switches directly to another repeatable item when the side panel is already open', async () => {
+		const screen = render(FormGenerator, {
+			config: {
+				type: 'content',
+				label: 'Page',
+				content: {
+					mode: 'file',
+					path: 'src/content/page.json'
+				},
+				blocks: [
+					{
+						id: 'sections',
+						type: 'block',
+						label: 'Sections',
+						collection: true,
+						itemLabel: 'Section',
+						blocks: [{ id: 'title', type: 'text', label: 'Title' }]
+					}
+				]
+			},
+			initialData: {
+				sections: [{ title: 'Intro' }, { title: 'Credits' }]
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Edit Section 1: Intro' }).click();
+		await expect.element(screen.getByRole('heading', { name: 'Section 1: Intro' })).toBeVisible();
+
+		await screen.getByRole('button', { name: 'Edit Section 2: Credits' }).click();
+
+		await expect
+			.element(screen.getByRole('heading', { name: 'Section 2: Credits' }))
+			.toBeVisible();
+		await expect
+			.element(screen.getByRole('heading', { name: 'Section 1: Intro' }))
+			.not.toBeInTheDocument();
+		await expect.element(screen.getByLabelText('Title')).toHaveValue('Credits');
+	});
+
+	it('keeps the side panel open while interacting with fields inside it', async () => {
+		const screen = render(FormGenerator, {
+			config: {
+				type: 'content',
+				label: 'Page',
+				content: {
+					mode: 'file',
+					path: 'src/content/page.json'
+				},
+				blocks: [
+					{
+						id: 'sections',
+						type: 'block',
+						label: 'Sections',
+						collection: true,
+						itemLabel: 'Section',
+						blocks: [{ id: 'title', type: 'text', label: 'Title' }]
+					}
+				]
+			},
+			initialData: {
+				sections: [{ title: 'Intro' }]
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Edit Section 1: Intro' }).click();
+		await expect.element(screen.getByRole('heading', { name: 'Section 1: Intro' })).toBeVisible();
+
+		await screen.getByLabelText('Title').click();
+		await expect.element(screen.getByRole('heading', { name: 'Section 1: Intro' })).toBeVisible();
+
+		await screen.getByLabelText('Title').fill('Updated intro');
+		await expect.element(screen.getByRole('heading', { name: 'Section 1: Updated intro' })).toBeVisible();
+		await expect.element(screen.getByLabelText('Title')).toHaveValue('Updated intro');
 	});
 
 	it('keeps removal in the overflow menu and closes after removing the last item', async () => {

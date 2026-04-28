@@ -144,14 +144,28 @@ describe('components/form/SelectField.svelte', () => {
 					}
 				]
 			},
-			navigationManifest: null,
+			navigationManifest: {
+				version: 1,
+				collections: {
+					projects: {
+						items: [],
+						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+					}
+				}
+			},
 			onaddselectoption: addOption,
 			initialData: {
-				group: ''
+				group: 'identity'
 			}
 		});
 
-		await screen.getByRole('button', { name: 'Add group' }).click();
+		const select = document.querySelector('select');
+		if (!(select instanceof HTMLSelectElement)) {
+			throw new Error('Expected group select');
+		}
+
+		select.value = '__tentman_add_group__';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
 		await screen.getByPlaceholder('Group title').fill('Identity & Motion');
 		await expect.element(screen.getByPlaceholder('group-id')).toHaveValue('identity-motion');
 		await screen.getByRole('button', { name: 'Add', exact: true }).click();
@@ -165,5 +179,61 @@ describe('components/form/SelectField.svelte', () => {
 		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent(
 			'{"group":"identity-motion"}'
 		);
+	});
+
+	it('lets authors cancel adding a new group', async () => {
+		const addOption = vi.fn(async () => {});
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Projects',
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: [
+					{
+						id: 'group',
+						type: 'select',
+						label: 'Group',
+						options: {
+							source: 'tentman.navigationGroups',
+							collection: 'projects',
+							addOption: true
+						}
+					}
+				]
+			},
+			navigationManifest: {
+				version: 1,
+				collections: {
+					projects: {
+						items: [],
+						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+					}
+				}
+			},
+			onaddselectoption: addOption,
+			initialData: {
+				group: 'identity'
+			}
+		});
+
+		const select = document.querySelector('select');
+		if (!(select instanceof HTMLSelectElement)) {
+			throw new Error('Expected group select');
+		}
+
+		await expect.element(screen.getByLabelText('Group')).toHaveValue('identity');
+		select.value = 'identity';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		select.value = '__tentman_add_group__';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		await screen.getByPlaceholder('Group title').fill('Temporary Group');
+		await screen.getByRole('button', { name: 'Cancel' }).click();
+
+		await expect.element(screen.getByPlaceholder('Group title')).not.toBeInTheDocument();
+		expect(addOption).not.toHaveBeenCalled();
+		await expect.element(screen.getByLabelText('Group')).toHaveValue('identity');
 	});
 });

@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { setContext, type Snippet } from 'svelte';
+import { onMount, setContext, type Snippet } from 'svelte';
 	import { get, writable } from 'svelte/store';
 	import {
 		SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -81,6 +81,9 @@
 	let savingNavigation = $state(false);
 	let savingCollectionOrder = $state(false);
 	let isCollectionPanelCollapsed = $state(false);
+	let isMobileSidebarOpen = $state(false);
+	let isMobileCollectionOpen = $state(false);
+	let isDesktopViewport = $state(false);
 	let localRescanVersion = $state(0);
 	let navigationDraft = $state<NavigationDraft | null>(null);
 	let initialNavigationDraft = $state<NavigationDraft | null>(null);
@@ -93,8 +96,12 @@
 	const availableConfigs = $derived(isLocalMode ? $localContent.configs : data.configs);
 	const navigationManifest = $derived(manifestState.manifest);
 	const rootConfig = $derived(isLocalMode ? $localContent.rootConfig : data.rootConfig);
-	const configs = $derived(orderDiscoveredConfigs(availableConfigs, navigationManifest, rootConfig));
-	const setup = $derived(getManualNavigationSetupState(availableConfigs, manifestState, rootConfig));
+	const configs = $derived(
+		orderDiscoveredConfigs(availableConfigs, navigationManifest, rootConfig)
+	);
+	const setup = $derived(
+		getManualNavigationSetupState(availableConfigs, manifestState, rootConfig)
+	);
 	const collectionItemsBySlug = $derived(
 		isLocalMode ? localCollectionItemsBySlug : githubCollectionItemsBySlug
 	);
@@ -172,6 +179,19 @@
 		}
 
 		return currentConfig?.config.label ?? siteName;
+	});
+
+	onMount(() => {
+		const mediaQuery = window.matchMedia('(min-width: 1024px)');
+
+		const updateViewport = (event?: MediaQueryList | MediaQueryListEvent) => {
+			isDesktopViewport = event ? event.matches : mediaQuery.matches;
+		};
+
+		updateViewport(mediaQuery);
+		mediaQuery.addEventListener('change', updateViewport);
+
+		return () => mediaQuery.removeEventListener('change', updateViewport);
 	});
 
 	function getGitHubCollectionStatus(slug: string): CollectionLoadStatus {
@@ -617,34 +637,92 @@
 				.map((config: DiscoveredConfig) => loadGitHubCollectionItems(config))
 		);
 	});
+
+	$effect(() => {
+		page.url.pathname;
+		page.url.search;
+		isMobileSidebarOpen = false;
+		isMobileCollectionOpen = false;
+	});
+
+	$effect(() => {
+		if (!$activeSidePanel) {
+			return;
+		}
+
+		isMobileSidebarOpen = false;
+		isMobileCollectionOpen = false;
+	});
 </script>
 
 <div
-	class="grid h-screen overflow-hidden bg-white text-stone-950 lg:grid-cols-[15.5rem_minmax(0,1fr)]"
+	class="grid h-dvh overflow-hidden bg-white text-stone-950 lg:grid-cols-[15.5rem_minmax(0,1fr)]"
 	data-sveltekit-preload-data="hover"
 >
-	<Sidebar
-		{siteName}
-		{repoLabel}
-		{configs}
-		{currentPageSlug}
-		isAuthenticated={data.isAuthenticated}
-		{isLocalMode}
-		{canEditNavigation}
-		{canAddPage}
-		{isEditingNavigation}
-		{preparingNavigationEditor}
-		{savingNavigation}
-		{hasUnsavedNavigationChanges}
-		{topLevelEditorItems}
-		onstartnavigationedit={() => void startNavigationEditing()}
-		oncancelnavigationedit={cancelNavigationEditing}
-		onsavenavigationedit={() => void saveNavigationEditing()}
-		onnavconsider={handleTopLevelConsider}
-		onnavfinalize={handleTopLevelFinalize}
-		onswitchsite={() => void handleSwitchSite()}
-		onrescan={() => void handleRescanLocalRepo()}
-	/>
+	<div class="hidden lg:block">
+		<Sidebar
+			{siteName}
+			{repoLabel}
+			{configs}
+			{currentPageSlug}
+			isAuthenticated={data.isAuthenticated}
+			{isLocalMode}
+			{canEditNavigation}
+			{canAddPage}
+			{isEditingNavigation}
+			{preparingNavigationEditor}
+			{savingNavigation}
+			{hasUnsavedNavigationChanges}
+			{topLevelEditorItems}
+			onstartnavigationedit={() => void startNavigationEditing()}
+			oncancelnavigationedit={cancelNavigationEditing}
+			onsavenavigationedit={() => void saveNavigationEditing()}
+			onnavconsider={handleTopLevelConsider}
+			onnavfinalize={handleTopLevelFinalize}
+			onswitchsite={() => void handleSwitchSite()}
+			onrescan={() => void handleRescanLocalRepo()}
+		/>
+	</div>
+
+	{#if isMobileSidebarOpen}
+		<div
+			class="fixed inset-0 z-40 bg-stone-950/20 backdrop-blur-[1px] lg:hidden"
+			data-testid="pages-mobile-sidebar"
+		>
+			<button
+				type="button"
+				class="absolute inset-0"
+				aria-label="Dismiss site navigation overlay"
+				onclick={() => (isMobileSidebarOpen = false)}
+			></button>
+			<div class="relative h-full w-[min(20rem,calc(100vw-2.5rem))]">
+				<Sidebar
+					{siteName}
+					{repoLabel}
+					{configs}
+					{currentPageSlug}
+					isAuthenticated={data.isAuthenticated}
+					{isLocalMode}
+					{canEditNavigation}
+					{canAddPage}
+					{isEditingNavigation}
+					{preparingNavigationEditor}
+					{savingNavigation}
+					{hasUnsavedNavigationChanges}
+					{topLevelEditorItems}
+					mobile={true}
+					onclose={() => (isMobileSidebarOpen = false)}
+					onstartnavigationedit={() => void startNavigationEditing()}
+					oncancelnavigationedit={cancelNavigationEditing}
+					onsavenavigationedit={() => void saveNavigationEditing()}
+					onnavconsider={handleTopLevelConsider}
+					onnavfinalize={handleTopLevelFinalize}
+					onswitchsite={() => void handleSwitchSite()}
+					onrescan={() => void handleRescanLocalRepo()}
+				/>
+			</div>
+		</div>
+	{/if}
 
 	<main class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
 		<Header
@@ -652,56 +730,114 @@
 			{previewUrl}
 			showPublish={data.isAuthenticated && !!$draftBranch.branchName}
 			publishHref={resolve('/publish')}
+			showSidebarToggle={true}
+			sidebarOpen={isMobileSidebarOpen}
+			onToggleSidebar={() => (isMobileSidebarOpen = !isMobileSidebarOpen)}
 			showCollectionToggle={shouldShowCollectionPanel}
 			collectionCollapsed={isCollectionPanelCollapsed}
 			onToggleCollection={() => (isCollectionPanelCollapsed = !isCollectionPanelCollapsed)}
+			collectionOpen={isMobileCollectionOpen}
+			onOpenCollection={() => (isMobileCollectionOpen = !isMobileCollectionOpen)}
 		/>
 
 		<div class={workspaceGridClass} data-testid="pages-workspace-grid">
 			{#if showCollectionPanel && currentConfig}
 				{@const navigation = getCollectionItems(currentConfig.slug)}
 				{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
+				<div class="hidden min-h-0 min-w-0 lg:grid">
 					<CollectionPanel
 						slug={currentConfig.slug}
-					label={currentConfig.config.label}
-					itemLabel={getConfigItemLabel(currentConfig.config)}
-					items={navigation.items}
-					groups={navigation.groups}
-					{currentItemId}
-					branch={page.url.searchParams.get('branch')}
-					status={getCollectionLoadStatus(currentConfig.slug)}
-					error={getCollectionLoadError(currentConfig.slug)}
-					canOrderItems={!!collectionSetup?.canOrderItems}
-					savingCustomOrder={savingCollectionOrder}
-					onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
-					onsavecustomorder={(collection: NavigationDraftCollection) =>
-						void saveCollectionCustomOrder(currentConfig, collection)}
-				/>
+						label={currentConfig.config.label}
+						itemLabel={getConfigItemLabel(currentConfig.config)}
+						items={navigation.items}
+						groups={navigation.groups}
+						{currentItemId}
+						branch={page.url.searchParams.get('branch')}
+						status={getCollectionLoadStatus(currentConfig.slug)}
+						error={getCollectionLoadError(currentConfig.slug)}
+						canOrderItems={!!collectionSetup?.canOrderItems}
+						savingCustomOrder={savingCollectionOrder}
+						onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+						onsavecustomorder={(collection: NavigationDraftCollection) =>
+							void saveCollectionCustomOrder(currentConfig, collection)}
+					/>
+				</div>
 			{/if}
 
-				<section
-					class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6"
-					data-testid="pages-main-panel"
-				>
-					<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
-						<RemountOnValue
-							value={isLocalMode
-								? `${page.url.pathname}${page.url.search}:${localRescanVersion}`
-								: `${page.url.pathname}${page.url.search}`}
-						>
-							{@render children?.()}
-						</RemountOnValue>
-					</div>
-				</section>
-
-				{#if $activeSidePanel}
-					<section
-						class="min-h-0 min-w-0 overflow-hidden border-l border-stone-200 bg-white"
-						data-testid="pages-side-panel"
+			<section
+				class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6"
+				data-testid="pages-main-panel"
+			>
+				<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
+					<RemountOnValue
+						value={isLocalMode
+							? `${page.url.pathname}${page.url.search}:${localRescanVersion}`
+							: `${page.url.pathname}${page.url.search}`}
 					>
-						<SidePanelHost panel={$activeSidePanel} framed={false} />
-					</section>
-				{/if}
+						{@render children?.()}
+					</RemountOnValue>
+				</div>
+			</section>
+
+			{#if $activeSidePanel && isDesktopViewport}
+				<section
+					class="hidden min-h-0 min-w-0 overflow-hidden border-l border-stone-200 bg-white lg:block"
+					data-testid="pages-side-panel"
+				>
+					<SidePanelHost panel={$activeSidePanel} framed={false} />
+				</section>
+			{/if}
 		</div>
 	</main>
 </div>
+
+{#if shouldShowCollectionPanel && currentConfig && isMobileCollectionOpen}
+	{@const navigation = getCollectionItems(currentConfig.slug)}
+	{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
+	<div
+		class="fixed inset-0 z-30 grid grid-rows-[auto_minmax(0,1fr)] bg-white lg:hidden"
+		data-testid="pages-mobile-collection-panel"
+	>
+		<div class="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3">
+			<div class="min-w-0">
+				<p class="text-[0.7rem] font-semibold tracking-[0.16em] text-stone-500 uppercase">
+					Collection
+				</p>
+				<h2 class="truncate text-base font-semibold text-stone-950">
+					{currentConfig.config.label}
+				</h2>
+			</div>
+			<button
+				type="button"
+				class="tm-btn tm-btn-secondary"
+				onclick={() => (isMobileCollectionOpen = false)}
+			>
+				Done
+			</button>
+		</div>
+		<div class="min-h-0">
+			<CollectionPanel
+				slug={currentConfig.slug}
+				label={currentConfig.config.label}
+				itemLabel={getConfigItemLabel(currentConfig.config)}
+				items={navigation.items}
+				groups={navigation.groups}
+				{currentItemId}
+				branch={page.url.searchParams.get('branch')}
+				status={getCollectionLoadStatus(currentConfig.slug)}
+				error={getCollectionLoadError(currentConfig.slug)}
+				canOrderItems={!!collectionSetup?.canOrderItems}
+				savingCustomOrder={savingCollectionOrder}
+				onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+				onsavecustomorder={(collection: NavigationDraftCollection) =>
+					void saveCollectionCustomOrder(currentConfig, collection)}
+			/>
+		</div>
+	</div>
+{/if}
+
+{#if $activeSidePanel && !isDesktopViewport}
+	<div class="fixed inset-0 z-30 bg-white lg:hidden" data-testid="pages-mobile-side-panel">
+		<SidePanelHost panel={$activeSidePanel} framed={false} />
+	</div>
+{/if}

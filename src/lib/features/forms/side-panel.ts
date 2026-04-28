@@ -11,6 +11,7 @@ import type {
 } from '$lib/features/forms/edit-session';
 
 export const FORM_SIDE_PANEL = Symbol('form-side-panel');
+export const FORM_SIDE_PANEL_OPENER_ATTR = 'data-form-side-panel-opener';
 
 export interface FormSidePanelState {
 	id: string;
@@ -31,6 +32,8 @@ export interface FormSidePanelState {
 	onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
 	isDirty: boolean;
 	submitError?: string;
+	hasParentPanel: boolean;
+	parentPanelTitle?: string;
 }
 
 export interface FormSidePanelContext {

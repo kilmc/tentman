@@ -80,7 +80,7 @@ export function createMarkdownEditor(
 		editorProps: {
 			attributes: {
 				class:
-					'ProseMirror markdown-editor-content prose prose-sm max-w-none min-h-64 px-4 py-3 focus:outline-none prose-headings:font-semibold prose-code:rounded prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:text-stone-800 prose-pre:font-mono prose-pre:shadow-none'
+					'ProseMirror markdown-editor-content prose prose-sm max-w-none focus:outline-none prose-headings:font-semibold prose-code:rounded prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:text-stone-800 prose-pre:font-mono prose-pre:shadow-none'
 			}
 		},
 		extensions: [

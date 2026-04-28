@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { getContext, hasContext } from 'svelte';
+	import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
+	import SidebarClose from 'lucide-svelte/icons/sidebar-close';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import type { FormSidePanelState } from '$lib/features/forms/side-panel';
-	import {
-		FORM_SIDE_PANEL,
-		type FormSidePanelContext
-	} from '$lib/features/forms/side-panel';
+	import { FORM_SIDE_PANEL, type FormSidePanelContext } from '$lib/features/forms/side-panel';
 	import type { ContentValue } from '$lib/features/content-management/types';
 	import SidePanelField from './SidePanelField.svelte';
 
@@ -16,7 +15,6 @@
 	}
 
 	let { panel, framed = true }: Props = $props();
-	let panelElement = $state<HTMLElement | null>(null);
 	let actionMenu = $state<HTMLDetailsElement | null>(null);
 	const sidePanel = hasContext(FORM_SIDE_PANEL)
 		? getContext<FormSidePanelContext>(FORM_SIDE_PANEL)
@@ -26,6 +24,11 @@
 	const primaryActionLabel = $derived(panel.mode === 'create' ? 'Add' : 'Save');
 	const showFooter = $derived(panel.mode === 'create' || isDirty || !!panel.submitError);
 	const canRemove = $derived(panel.kind === 'repeatable' && panel.mode === 'edit');
+	const closeActionLabel = $derived(
+		panel.hasParentPanel
+			? `Back to ${panel.parentPanelTitle ?? panel.listLabel}`
+			: `Hide ${panel.title}`
+	);
 
 	function getPanelKey(panel: FormSidePanelState): string {
 		return [panel.id, panel.mode, panel.selectedIndex, panel.title].join(':');
@@ -54,25 +57,10 @@
 	function removeItem() {
 		sidePanel?.session?.removePanelItem();
 	}
-
-	$effect(() => {
-		const handlePointerDown = (event: PointerEvent) => {
-			const target = event.target;
-			if (!(target instanceof Node) || !panelElement || panelElement.contains(target)) {
-				return;
-			}
-
-			closePanel();
-		};
-
-		document.addEventListener('pointerdown', handlePointerDown, true);
-		return () => document.removeEventListener('pointerdown', handlePointerDown, true);
-	});
 </script>
 
 {#key getPanelKey(panel)}
 	<aside
-		bind:this={panelElement}
 		class="grid h-full max-h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-white"
 		class:rounded-md={framed}
 		class:border={framed}
@@ -96,29 +84,44 @@
 						{/if}
 					</div>
 				</div>
-				{#if canRemove}
-					<details bind:this={actionMenu} class="relative">
-						<summary class="tm-icon-btn list-none" aria-label={`${panel.title} actions`}>
-							<MoreHorizontal class="h-4 w-4" />
-						</summary>
-						<div
-							class="absolute top-full right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
-						>
-							<button
-								type="button"
-								onclick={() => {
-									actionMenu?.removeAttribute('open');
-									removeItem();
-								}}
-								class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
-								aria-label={`Remove ${panel.title}`}
+				<div class="flex items-center gap-2">
+					{#if canRemove}
+						<details bind:this={actionMenu} class="relative">
+							<summary class="tm-icon-btn list-none" aria-label={`${panel.title} actions`}>
+								<MoreHorizontal class="h-4 w-4" />
+							</summary>
+							<div
+								class="absolute top-full right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
 							>
-								<Trash2 class="h-4 w-4" />
-								<span>Remove {panel.label}</span>
-							</button>
-						</div>
-					</details>
-				{/if}
+								<button
+									type="button"
+									onclick={() => {
+										actionMenu?.removeAttribute('open');
+										removeItem();
+									}}
+									class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+									aria-label={`Remove ${panel.title}`}
+								>
+									<Trash2 class="h-4 w-4" />
+									<span>Remove {panel.label}</span>
+								</button>
+							</div>
+						</details>
+					{/if}
+					<button
+						type="button"
+						class="tm-icon-btn"
+						onclick={closePanel}
+						aria-label={closeActionLabel}
+						title={closeActionLabel}
+					>
+						{#if panel.hasParentPanel}
+							<ChevronLeft class="h-4 w-4" />
+						{:else}
+							<SidebarClose class="h-4 w-4" />
+						{/if}
+					</button>
+				</div>
 			</div>
 		</div>
 

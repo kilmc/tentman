@@ -54,18 +54,74 @@ export function parseCollectionItem(
 ): ContentRecord {
 	if (isMarkdown) {
 		ensureBufferGlobal();
-		const { data, content: body } = matter(content);
-		return {
-			...(data as Record<string, ContentValue>),
-			body,
-			_filename: filename
-		};
+		try {
+			const { data, content: body } = matter(content);
+			return {
+				...(data as Record<string, ContentValue>),
+				body,
+				_filename: filename
+			};
+		} catch (error) {
+			const recovered = recoverMalformedMarkdownFrontmatter(content);
+			if (!recovered) {
+				throw error;
+			}
+
+			return {
+				...recovered.data,
+				body: recovered.body,
+				_filename: filename
+			};
+		}
 	}
 
 	const data = JSON.parse(content) as Record<string, ContentValue>;
 	return {
 		...data,
 		_filename: filename
+	};
+}
+
+function recoverMalformedMarkdownFrontmatter(content: string): {
+	data: Record<string, ContentValue>;
+	body: string;
+} | null {
+	if (!content.startsWith('---\n') && !content.startsWith('---\r\n')) {
+		return null;
+	}
+
+	if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(content)) {
+		return null;
+	}
+
+	const lines = content.split(/\r?\n/);
+	let lastValid: { endLine: number; data: Record<string, ContentValue> } | null = null;
+
+	for (let index = 1; index < lines.length; index += 1) {
+		const candidate = lines.slice(1, index + 1).join('\n');
+
+		try {
+			const parsed = matter(`---\n${candidate}\n---\n`);
+			if (!parsed.data || typeof parsed.data !== 'object' || Array.isArray(parsed.data)) {
+				break;
+			}
+
+			lastValid = {
+				endLine: index,
+				data: parsed.data as Record<string, ContentValue>
+			};
+		} catch {
+			break;
+		}
+	}
+
+	if (!lastValid) {
+		return null;
+	}
+
+	return {
+		data: lastValid.data,
+		body: lines.slice(lastValid.endLine + 1).join('\n').replace(/^\n/, '')
 	};
 }
 
@@ -89,12 +145,31 @@ export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean
 		ensureBufferGlobal();
 		const { body, ...frontmatterData } = item;
 		delete frontmatterData._filename;
-		return matter.stringify(typeof body === 'string' ? body : '', frontmatterData);
+		return stringifyMarkdownCollectionItem(
+			typeof body === 'string' ? body : '',
+			frontmatterData as Record<string, unknown>
+		);
 	}
 
 	const jsonData = { ...item };
 	delete jsonData._filename;
 	return toJsonFileContent(jsonData);
+}
+
+export function stringifyMarkdownCollectionItem(
+	body: string,
+	frontmatterData: Record<string, unknown>
+): string {
+	const frontmatterOnly = matter.stringify('', frontmatterData);
+	const normalizedFrontmatter = frontmatterOnly.endsWith('\n\n')
+		? frontmatterOnly.slice(0, -1)
+		: frontmatterOnly;
+
+	if (body.length === 0) {
+		return normalizedFrontmatter;
+	}
+
+	return `${normalizedFrontmatter}${body}`;
 }
 
 export function processTemplate(template: string, data: ContentRecord): string {

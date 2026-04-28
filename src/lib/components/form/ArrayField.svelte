@@ -315,6 +315,7 @@
 			class="tm-btn tm-btn-secondary min-h-8 px-3 text-xs"
 			aria-label={addItemLabel}
 			title={addItemLabel}
+			data-form-side-panel-opener={isStructuredRepeatable ? 'true' : undefined}
 		>
 			<Plus class="h-3.5 w-3.5" />
 			{addItemLabel}
@@ -387,6 +388,7 @@
 						aria-pressed={isPanelOpen && selectedIndex === index}
 						aria-label={`Edit ${getPanelTitleForItem(item, index)}`}
 						title={`Edit ${getPanelTitleForItem(item, index)}`}
+						data-form-side-panel-opener="true"
 					>
 						<span
 							class={imageValue

@@ -335,6 +335,34 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();
 	});
 
+	it('opens and closes the mobile sidebar from the header', async () => {
+		const screen = render(PagesLayout, {
+			data: layoutData
+		});
+
+		await screen.getByRole('button', { name: 'Open site navigation' }).click();
+		await expect.element(screen.getByTestId('pages-mobile-sidebar')).toBeVisible();
+
+		await screen.getByRole('button', { name: 'Close site navigation' }).click();
+		await expect.element(screen.getByTestId('pages-mobile-sidebar')).not.toBeInTheDocument();
+	});
+
+	it('opens the collection panel as a mobile overlay from the header', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog',
+			itemId: 'hello-world'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
+
+		const screen = render(PagesLayout, {
+			data: layoutData
+		});
+
+		await screen.getByRole('button', { name: 'Show items panel' }).click();
+		await expect.element(screen.getByTestId('pages-mobile-collection-panel')).toBeVisible();
+		await expect.element(screen.getByRole('button', { name: 'Done' })).toBeVisible();
+	});
+
 	it('renders the side panel as a sibling of the main panel', async () => {
 		sidebarEditorMocks.page.params = {
 			page: 'blog',

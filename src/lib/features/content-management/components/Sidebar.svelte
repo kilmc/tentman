@@ -34,6 +34,8 @@
 		onnavfinalize?: (event: CustomEvent<DndEvent<WorkspaceNavItem>>) => void;
 		onswitchsite?: () => void;
 		onrescan?: () => void;
+		mobile?: boolean;
+		onclose?: () => void;
 	}
 
 	let {
@@ -56,7 +58,9 @@
 		onnavconsider,
 		onnavfinalize,
 		onswitchsite,
-		onrescan
+		onrescan,
+		mobile = false,
+		onclose
 	}: Props = $props();
 
 	const flipDurationMs = 150;
@@ -69,7 +73,13 @@
 </script>
 
 <aside
-	class="grid h-screen min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] border-r border-stone-200 bg-white p-3"
+	class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-white p-3"
+	class:h-full={mobile}
+	class:w-full={mobile}
+	class:border-r={!mobile}
+	class:border-stone-200={!mobile}
+	class:shadow-2xl={mobile}
+	class:h-dvh={!mobile}
 >
 	<div class="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
 		<a href={resolve('/pages')} class="grid min-w-0 gap-0.5">
@@ -79,68 +89,81 @@
 			{/if}
 		</a>
 
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger
-				class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-stone-100 text-stone-800 transition-colors hover:bg-stone-200 focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none"
-				aria-label="Site settings"
-			>
-				<Settings class="h-4 w-4" />
-			</DropdownMenu.Trigger>
-
-			<DropdownMenu.Portal>
-				<DropdownMenu.Content
-					sideOffset={8}
-					align="end"
-					class="z-20 grid min-w-52 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
+		<div class="flex items-center gap-2">
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger
+					class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-stone-100 text-stone-800 transition-colors hover:bg-stone-200 focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none"
+					aria-label="Site settings"
 				>
-					<DropdownMenu.Item>
-						{#snippet child({ props })}
-							<a
-								{...props}
-								href={resolve('/pages/settings')}
-								class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-stone-700 outline-none transition-colors hover:bg-stone-100 data-[highlighted]:bg-stone-100"
-							>
-								<Settings class="h-4 w-4" />
-								Site settings
-							</a>
-						{/snippet}
-					</DropdownMenu.Item>
-					{#if canEditNavigation}
-						<DropdownMenu.Item
-							class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-stone-700 outline-none transition-colors hover:bg-stone-100 data-[highlighted]:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400"
-							disabled={preparingNavigationEditor || isEditingNavigation}
-							onSelect={onstartnavigationedit}
-						>
-							<Navigation class="h-4 w-4" />
-							Edit navigation
-						</DropdownMenu.Item>
-					{/if}
-					{#if isLocalMode}
-						<DropdownMenu.Item
-							class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-stone-700 outline-none transition-colors hover:bg-stone-100 data-[highlighted]:bg-stone-100"
-							onSelect={onrescan}
-						>
-							<RefreshCw class="h-4 w-4" />
-							Rescan repo
-						</DropdownMenu.Item>
-					{/if}
-					{#if isAuthenticated}
+					<Settings class="h-4 w-4" />
+				</DropdownMenu.Trigger>
+
+				<DropdownMenu.Portal>
+					<DropdownMenu.Content
+						sideOffset={8}
+						align="end"
+						class="z-20 grid min-w-52 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
+					>
 						<DropdownMenu.Item>
 							{#snippet child({ props })}
 								<a
 									{...props}
-									href={resolve('/auth/logout')}
-									class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-stone-700 outline-none transition-colors hover:bg-stone-100 data-[highlighted]:bg-stone-100"
+									href={resolve('/pages/settings')}
+									class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-stone-700 transition-colors outline-none hover:bg-stone-100 data-[highlighted]:bg-stone-100"
 								>
-									<LogOut class="h-4 w-4" />
-									Logout
+									<Settings class="h-4 w-4" />
+									Site settings
 								</a>
 							{/snippet}
 						</DropdownMenu.Item>
-					{/if}
-				</DropdownMenu.Content>
-			</DropdownMenu.Portal>
-		</DropdownMenu.Root>
+						{#if canEditNavigation}
+							<DropdownMenu.Item
+								class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors outline-none hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400 data-[highlighted]:bg-stone-100"
+								disabled={preparingNavigationEditor || isEditingNavigation}
+								onSelect={onstartnavigationedit}
+							>
+								<Navigation class="h-4 w-4" />
+								Edit navigation
+							</DropdownMenu.Item>
+						{/if}
+						{#if isLocalMode}
+							<DropdownMenu.Item
+								class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors outline-none hover:bg-stone-100 data-[highlighted]:bg-stone-100"
+								onSelect={onrescan}
+							>
+								<RefreshCw class="h-4 w-4" />
+								Rescan repo
+							</DropdownMenu.Item>
+						{/if}
+						{#if isAuthenticated}
+							<DropdownMenu.Item>
+								{#snippet child({ props })}
+									<a
+										{...props}
+										href={resolve('/auth/logout')}
+										class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-stone-700 transition-colors outline-none hover:bg-stone-100 data-[highlighted]:bg-stone-100"
+									>
+										<LogOut class="h-4 w-4" />
+										Logout
+									</a>
+								{/snippet}
+							</DropdownMenu.Item>
+						{/if}
+					</DropdownMenu.Content>
+				</DropdownMenu.Portal>
+			</DropdownMenu.Root>
+
+			{#if mobile}
+				<button
+					type="button"
+					class="tm-icon-btn"
+					onclick={() => onclose?.()}
+					aria-label="Close site navigation"
+				>
+					<X class="h-4 w-4" />
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	<div class="min-h-0 overflow-y-auto">

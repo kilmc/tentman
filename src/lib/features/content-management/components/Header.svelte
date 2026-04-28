@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ExternalLink from 'lucide-svelte/icons/external-link';
+	import PanelLeftOpen from 'lucide-svelte/icons/panel-left-open';
 	import SidebarClose from 'lucide-svelte/icons/sidebar-close';
 	import SidebarOpen from 'lucide-svelte/icons/sidebar-open';
 	import UploadCloud from 'lucide-svelte/icons/upload-cloud';
@@ -9,9 +10,14 @@
 		previewUrl?: string | null;
 		showPublish?: boolean;
 		publishHref: string;
+		showSidebarToggle?: boolean;
+		sidebarOpen?: boolean;
+		onToggleSidebar?: () => void;
 		showCollectionToggle?: boolean;
 		collectionCollapsed?: boolean;
 		onToggleCollection?: () => void;
+		collectionOpen?: boolean;
+		onOpenCollection?: () => void;
 	}
 
 	let {
@@ -19,21 +25,39 @@
 		previewUrl = null,
 		showPublish = false,
 		publishHref,
+		showSidebarToggle = false,
+		sidebarOpen = false,
+		onToggleSidebar,
 		showCollectionToggle = false,
 		collectionCollapsed = false,
-		onToggleCollection
+		onToggleCollection,
+		collectionOpen = false,
+		onOpenCollection
 	}: Props = $props();
 </script>
 
 <header
 	class="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-stone-200 bg-white px-4 py-2 sm:px-6"
 >
-	{#if showCollectionToggle}
-		<div class="flex min-w-0 items-center gap-2">
+	<div class="flex min-w-0 items-center gap-2">
+		{#if showSidebarToggle}
 			<button
 				type="button"
-				class="tm-icon-btn tm-icon-btn-ghost"
-				onclick={onToggleCollection}
+				class="tm-icon-btn lg:hidden"
+				onclick={() => onToggleSidebar?.()}
+				aria-label={sidebarOpen ? 'Close site navigation' : 'Open site navigation'}
+				aria-expanded={sidebarOpen}
+				title={sidebarOpen ? 'Close site navigation' : 'Open site navigation'}
+			>
+				<PanelLeftOpen class="h-4 w-4" />
+			</button>
+		{/if}
+
+		{#if showCollectionToggle}
+			<button
+				type="button"
+				class="tm-btn tm-btn-secondary hidden min-h-9 px-3 text-sm lg:inline-flex"
+				onclick={() => onToggleCollection?.()}
 				aria-label={`${collectionCollapsed ? 'Show' : 'Hide'} collection panel`}
 				title={`${collectionCollapsed ? 'Show' : 'Hide'} collection panel`}
 			>
@@ -42,16 +66,26 @@
 				{:else}
 					<SidebarClose class="h-4 w-4" />
 				{/if}
+				Items
 			</button>
-			<p class="truncate text-base font-semibold text-stone-950 sm:text-lg">{title}</p>
-		</div>
-	{:else}
-		<div class="min-w-0">
-			<h1 class="truncate text-xl font-bold text-stone-950">{title}</h1>
-		</div>
-	{/if}
 
-	<div class="flex items-center gap-2">
+			<button
+				type="button"
+				class="tm-btn tm-btn-secondary min-h-9 px-3 text-sm lg:hidden"
+				onclick={() => onOpenCollection?.()}
+				aria-label={collectionOpen ? 'Hide items panel' : 'Show items panel'}
+				aria-expanded={collectionOpen}
+			>
+				Items
+			</button>
+		{/if}
+
+		<div class="min-w-0">
+			<h1 class="truncate text-base font-semibold text-stone-950 sm:text-lg">{title}</h1>
+		</div>
+	</div>
+
+	<div class="flex flex-wrap items-center justify-end gap-2">
 		{#if previewUrl}
 			<button
 				type="button"

@@ -144,14 +144,14 @@
 
 	function toolbarButtonClass(active = false): string {
 		return active
-			? 'flex h-10 w-10 items-center justify-center rounded-md border border-stone-400 bg-stone-100 text-stone-900 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300'
-			: 'flex h-10 w-10 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300';
+			? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-stone-300 bg-stone-100 text-stone-900 transition-colors focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:w-10'
+			: 'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-600 transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:w-10';
 	}
 
 	function toolbarTriggerClass(active = false): string {
 		return active
-			? 'inline-flex h-10 w-14 items-center justify-between rounded-md border border-stone-400 bg-stone-100 px-3 text-sm font-medium text-stone-900 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300'
-			: 'inline-flex h-10 w-14 items-center justify-between rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300';
+			? 'inline-flex h-9 w-12 shrink-0 items-center justify-between rounded-md border border-stone-300 bg-stone-100 px-2.5 text-sm font-medium text-stone-900 transition-colors focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:w-14 sm:px-3'
+			: 'inline-flex h-9 w-12 shrink-0 items-center justify-between rounded-md border border-stone-200 bg-white px-2.5 text-sm font-medium text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:w-14 sm:px-3';
 	}
 
 	function toggleGroupButtonClass(
@@ -168,8 +168,8 @@
 						: 'rounded-none';
 
 		return active
-			? `relative z-10 flex h-10 w-10 items-center justify-center border border-stone-400 bg-stone-100 text-stone-900 shadow-sm ${radiusClass} focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300`
-			: `relative flex h-10 w-10 items-center justify-center border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors hover:bg-stone-50 hover:text-stone-900 ${radiusClass} focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300`;
+			? `relative z-10 flex h-9 w-9 shrink-0 items-center justify-center border border-stone-300 bg-stone-100 text-stone-900 ${radiusClass} focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:w-10`
+			: `relative flex h-9 w-9 shrink-0 items-center justify-center border border-stone-200 bg-white text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900 ${radiusClass} focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:w-10`;
 	}
 
 	function dropdownContentClass(): string {
@@ -778,10 +778,12 @@
 		class:border-red-300={isOverLimit || isUnderMin}
 		class:border-gray-300={!isOverLimit && !isUnderMin}
 	>
-		<div class="border-b border-stone-200 bg-stone-50 p-3">
+		<div
+			class="overflow-x-auto border-b border-stone-200 bg-white/80 px-3 py-2.5 [scrollbar-width:none]"
+		>
 			<Toolbar.Root
 				aria-label="Markdown formatting"
-				class="flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-white p-2 shadow-sm"
+				class="inline-flex min-w-max items-center gap-1.5 overscroll-x-contain sm:max-w-full sm:min-w-0 sm:gap-2 lg:gap-2.5"
 			>
 				<DropdownMenu.Root
 					open={structureMenuOpen}
@@ -846,7 +848,7 @@
 					type="multiple"
 					value={activeInlineValues}
 					onValueChange={handleInlineFormatChange}
-					class="isolate flex items-center"
+					class="isolate flex shrink-0 items-center"
 				>
 					{#each inlineToggleButtons as item, index (item.value)}
 						<Toolbar.GroupItem value={item.value} disabled={toolbarDisabled}>
@@ -935,7 +937,7 @@
 					class="mx-1 hidden h-6 w-px bg-stone-200 sm:block"
 				/>
 
-				<div class="flex flex-wrap gap-1">
+				<div class="flex shrink-0 items-center gap-1 sm:gap-1.5">
 					{#each actionButtons as item (item.id)}
 						<Toolbar.Button disabled={toolbarDisabled}>
 							{#snippet child({ props })}
@@ -958,7 +960,7 @@
 							{#snippet child({ props })}
 								<button
 									{...props}
-									class="inline-flex h-10 items-center justify-center rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300"
+									class="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white px-2.5 text-xs font-medium text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-300 sm:h-10 sm:px-3 sm:text-sm"
 									aria-label={item.label}
 									title={item.label}
 									aria-pressed={item.isActive ? isToolbarItemActive(item) : undefined}
@@ -994,7 +996,7 @@
 			<div class="px-4 py-3 text-sm text-gray-500">Loading rich editor...</div>
 		{/if}
 
-		<div bind:this={editorHost} data-testid="markdown-rich-editor"></div>
+		<div bind:this={editorHost} class="min-h-0" data-testid="markdown-rich-editor"></div>
 	</div>
 	{#if activeTab === 'rich'}
 		<p class="mt-1 text-xs text-gray-500">
@@ -1136,5 +1138,40 @@
 		background: transparent;
 		padding: 0;
 		border-radius: 0;
+	}
+
+	:global(.markdown-editor-content) {
+		min-height: 14rem;
+		padding: 0.875rem 0.875rem 1rem;
+	}
+
+	:global(.markdown-editor-content hr) {
+		margin-block: 1rem;
+	}
+
+	:global(.markdown-editor-content p) {
+		margin-block: 0.75rem;
+	}
+
+	:global(.markdown-editor-content > :first-child) {
+		margin-top: 0;
+	}
+
+	:global(.markdown-editor-content > :last-child) {
+		margin-bottom: 0;
+	}
+
+	@media (min-width: 640px) {
+		:global(.markdown-editor-content) {
+			min-height: 16rem;
+			padding: 0.75rem 1rem;
+		}
+	}
+
+	@media (min-width: 1024px) {
+		:global(.markdown-editor-content) {
+			min-height: 20rem;
+			padding: 1rem 1.25rem 1.25rem;
+		}
 	}
 </style>

@@ -40,6 +40,8 @@ interface BasePanelView extends BasePanelInput {
 	selectedItem: ContentRecord;
 	isDirty: boolean;
 	submitError?: string;
+	hasParentPanel: boolean;
+	parentPanelTitle?: string;
 }
 
 export interface RepeatablePanelView extends BasePanelView {
@@ -121,7 +123,11 @@ export function createFormEditSession(
 
 	function getActivePanel(): FormPanelView | null {
 		const active = getActiveEntry();
-		return active ? toPanelView(active) : null;
+		if (!active) {
+			return null;
+		}
+
+		return toPanelView(active, getParentEntry(active));
 	}
 
 	function notify() {
@@ -414,13 +420,15 @@ function cloneContentValue<T extends ContentValue | ContentRecord | undefined>(v
 	}
 }
 
-function toPanelView(entry: PanelEntry): FormPanelView {
+function toPanelView(entry: PanelEntry, parent: PanelEntry | null): FormPanelView {
 	const { draftItem, initialItem, submitError, ...panel } = entry;
 	return {
 		...panel,
 		selectedItem: draftItem,
 		isDirty: isPanelDirty(entry),
-		submitError
+		submitError,
+		hasParentPanel: parent !== null,
+		parentPanelTitle: parent?.title
 	};
 }
 

@@ -9,6 +9,7 @@ import {
 	parseCollectionItem,
 	processTemplate,
 	serializeCollectionItem,
+	stringifyMarkdownCollectionItem,
 	toJsonFileContent
 } from './transforms';
 
@@ -86,6 +87,21 @@ describe('content-management/transforms', () => {
 		}
 	});
 
+	it('recovers markdown items whose closing frontmatter fence is missing', () => {
+		const parsed = parseCollectionItem(
+			'---\nslug: berlin-neukoelln-kiezkulisse\ntitle: Berlin Neukolln Kiezkulisse\n*public art commission, City of Berlin*\n\nBody copy',
+			true,
+			'berlin-neukoelln-kiezkulisse.md'
+		);
+
+		expect(parsed).toMatchObject({
+			slug: 'berlin-neukoelln-kiezkulisse',
+			title: 'Berlin Neukolln Kiezkulisse',
+			_filename: 'berlin-neukoelln-kiezkulisse.md'
+		});
+		expect(parsed.body).toBe('*public art commission, City of Berlin*\n\nBody copy');
+	});
+
 	it('rejects records with numeric keys before writing markdown frontmatter', () => {
 		expect(() =>
 			serializeCollectionItem(
@@ -98,6 +114,25 @@ describe('content-management/transforms', () => {
 				true
 			)
 		).toThrow(/unexpected numeric keys/);
+	});
+
+	it('serializes markdown items whose body starts with a thematic break', () => {
+		const serialized = stringifyMarkdownCollectionItem(
+			'---\n\n*public art commission, City of Berlin*\n\n---\n\nBody copy',
+			{
+				title: 'Berlin-Neukolln Kiezkulisse',
+				slug: 'berlin-neukoelln-kiezkulisse'
+			}
+		);
+
+		const parsed = parseCollectionItem(serialized, true, 'berlin-neukoelln-kiezkulisse.md');
+
+		expect(parsed).toMatchObject({
+			title: 'Berlin-Neukolln Kiezkulisse',
+			slug: 'berlin-neukoelln-kiezkulisse',
+			_filename: 'berlin-neukoelln-kiezkulisse.md'
+		});
+		expect(parsed.body).toBe('---\n\n*public art commission, City of Berlin*\n\n---\n\nBody copy');
 	});
 
 	it('renders template placeholders from item data', () => {

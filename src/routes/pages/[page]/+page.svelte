@@ -10,7 +10,8 @@
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import {
 		getConfigItemLabel,
-		getFirstCollectionItemId
+		getFirstCollectionItemId,
+		getOrderedCollectionNavigation
 	} from '$lib/features/content-management/navigation';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { DraftComparison } from '$lib/utils/draft-comparison';
@@ -51,6 +52,16 @@
 	});
 	const branchQueryValue = $derived(activeBranch ?? undefined);
 	const collectionItemCount = $derived(Array.isArray(content) ? content.length : 0);
+	const orderedCollectionNavigation = $derived.by(() => {
+		if (!config?.collection || !Array.isArray(content) || contentError) {
+			return {
+				items: [],
+				groups: []
+			};
+		}
+
+		return getOrderedCollectionNavigation(config, content, navigationManifest);
+	});
 	const firstCollectionItemHref = $derived.by(() => {
 		if (!config?.collection || !content || contentError) {
 			return null;
@@ -75,6 +86,12 @@
 			branch: branchQueryValue
 		});
 	});
+
+	function getCollectionItemHref(itemId: string) {
+		return buildPathWithQuery(resolve(`/pages/${data.pageSlug}/${itemId}/edit`), {
+			branch: branchQueryValue
+		});
+	}
 	const flashMessageKeys = [
 		'saved',
 		'published',
@@ -337,27 +354,101 @@
 			</div>
 		{:else if isCollectionContent}
 			<div class="grid gap-4 py-2">
-				<p class="max-w-2xl text-sm leading-6 text-stone-600">
-					{#if collectionItemCount > 0}
-						Choose a {collectionItemLabel ?? 'collection item'} from the index to start editing, or create
-						a new one when you need it.
-					{:else}
+				{#if collectionItemCount > 0}
+					<div class="grid gap-3 lg:hidden">
+						<div class="flex items-center justify-between gap-3">
+							<div>
+								<p class="text-[0.7rem] font-semibold tracking-[0.16em] text-stone-500 uppercase">
+									Collection
+								</p>
+								<h2 class="text-base font-semibold text-stone-950">{config.label}</h2>
+							</div>
+							{#if newCollectionItemHref}
+								<a href={newCollectionItemHref} class="tm-btn tm-btn-secondary">
+									New {collectionItemLabel}
+								</a>
+							{/if}
+						</div>
+
+						<div class="overflow-hidden rounded-md border border-stone-200 bg-white">
+							{#each orderedCollectionNavigation.groups as group (group.id)}
+								<section class="border-b border-stone-200 last:border-b-0">
+									<h3
+										class="border-b border-stone-100 bg-stone-50 px-4 py-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase"
+									>
+										{group.label}
+									</h3>
+									<div class="grid">
+										{#each group.items as item (item.itemId)}
+											<a
+												href={getCollectionItemHref(item.itemId)}
+												class="flex min-h-12 items-center justify-between gap-3 border-b border-stone-100 px-4 py-3 text-sm font-medium text-stone-900 transition-colors last:border-b-0 hover:bg-stone-50"
+											>
+												<span class="min-w-0 truncate">{item.title}</span>
+												<span class="shrink-0 text-stone-400" aria-hidden="true">›</span>
+											</a>
+										{/each}
+									</div>
+								</section>
+							{/each}
+
+							{#if orderedCollectionNavigation.items.length > 0}
+								<section>
+									{#if orderedCollectionNavigation.groups.length > 0}
+										<h3
+											class="border-b border-stone-100 bg-stone-50 px-4 py-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase"
+										>
+											Ungrouped
+										</h3>
+									{/if}
+									<div class="grid">
+										{#each orderedCollectionNavigation.items as item (item.itemId)}
+											<a
+												href={getCollectionItemHref(item.itemId)}
+												class="flex min-h-12 items-center justify-between gap-3 border-b border-stone-100 px-4 py-3 text-sm font-medium text-stone-900 transition-colors last:border-b-0 hover:bg-stone-50"
+											>
+												<span class="min-w-0 truncate">{item.title}</span>
+												<span class="shrink-0 text-stone-400" aria-hidden="true">›</span>
+											</a>
+										{/each}
+									</div>
+								</section>
+							{/if}
+						</div>
+					</div>
+
+					<div class="hidden gap-4 lg:grid">
+						<p class="max-w-2xl text-sm leading-6 text-stone-600">
+							Choose a {collectionItemLabel ?? 'collection item'} from the index to start editing, or
+							create a new one when you need it.
+						</p>
+
+						<div class="flex flex-wrap gap-3">
+							{#if firstCollectionItemHref}
+								<a href={firstCollectionItemHref} class="tm-btn tm-btn-secondary">
+									Open first item
+								</a>
+							{/if}
+
+							{#if newCollectionItemHref}
+								<a href={newCollectionItemHref} class="tm-btn tm-btn-secondary">
+									Create new item
+								</a>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<p class="max-w-2xl text-sm leading-6 text-stone-600">
 						This collection does not have any items yet. Create the first
 						{collectionItemLabel ?? 'item'} to get started.
-					{/if}
-				</p>
+					</p>
 
-				<div class="flex flex-wrap gap-3">
-					{#if firstCollectionItemHref}
-						<a href={firstCollectionItemHref} class="tm-btn tm-btn-secondary"> Open first item </a>
-					{/if}
-
-					{#if newCollectionItemHref}
-						<a href={newCollectionItemHref} class="tm-btn tm-btn-secondary">
-							{collectionItemCount > 0 ? 'Create new item' : 'Create first item'}
-						</a>
-					{/if}
-				</div>
+					<div class="flex flex-wrap gap-3">
+						{#if newCollectionItemHref}
+							<a href={newCollectionItemHref} class="tm-btn tm-btn-secondary">Create first item</a>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{:else}
 			<div class="grid gap-6">

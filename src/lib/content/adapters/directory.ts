@@ -6,7 +6,8 @@ import {
 	getCollectionFilenameBase,
 	parseCollectionItem,
 	processTemplate,
-	serializeCollectionItem
+	serializeCollectionItem,
+	stringifyMarkdownCollectionItem
 } from '$lib/features/content-management/transforms';
 import { getItemSlug } from '$lib/features/content-management/item';
 import {
@@ -101,7 +102,7 @@ async function buildCreatedContent(
 		processedFrontmatter[key] = typeof value === 'string' ? processTemplate(value, data) : value;
 	}
 
-	return matter.stringify(bodyContent, processedFrontmatter);
+	return stringifyMarkdownCollectionItem(bodyContent, processedFrontmatter);
 }
 
 async function previewDirectoryContent(
