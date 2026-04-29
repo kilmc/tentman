@@ -4,6 +4,7 @@ import {
 	checkNavigationManifest,
 	doctorTentmanProject,
 	loadTentmanProject,
+	rebuildNavigationManifest,
 	refreshNavigationManifest,
 	summarizeIdWriteChanges,
 	summarizeNavigationRefreshChanges,
@@ -20,6 +21,7 @@ Usage:
   tentman ids write [project-root]
   tentman nav check [project-root]
   tentman nav refresh [project-root]
+  tentman nav rebuild [project-root]
 
 Options:
   --json      Print machine-readable diagnostics
@@ -160,6 +162,25 @@ async function run() {
 			console.log(`${change.kind}: ${change.from} -> ${change.to}`);
 		}
 
+		return 0;
+	}
+
+	if (command === 'nav' && subcommand === 'rebuild') {
+		const project = await loadTentmanProject(getProjectRoot(positional, 2));
+		const result = await rebuildNavigationManifest(project);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman nav rebuild', ...result }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman nav rebuild');
+		if (!result.changed) {
+			console.log('OK, navigation manifest is already rebuilt.');
+			return 0;
+		}
+
+		console.log(`Rebuilt ${result.path}.`);
 		return 0;
 	}
 

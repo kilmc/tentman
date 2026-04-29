@@ -22,7 +22,9 @@ async function pathExists(absolutePath) {
 }
 
 async function walkDirectory(rootDir, currentDir) {
-	const entries = await fs.readdir(currentDir, { withFileTypes: true });
+	const entries = (await fs.readdir(currentDir, { withFileTypes: true })).sort((a, b) =>
+		a.name.localeCompare(b.name)
+	);
 	const files = [];
 
 	for (const entry of entries) {

@@ -16,4 +16,5 @@ export {
 	refreshNavigationManifest,
 	summarizeNavigationRefreshChanges
 } from './nav-refresh.js';
+export { rebuildNavigationManifest } from './nav-rebuild.js';
 export { summarizeIdWriteChanges, writeMissingTentmanIds } from './write-ids.js';
