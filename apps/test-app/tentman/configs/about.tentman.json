@@ -1,6 +1,7 @@
 {
 	"type": "content",
 	"label": "About Page",
+	"_tentmanId": "tent_01KQD7Q12XGD83Y8S1TAHW40G3",
 	"id": "about",
 	"content": {
 		"mode": "file",

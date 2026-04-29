@@ -3,8 +3,11 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"scripts": {
+		"tentman": "node src/index.js"
+	},
 	"bin": {
-		"tentman": "./src/index.ts"
+		"tentman": "./src/index.js"
 	},
 	"dependencies": {
 		"@tentman/core": "workspace:*"

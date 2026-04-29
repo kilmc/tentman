@@ -1,6 +1,7 @@
 {
 	"type": "content",
 	"label": "News",
+	"_tentmanId": "tent_01KQD7Q130YKZ4XV6JRZ8B9BH8",
 	"id": "news",
 	"content": {
 		"mode": "file",

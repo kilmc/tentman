@@ -1,6 +1,7 @@
 {
 	"type": "content",
 	"label": "Blog Posts",
+	"_tentmanId": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
 	"id": "blog",
 	"itemLabel": "Blog Post",
 	"collection": true,

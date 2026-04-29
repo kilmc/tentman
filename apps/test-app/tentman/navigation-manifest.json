@@ -2,28 +2,28 @@
 	"version": 1,
 	"content": {
 		"items": [
-			"contact",
-			"about",
-			"blog",
-			"news",
-			"projects"
+			"tent_01KQD7Q1301SNN4W42XV2XYA17",
+			"tent_01KQD7Q12XGD83Y8S1TAHW40G3",
+			"tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
+			"tent_01KQD7Q130YKZ4XV6JRZ8B9BH8",
+			"tent_01KQD7Q130M4G8TR170P1H4FKX"
 		]
 	},
 	"collections": {
-		"blog": {
+		"tent_01KQD7Q12YAMHFJ3FWHBQ16Z07": {
 			"items": [
-				"testing-content-workflows",
-				"designing-a-realistic-fixture",
-				"blooop",
-				"stuff-2"
+				"tent_01KQD7Q12ZHBTXG669982DV00K",
+				"tent_01KQD7Q12ZH61M4XHDTEQ5MV98",
+				"tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD",
+				"tent_01KQD7Q12Z8C6K7C008CDDVCR4"
 			],
 			"groups": [
 				{
 					"id": "featured",
 					"label": "Featured posts",
 					"items": [
-						"testing-content-workflows",
-						"designing-a-realistic-fixture"
+						"tent_01KQD7Q12ZHBTXG669982DV00K",
+						"tent_01KQD7Q12ZH61M4XHDTEQ5MV98"
 					]
 				}
 			]

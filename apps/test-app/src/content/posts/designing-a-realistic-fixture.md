@@ -1,5 +1,6 @@
 ---
 title: 'Designing a realistic fixture app'
+_tentmanId: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98'
 slug: 'designing-a-realistic-fixture'
 date: '2026-03-18'
 author: 'Kilian McMichael'

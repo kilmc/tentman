@@ -3,7 +3,10 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"scripts": {
+		"test": "node --test src/*.test.js"
+	},
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.js"
 	}
 }

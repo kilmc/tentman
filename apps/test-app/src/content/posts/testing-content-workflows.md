@@ -1,5 +1,6 @@
 ---
 title: Testing the new content workflows
+_tentmanId: 'tent_01KQD7Q12ZHBTXG669982DV00K'
 slug: testing-content-workflows
 date: '2026-03-20'
 author: Kilian McMichael

@@ -1,5 +1,6 @@
 ---
 title: Another Page
+_tentmanId: 'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD'
 slug: another-page
 date: '2026-04-18'
 author: Killl
