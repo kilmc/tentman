@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-import { onMount, setContext, type Snippet } from 'svelte';
+	import { onMount, setContext, type Snippet } from 'svelte';
 	import { get, writable } from 'svelte/store';
 	import {
 		SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -28,7 +28,6 @@ import { onMount, setContext, type Snippet } from 'svelte';
 		cloneNavigationDraft,
 		createNavigationDraft,
 		serializeNavigationDraft,
-		setNavigationDraftCollection,
 		setNavigationDraftContentOrder,
 		type NavigationDraft,
 		type NavigationDraftCollection
@@ -41,6 +40,7 @@ import { onMount, setContext, type Snippet } from 'svelte';
 	} from '$lib/features/content-management/navigation';
 	import {
 		getManualNavigationSetupState,
+		saveCollectionOrder,
 		writeNavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import { draftBranch } from '$lib/stores/draft-branch';
@@ -546,23 +546,13 @@ import { onMount, setContext, type Snippet } from 'svelte';
 		savingCollectionOrder = true;
 
 		try {
-			const draft = createNavigationDraft(
-				configs,
-				navigationManifest,
-				collectionItemsBySlug,
-				rootConfig
-			);
-			const manifest = serializeNavigationDraft(
-				setNavigationDraftCollection(draft, config.config._tentmanId, collection)
-			);
-
 			if (isLocalMode) {
 				const repoState = get(localRepo);
 				if (!repoState.backend) {
 					throw new Error('No local repository is open.');
 				}
 
-				await writeNavigationManifest(repoState.backend, manifest, {
+				await saveCollectionOrder(repoState.backend, config, collection, navigationManifest, {
 					message: MANIFEST_COMMIT_MESSAGE
 				});
 				await localContent.refresh({ force: true });
@@ -574,8 +564,9 @@ import { onMount, setContext, type Snippet } from 'svelte';
 						'content-type': 'application/json'
 					},
 					body: JSON.stringify({
-						action: 'save-manifest',
-						manifest,
+						action: 'save-collection-order',
+						collection: config.slug,
+						order: collection,
 						branchName: get(draftBranch).branchName
 					})
 				});

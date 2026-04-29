@@ -15,6 +15,7 @@ import { getCollectionGroups, isCollectionManualSortingEnabled } from './config'
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
 import { hasGeneratedTentmanId } from './stable-identity';
 import type { ContentRecord } from './types';
+import type { BlockUsage, ContentConfig } from '$lib/config/types';
 import type { RootConfig } from '$lib/config/root-config';
 import type {
 	RepositoryBackend,
@@ -43,6 +44,17 @@ export interface NavigationManifest {
 		items: string[];
 	};
 	collections?: Record<string, NavigationManifestCollection>;
+}
+
+export interface CollectionOrderDraftGroup {
+	id: string;
+	label?: string;
+	items: string[];
+}
+
+export interface CollectionOrderDraft {
+	ungroupedItems: string[];
+	groups: CollectionOrderDraftGroup[];
 }
 
 export interface NavigationManifestState {
@@ -139,7 +151,8 @@ function hasNavigationReference(
 	candidates: Array<string | null | undefined>
 ): boolean {
 	return candidates.some(
-		(candidate) => typeof candidate === 'string' && candidate.length > 0 && references.has(candidate)
+		(candidate) =>
+			typeof candidate === 'string' && candidate.length > 0 && references.has(candidate)
 	);
 }
 
@@ -337,13 +350,12 @@ function parseNavigationManifestCollection(
 				group.label !== undefined &&
 				(typeof group.label !== 'string' || group.label.length === 0)
 			) {
-				throw new Error(`${context}.groups[${index}].label must be a non-empty string when present`);
+				throw new Error(
+					`${context}.groups[${index}].label must be a non-empty string when present`
+				);
 			}
 
-			if (
-				group.slug !== undefined &&
-				(typeof group.slug !== 'string' || group.slug.length === 0)
-			) {
+			if (group.slug !== undefined && (typeof group.slug !== 'string' || group.slug.length === 0)) {
 				throw new Error(`${context}.groups[${index}].slug must be a non-empty string when present`);
 			}
 
@@ -465,10 +477,7 @@ export function getMissingContentConfigIds(configs: DiscoveredConfig[]): Missing
 				slug: config.slug,
 				label: config.config.label,
 				suggestedId: (() => {
-					if (
-						typeof config.config._tentmanId === 'string' &&
-						config.config._tentmanId.length > 0
-					) {
+					if (typeof config.config._tentmanId === 'string' && config.config._tentmanId.length > 0) {
 						existingIds.add(config.config._tentmanId);
 						return config.config._tentmanId;
 					}
@@ -594,7 +603,9 @@ function setCollectionGroupsInSource(source: string, groups: CollectionGroupConf
 	const nextCollection =
 		nextConfig.collection === true
 			? { groups }
-			: nextConfig.collection && typeof nextConfig.collection === 'object' && !Array.isArray(nextConfig.collection)
+			: nextConfig.collection &&
+				  typeof nextConfig.collection === 'object' &&
+				  !Array.isArray(nextConfig.collection)
 				? {
 						...(nextConfig.collection as Record<string, unknown>),
 						groups
@@ -609,6 +620,239 @@ function setCollectionGroupsInSource(source: string, groups: CollectionGroupConf
 		null,
 		'\t'
 	)}\n`;
+}
+
+function getCollectionGroupFieldIds(blocks: BlockUsage[], collectionIds: Set<string>): string[] {
+	const matches: string[] = [];
+
+	for (const block of blocks) {
+		if (block.type === 'block') {
+			matches.push(...getCollectionGroupFieldIds(block.blocks ?? [], collectionIds));
+			continue;
+		}
+
+		const options = block.options;
+		if (
+			block.type === 'select' &&
+			options &&
+			!Array.isArray(options) &&
+			options.source === 'tentman.navigationGroups' &&
+			collectionIds.has(options.collection)
+		) {
+			matches.push(block.id);
+		}
+	}
+
+	return matches;
+}
+
+export function detectCollectionGroupField(config: DiscoveredConfig): string | null {
+	const collectionIds = new Set(
+		[config.slug, config.config._tentmanId, config.config.id].filter(
+			(value): value is string => typeof value === 'string' && value.length > 0
+		)
+	);
+	const matches = getCollectionGroupFieldIds(config.config.blocks, collectionIds);
+
+	if (matches.length === 1) {
+		return matches[0]!;
+	}
+
+	if (matches.length === 0) {
+		throw new Error(
+			`Cannot move ${config.config.label} items between groups because no select field uses options.source "tentman.navigationGroups" for this collection.`
+		);
+	}
+
+	throw new Error(
+		`Cannot move ${config.config.label} items between groups because multiple select fields use options.source "tentman.navigationGroups" for this collection.`
+	);
+}
+
+function getDraftItemGroupMap(collection: CollectionOrderDraft): Map<string, string | null> {
+	const itemGroups = new Map<string, string | null>();
+
+	for (const group of collection.groups) {
+		for (const itemId of group.items) {
+			itemGroups.set(itemId, group.id);
+		}
+	}
+
+	for (const itemId of collection.ungroupedItems) {
+		itemGroups.set(itemId, null);
+	}
+
+	return itemGroups;
+}
+
+function getCurrentItemGroupMap(
+	items: ContentRecord[],
+	groupFieldId: string | null
+): Map<string, string | null> {
+	const itemGroups = new Map<string, string | null>();
+
+	for (const item of items) {
+		const itemId = getItemId(item);
+		if (!itemId) {
+			continue;
+		}
+
+		const groupValue = groupFieldId ? item[groupFieldId] : undefined;
+		itemGroups.set(
+			itemId,
+			typeof groupValue === 'string' && groupValue.length > 0 ? groupValue : null
+		);
+	}
+
+	return itemGroups;
+}
+
+function getManifestItemGroupMap(
+	manifest: NavigationManifest | null | undefined,
+	config: DiscoveredConfig
+): Map<string, string | null> {
+	const map = new Map<string, string | null>();
+	const collection = config.config._tentmanId
+		? (manifest?.collections?.[config.config._tentmanId] ?? null)
+		: null;
+
+	for (const group of collection?.groups ?? []) {
+		for (const itemId of group.items) {
+			map.set(itemId, group.id);
+		}
+	}
+
+	for (const itemId of collection?.items ?? []) {
+		if (!map.has(itemId)) {
+			map.set(itemId, null);
+		}
+	}
+
+	return map;
+}
+
+function hasItemGroupChanges(
+	nextGroups: Map<string, string | null>,
+	currentGroups: Map<string, string | null>
+): boolean {
+	for (const [itemId, groupId] of nextGroups) {
+		if ((currentGroups.get(itemId) ?? null) !== groupId) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function applyItemGroups(
+	items: ContentRecord[],
+	groupFieldId: string,
+	nextGroups: Map<string, string | null>
+): ContentRecord[] {
+	return items.map((item) => {
+		const itemId = getItemId(item);
+		if (!itemId || !nextGroups.has(itemId)) {
+			return item;
+		}
+
+		const groupId = nextGroups.get(itemId);
+		if (groupId) {
+			return {
+				...item,
+				[groupFieldId]: groupId
+			};
+		}
+
+		const { [groupFieldId]: _removed, ...rest } = item;
+		return rest;
+	});
+}
+
+function orderCollectionGroups(
+	config: ContentConfig,
+	collection: CollectionOrderDraft
+): CollectionGroupConfig[] {
+	const groupsById = new Map(
+		getCollectionGroups(config).flatMap((group) =>
+			group._tentmanId ? [[group._tentmanId, group] as const] : []
+		)
+	);
+	const orderedGroups: CollectionGroupConfig[] = [];
+	const seenIds = new Set<string>();
+
+	for (const draftGroup of collection.groups) {
+		const group = groupsById.get(draftGroup.id);
+		if (!group || seenIds.has(draftGroup.id)) {
+			continue;
+		}
+
+		orderedGroups.push(group);
+		seenIds.add(draftGroup.id);
+	}
+
+	for (const group of getCollectionGroups(config)) {
+		if (!group._tentmanId || seenIds.has(group._tentmanId)) {
+			continue;
+		}
+
+		orderedGroups.push(group);
+	}
+
+	return orderedGroups;
+}
+
+function toManifestGroups(
+	groups: CollectionGroupConfig[],
+	collection: CollectionOrderDraft
+): NavigationManifestGroup[] {
+	const draftGroups = new Map(collection.groups.map((group) => [group.id, group]));
+
+	return groups.flatMap((group) => {
+		if (!group._tentmanId) {
+			return [];
+		}
+
+		return [
+			{
+				id: group._tentmanId,
+				label: group.label,
+				...(group.slug ? { slug: group.slug } : {}),
+				items: [...(draftGroups.get(group._tentmanId)?.items ?? [])]
+			}
+		];
+	});
+}
+
+function setManifestCollectionOrder(
+	manifest: NavigationManifest | null | undefined,
+	configId: string,
+	groups: NavigationManifestGroup[],
+	ungroupedItems: string[]
+): NavigationManifest {
+	const nextManifest: NavigationManifest = {
+		version: 1,
+		...(manifest?.content ? { content: { items: [...manifest.content.items] } } : {}),
+		...(manifest?.collections
+			? {
+					collections: Object.fromEntries(
+						Object.entries(manifest.collections).map(([id, collection]) => [
+							id,
+							cloneManifestCollection(collection)!
+						])
+					)
+				}
+			: {})
+	};
+
+	nextManifest.collections = {
+		...(nextManifest.collections ?? {}),
+		[configId]: {
+			items: [...groups.flatMap((group) => group.items), ...ungroupedItems],
+			...(groups.length > 0 ? { groups } : {})
+		}
+	};
+
+	return nextManifest;
 }
 
 async function writeReconciledCollectionItems(
@@ -719,10 +963,7 @@ function reconcileConfigIdentity(
 		);
 		const nextId = keepsCurrentId
 			? currentId
-			: getUniqueConfigId(
-					referencedLegacyId ?? getSuggestedConfigIdBase(config),
-					usedIds
-				);
+			: getUniqueConfigId(referencedLegacyId ?? getSuggestedConfigIdBase(config), usedIds);
 
 		if (config.config._tentmanId !== nextId) {
 			config.config._tentmanId = nextId;
@@ -804,10 +1045,7 @@ function reconcileGroupIdentity(
 			continue;
 		}
 
-		const nextId = getUniqueIdFromBase(
-			manifestGroup.id || manifestGroup.slug || 'group',
-			usedIds
-		);
+		const nextId = getUniqueIdFromBase(manifestGroup.id || manifestGroup.slug || 'group', usedIds);
 		const nextGroup: CollectionGroupConfig = {
 			_tentmanId: nextId,
 			label: manifestGroup.label ?? manifestGroup.id,
@@ -872,17 +1110,19 @@ function reconcileItemIdentity(
 			(!duplicateWinners.has(currentId) || duplicateWinners.get(currentId) === index) &&
 			!usedIds.has(currentId);
 		const referencedLegacyId = getItemReferenceCandidates(config, item).find(
-			(candidate) =>
-				candidate !== currentId && references.has(candidate) && !usedIds.has(candidate)
+			(candidate) => candidate !== currentId && references.has(candidate) && !usedIds.has(candidate)
 		);
 		const nextId = keepsCurrentId
 			? getUniqueIdFromBase(currentId, usedIds)
-			: getUniqueIdFromBase(referencedLegacyId ?? getUniqueItemIdBase(config, item, index), usedIds);
-			const nextItem =
-				item._tentmanId === nextId && !hasGeneratedTentmanId(item)
-					? item
-					: {
-							...item,
+			: getUniqueIdFromBase(
+					referencedLegacyId ?? getUniqueItemIdBase(config, item, index),
+					usedIds
+				);
+		const nextItem =
+			item._tentmanId === nextId && !hasGeneratedTentmanId(item)
+				? item
+				: {
+						...item,
 						_tentmanId: nextId
 					};
 
@@ -1082,6 +1322,66 @@ export async function reconcileManualNavigationSetup(
 	);
 }
 
+export async function saveCollectionOrder(
+	backend: RepositoryBackend,
+	config: DiscoveredConfig,
+	collection: CollectionOrderDraft,
+	existingManifest: NavigationManifest | null | undefined,
+	options?: RepositoryWriteOptions
+): Promise<NavigationManifest> {
+	if (!config.config._tentmanId) {
+		throw new Error(
+			`${config.config.label} needs a Tentman-managed id before its order can be saved.`
+		);
+	}
+
+	if (!isCollectionManualSortingEnabled(config.config)) {
+		throw new Error(`${config.config.label} does not have manual collection sorting enabled.`);
+	}
+
+	const content = await fetchContentDocument(backend, config.config, config.path);
+	const contentItems = Array.isArray(content) ? (content as ContentRecord[]) : [];
+	const nextItemGroups = getDraftItemGroupMap(collection);
+	const currentManifestGroups = getManifestItemGroupMap(existingManifest, config);
+	const groupFieldId = (() => {
+		if (!hasItemGroupChanges(nextItemGroups, currentManifestGroups)) {
+			return null;
+		}
+
+		return detectCollectionGroupField(config);
+	})();
+	const nextGroups = orderCollectionGroups(config.config, collection);
+	const configSource = await backend.readTextFile(config.path, options);
+
+	await backend.writeTextFile(
+		config.path,
+		setCollectionGroupsInSource(configSource, nextGroups),
+		options
+	);
+
+	if (groupFieldId) {
+		const currentGroups = getCurrentItemGroupMap(contentItems, groupFieldId);
+		if (hasItemGroupChanges(nextItemGroups, currentGroups)) {
+			await writeReconciledCollectionItems(
+				backend,
+				config,
+				applyItemGroups(contentItems, groupFieldId, nextItemGroups),
+				options
+			);
+		}
+	}
+
+	const manifest = setManifestCollectionOrder(
+		existingManifest,
+		config.config._tentmanId,
+		toManifestGroups(nextGroups, collection),
+		collection.ungroupedItems
+	);
+	await writeNavigationManifest(backend, manifest, options);
+
+	return manifest;
+}
+
 export async function writeNavigationManifest(
 	backend: RepositoryBackend,
 	manifest: NavigationManifest,
@@ -1114,12 +1414,18 @@ export function getManualNavigationSetupState(
 
 	const topLevelManualSortingEnabled = rootConfig?.content?.sorting === 'manual';
 	const hasConfiguredManualFeatures =
-		topLevelManualSortingEnabled || collections.some((collection) => collection.manualSortingEnabled);
+		topLevelManualSortingEnabled ||
+		collections.some((collection) => collection.manualSortingEnabled);
 	const hasAnyConfigId = configs.some((config) => !!config.config._tentmanId);
 
 	let status: ManualNavigationSetupState['status'] = 'inactive';
 
-	if (hasConfiguredManualFeatures && manifestState.exists && manifestState.manifest && missingConfigIds.length === 0) {
+	if (
+		hasConfiguredManualFeatures &&
+		manifestState.exists &&
+		manifestState.manifest &&
+		missingConfigIds.length === 0
+	) {
 		status = 'active';
 	} else if (
 		hasConfiguredManualFeatures ||

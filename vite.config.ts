@@ -9,6 +9,7 @@ export default defineConfig({
 	optimizeDeps: {
 		include: [
 			'lucide-svelte/icons/more-horizontal',
+			'lucide-svelte/icons/pencil',
 			'lucide-svelte/icons/sidebar-close',
 			'lucide-svelte/icons/sidebar-open'
 		]

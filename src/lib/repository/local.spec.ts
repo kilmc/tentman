@@ -42,7 +42,7 @@ describe('loadJavaScriptModuleFromText', () => {
 });
 
 describe('createLocalRepositoryBackend', () => {
-	function createFileHandle(content: string): FileSystemFileHandle {
+	function createFileHandle(content: string | (() => string)): FileSystemFileHandle {
 		return {
 			kind: 'file',
 			name: 'mock-file',
@@ -52,7 +52,7 @@ describe('createLocalRepositoryBackend', () => {
 			async getFile() {
 				return {
 					async text() {
-						return content;
+						return typeof content === 'function' ? content() : content;
 					}
 				} as File;
 			},
@@ -323,5 +323,137 @@ describe('createLocalRepositoryBackend', () => {
 				path: 'tentman/blocks/image-gallery.tentman.json'
 			}
 		]);
+	});
+
+	it('updates the local discovery signature when config files are added or removed', async () => {
+		const configEntries: Record<string, FileSystemFileHandle> = {
+			'posts.tentman.json': createFileHandle(`{
+				"type": "content",
+				"label": "Posts",
+				"content": { "mode": "file", "path": "./src/content/posts.json" },
+				"blocks": []
+			}`)
+		};
+		const rootHandle = createDirectoryHandle({
+			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			tentman: createDirectoryHandle({
+				configs: createDirectoryHandle(configEntries)
+			})
+		});
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			contentConfigPaths: ['tentman/configs/posts.tentman.json']
+		});
+
+		configEntries['projects.tentman.json'] = createFileHandle(`{
+			"type": "content",
+			"label": "Projects",
+			"content": { "mode": "file", "path": "./src/content/projects.json" },
+			"blocks": []
+		}`);
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			contentConfigPaths: [
+				'tentman/configs/posts.tentman.json',
+				'tentman/configs/projects.tentman.json'
+			]
+		});
+
+		delete configEntries['posts.tentman.json'];
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			contentConfigPaths: ['tentman/configs/projects.tentman.json']
+		});
+	});
+
+	it('keeps the local discovery signature stable when existing config content changes', async () => {
+		let configContent = `{
+			"type": "content",
+			"label": "Posts",
+			"content": { "mode": "file", "path": "./src/content/posts.json" },
+			"blocks": []
+		}`;
+		const rootHandle = createDirectoryHandle({
+			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			tentman: createDirectoryHandle({
+				configs: createDirectoryHandle({
+					'posts.tentman.json': createFileHandle(() => configContent)
+				})
+			})
+		});
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+		const signature = await backend.getDiscoverySignature();
+
+		configContent = `{
+			"type": "content",
+			"label": "Renamed posts",
+			"content": { "mode": "file", "path": "./src/content/posts.json" },
+			"blocks": []
+		}`;
+
+		await expect(backend.getDiscoverySignature()).resolves.toEqual(signature);
+	});
+
+	it('includes root discovery settings and registered plugin entrypoint existence in the signature', async () => {
+		let rootConfig = JSON.stringify({
+			configsDir: './tentman/configs',
+			pluginsDir: './tentman/plugins',
+			plugins: ['buy-button']
+		});
+		const buyButtonEntries: Record<string, FileSystemFileHandle> = {};
+		const rootHandle = createDirectoryHandle({
+			'.tentman.json': createFileHandle(() => rootConfig),
+			tentman: createDirectoryHandle({
+				configs: createDirectoryHandle({
+					'posts.tentman.json': createFileHandle(`{
+						"type": "content",
+						"label": "Posts",
+						"content": { "mode": "file", "path": "./src/content/posts.json" },
+						"blocks": []
+					}`)
+				}),
+				plugins: createDirectoryHandle({
+					'buy-button': createDirectoryHandle(buyButtonEntries)
+				})
+			})
+		});
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+
+		const initialSignature = await backend.getDiscoverySignature();
+		expect(initialSignature.rootConfigText).toContain('"plugins"');
+		expect(initialSignature.pluginEntrypoints).toEqual([
+			{ path: 'tentman/plugins/buy-button/plugin.js', exists: false },
+			{ path: 'tentman/plugins/buy-button/plugin.mjs', exists: false }
+		]);
+
+		buyButtonEntries['plugin.js'] = createFileHandle('export default {};');
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			pluginEntrypoints: [
+				{ path: 'tentman/plugins/buy-button/plugin.js', exists: true },
+				{ path: 'tentman/plugins/buy-button/plugin.mjs', exists: false }
+			]
+		});
+
+		rootConfig = JSON.stringify({
+			configsDir: './content',
+			pluginsDir: './tentman/plugins',
+			plugins: ['buy-button']
+		});
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			rootConfigText: rootConfig,
+			contentConfigPaths: []
+		});
 	});
 });

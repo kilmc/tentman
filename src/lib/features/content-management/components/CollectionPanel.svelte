@@ -1,6 +1,7 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve -- links are resolved before branch query strings are appended */
 	import { resolve } from '$app/paths';
+	import { flip } from 'svelte/animate';
 	import type { DndEvent } from 'svelte-dnd-action';
 	import { SHADOW_ITEM_MARKER_PROPERTY_NAME, dragHandle, dragHandleZone } from 'svelte-dnd-action';
 	import ArrowDownAZ from 'lucide-svelte/icons/arrow-down-a-z';
@@ -8,6 +9,7 @@
 	import Check from 'lucide-svelte/icons/check';
 	import ChevronDown from 'lucide-svelte/icons/chevron-down';
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
+	import Pencil from 'lucide-svelte/icons/pencil';
 	import Plus from 'lucide-svelte/icons/plus';
 	import X from 'lucide-svelte/icons/x';
 	import type {
@@ -53,6 +55,8 @@
 		id: string;
 		label: string;
 		items: CollectionIndexItem[];
+		isDndShadowItem?: boolean;
+		[key: string]: unknown;
 	};
 
 	const flipDurationMs = 150;
@@ -62,6 +66,7 @@
 	let editingCustomOrder = $state(false);
 	let editableGroups = $state<EditableGroup[]>([]);
 	let editableUngroupedItems = $state<CollectionIndexItem[]>([]);
+	let draggingGroup = $state(false);
 	let sortMenu = $state<HTMLDetailsElement | null>(null);
 
 	const branchQuery = $derived(branch ? `?branch=${encodeURIComponent(branch)}` : '');
@@ -107,6 +112,7 @@
 			items: group.items.map(toEditableItem)
 		}));
 		editableUngroupedItems = items.map(toEditableItem);
+		draggingGroup = false;
 		editingCustomOrder = true;
 	}
 
@@ -114,6 +120,7 @@
 		editingCustomOrder = false;
 		editableGroups = [];
 		editableUngroupedItems = [];
+		draggingGroup = false;
 	}
 
 	function saveCustomOrder() {
@@ -126,6 +133,7 @@
 			}))
 		});
 		editingCustomOrder = false;
+		draggingGroup = false;
 	}
 
 	function updateGroupItems(groupId: string, nextItems: CollectionIndexItem[]) {
@@ -150,6 +158,23 @@
 		editableUngroupedItems = event.detail.items;
 	}
 
+	function handleGroupOrderConsider(event: CustomEvent<DndEvent<EditableGroup>>) {
+		editableGroups = event.detail.items;
+	}
+
+	function handleGroupOrderFinalize(event: CustomEvent<DndEvent<EditableGroup>>) {
+		editableGroups = event.detail.items;
+		draggingGroup = false;
+	}
+
+	function beginGroupDragPreview() {
+		draggingGroup = true;
+	}
+
+	function endGroupDragPreview() {
+		draggingGroup = false;
+	}
+
 	function getItemLinkLabel(item: CollectionNavigationItem) {
 		return currentItemId === item.itemId ? `${item.title}, current ${itemLabel}` : item.title;
 	}
@@ -171,7 +196,7 @@
 			return sortDirection === 'asc' ? 'Oldest' : 'Newest';
 		}
 
-		return canOrderItems ? 'Custom' : 'Manual';
+		return canOrderItems ? 'Customize' : 'Manual';
 	}
 
 	function chooseSortType(nextSortType: CollectionSortType) {
@@ -203,8 +228,9 @@
 								class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs"
 								onclick={beginCustomOrderEditing}
 								disabled={editingCustomOrder}
-								aria-label="Edit order"
+								aria-label="Customize order"
 							>
+								<Pencil class="h-3.5 w-3.5" />
 								{getSortButtonLabel()}
 							</button>
 						{:else}
@@ -285,68 +311,91 @@
 
 		<div class="min-h-0 overflow-y-auto p-3">
 			{#if editingCustomOrder}
-				<div class="mb-3 flex items-center gap-2">
-					<button
-						type="button"
-						class="tm-btn tm-btn-secondary min-h-8 flex-1 px-2 text-xs"
-						onclick={cancelCustomOrderEditing}
-						disabled={savingCustomOrder}
+				<div class="grid gap-3 pb-3">
+					<div
+						class="grid gap-3"
+						data-testid="collection-group-order-zone"
+						use:dragHandleZone={{
+							items: editableGroups,
+							type: `collection-groups:${slug}`,
+							flipDurationMs,
+							delayTouchStart: true
+						}}
+						onconsider={handleGroupOrderConsider}
+						onfinalize={handleGroupOrderFinalize}
 					>
-						<X class="h-3.5 w-3.5" />
-						Cancel
-					</button>
-					<button
-						type="button"
-						class="tm-btn tm-btn-primary min-h-8 flex-1 px-2 text-xs"
-						onclick={saveCustomOrder}
-						disabled={savingCustomOrder}
-					>
-						<Check class="h-3.5 w-3.5" />
-						{savingCustomOrder ? 'Saving...' : 'Save order'}
-					</button>
-				</div>
-
-				<div class="grid gap-3">
-					{#each editableGroups as group (group.id)}
-						<section class="rounded-md border border-stone-200 bg-stone-50 p-2">
-							<h3 class="px-1 pb-2 text-xs font-semibold text-stone-500 uppercase">
-								{group.label}
-							</h3>
-							<div
+						{#each editableGroups as group (`${group.id}:${group.isDndShadowItem ? 'shadow' : 'real'}`)}
+							<section
+								animate:flip={{ duration: flipDurationMs }}
 								class="grid gap-1"
-								use:dragHandleZone={{
-									items: group.items,
-									type: `collection-index:${slug}`,
-									flipDurationMs,
-									delayTouchStart: true
-								}}
-								onconsider={(event) => handleGroupConsider(group.id, event)}
-								onfinalize={(event) => handleGroupFinalize(group.id, event)}
+								data-is-dnd-shadow-item-hint={group[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
 							>
-								{#each group.items as item (`${item.id}:${item.isDndShadowItem ? 'shadow' : 'real'}`)}
-									<div
-										class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border border-stone-200 bg-white p-2"
-										data-is-dnd-shadow-item-hint={item[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
+								<button
+									type="button"
+									use:dragHandle
+									class="grid min-h-5 cursor-grab grid-cols-[auto_minmax(0,1fr)] items-center gap-1 px-1 text-left active:cursor-grabbing"
+									aria-label={`Drag ${group.label}`}
+									onpointerdown={beginGroupDragPreview}
+									onpointerup={endGroupDragPreview}
+									onpointercancel={endGroupDragPreview}
+								>
+									<span
+										aria-hidden="true"
+										class="inline-flex h-5 w-5 items-center justify-center rounded-md text-stone-400"
 									>
-										<button
-											type="button"
-											use:dragHandle
-											class="inline-flex h-7 w-7 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
-											aria-label={`Drag ${item.title}`}
-										>
-											<GripVertical class="h-4 w-4" />
-										</button>
-										<span class="truncate text-sm font-medium text-stone-800">{item.title}</span>
+										<GripVertical class="h-3.5 w-3.5" />
+									</span>
+									<h3 class="truncate text-xs font-semibold text-stone-500 uppercase">
+										{group.label}
+									</h3>
+								</button>
+								{#if !draggingGroup}
+									<div
+										class="grid gap-1"
+										data-testid={`collection-group-zone-${group.id}`}
+										use:dragHandleZone={{
+											items: group.items,
+											type: `collection-index:${slug}`,
+											flipDurationMs,
+											delayTouchStart: true
+										}}
+										onconsider={(event) => handleGroupConsider(group.id, event)}
+										onfinalize={(event) => handleGroupFinalize(group.id, event)}
+									>
+										{#each group.items as item (`${item.id}:${item.isDndShadowItem ? 'shadow' : 'real'}`)}
+											<div
+												animate:flip={{ duration: flipDurationMs }}
+												data-is-dnd-shadow-item-hint={item[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
+											>
+												<button
+													type="button"
+													use:dragHandle
+													class="tm-nav-link grid min-h-9 w-full cursor-grab grid-cols-[auto_minmax(0,1fr)] items-center gap-1 rounded-r-md px-1 py-1.5 text-left text-sm active:cursor-grabbing"
+													aria-label={`Drag ${item.title}`}
+												>
+													<span
+														aria-hidden="true"
+														class="inline-flex h-7 w-5 items-center justify-center rounded-md text-stone-400"
+													>
+														<GripVertical class="h-3.5 w-3.5" />
+													</span>
+													<span class="truncate font-medium text-stone-800">{item.title}</span>
+												</button>
+											</div>
+										{/each}
 									</div>
-								{/each}
-							</div>
-						</section>
-					{/each}
+								{/if}
+							</section>
+						{/each}
+					</div>
 
-					<section class="rounded-md border border-stone-200 bg-stone-50 p-2">
-						<h3 class="px-1 pb-2 text-xs font-semibold text-stone-500 uppercase">Ungrouped</h3>
+					<section class="grid gap-1">
+						{#if editableUngroupedItems.length > 0 || !draggingGroup}
+							<h3 class="px-1 text-xs font-semibold text-stone-500 uppercase">Ungrouped</h3>
+						{/if}
 						<div
-							class="grid gap-1"
+							class="grid min-h-10 gap-1"
+							data-testid="collection-ungrouped-zone"
 							use:dragHandleZone={{
 								items: editableUngroupedItems,
 								type: `collection-index:${slug}`,
@@ -358,29 +407,55 @@
 						>
 							{#each editableUngroupedItems as item (`${item.id}:${item.isDndShadowItem ? 'shadow' : 'real'}`)}
 								<div
-									class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border border-stone-200 bg-white p-2"
+									animate:flip={{ duration: flipDurationMs }}
 									data-is-dnd-shadow-item-hint={item[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
 								>
 									<button
 										type="button"
 										use:dragHandle
-										class="inline-flex h-7 w-7 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
+										class="tm-nav-link grid min-h-9 w-full cursor-grab grid-cols-[auto_minmax(0,1fr)] items-center gap-1 rounded-r-md px-1 py-1.5 text-left text-sm active:cursor-grabbing"
 										aria-label={`Drag ${item.title}`}
 									>
-										<GripVertical class="h-4 w-4" />
+										<span
+											aria-hidden="true"
+											class="inline-flex h-7 w-5 items-center justify-center rounded-md text-stone-400"
+										>
+											<GripVertical class="h-3.5 w-3.5" />
+										</span>
+										<span class="truncate text-sm font-medium text-stone-800">{item.title}</span>
 									</button>
-									<span class="truncate text-sm font-medium text-stone-800">{item.title}</span>
 								</div>
 							{/each}
 							{#if editableUngroupedItems.length === 0}
 								<p
-									class="rounded-md border border-dashed border-stone-300 bg-white px-3 py-2 text-sm text-stone-400"
+									class="rounded-r-md border-l-2 border-dashed border-stone-300 px-3 py-2 text-sm text-stone-400"
 								>
 									Drop items here
 								</p>
 							{/if}
 						</div>
 					</section>
+
+					<div class="sticky bottom-0 -mx-3 mt-1 flex items-center gap-2 border-t border-stone-200 bg-white/95 px-3 pt-3 pb-1 backdrop-blur">
+						<button
+							type="button"
+							class="tm-btn tm-btn-secondary min-h-8 flex-1 px-2 text-xs"
+							onclick={cancelCustomOrderEditing}
+							disabled={savingCustomOrder}
+						>
+							<X class="h-3.5 w-3.5" />
+							Cancel
+						</button>
+						<button
+							type="button"
+							class="tm-btn tm-btn-primary min-h-8 flex-1 px-2 text-xs"
+							onclick={saveCustomOrder}
+							disabled={savingCustomOrder}
+						>
+							<Check class="h-3.5 w-3.5" />
+							{savingCustomOrder ? 'Saving...' : 'Save order'}
+						</button>
+					</div>
 				</div>
 			{:else if status === 'loading' && allItems.length === 0}
 				<p class="rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-500">Loading items...</p>

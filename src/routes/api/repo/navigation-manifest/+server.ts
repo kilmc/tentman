@@ -5,15 +5,20 @@ import {
 	loadNavigationManifestState,
 	parseNavigationManifest,
 	reconcileManualNavigationSetup,
+	saveCollectionOrder,
 	writeRootManualSorting,
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
+import type { CollectionOrderDraft } from '$lib/features/content-management/navigation-manifest';
 import {
 	addCollectionGroupToConfigSource,
 	addNavigationGroupToManifest
 } from '$lib/features/content-management/navigation-group-options';
-import { ensureDraftBranch, getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import {
+	ensureDraftBranch,
+	getLatestPreviewBranchName
+} from '$lib/features/draft-publishing/service';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { getCachedConfigs } from '$lib/stores/config-cache';
@@ -45,6 +50,12 @@ type NavigationManifestMutation =
 			id: string;
 			label: string;
 			branchName?: string;
+	  }
+	| {
+			action: 'save-collection-order';
+			collection: string;
+			order: unknown;
+			branchName?: string;
 	  };
 
 function assertMutation(value: unknown): NavigationManifestMutation {
@@ -58,6 +69,7 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		collection?: unknown;
 		id?: unknown;
 		label?: unknown;
+		order?: unknown;
 		branchName?: unknown;
 	};
 
@@ -88,7 +100,68 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		return mutation as NavigationManifestMutation;
 	}
 
+	if (mutation.action === 'save-collection-order') {
+		if (typeof mutation.collection !== 'string' || mutation.collection.length === 0) {
+			throw error(400, 'Collection order save requires a collection');
+		}
+
+		if (!mutation.order || typeof mutation.order !== 'object' || Array.isArray(mutation.order)) {
+			throw error(400, 'Collection order save requires an order payload');
+		}
+
+		return mutation as NavigationManifestMutation;
+	}
+
 	throw error(400, 'Unknown navigation manifest action');
+}
+
+function readStringArray(value: unknown, field: string): string[] {
+	if (
+		!Array.isArray(value) ||
+		value.some((entry) => typeof entry !== 'string' || entry.length === 0)
+	) {
+		throw error(400, `${field} must be an array of item ids`);
+	}
+
+	return value;
+}
+
+function assertCollectionOrder(value: unknown): CollectionOrderDraft {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw error(400, 'Collection order must be an object');
+	}
+
+	const order = value as { groups?: unknown; ungroupedItems?: unknown };
+	if (!Array.isArray(order.groups)) {
+		throw error(400, 'Collection order groups must be an array');
+	}
+
+	return {
+		ungroupedItems: readStringArray(order.ungroupedItems ?? [], 'Collection order ungroupedItems'),
+		groups: order.groups.map((group, index) => {
+			if (!group || typeof group !== 'object' || Array.isArray(group)) {
+				throw error(400, `Collection order groups[${index}] must be an object`);
+			}
+
+			const candidate = group as { id?: unknown; label?: unknown; items?: unknown };
+			if (typeof candidate.id !== 'string' || candidate.id.length === 0) {
+				throw error(400, `Collection order groups[${index}].id must be a non-empty string`);
+			}
+
+			if (
+				candidate.label !== undefined &&
+				(typeof candidate.label !== 'string' || candidate.label.length === 0)
+			) {
+				throw error(400, `Collection order groups[${index}].label must be a non-empty string`);
+			}
+
+			return {
+				id: candidate.id,
+				...(candidate.label ? { label: candidate.label } : {}),
+				items: readStringArray(candidate.items ?? [], `Collection order groups[${index}].items`)
+			};
+		})
+	};
 }
 
 export const POST: RequestHandler = async ({ locals, cookies, request }) => {
@@ -115,7 +188,8 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			typeof mutation.branchName === 'string' && mutation.branchName.length > 0
 				? mutation.branchName
 				: null;
-		const existingDraftBranch = requestedBranchName ?? (await getLatestPreviewBranchName(octokit, owner, name));
+		const existingDraftBranch =
+			requestedBranchName ?? (await getLatestPreviewBranchName(octokit, owner, name));
 		const requiresDraftBranch = mutation.action !== undefined;
 		const draftBranch = requiresDraftBranch
 			? await ensureDraftBranch(octokit, owner, name, existingDraftBranch)
@@ -225,6 +299,24 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 				message: MANIFEST_COMMIT_MESSAGE,
 				...writeOptions
 			});
+		}
+
+		if (mutation.action === 'save-collection-order') {
+			const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
+			if (!collectionConfig) {
+				throw error(404, 'Collection config not found');
+			}
+
+			await saveCollectionOrder(
+				backend,
+				collectionConfig,
+				assertCollectionOrder(mutation.order),
+				manifestState.manifest,
+				{
+					message: MANIFEST_COMMIT_MESSAGE,
+					...writeOptions
+				}
+			);
 		}
 
 		return json({

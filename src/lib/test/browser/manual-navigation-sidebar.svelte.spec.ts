@@ -329,7 +329,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expect.element(screen.getByText('Second post')).toBeVisible();
 		await expect.element(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
 
-		await screen.getByRole('button', { name: 'Edit order' }).click();
+		await screen.getByRole('button', { name: 'Customize order' }).click();
 		await expect.element(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
 		await expect.element(screen.getByText('Ungrouped')).toBeVisible();
 		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();

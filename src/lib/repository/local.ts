@@ -243,11 +243,22 @@ export interface LocalRepositoryIdentity {
 	pathLabel: string;
 }
 
+export interface LocalDiscoverySignature {
+	rootConfigText: string | null;
+	contentConfigPaths: string[];
+	blockConfigPaths: string[];
+	pluginEntrypoints: Array<{
+		path: string;
+		exists: boolean;
+	}>;
+}
+
 export interface LocalRepositoryBackend extends RepositoryBackend {
 	kind: 'local';
 	rootHandle: FileSystemDirectoryHandle;
 	repo: LocalRepositoryIdentity;
 	invalidateDiscoveryCache(): void;
+	getDiscoverySignature(): Promise<LocalDiscoverySignature>;
 	loadLocalAdapterModule(path: string): Promise<unknown>;
 }
 
@@ -256,7 +267,10 @@ interface DiscoveryIssue {
 	message: string;
 }
 
-function formatDiscoveryIssue(kind: 'content config' | 'block config', issue: DiscoveryIssue): string {
+function formatDiscoveryIssue(
+	kind: 'content config' | 'block config',
+	issue: DiscoveryIssue
+): string {
 	return `Failed to parse ${kind} at ${issue.path}: ${issue.message}`;
 }
 
@@ -284,33 +298,95 @@ export function createLocalRepositoryBackend(
 		}
 	}
 
+	async function readRootConfigTextFromDisk(): Promise<string | null> {
+		try {
+			return await readFileText(rootHandle, '.tentman.json');
+		} catch {
+			return null;
+		}
+	}
+
+	function getPluginEntrypointPaths(rootConfig: RootConfig | null): string[] {
+		const pluginsDir =
+			rootConfig?.pluginsDir?.replace(/^\.\//, '').replace(/\/+$/, '') ?? 'tentman/plugins';
+		const pluginIds =
+			rootConfig?.plugins?.filter(
+				(pluginId, index, values) => values.indexOf(pluginId) === index
+			) ?? [];
+
+		return pluginIds.flatMap((pluginId) => [
+			`${pluginsDir}/${pluginId}/plugin.js`,
+			`${pluginsDir}/${pluginId}/plugin.mjs`
+		]);
+	}
+
+	async function getDiscoveryFilePaths(rootConfig: RootConfig | null): Promise<{
+		contentConfigPaths: string[];
+		blockConfigPaths: string[];
+	}> {
+		const discoveryRoots = Array.from(
+			new Set(
+				[rootConfig?.configsDir, rootConfig?.blocksDir]
+					.map((value) => value?.replace(/^\.\//, '').replace(/\/+$/, ''))
+					.filter((value): value is string => !!value && value.length > 0)
+			)
+		);
+		const tentmanFiles =
+			discoveryRoots.length > 0
+				? (
+						await Promise.all(
+							discoveryRoots.map(async (path) => {
+								try {
+									return await findTentmanFiles(rootHandle, path);
+								} catch {
+									return [];
+								}
+							})
+						)
+					).flat()
+				: await findTentmanFiles(rootHandle);
+
+		return {
+			contentConfigPaths: getDiscoverableContentConfigPaths(tentmanFiles, rootConfig),
+			blockConfigPaths: getDiscoverableBlockConfigPaths(tentmanFiles, rootConfig)
+		};
+	}
+
+	async function getDiscoverySignature(): Promise<LocalDiscoverySignature> {
+		const rootConfigText = await readRootConfigTextFromDisk();
+		const rootConfig = (() => {
+			if (!rootConfigText) {
+				return null;
+			}
+
+			try {
+				return parseRootConfig(rootConfigText);
+			} catch {
+				return null;
+			}
+		})();
+		const { contentConfigPaths, blockConfigPaths } = await getDiscoveryFilePaths(rootConfig);
+		const pluginEntrypoints = await Promise.all(
+			getPluginEntrypointPaths(rootConfig).map(async (path) => ({
+				path,
+				exists: await pathExists(rootHandle, path)
+			}))
+		);
+
+		return {
+			rootConfigText,
+			contentConfigPaths,
+			blockConfigPaths,
+			pluginEntrypoints
+		};
+	}
+
 	async function loadDiscoveryData() {
 		if (!discoveryCache) {
 			discoveryCache = (async () => {
 				const rootConfig = await readRootConfigFromDisk();
-				const discoveryRoots = Array.from(
-					new Set(
-						[rootConfig?.configsDir, rootConfig?.blocksDir]
-							.map((value) => value?.replace(/^\.\//, '').replace(/\/+$/, ''))
-							.filter((value): value is string => !!value && value.length > 0)
-					)
-				);
-				const tentmanFiles =
-					discoveryRoots.length > 0
-						? (
-								await Promise.all(
-									discoveryRoots.map(async (path) => {
-										try {
-											return await findTentmanFiles(rootHandle, path);
-										} catch {
-											return [];
-										}
-									})
-								)
-							).flat()
-						: await findTentmanFiles(rootHandle);
-				const contentPaths = getDiscoverableContentConfigPaths(tentmanFiles, rootConfig);
-				const blockPaths = getDiscoverableBlockConfigPaths(tentmanFiles, rootConfig);
+				const { contentConfigPaths: contentPaths, blockConfigPaths: blockPaths } =
+					await getDiscoveryFilePaths(rootConfig);
 				const [contentResults, blockResults] = await Promise.all([
 					Promise.all(
 						contentPaths.map(async (path) => {
@@ -343,8 +419,7 @@ export function createLocalRepositoryBackend(
 									config: null,
 									issue: {
 										path,
-										message:
-											error instanceof Error ? error.message : 'Failed to parse block config'
+										message: error instanceof Error ? error.message : 'Failed to parse block config'
 									}
 								};
 							}
@@ -361,9 +436,7 @@ export function createLocalRepositoryBackend(
 				const contentIssues = contentResults.flatMap((result) =>
 					result.issue ? [result.issue] : []
 				);
-				const blockIssues = blockResults.flatMap((result) =>
-					result.issue ? [result.issue] : []
-				);
+				const blockIssues = blockResults.flatMap((result) => (result.issue ? [result.issue] : []));
 
 				for (const issue of [...contentIssues, ...blockIssues]) {
 					console.error(issue.message);
@@ -402,6 +475,8 @@ export function createLocalRepositoryBackend(
 		invalidateDiscoveryCache() {
 			discoveryCache = null;
 		},
+
+		getDiscoverySignature,
 
 		async discoverConfigs() {
 			const discoveryData = await loadDiscoveryData();

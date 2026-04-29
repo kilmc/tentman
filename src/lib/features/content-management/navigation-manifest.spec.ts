@@ -3,10 +3,12 @@ import {
 	addContentConfigIdToSource,
 	addRootManualSortingToSource,
 	buildNavigationManifestFromRepository,
+	detectCollectionGroupField,
 	getManualNavigationSetupState,
 	getMissingContentConfigIds,
 	parseNavigationManifest,
-	reconcileManualNavigationSetup
+	reconcileManualNavigationSetup,
+	saveCollectionOrder
 } from '$lib/features/content-management/navigation-manifest';
 import type {
 	RepositoryBackend,
@@ -331,7 +333,7 @@ describe('navigation manifest helpers', () => {
 	});
 
 	it('reconciles missing and duplicate ids and migrates manifest-backed groups into config', async () => {
-		const files = {
+		const files: Record<string, string> = {
 			'content/posts.tentman.json': JSON.stringify({
 				type: 'content',
 				label: 'Posts',
@@ -404,7 +406,9 @@ describe('navigation manifest helpers', () => {
 			collections: {
 				posts: {
 					items: ['dup', 'hello-world', 'third-post'],
-					groups: [{ id: 'featured', label: 'Featured', slug: 'featured', items: ['hello-world', 'dup'] }]
+					groups: [
+						{ id: 'featured', label: 'Featured', slug: 'featured', items: ['hello-world', 'dup'] }
+					]
 				}
 			}
 		});
@@ -416,7 +420,7 @@ describe('navigation manifest helpers', () => {
 	});
 
 	it('assigns ids to predeclared collection groups that are missing _tentmanId', async () => {
-		const files = {
+		const files: Record<string, string> = {
 			'content/projects.tentman.json': JSON.stringify({
 				type: 'content',
 				label: 'Projects',
@@ -479,6 +483,202 @@ describe('navigation manifest helpers', () => {
 		});
 
 		expect(files['content/projects.tentman.json']).toContain('"_tentmanId": "identity"');
+	});
+
+	it('detects exactly one matching collection group field', () => {
+		expect(
+			detectCollectionGroupField({
+				slug: 'projects',
+				path: 'content/projects.tentman.json',
+				config: {
+					type: 'content',
+					_tentmanId: 'projects',
+					label: 'Projects',
+					collection: { sorting: 'manual' },
+					content: {
+						mode: 'file',
+						path: 'src/content/projects.json'
+					},
+					blocks: [
+						{
+							id: 'group',
+							type: 'select',
+							label: 'Group',
+							options: {
+								source: 'tentman.navigationGroups',
+								collection: 'projects'
+							}
+						}
+					]
+				}
+			})
+		).toBe('group');
+	});
+
+	it('blocks ambiguous or missing collection group fields with useful errors', () => {
+		const baseConfig = {
+			slug: 'projects',
+			path: 'content/projects.tentman.json',
+			config: {
+				type: 'content' as const,
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: { sorting: 'manual' as const },
+				content: {
+					mode: 'file' as const,
+					path: 'src/content/projects.json'
+				},
+				blocks: []
+			}
+		};
+
+		expect(() => detectCollectionGroupField(baseConfig)).toThrow(/no select field/);
+		expect(() =>
+			detectCollectionGroupField({
+				...baseConfig,
+				config: {
+					...baseConfig.config,
+					blocks: [
+						{
+							id: 'primaryGroup',
+							type: 'select',
+							options: {
+								source: 'tentman.navigationGroups',
+								collection: 'projects'
+							}
+						},
+						{
+							id: 'secondaryGroup',
+							type: 'select',
+							options: {
+								source: 'tentman.navigationGroups',
+								collection: 'projects'
+							}
+						}
+					]
+				}
+			})
+		).toThrow(/multiple select fields/);
+	});
+
+	it('saves collection group order, moved item group values, and manifest order together', async () => {
+		const files: Record<string, string> = {
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					sorting: 'manual',
+					groups: [
+						{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' },
+						{ _tentmanId: 'campaigns', label: 'Campaigns', slug: 'campaigns' }
+					]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: [
+					{
+						id: 'title',
+						type: 'text',
+						label: 'Title'
+					},
+					{
+						id: 'group',
+						type: 'select',
+						label: 'Group',
+						options: {
+							source: 'tentman.navigationGroups',
+							collection: 'projects'
+						}
+					}
+				]
+			}),
+			'src/content/projects.json': JSON.stringify([
+				{ _tentmanId: 'brand-system', title: 'Brand system', group: 'identity' },
+				{ _tentmanId: 'launch', title: 'Launch', group: 'campaigns' },
+				{ _tentmanId: 'archive', title: 'Archive' }
+			])
+		};
+		const backend = createBackend(files);
+		const manifest = await saveCollectionOrder(
+			backend,
+			{
+				slug: 'projects',
+				path: 'content/projects.tentman.json',
+				config: {
+					type: 'content',
+					_tentmanId: 'projects',
+					label: 'Projects',
+					collection: {
+						sorting: 'manual',
+						groups: [
+							{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' },
+							{ _tentmanId: 'campaigns', label: 'Campaigns', slug: 'campaigns' }
+						]
+					},
+					content: {
+						mode: 'file',
+						path: 'src/content/projects.json',
+						itemsPath: '$'
+					},
+					blocks: [
+						{
+							id: 'group',
+							type: 'select',
+							options: {
+								source: 'tentman.navigationGroups',
+								collection: 'projects'
+							}
+						}
+					]
+				}
+			},
+			{
+				groups: [
+					{ id: 'campaigns', label: 'Campaigns', items: ['brand-system', 'launch'] },
+					{ id: 'identity', label: 'Identity', items: [] }
+				],
+				ungroupedItems: ['archive']
+			},
+			{
+				version: 1,
+				collections: {
+					projects: {
+						items: ['brand-system', 'launch', 'archive'],
+						groups: [
+							{ id: 'identity', label: 'Identity', items: ['brand-system'] },
+							{ id: 'campaigns', label: 'Campaigns', items: ['launch'] }
+						]
+					}
+				}
+			}
+		);
+
+		expect(JSON.parse(files['content/projects.tentman.json']).collection.groups).toEqual([
+			{ _tentmanId: 'campaigns', label: 'Campaigns', slug: 'campaigns' },
+			{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' }
+		]);
+		expect(JSON.parse(files['src/content/projects.json'])).toEqual([
+			{ _tentmanId: 'brand-system', title: 'Brand system', group: 'campaigns' },
+			{ _tentmanId: 'launch', title: 'Launch', group: 'campaigns' },
+			{ _tentmanId: 'archive', title: 'Archive' }
+		]);
+		expect(manifest.collections?.projects).toEqual({
+			items: ['brand-system', 'launch', 'archive'],
+			groups: [
+				{
+					id: 'campaigns',
+					label: 'Campaigns',
+					slug: 'campaigns',
+					items: ['brand-system', 'launch']
+				},
+				{ id: 'identity', label: 'Identity', slug: 'identity', items: [] }
+			]
+		});
+		expect(JSON.parse(files['tentman/navigation-manifest.json'])).toEqual(manifest);
 	});
 
 	it('marks collection ordering as blocked when manual sorting is not enabled', () => {

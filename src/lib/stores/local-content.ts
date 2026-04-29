@@ -12,6 +12,7 @@ import {
 import { clearPluginRegistryCache } from '$lib/plugins/browser';
 import { localRepo } from '$lib/stores/local-repo';
 import { shouldUseLocalConfigCache, type RootConfig } from '$lib/config/root-config';
+import type { LocalDiscoverySignature } from '$lib/repository/local';
 
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
@@ -23,6 +24,7 @@ type LocalContentState = {
 	rootConfig: RootConfig | null;
 	navigationManifest: NavigationManifestState;
 	instructionDiscovery: InstructionDiscoveryResult;
+	discoverySignature: LocalDiscoverySignature | null;
 	error: string | null;
 };
 
@@ -34,6 +36,7 @@ type PersistedLocalContentState = {
 	rootConfig: RootConfig | null;
 	navigationManifest: NavigationManifestState;
 	instructionDiscovery: InstructionDiscoveryResult;
+	discoverySignature?: LocalDiscoverySignature | null;
 };
 
 const LOCAL_CONTENT_CACHE_PREFIX = 'tentman:local-content:';
@@ -88,6 +91,13 @@ function clearPersistedState(backendKey: string) {
 	}
 }
 
+function areDiscoverySignaturesEqual(
+	left: LocalDiscoverySignature | null | undefined,
+	right: LocalDiscoverySignature | null | undefined
+): boolean {
+	return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
 async function loadBlockRegistry(
 	blockConfigs: DiscoveredBlockConfig[],
 	rootConfig: RootConfig | null,
@@ -136,6 +146,7 @@ function createStore() {
 			instructions: [],
 			issues: []
 		},
+		discoverySignature: null,
 		error: null
 	});
 	const { subscribe, set, update } = store;
@@ -170,21 +181,35 @@ function createStore() {
 						instructions: [],
 						issues: []
 					},
+					discoverySignature: null,
 					error: 'No local repository is open.'
 				});
 				return;
 			}
 
 			const backend = repoState.backend;
+			const discoverySignature = await backend.getDiscoverySignature();
 			const rootConfig = await backend.readRootConfig();
 			const shouldUsePersistedCache = shouldUseLocalConfigCache(rootConfig);
 			const currentState = get(store);
 			if (
 				!options.force &&
 				currentState.status === 'ready' &&
-				currentState.backendKey === backend.cacheKey
+				currentState.backendKey === backend.cacheKey &&
+				areDiscoverySignaturesEqual(currentState.discoverySignature, discoverySignature)
 			) {
 				return;
+			}
+
+			if (
+				!options.force &&
+				currentState.status === 'ready' &&
+				currentState.backendKey === backend.cacheKey &&
+				!areDiscoverySignaturesEqual(currentState.discoverySignature, discoverySignature)
+			) {
+				backend.invalidateDiscoveryCache();
+				clearPluginRegistryCache();
+				clearPersistedState(backend.cacheKey);
 			}
 
 			if (
@@ -237,12 +262,16 @@ function createStore() {
 							issues: []
 						}
 					: state.instructionDiscovery,
+				discoverySignature: shouldClearForRepoChange ? null : state.discoverySignature,
 				error: null
 			}));
 
 			if (!options.force && shouldUsePersistedCache) {
 				const persistedState = readPersistedState(backend.cacheKey);
-				if (persistedState) {
+				if (
+					persistedState &&
+					areDiscoverySignaturesEqual(persistedState.discoverySignature, discoverySignature)
+				) {
 					const { blockRegistry, blockRegistryError } = await loadBlockRegistry(
 						persistedState.blockConfigs,
 						persistedState.rootConfig,
@@ -259,9 +288,16 @@ function createStore() {
 						rootConfig: persistedState.rootConfig,
 						navigationManifest: persistedState.navigationManifest,
 						instructionDiscovery: persistedState.instructionDiscovery,
+						discoverySignature: persistedState.discoverySignature ?? null,
 						error: null
 					});
 					return;
+				}
+
+				if (persistedState) {
+					backend.invalidateDiscoveryCache();
+					clearPluginRegistryCache();
+					clearPersistedState(backend.cacheKey);
 				}
 			}
 
@@ -289,7 +325,8 @@ function createStore() {
 							blockConfigs,
 							rootConfig,
 							navigationManifest,
-							instructionDiscovery
+							instructionDiscovery,
+							discoverySignature
 						});
 					}
 
@@ -303,6 +340,7 @@ function createStore() {
 						rootConfig,
 						navigationManifest,
 						instructionDiscovery,
+						discoverySignature,
 						error: null
 					});
 				} catch (error) {
@@ -324,6 +362,7 @@ function createStore() {
 							instructions: [],
 							issues: []
 						},
+						discoverySignature: null,
 						error:
 							error instanceof Error ? error.message : 'Failed to load local repository content'
 					});
@@ -355,6 +394,7 @@ function createStore() {
 					instructions: [],
 					issues: []
 				},
+				discoverySignature: null,
 				error: null
 			});
 		}

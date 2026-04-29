@@ -34,6 +34,15 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 		error: null
 	})),
 	parseNavigationManifest: vi.fn((value: string) => JSON.parse(value)),
+	saveCollectionOrder: vi.fn(async () => ({
+		version: 1,
+		collections: {
+			projects: {
+				items: ['brand-system'],
+				groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+			}
+		}
+	})),
 	writeRootManualSorting: vi.fn(async () => {}),
 	writeMissingContentConfigIds: vi.fn(async () => []),
 	writeNavigationManifest: vi.fn(async () => {})
@@ -78,10 +87,14 @@ import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
 import {
 	loadNavigationManifestState,
 	reconcileManualNavigationSetup,
+	saveCollectionOrder,
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
-import { ensureDraftBranch, getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import {
+	ensureDraftBranch,
+	getLatestPreviewBranchName
+} from '$lib/features/draft-publishing/service';
 
 function createCookies() {
 	return {
@@ -275,6 +288,74 @@ describe('POST /api/repo/navigation-manifest', () => {
 						items: [],
 						groups: [{ id: 'identity', label: 'Identity', items: [] }]
 					}
+				}
+			},
+			{
+				message: 'Update Tentman navigation manifest',
+				ref: 'preview-2026-04-24'
+			}
+		);
+	});
+
+	it('saves collection order through the manifest endpoint', async () => {
+		vi.mocked(getCachedConfigs).mockResolvedValue([
+			{
+				slug: 'projects',
+				path: 'content/projects.tentman.json',
+				config: {
+					type: 'content',
+					_tentmanId: 'projects',
+					label: 'Projects',
+					collection: {
+						sorting: 'manual'
+					},
+					content: {
+						mode: 'file',
+						path: 'src/content/projects.json'
+					},
+					blocks: []
+				}
+			}
+		] as never);
+
+		await POST({
+			request: new Request('http://localhost/api/repo/navigation-manifest', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json'
+				},
+				body: JSON.stringify({
+					action: 'save-collection-order',
+					collection: 'projects',
+					order: {
+						ungroupedItems: [],
+						groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+					}
+				})
+			}),
+			locals: {
+				isAuthenticated: true,
+				githubToken: 'secret-token',
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				}
+			},
+			cookies: createCookies()
+		} as never);
+
+		expect(saveCollectionOrder).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({ slug: 'projects' }),
+			{
+				ungroupedItems: [],
+				groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+			},
+			{
+				version: 1,
+				content: {
+					items: ['about', 'posts']
 				}
 			},
 			{
