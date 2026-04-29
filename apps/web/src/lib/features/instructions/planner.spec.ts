@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { discoverInstructions } from '$lib/features/instructions/discovery';
 import { planInstructionExecution, normalizeSlug } from '$lib/features/instructions/planner';
 import type { DiscoveredInstruction } from '$lib/features/instructions/types';
@@ -404,7 +405,7 @@ describe('instruction planner', () => {
 	});
 
 	it('plans the real fixture instruction without duplicate output paths', async () => {
-		const fixtureRoot = '/Users/kilmc/code/tentman/test-app';
+		const fixtureRoot = fileURLToPath(new URL('../../../../../test-app', import.meta.url));
 		const backend = createNodeFsBackend(fixtureRoot);
 		const discovery = await discoverInstructions(backend);
 		const instruction = discovery.instructions.find(

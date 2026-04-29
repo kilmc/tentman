@@ -1,0 +1,41 @@
+{
+	"type": "content",
+	"label": "Blog Posts",
+	"id": "blog",
+	"itemLabel": "Blog Post",
+	"collection": true,
+	"idField": "slug",
+	"content": {
+		"mode": "directory",
+		"path": "../../src/content/posts",
+		"template": "../templates/post.md",
+		"filename": "{{slug}}"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "slug", "type": "text", "label": "Slug", "required": true },
+		{
+			"id": "date",
+			"type": "date",
+			"label": "Publish date",
+			"required": true,
+			"show": "secondary"
+		},
+		{ "id": "author", "type": "text", "label": "Author", "required": true, "show": "secondary" },
+		{
+			"id": "coverImage",
+			"type": "image",
+			"label": "Cover image",
+			"assetsDir": "../../static/images/posts"
+		},
+		{ "id": "excerpt", "type": "textarea", "label": "Excerpt", "required": true, "maxLength": 240 },
+		{
+			"id": "body",
+			"type": "markdown",
+			"label": "Body",
+			"required": true,
+			"plugins": ["callout-chip"]
+		},
+		{ "id": "published", "type": "boolean", "label": "Published" }
+	]
+}

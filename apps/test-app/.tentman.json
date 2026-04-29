@@ -1,0 +1,10 @@
+{
+	"siteName": "Test App",
+	"configsDir": "./tentman/configs",
+	"blocksDir": "./tentman/blocks",
+	"assetsDir": "./static/images",
+	"plugins": ["callout-chip"],
+	"local": {
+		"previewUrl": "http://localhost:5173"
+	}
+}

@@ -10,7 +10,20 @@ It supports two working modes today:
 The current docs live in two places:
 
 - In-app config reference at `/docs`
-- A complete example consumer repo in [`/Users/kilmc/code/tentman/test-app`](/Users/kilmc/code/tentman/test-app)
+- A complete example consumer repo in [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app)
+
+## Repository Layout
+
+This repo is a pnpm workspace:
+
+```txt
+apps/
+  web/       # Tentman web app
+  test-app/  # Reference consumer site
+packages/
+  core/      # Shared Tentman behavior, currently a placeholder
+  cli/       # CLI package, currently a placeholder
+```
 
 ## Development Setup
 
@@ -21,13 +34,13 @@ nvm use
 pnpm install
 ```
 
-2. Copy the example env file:
+2. Copy the web app example env file:
 
 ```sh
-cp .env.example .env
+cp apps/web/.env.example apps/web/.env
 ```
 
-3. Fill in the GitHub OAuth values in `.env`:
+3. Fill in the GitHub OAuth values in `apps/web/.env`:
 
 ```env
 GITHUB_CLIENT_ID=your_github_oauth_client_id_here
@@ -55,8 +68,8 @@ This repo now includes a checked-in [Netlify config](/Users/kilmc/code/tentman/t
 To deploy:
 
 1. Connect this repo to Netlify.
-2. Keep the default build command `pnpm run build`.
-3. Keep the publish directory `build`.
+2. Keep the configured build command `pnpm --filter @tentman/web run build`.
+3. Keep the configured publish directory `apps/web/build`.
 4. Add these Netlify environment variables in the site settings:
 
 ```env
@@ -254,7 +267,7 @@ Manifest precedence in Tentman:
 - If no manifest exists, Tentman keeps its current discovery-based behavior.
 
 If you want your live site navigation to match Tentman, read the same manifest in your site code.
-The example app in [`/Users/kilmc/code/tentman/test-app`](/Users/kilmc/code/tentman/test-app)
+The example app in [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app)
 shows that pattern.
 
 ### Reusable Block Example
@@ -325,15 +338,15 @@ Common block fields:
 
 ```json
 {
-  "id": "group",
-  "type": "select",
-  "label": "Group",
-  "required": true,
-  "options": {
-    "source": "tentman.navigationGroups",
-    "collection": "projects",
-    "addOption": true
-  }
+	"id": "group",
+	"type": "select",
+	"label": "Group",
+	"required": true,
+	"options": {
+		"source": "tentman.navigationGroups",
+		"collection": "projects",
+		"addOption": true
+	}
 }
 ```
 
@@ -344,6 +357,7 @@ inline; Tentman creates or updates the manifest group as `{ "id", "label", "item
 Generic JSON-backed select option sources are not implemented yet. Saving a content item stores
 only the selected group id; Tentman does not yet automatically move existing item ids between
 manifest group `items` arrays when this field changes.
+
 - `assetsDir`
 - `generated`
 - top-level content config `id` for stable manual navigation
@@ -358,12 +372,12 @@ Path rules:
 
 ## Best Reference Repo
 
-[`/Users/kilmc/code/tentman/test-app`](/Users/kilmc/code/tentman/test-app) is the current reference implementation for a consumer repo. It includes:
+[`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app) is the current reference implementation for a consumer repo. It includes:
 
-- Root config in [`/Users/kilmc/code/tentman/test-app/.tentman.json`](/Users/kilmc/code/tentman/test-app/.tentman.json)
-- Content configs in [`/Users/kilmc/code/tentman/test-app/tentman/configs`](/Users/kilmc/code/tentman/test-app/tentman/configs)
-- Reusable blocks in [`/Users/kilmc/code/tentman/test-app/tentman/blocks`](/Users/kilmc/code/tentman/test-app/tentman/blocks)
-- A template file in [`/Users/kilmc/code/tentman/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/test-app/tentman/templates/post.md)
+- Root config in [`/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json)
+- Content configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs)
+- Reusable blocks in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks)
+- A template file in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md)
 
 ## Scripts
 

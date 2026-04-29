@@ -1,0 +1,25 @@
+---
+to: src/routes/{{slug}}/+page.svelte
+---
+<script lang="ts">
+	import { renderMarkdown } from '$lib/content/markdown';
+
+	let { data } = $props();
+
+	const pageHtml = $derived(renderMarkdown(data.page.body));
+</script>
+
+<svelte:head>
+	<title>{{title}} | Tentman Fixture Site</title>
+</svelte:head>
+
+<section class="page-header">
+	<p class="eyebrow">Generated singleton page</p>
+	<h1>{data.page.title}</h1>
+	<p class="lead">{data.page.intro}</p>
+</section>
+
+<section class="prose">
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+	{@html pageHtml}
+</section>

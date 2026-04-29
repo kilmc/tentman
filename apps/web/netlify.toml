@@ -1,0 +1,4 @@
+# Read by @sveltejs/adapter-netlify when the web workspace builds from apps/web.
+# The repository-level Netlify project config stays at ../../netlify.toml.
+[build]
+publish = "build"

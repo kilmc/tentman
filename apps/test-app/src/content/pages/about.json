@@ -1,0 +1,39 @@
+{
+	"title": "A small test site for a much more flexible CMS",
+	"intro": "This page exists to exercise singleton JSON content, nested collections, markdown fields, and a reusable gallery block all in one place.",
+	"body": "## Why this fixture exists\n\nTentman just got a serious content-system refactor, so this site is here to give us something a little more realistic than placeholder data.\n\n- The about page is a JSON singleton.\n- The blog is a directory-backed collection.\n- The gallery below uses a reusable block definition.\n\n## What to try\n\nEdit the copy, swap images, add a highlight card, then make sure those changes show up here without any extra glue code.",
+	"highlights": [
+		{
+			"label": "Content modes",
+			"value": "2",
+			"detail": "Single-file JSON for pages and directory-backed entries for posts."
+		},
+		{
+			"label": "Reusable blocks",
+			"value": "1 gallery",
+			"detail": "The same image gallery block can be dropped into any page config."
+		},
+		{
+			"label": "Docs coverage",
+			"value": "Current",
+			"detail": "The plans folder and in-app docs page describe the schema this fixture is using."
+		}
+	],
+	"gallery": [
+		{
+			"image": "/images/gallery/paper-stack.svg",
+			"alt": "Pinned planning notes and sketches on a studio wall",
+			"caption": "Planning docs and prototypes from the recent refactor work."
+		},
+		{
+			"image": "/images/gallery/sunlit-desk.svg",
+			"alt": "A bright desk with a keyboard, coffee, and design comps",
+			"caption": "A calm editing surface makes it easier to test real authoring flows."
+		},
+		{
+			"image": "/images/gallery/team-board.svg",
+			"alt": "A workshop board with cards arranged in lanes",
+			"caption": "This reusable gallery is a good stress test for nested structured values."
+		}
+	]
+}

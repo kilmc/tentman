@@ -1,8 +1,9 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { checkThinBackend } from './check-thin-backend.mjs';
 
-const fixturesDir = path.resolve('/Users/kilmc/code/tentman/tentman/scripts/fixtures/thin-backend');
+const fixturesDir = fileURLToPath(new URL('./fixtures/thin-backend', import.meta.url));
 
 describe('check-thin-backend', () => {
 	it('passes for a justified thin-backend fixture', async () => {

@@ -1,0 +1,14 @@
+{
+	"type": "content",
+	"label": "Projects",
+	"id": "projects",
+	"content": {
+		"mode": "file",
+		"path": "../../src/content/pages/projects.json"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true }
+	]
+}

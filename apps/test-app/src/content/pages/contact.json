@@ -1,0 +1,26 @@
+{
+	"title": "Contact the test team",
+	"intro": "A second singleton page helps verify that simpler marketing-style content stays pleasant to edit after the redesign.",
+	"email": "hello@tentman.test",
+	"phone": "+39 06 5555 0112",
+	"office": "Via delle Officine 18, Rome",
+	"bookingUrl": "https://example.com/book-a-demo",
+	"body": "## Reach out when you want to test a flow\n\nUse this page to check the primitive field adapters in a single place: email, text, URL, markdown, and a small collection block.\n\n### Good smoke tests\n\n- change the office hours\n- replace the hero copy\n- upload a new gallery image\n- confirm the rendered page still looks tidy",
+	"hours": [
+		{ "day": "Monday to Thursday", "hours": "09:00 to 17:30" },
+		{ "day": "Friday", "hours": "09:00 to 15:00" },
+		{ "day": "Weekends", "hours": "By arrangement for testing sessions" }
+	],
+	"gallery": [
+		{
+			"image": "/images/gallery/entry-sign.svg",
+			"alt": "A studio entrance sign with wayfinding arrows",
+			"caption": "Use image uploads here to verify path handling for reusable block assets."
+		},
+		{
+			"image": "/images/gallery/meeting-table.svg",
+			"alt": "A long meeting table set up for a product review",
+			"caption": "This page leans on straightforward structured content instead of special frontend logic."
+		}
+	]
+}

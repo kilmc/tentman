@@ -1,0 +1,27 @@
+{
+	"type": "content",
+	"label": "About Page",
+	"id": "about",
+	"content": {
+		"mode": "file",
+		"path": "../../src/content/pages/about.json"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true },
+		{
+			"id": "highlights",
+			"type": "block",
+			"label": "Highlights",
+			"collection": true,
+			"itemLabel": "Highlight",
+			"blocks": [
+				{ "id": "label", "type": "text", "label": "Label", "required": true },
+				{ "id": "value", "type": "text", "label": "Value", "required": true },
+				{ "id": "detail", "type": "textarea", "label": "Detail" }
+			]
+		},
+		{ "id": "gallery", "type": "imageGallery", "label": "Gallery" }
+	]
+}

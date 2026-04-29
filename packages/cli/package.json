@@ -1,0 +1,12 @@
+{
+	"name": "@tentman/cli",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"bin": {
+		"tentman": "./src/index.ts"
+	},
+	"dependencies": {
+		"@tentman/core": "workspace:*"
+	}
+}

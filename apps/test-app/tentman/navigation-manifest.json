@@ -1,0 +1,32 @@
+{
+	"version": 1,
+	"content": {
+		"items": [
+			"contact",
+			"about",
+			"blog",
+			"news",
+			"projects"
+		]
+	},
+	"collections": {
+		"blog": {
+			"items": [
+				"testing-content-workflows",
+				"designing-a-realistic-fixture",
+				"blooop",
+				"stuff-2"
+			],
+			"groups": [
+				{
+					"id": "featured",
+					"label": "Featured posts",
+					"items": [
+						"testing-content-workflows",
+						"designing-a-realistic-fixture"
+					]
+				}
+			]
+		}
+	}
+}

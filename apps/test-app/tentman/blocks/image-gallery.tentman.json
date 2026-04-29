@@ -1,0 +1,27 @@
+{
+	"type": "block",
+	"id": "imageGallery",
+	"label": "Image Gallery",
+	"collection": true,
+	"itemLabel": "Image",
+	"blocks": [
+		{
+			"id": "image",
+			"type": "image",
+			"label": "Image",
+			"required": true,
+			"assetsDir": "../../static/images/gallery"
+		},
+		{
+			"id": "alt",
+			"type": "text",
+			"label": "Alt text",
+			"required": true
+		},
+		{
+			"id": "caption",
+			"type": "textarea",
+			"label": "Caption"
+		}
+	]
+}

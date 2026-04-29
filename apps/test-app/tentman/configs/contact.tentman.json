@@ -1,0 +1,30 @@
+{
+	"type": "content",
+	"label": "Contact Page",
+	"id": "contact",
+	"content": {
+		"mode": "file",
+		"path": "../../src/content/pages/contact.json"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
+		{ "id": "email", "type": "email", "label": "Email", "required": true, "show": "secondary" },
+		{ "id": "phone", "type": "text", "label": "Phone", "show": "secondary" },
+		{ "id": "office", "type": "text", "label": "Office", "show": "secondary" },
+		{ "id": "bookingUrl", "type": "url", "label": "Booking URL", "show": "secondary" },
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true },
+		{
+			"id": "hours",
+			"type": "block",
+			"label": "Office Hours",
+			"collection": true,
+			"itemLabel": "Time slot",
+			"blocks": [
+				{ "id": "day", "type": "text", "label": "Day", "required": true },
+				{ "id": "hours", "type": "text", "label": "Hours", "required": true }
+			]
+		},
+		{ "id": "gallery", "type": "imageGallery", "label": "Gallery" }
+	]
+}

@@ -1,0 +1,13 @@
+---
+to: src/routes/{{slug}}/+page.server.ts
+---
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+export async function load() {
+	return {
+		page: JSON.parse(
+			await readFile(resolve(process.cwd(), 'src/content/pages/{{slug}}.json'), 'utf8')
+		)
+	};
+}
