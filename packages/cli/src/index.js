@@ -4,6 +4,7 @@ import {
 	checkTentmanIds,
 	checkNavigationManifest,
 	doctorTentmanProject,
+	listTentmanContent,
 	loadTentmanProject,
 	rebuildNavigationManifest,
 	refreshNavigationManifest,
@@ -20,6 +21,7 @@ function printHelp() {
 
 Usage:
   tentman doctor [project-root]
+  tentman content list [config-reference] [project-root]
   tentman ids check [project-root]
   tentman ids write [project-root]
   tentman nav check [project-root]
@@ -54,6 +56,19 @@ function getProjectRoot(positional, commandLength) {
 	}
 
 	return path.resolve(process.env.INIT_CWD ?? process.cwd(), projectRoot);
+}
+
+function looksLikeProjectRoot(value) {
+	return (
+		typeof value === 'string' &&
+		(value === '.' ||
+			value === '..' ||
+			value.startsWith('./') ||
+			value.startsWith('../') ||
+			path.isAbsolute(value) ||
+			value.includes('/') ||
+			value.includes(path.sep))
+	);
 }
 
 function getDiagnosticCounts(diagnostics) {
@@ -102,6 +117,40 @@ async function run() {
 		const diagnostics = await doctorTentmanProject(project);
 		printDiagnostics('Tentman doctor', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
+	}
+
+	if (command === 'content' && subcommand === 'list') {
+		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const project = await loadTentmanProject(
+			getProjectRoot(positional, selector ? 3 : 2)
+		);
+		const content = listTentmanContent(project, selector);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman content list', content }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman content list');
+
+		if (Array.isArray(content)) {
+			for (const entry of content) {
+				console.log(
+					`${entry.kind}: ${entry.label} (${entry.reference ?? 'no-reference'}) -> ${entry.itemCount} item${entry.itemCount === 1 ? '' : 's'} in ${entry.contentPath}`
+				);
+			}
+			return 0;
+		}
+
+		console.log(
+			`${content.config.kind}: ${content.config.label} (${content.config.reference ?? 'no-reference'}) -> ${content.items.length} item${content.items.length === 1 ? '' : 's'} in ${content.config.contentPath}`
+		);
+
+		for (const item of content.items) {
+			console.log(`${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`);
+		}
+
+		return 0;
 	}
 
 	if (command === 'ids' && subcommand === 'check') {
