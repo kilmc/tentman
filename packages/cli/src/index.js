@@ -4,6 +4,7 @@ import {
 	checkTentmanIds,
 	checkNavigationManifest,
 	doctorTentmanProject,
+	explainTentmanNavigation,
 	inspectTentmanContent,
 	listTentmanContent,
 	loadTentmanProject,
@@ -28,6 +29,7 @@ Usage:
   tentman ids check [project-root]
   tentman ids write [project-root]
   tentman nav check [project-root]
+  tentman nav explain <config-reference> [item-reference] [project-root]
   tentman nav print [config-reference] [project-root]
   tentman nav refresh [project-root]
   tentman nav rebuild [project-root]
@@ -262,6 +264,40 @@ async function run() {
 					console.log(`  ${item.reference ?? `item-${item.index + 1}`}: ${item.label}`);
 				}
 			}
+		}
+
+		return 0;
+	}
+
+	if (command === 'nav' && subcommand === 'explain') {
+		const configReference = positional[2];
+
+		if (!configReference) {
+			throw new Error('nav explain requires a config reference');
+		}
+
+		const itemReference =
+			positional[3] && !looksLikeProjectRoot(positional[3]) ? positional[3] : undefined;
+		const project = await loadTentmanProject(getProjectRoot(positional, itemReference ? 4 : 3));
+		const explanation = explainTentmanNavigation(project, configReference, itemReference);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman nav explain', explanation }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman nav explain');
+		console.log(
+			`${explanation.config.label} (${explanation.config.reference ?? 'no-reference'}) is at top-level position ${explanation.config.topLevelIndex + 1} via ${explanation.config.topLevelSource}.`
+		);
+
+		if (explanation.item) {
+			const groupText = explanation.item.group
+				? ` and group ${explanation.item.group.label}`
+				: '';
+			console.log(
+				`${explanation.item.label} (${explanation.item.reference ?? 'no-reference'}) is at collection position ${explanation.item.index + 1} via ${explanation.item.orderSource}${groupText}.`
+			);
 		}
 
 		return 0;
