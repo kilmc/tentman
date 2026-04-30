@@ -113,6 +113,39 @@ async function writeConfigId(project, config, id) {
 	}
 }
 
+async function writeCollectionGroupIds(project, config, groupIdsByIndex) {
+	if (groupIdsByIndex.size === 0) {
+		return;
+	}
+
+	const absolutePath = resolveProjectPath(project.rootDir, config.path);
+	const source = await fs.readFile(absolutePath, 'utf8');
+	const parsed = parseJsonObject(source, config.path);
+
+	if (!parsed.collection || typeof parsed.collection !== 'object' || Array.isArray(parsed.collection)) {
+		throw new Error(`Cannot write collection group ids for ${config.path}`);
+	}
+
+	const groups = parsed.collection.groups;
+	if (!Array.isArray(groups)) {
+		throw new Error(`Cannot write collection group ids for ${config.path}`);
+	}
+
+	const nextConfig = {
+		...parsed,
+		collection: {
+			...parsed.collection,
+			groups: groups.map((group, index) =>
+				groupIdsByIndex.has(index)
+					? insertObjectPropertyAfterKey(group, 'label', '_tentmanId', groupIdsByIndex.get(index))
+					: group
+			)
+		}
+	};
+
+	await fs.writeFile(absolutePath, serializeJson(nextConfig));
+}
+
 async function writeDirectoryItemId(project, item, id) {
 	const relativePath = item.__tentmanSourcePath;
 	if (!relativePath) {
@@ -173,6 +206,24 @@ export async function writeMissingTentmanIds(project, options = {}) {
 			changes.push({ kind: 'config', path: config.path, id });
 		}
 
+		const groupIdsByIndex = new Map();
+		for (const [index, group] of config.groups.entries()) {
+			if (hasUsableTentmanId(group._tentmanId)) {
+				continue;
+			}
+
+			const id = generateId();
+			groupIdsByIndex.set(index, id);
+			changes.push({
+				kind: 'group',
+				path: config.path,
+				index,
+				id
+			});
+		}
+
+		await writeCollectionGroupIds(project, config, groupIdsByIndex);
+
 		if (config.collection !== true && typeof config.collection !== 'object') {
 			continue;
 		}
@@ -213,6 +264,7 @@ export function summarizeIdWriteChanges(changes) {
 
 	return {
 		configs: changes.filter((change) => change.kind === 'config').length,
+		groups: changes.filter((change) => change.kind === 'group').length,
 		items: changes.filter((change) => change.kind === 'item').length,
 		files: changedFiles.size
 	};

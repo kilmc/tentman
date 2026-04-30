@@ -121,7 +121,7 @@ async function run() {
 		}
 
 		console.log(
-			`Wrote ${summary.configs} config id${summary.configs === 1 ? '' : 's'} and ${summary.items} item id${summary.items === 1 ? '' : 's'} across ${summary.files} file${summary.files === 1 ? '' : 's'}.`
+			`Wrote ${summary.configs} config id${summary.configs === 1 ? '' : 's'}, ${summary.groups} group id${summary.groups === 1 ? '' : 's'}, and ${summary.items} item id${summary.items === 1 ? '' : 's'} across ${summary.files} file${summary.files === 1 ? '' : 's'}.`
 		);
 
 		for (const change of changes) {

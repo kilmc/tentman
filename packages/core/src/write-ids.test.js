@@ -58,6 +58,7 @@ test('writes missing config and collection item ids', async () => {
 
 	assert.deepEqual(summary, {
 		configs: 5,
+		groups: 0,
 		items: 4,
 		files: 9
 	});
@@ -83,4 +84,44 @@ test('writes missing config and collection item ids', async () => {
 		'utf8'
 	);
 	assert.match(post, /title: 'Designing a realistic fixture app'\n_tentmanId: 'tent_/);
+});
+
+test('writes missing collection group ids', async () => {
+	const projectRoot = await copyFixture();
+	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
+	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	blogConfig.collection = {
+		groups: [
+			{
+				label: 'Featured posts',
+				slug: 'featured'
+			}
+		]
+	};
+	await fs.writeFile(blogConfigPath, `${JSON.stringify(blogConfig, null, '\t')}\n`);
+
+	const project = await loadTentmanProject(projectRoot);
+	const changes = await writeMissingTentmanIds(project, {
+		generateId: createDeterministicIdGenerator()
+	});
+	const summary = summarizeIdWriteChanges(changes);
+
+	assert.deepEqual(summary, {
+		configs: 5,
+		groups: 1,
+		items: 4,
+		files: 9
+	});
+
+	const nextProject = await loadTentmanProject(projectRoot);
+	assert.equal(
+		checkTentmanIds(nextProject).filter((diagnostic) => diagnostic.code === 'id.missing').length,
+		0
+	);
+
+	const nextBlogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	assert.equal(
+		nextBlogConfig.collection.groups[0]._tentmanId,
+		'tent_01KQD80000000000000000003'
+	);
 });
