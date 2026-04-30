@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { createTentmanId } from './ids.js';
-import { parseJsonObject } from './json.js';
+import { parseJsonObject, serializeJson } from './json.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 
 function hasUsableTentmanId(value) {
@@ -35,10 +35,6 @@ function insertObjectPropertyAfterKey(object, anchorKey, propertyKey, propertyVa
 		[propertyKey]: propertyValue,
 		...output
 	};
-}
-
-function serializeJson(value) {
-	return `${JSON.stringify(value, null, '\t')}\n`;
 }
 
 function getJsonStringPropertyIndent(source, propertyKey) {

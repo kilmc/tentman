@@ -10,6 +10,10 @@ export function parseJsonObject(source, context) {
 	return parsed;
 }
 
+export function serializeJson(value) {
+	return `${JSON.stringify(value, null, '\t')}\n`;
+}
+
 export function readOptionalString(value, key, context) {
 	const candidate = value[key];
 

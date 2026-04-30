@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import {
+	checkTentmanFormat,
 	checkTentmanIds,
 	checkNavigationManifest,
 	doctorTentmanProject,
 	loadTentmanProject,
 	rebuildNavigationManifest,
 	refreshNavigationManifest,
+	summarizeFormatCheck,
 	summarizeIdWriteChanges,
 	summarizeNavigationRefreshChanges,
+	writeTentmanFormat,
 	writeMissingTentmanIds
 } from '@tentman/core';
 import path from 'node:path';
@@ -22,8 +25,12 @@ Usage:
   tentman nav check [project-root]
   tentman nav refresh [project-root]
   tentman nav rebuild [project-root]
+  tentman format --check [project-root]
+  tentman format --write [project-root]
 
 Options:
+  --check     Check formatting without writing files
+  --write     Write Tentman-owned formatting rewrites
   --json      Print machine-readable diagnostics
   -h, --help  Show help
 `);
@@ -181,6 +188,84 @@ async function run() {
 		}
 
 		console.log(`Rebuilt ${result.path}.`);
+		return 0;
+	}
+
+	if (command === 'format' && (flags.has('--check') || subcommand === 'check')) {
+		const project = await loadTentmanProject(getProjectRoot(positional, subcommand === 'check' ? 2 : 1));
+		const rewrites = await checkTentmanFormat(project);
+		const summary = summarizeFormatCheck(rewrites);
+
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						title: 'Tentman format --check',
+						summary,
+						rewrites
+					},
+					null,
+					2
+				)
+			);
+			return rewrites.length > 0 ? 1 : 0;
+		}
+
+		console.log('Tentman format --check');
+
+		if (rewrites.length === 0) {
+			console.log('OK, no Tentman-owned formatting rewrites detected.');
+			return 0;
+		}
+
+		console.log(
+			`Would rewrite ${summary.files} file${summary.files === 1 ? '' : 's'} using current Tentman serializers. This is a diagnostic check for formatting churn, not a blanket normalization rule.`
+		);
+
+		for (const rewrite of rewrites) {
+			const owner = rewrite.kind === 'content' ? ` (${rewrite.configPath})` : '';
+			console.log(`${rewrite.kind}: ${rewrite.path}${owner}`);
+		}
+
+		return 1;
+	}
+
+	if (command === 'format' && (flags.has('--write') || subcommand === 'write')) {
+		const project = await loadTentmanProject(getProjectRoot(positional, subcommand === 'write' ? 2 : 1));
+		const rewrites = await writeTentmanFormat(project);
+		const summary = summarizeFormatCheck(rewrites);
+
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						title: 'Tentman format --write',
+						summary,
+						rewrites
+					},
+					null,
+					2
+				)
+			);
+			return 0;
+		}
+
+		console.log('Tentman format --write');
+
+		if (rewrites.length === 0) {
+			console.log('OK, no Tentman-owned formatting rewrites were needed.');
+			return 0;
+		}
+
+		console.log(
+			`Wrote ${summary.files} file${summary.files === 1 ? '' : 's'} using current Tentman serializers.`
+		);
+
+		for (const rewrite of rewrites) {
+			const owner = rewrite.kind === 'content' ? ` (${rewrite.configPath})` : '';
+			console.log(`${rewrite.kind}: ${rewrite.path}${owner}`);
+		}
+
 		return 0;
 	}
 

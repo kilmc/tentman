@@ -12,6 +12,7 @@ export {
 } from './manifest.js';
 export { ROOT_CONFIG_PATH, loadTentmanProject, parseRootConfig } from './project.js';
 export { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from './diagnostics.js';
+export { checkTentmanFormat, summarizeFormatCheck, writeTentmanFormat } from './format-check.js';
 export {
 	refreshNavigationManifest,
 	summarizeNavigationRefreshChanges
