@@ -4,6 +4,7 @@ import {
 	checkTentmanIds,
 	checkNavigationManifest,
 	doctorTentmanProject,
+	inspectTentmanContent,
 	listTentmanContent,
 	loadTentmanProject,
 	rebuildNavigationManifest,
@@ -22,6 +23,7 @@ function printHelp() {
 Usage:
   tentman doctor [project-root]
   tentman content list [config-reference] [project-root]
+  tentman content inspect <config-reference> [item-reference] [project-root]
   tentman ids check [project-root]
   tentman ids write [project-root]
   tentman nav check [project-root]
@@ -150,6 +152,35 @@ async function run() {
 			console.log(`${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`);
 		}
 
+		return 0;
+	}
+
+	if (command === 'content' && subcommand === 'inspect') {
+		const configReference = positional[2];
+
+		if (!configReference) {
+			throw new Error('content inspect requires a config reference');
+		}
+
+		const itemReference =
+			positional[3] && !looksLikeProjectRoot(positional[3]) ? positional[3] : undefined;
+		const project = await loadTentmanProject(
+			getProjectRoot(positional, itemReference ? 4 : 3)
+		);
+		const content = inspectTentmanContent(project, configReference, itemReference);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman content inspect', content }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman content inspect');
+		console.log(
+			`${content.config.kind}: ${content.config.label} (${content.config.reference ?? 'no-reference'})`
+		);
+		console.log(
+			`${content.item.reference ?? `item-${content.item.index + 1}`}: ${content.item.label}${content.item.path ? ` (${content.item.path})` : ''}`
+		);
 		return 0;
 	}
 
