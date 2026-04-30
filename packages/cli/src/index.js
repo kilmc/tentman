@@ -7,6 +7,7 @@ import {
 	doctorTentmanProject,
 	explainTentmanNavigation,
 	inspectTentmanContent,
+	listTentmanAssets,
 	listTentmanContent,
 	loadTentmanProject,
 	printTentmanNavigation,
@@ -27,6 +28,7 @@ function printHelp() {
 Usage:
   tentman doctor [project-root]
   tentman assets check [project-root]
+  tentman assets list [config-reference] [project-root]
   tentman ci [project-root]
   tentman content list [config-reference] [project-root]
   tentman content inspect <config-reference> [item-reference] [project-root]
@@ -134,6 +136,51 @@ async function run() {
 		const diagnostics = await checkTentmanAssets(project);
 		printDiagnostics('Tentman assets check', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
+	}
+
+	if (command === 'assets' && subcommand === 'list') {
+		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
+		const assets = await listTentmanAssets(project, selector);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman assets list', assets }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman assets list');
+
+		if (Array.isArray(assets)) {
+			for (const entry of assets) {
+				console.log(
+					`${entry.kind}: ${entry.label} (${entry.reference ?? 'no-reference'}) -> ${entry.assetCount} asset reference${entry.assetCount === 1 ? '' : 's'} in ${entry.contentPath}`
+				);
+			}
+			return 0;
+		}
+
+		console.log(
+			`${assets.config.kind}: ${assets.config.label} (${assets.config.reference ?? 'no-reference'}) -> ${assets.config.assetCount} asset reference${assets.config.assetCount === 1 ? '' : 's'} in ${assets.config.contentPath}`
+		);
+
+		for (const item of assets.items) {
+			if (item.assets.length === 0) {
+				continue;
+			}
+
+			console.log(`\n${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`);
+			for (const asset of item.assets) {
+				const status =
+					asset.matchesExpectedPath === false
+						? 'MISMATCH'
+						: asset.exists === false
+							? 'MISSING'
+							: 'OK';
+				console.log(`  ${asset.fieldPath}: ${asset.value} [${status}]`);
+			}
+		}
+
+		return 0;
 	}
 
 	if (command === 'ci') {
