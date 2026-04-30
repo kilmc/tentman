@@ -1,3 +1,9 @@
+export function getConfigReferences(config: {
+	_tentmanId?: string;
+	id?: string;
+	slug?: string;
+}): string[];
+
 export function getItemReferences(item: {
 	_tentmanId?: string;
 	id?: string;

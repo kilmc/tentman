@@ -1,3 +1,3 @@
 // @ts-nocheck
 
-export { getItemReferences, orderByReferences } from '@tentman/core';
+export { getConfigReferences, getItemReferences, orderByReferences } from '@tentman/core';

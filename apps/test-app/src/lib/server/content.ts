@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { getItemReferences, orderByReferences } from './tentman-core';
+import { getConfigReferences, getItemReferences, orderByReferences } from './tentman-core';
 import type {
 	AboutPageContent,
 	BlogPost,
@@ -12,6 +12,10 @@ type FrontmatterValue = boolean | string;
 type NavigationItem = {
 	href: string;
 	label: string;
+};
+type DefaultNavigationItem = NavigationItem & {
+	configId: string;
+	configPath: string;
 };
 type NavigationManifest = {
 	version: 1;
@@ -28,10 +32,25 @@ type NavigationManifest = {
 
 const projectRoot = process.cwd();
 const defaultNavigation = [
-	{ href: '/about', label: 'About', configId: 'about' },
-	{ href: '/contact', label: 'Contact', configId: 'contact' },
-	{ href: '/blog', label: 'Blog', configId: 'blog' }
-] as Array<NavigationItem & { configId: string }>;
+	{
+		href: '/about',
+		label: 'About',
+		configId: 'about',
+		configPath: 'tentman/configs/about.tentman.json'
+	},
+	{
+		href: '/contact',
+		label: 'Contact',
+		configId: 'contact',
+		configPath: 'tentman/configs/contact.tentman.json'
+	},
+	{
+		href: '/blog',
+		label: 'Blog',
+		configId: 'blog',
+		configPath: 'tentman/configs/blog.tentman.json'
+	}
+] as DefaultNavigationItem[];
 
 function getAbsolutePath(relativePath: string): string {
 	return resolve(projectRoot, relativePath);
@@ -47,6 +66,20 @@ async function readNavigationManifest(): Promise<NavigationManifest | null> {
 		return await readJsonFile<NavigationManifest>('tentman/navigation-manifest.json');
 	} catch {
 		return null;
+	}
+}
+
+async function readConfigReferences(relativePath: string, fallbackId: string): Promise<string[]> {
+	try {
+		const config = await readJsonFile<{
+			_tentmanId?: string;
+			id?: string;
+			slug?: string;
+		}>(relativePath);
+
+		return getConfigReferences(config);
+	} catch {
+		return [fallbackId];
 	}
 }
 
@@ -206,21 +239,20 @@ function comparePostDates(left: BlogPostPreview, right: BlogPostPreview): number
 export async function getPrimaryNavigation(): Promise<NavigationItem[]> {
 	const manifest = await readNavigationManifest();
 	const manifestIds = manifest?.content?.items;
+	const navigationEntries = await Promise.all(
+		defaultNavigation.map(async (item) => ({
+			...item,
+			references: await readConfigReferences(item.configPath, item.configId)
+		}))
+	);
 
 	if (!manifestIds?.length) {
-		return defaultNavigation.map(({ href, label }) => ({ href, label }));
+		return navigationEntries.map(({ href, label }) => ({ href, label }));
 	}
 
-	const itemMap = new Map(defaultNavigation.map((item) => [item.configId, item]));
-	const orderedItems = manifestIds.flatMap((configId) => {
-		const item = itemMap.get(configId);
-		return item ? [{ href: item.href, label: item.label }] : [];
-	});
-	const remainingItems = defaultNavigation
-		.filter((item) => !manifestIds.includes(item.configId))
-		.map(({ href, label }) => ({ href, label }));
-
-	return [...orderedItems, ...remainingItems];
+	return orderByReferences(navigationEntries, manifestIds, (item) => item.references).map(
+		({ href, label }) => ({ href, label })
+	);
 }
 
 export async function getAboutPage(): Promise<AboutPageContent> {
