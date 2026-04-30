@@ -14,6 +14,7 @@ export { ROOT_CONFIG_PATH, loadTentmanProject, parseRootConfig } from './project
 export { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from './diagnostics.js';
 export { checkTentmanFormat, summarizeFormatCheck, writeTentmanFormat } from './format-check.js';
 export { runTentmanCi } from './ci.js';
+export { checkTentmanAssets } from './assets-check.js';
 export { inspectTentmanContent } from './content-inspect.js';
 export { listTentmanContent } from './content-list.js';
 export { explainTentmanNavigation } from './nav-explain.js';

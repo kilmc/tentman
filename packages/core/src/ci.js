@@ -1,3 +1,4 @@
+import { checkTentmanAssets } from './assets-check.js';
 import { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from './diagnostics.js';
 import { checkTentmanFormat, summarizeFormatCheck } from './format-check.js';
 
@@ -13,6 +14,7 @@ export async function runTentmanCi(project) {
 	const idDiagnostics = checkTentmanIds(project);
 	const navigationDiagnostics = checkNavigationManifest(project);
 	const rewrites = await checkTentmanFormat(project);
+	const assetDiagnostics = await checkTentmanAssets(project);
 	const formatSummary = summarizeFormatCheck(rewrites);
 
 	const checks = [
@@ -41,6 +43,12 @@ export async function runTentmanCi(project) {
 			summary: formatSummary,
 			errors: rewrites.length > 0 ? rewrites.length : 0,
 			warnings: 0
+		},
+		{
+			id: 'assets',
+			title: 'Tentman assets check',
+			diagnostics: assetDiagnostics,
+			...countDiagnostics(assetDiagnostics)
 		}
 	];
 

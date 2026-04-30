@@ -332,7 +332,7 @@ export function checkNavigationManifest(project) {
 	return diagnostics;
 }
 
-function walkBlocks(blocks, visit) {
+export function walkBlocks(blocks, visit) {
 	if (!Array.isArray(blocks)) {
 		return;
 	}
@@ -540,7 +540,7 @@ function checkPlugins(project) {
 	return diagnostics;
 }
 
-async function checkAssetDirectories(project) {
+export async function checkAssetDirectories(project) {
 	const diagnostics = [];
 
 	async function checkAssetDir(ownerPath, ownerLabel, block) {

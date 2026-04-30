@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {
+	checkTentmanAssets,
 	checkTentmanFormat,
 	checkTentmanIds,
 	checkNavigationManifest,
@@ -25,6 +26,7 @@ function printHelp() {
 
 Usage:
   tentman doctor [project-root]
+  tentman assets check [project-root]
   tentman ci [project-root]
   tentman content list [config-reference] [project-root]
   tentman content inspect <config-reference> [item-reference] [project-root]
@@ -124,6 +126,13 @@ async function run() {
 		const project = await loadTentmanProject(getProjectRoot(positional, 1));
 		const diagnostics = await doctorTentmanProject(project);
 		printDiagnostics('Tentman doctor', diagnostics, { json });
+		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
+	}
+
+	if (command === 'assets' && subcommand === 'check') {
+		const project = await loadTentmanProject(getProjectRoot(positional, 2));
+		const diagnostics = await checkTentmanAssets(project);
+		printDiagnostics('Tentman assets check', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
 	}
 

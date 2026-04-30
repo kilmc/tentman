@@ -24,14 +24,15 @@ test('aggregates current non-writing checks for tentman ci', async () => {
 			{ id: 'doctor', errors: 0, warnings: 0 },
 			{ id: 'ids', errors: 0, warnings: 0 },
 			{ id: 'nav', errors: 0, warnings: 0 },
-			{ id: 'format', errors: 6, warnings: 0 }
+			{ id: 'format', errors: 6, warnings: 0 },
+			{ id: 'assets', errors: 0, warnings: 0 }
 		]
 	);
 	assert.deepEqual(result.summary, {
 		errors: 6,
 		warnings: 0,
 		failedChecks: ['format'],
-		checks: 4
+		checks: 5
 	});
 	assert.deepEqual(result.checks[3]?.summary, {
 		files: 6,
@@ -78,8 +79,9 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.equal(result.checks[2]?.id, 'nav');
 	assert.ok(result.checks[2]?.errors > 0);
 	assert.ok(result.checks[3]?.summary.files > 0);
-	assert.deepEqual(new Set(result.summary.failedChecks), new Set(['doctor', 'nav', 'format']));
+	assert.ok(result.checks[4]?.errors > 0);
+	assert.deepEqual(new Set(result.summary.failedChecks), new Set(['doctor', 'nav', 'format', 'assets']));
 	assert.equal(result.summary.warnings, 1);
-	assert.equal(result.summary.checks, 4);
+	assert.equal(result.summary.checks, 5);
 	assert.ok(result.summary.errors >= 8);
 });
