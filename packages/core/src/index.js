@@ -15,6 +15,7 @@ export { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from '
 export { checkTentmanFormat, summarizeFormatCheck, writeTentmanFormat } from './format-check.js';
 export { inspectTentmanContent } from './content-inspect.js';
 export { listTentmanContent } from './content-list.js';
+export { printTentmanNavigation } from './nav-print.js';
 export { getConfigReferences, getItemReferences, orderByReferences } from './references.js';
 export {
 	refreshNavigationManifest,

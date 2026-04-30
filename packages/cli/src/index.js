@@ -7,6 +7,7 @@ import {
 	inspectTentmanContent,
 	listTentmanContent,
 	loadTentmanProject,
+	printTentmanNavigation,
 	rebuildNavigationManifest,
 	refreshNavigationManifest,
 	summarizeFormatCheck,
@@ -27,6 +28,7 @@ Usage:
   tentman ids check [project-root]
   tentman ids write [project-root]
   tentman nav check [project-root]
+  tentman nav print [config-reference] [project-root]
   tentman nav refresh [project-root]
   tentman nav rebuild [project-root]
   tentman format --check [project-root]
@@ -223,6 +225,46 @@ async function run() {
 		const diagnostics = checkNavigationManifest(project);
 		printDiagnostics('Tentman nav check', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
+	}
+
+	if (command === 'nav' && subcommand === 'print') {
+		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
+		const navigation = printTentmanNavigation(project, selector);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman nav print', navigation }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman nav print');
+
+		if (!selector) {
+			for (const entry of navigation.content) {
+				console.log(`${entry.label} (${entry.reference ?? 'no-reference'})`);
+			}
+			return 0;
+		}
+
+		console.log(
+			`${navigation.config.label} (${navigation.config.reference ?? 'no-reference'})`
+		);
+
+		for (const item of navigation.items) {
+			console.log(`${item.reference ?? `item-${item.index + 1}`}: ${item.label}`);
+		}
+
+		if (navigation.groups.length > 0) {
+			console.log('\nGroups');
+			for (const group of navigation.groups) {
+				console.log(`${group.label} (${group.id})`);
+				for (const item of group.items) {
+					console.log(`  ${item.reference ?? `item-${item.index + 1}`}: ${item.label}`);
+				}
+			}
+		}
+
+		return 0;
 	}
 
 	if (command === 'nav' && subcommand === 'refresh') {
