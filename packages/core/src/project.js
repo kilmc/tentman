@@ -1,6 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { parseJsonObject, readOptionalString, readRequiredString } from './json.js';
+import {
+	parseJsonObject,
+	readOptionalString,
+	readOptionalStringArray,
+	readRequiredString
+} from './json.js';
 import {
 	getPathRelativeToRoot,
 	resolveConfigRelativePath,
@@ -52,6 +57,7 @@ export function parseRootConfig(source) {
 		configsDir: readOptionalString(input, 'configsDir', ROOT_CONFIG_PATH),
 		assetsDir: readOptionalString(input, 'assetsDir', ROOT_CONFIG_PATH),
 		pluginsDir: readOptionalString(input, 'pluginsDir', ROOT_CONFIG_PATH),
+		plugins: readOptionalStringArray(input, 'plugins', ROOT_CONFIG_PATH) ?? [],
 		content:
 			input.content && typeof input.content === 'object' && !Array.isArray(input.content)
 				? input.content
@@ -64,6 +70,21 @@ export function parseRootConfig(source) {
 			input.netlify && typeof input.netlify === 'object' && !Array.isArray(input.netlify)
 				? input.netlify
 				: undefined,
+		raw: input
+	};
+}
+
+function parseBlockConfig(source, blockPath) {
+	const input = parseJsonObject(source, blockPath);
+
+	if (input.type !== 'block') {
+		throw new Error(`${blockPath}.type must be "block"`);
+	}
+
+	return {
+		path: blockPath,
+		id: readRequiredString(input, 'id', blockPath),
+		label: readRequiredString(input, 'label', blockPath),
 		raw: input
 	};
 }
@@ -198,6 +219,12 @@ export async function loadTentmanProject(projectRoot) {
 	const rootConfig = parseRootConfig(rootConfigSource);
 	const configsDir = stripLeadingDotSlash(rootConfig.configsDir ?? 'tentman/configs');
 	const configsDirPath = resolveProjectPath(rootDir, configsDir);
+	const blocksDir = rootConfig.blocksDir ? stripLeadingDotSlash(rootConfig.blocksDir) : null;
+	const blocksDirPath = blocksDir ? resolveProjectPath(rootDir, blocksDir) : null;
+	const blocksDirExists = blocksDirPath ? await pathExists(blocksDirPath) : false;
+	const pluginsDir = stripLeadingDotSlash(rootConfig.pluginsDir ?? 'tentman/plugins');
+	const pluginsDirPath = resolveProjectPath(rootDir, pluginsDir);
+	const pluginsDirExists = await pathExists(pluginsDirPath);
 	const configPaths = (await walkDirectory(rootDir, configsDirPath))
 		.filter((file) => file.endsWith('.tentman.json'))
 		.sort();
@@ -211,6 +238,40 @@ export async function loadTentmanProject(projectRoot) {
 	const contentByConfigPath = new Map();
 	for (const config of configs) {
 		contentByConfigPath.set(config.path, await readContentItems(rootDir, config));
+	}
+
+	const blocks = [];
+	if (blocksDirPath && blocksDirExists) {
+		const blockPaths = (await walkDirectory(rootDir, blocksDirPath))
+			.filter((file) => file.endsWith('.tentman.json'))
+			.sort();
+
+		for (const blockPath of blockPaths) {
+			try {
+				const source = await fs.readFile(resolveProjectPath(rootDir, blockPath), 'utf8');
+				blocks.push(parseBlockConfig(source, blockPath));
+			} catch (error) {
+				blocks.push({
+					path: blockPath,
+					error: error instanceof Error ? error.message : 'Failed to parse block config'
+				});
+			}
+		}
+	}
+
+	const plugins = [];
+	for (const pluginId of rootConfig.plugins) {
+		const jsPath = toPosixPath(path.join(pluginsDir, pluginId, 'plugin.js'));
+		const mjsPath = toPosixPath(path.join(pluginsDir, pluginId, 'plugin.mjs'));
+		const jsExists = await pathExists(resolveProjectPath(rootDir, jsPath));
+		const mjsExists = await pathExists(resolveProjectPath(rootDir, mjsPath));
+
+		plugins.push({
+			id: pluginId,
+			paths: [jsPath, mjsPath],
+			path: jsExists ? jsPath : mjsExists ? mjsPath : null,
+			exists: jsExists || mjsExists
+		});
 	}
 
 	const manifestPath = resolveProjectPath(rootDir, NAVIGATION_MANIFEST_PATH);
@@ -233,6 +294,12 @@ export async function loadTentmanProject(projectRoot) {
 		configsDir: toPosixPath(configsDir),
 		configs,
 		contentByConfigPath,
+		blocksDir: blocksDir ? toPosixPath(blocksDir) : null,
+		blocksDirExists,
+		blocks,
+		pluginsDir: toPosixPath(pluginsDir),
+		pluginsDirExists,
+		plugins,
 		navigationManifest: {
 			path: NAVIGATION_MANIFEST_PATH,
 			exists: manifestExists,

@@ -1,6 +1,7 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { describeTentmanId } from './ids.js';
-import { resolveConfigRelativePath } from './paths.js';
+import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 import { NAVIGATION_MANIFEST_PATH } from './manifest.js';
 import {
 	getConfigByReference,
@@ -8,9 +9,25 @@ import {
 	getItemByReference
 } from './references.js';
 
+const ROOT_CONFIG_PATH = '.tentman.json';
+
 function createDiagnostic(level, code, message, details = {}) {
 	return { level, code, message, ...details };
 }
+
+const BUILT_IN_BLOCK_TYPES = new Set([
+	'text',
+	'textarea',
+	'markdown',
+	'email',
+	'url',
+	'number',
+	'date',
+	'boolean',
+	'image',
+	'select',
+	'block'
+]);
 
 function addIdentityDiagnostic(diagnostics, owner, id, seenIds) {
 	const status = describeTentmanId(id);
@@ -101,6 +118,15 @@ export function checkTentmanIds(project) {
 	}
 
 	return diagnostics;
+}
+
+async function absolutePathExists(absolutePath) {
+	try {
+		await fs.access(absolutePath);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function checkNavigationManifestReferences(project) {
@@ -306,6 +332,286 @@ export function checkNavigationManifest(project) {
 	return diagnostics;
 }
 
+function walkBlocks(blocks, visit) {
+	if (!Array.isArray(blocks)) {
+		return;
+	}
+
+	for (const block of blocks) {
+		if (!block || typeof block !== 'object' || Array.isArray(block)) {
+			continue;
+		}
+
+		visit(block);
+
+		if (Array.isArray(block.blocks)) {
+			walkBlocks(block.blocks, visit);
+		}
+	}
+}
+
+function checkBlocks(project) {
+	const diagnostics = [];
+
+	if (project.blocksDir && !project.blocksDirExists) {
+		diagnostics.push(
+			createDiagnostic(
+				'error',
+				'blocks.missing-directory',
+				`Configured blocks directory does not exist: ${project.blocksDir}`,
+				{ path: ROOT_CONFIG_PATH }
+			)
+		);
+		return diagnostics;
+	}
+
+	const blockById = new Map();
+	for (const block of project.blocks) {
+		if (block.error) {
+			diagnostics.push(
+				createDiagnostic(
+					'error',
+					'blocks.invalid',
+					`Could not parse block config ${block.path}: ${block.error}`,
+					{ path: block.path }
+				)
+			);
+			continue;
+		}
+
+		const existing = blockById.get(block.id);
+		if (existing) {
+			diagnostics.push(
+				createDiagnostic(
+					'error',
+					'blocks.duplicate-id',
+					`Reusable block ${block.id} is declared more than once`,
+					{ path: block.path, id: block.id, duplicateOf: existing.path }
+				)
+			);
+			continue;
+		}
+
+		blockById.set(block.id, block);
+	}
+
+	function checkBlockTree(blocks, ownerPath, ownerLabel) {
+		walkBlocks(blocks, (block) => {
+			if (typeof block.type !== 'string' || BUILT_IN_BLOCK_TYPES.has(block.type)) {
+				return;
+			}
+
+			if (!blockById.has(block.type)) {
+				diagnostics.push(
+					createDiagnostic(
+						'error',
+						'blocks.unresolved',
+						`${ownerLabel} references unknown reusable block type: ${block.type}`,
+						{ path: ownerPath, blockId: block.id, blockType: block.type }
+					)
+				);
+			}
+		});
+	}
+
+	for (const config of project.configs) {
+		checkBlockTree(config.raw.blocks, config.path, `${config.label} config`);
+	}
+
+	for (const block of project.blocks) {
+		if (!block.error) {
+			checkBlockTree(block.raw.blocks, block.path, `${block.label} block`);
+		}
+	}
+
+	return diagnostics;
+}
+
+function checkPlugins(project) {
+	const diagnostics = [];
+	const registeredPluginIds = new Set();
+	const missingPluginIds = new Set();
+
+	if (project.rootConfig.plugins.length > 0 && !project.pluginsDirExists) {
+		diagnostics.push(
+			createDiagnostic(
+				'error',
+				'plugin.missing-directory',
+				`Configured plugins directory does not exist: ${project.pluginsDir}`,
+				{ path: ROOT_CONFIG_PATH }
+			)
+		);
+	}
+
+	for (const plugin of project.plugins) {
+		if (registeredPluginIds.has(plugin.id)) {
+			diagnostics.push(
+				createDiagnostic(
+					'warning',
+					'plugin.duplicate-registration',
+					`Plugin ${plugin.id} is registered more than once in ${ROOT_CONFIG_PATH}`,
+					{ path: ROOT_CONFIG_PATH, id: plugin.id }
+				)
+			);
+			continue;
+		}
+
+		registeredPluginIds.add(plugin.id);
+
+		if (!plugin.exists) {
+			missingPluginIds.add(plugin.id);
+			diagnostics.push(
+				createDiagnostic(
+					'error',
+					'plugin.missing',
+					`Registered plugin ${plugin.id} could not be resolved in ${project.pluginsDir}`,
+					{ path: ROOT_CONFIG_PATH, id: plugin.id, candidates: plugin.paths }
+				)
+			);
+		}
+	}
+
+	function checkBlockPlugins(blocks, ownerPath, ownerLabel) {
+		walkBlocks(blocks, (block) => {
+			if (!Array.isArray(block.plugins)) {
+				return;
+			}
+
+			if (block.type !== 'markdown') {
+				diagnostics.push(
+					createDiagnostic(
+						'error',
+						'plugin.unsupported-surface',
+						`${ownerLabel} enables plugins on non-markdown block ${block.id ?? block.type}`,
+						{ path: ownerPath, blockId: block.id, blockType: block.type }
+					)
+				);
+			}
+
+			for (const pluginId of block.plugins) {
+				if (typeof pluginId !== 'string' || pluginId.length === 0) {
+					diagnostics.push(
+						createDiagnostic(
+							'error',
+							'plugin.invalid-reference',
+							`${ownerLabel} contains an invalid plugin reference`,
+							{ path: ownerPath, blockId: block.id }
+						)
+					);
+					continue;
+				}
+
+				if (!registeredPluginIds.has(pluginId)) {
+					diagnostics.push(
+						createDiagnostic(
+							'error',
+							'plugin.unregistered',
+							`${ownerLabel} references unregistered plugin ${pluginId}`,
+							{ path: ownerPath, blockId: block.id, blockType: block.type, id: pluginId }
+						)
+					);
+					continue;
+				}
+
+				if (missingPluginIds.has(pluginId)) {
+					diagnostics.push(
+						createDiagnostic(
+							'error',
+							'plugin.unresolved',
+							`${ownerLabel} references plugin ${pluginId}, but its entrypoint is missing`,
+							{ path: ownerPath, blockId: block.id, blockType: block.type, id: pluginId }
+						)
+					);
+				}
+			}
+		});
+	}
+
+	for (const config of project.configs) {
+		checkBlockPlugins(config.raw.blocks, config.path, `${config.label} config`);
+	}
+
+	for (const block of project.blocks) {
+		if (!block.error) {
+			checkBlockPlugins(block.raw.blocks, block.path, `${block.label} block`);
+		}
+	}
+
+	return diagnostics;
+}
+
+async function checkAssetDirectories(project) {
+	const diagnostics = [];
+
+	async function checkAssetDir(ownerPath, ownerLabel, block) {
+		if (
+			!block ||
+			typeof block !== 'object' ||
+			Array.isArray(block) ||
+			typeof block.assetsDir !== 'string' ||
+			block.assetsDir.length === 0
+		) {
+			return;
+		}
+
+		const assetPath = resolveConfigRelativePath(project.rootDir, ownerPath, block.assetsDir);
+
+		if (!(await absolutePathExists(assetPath))) {
+			diagnostics.push(
+				createDiagnostic(
+					'error',
+					'assets.missing-directory',
+					`${ownerLabel} references missing assets directory: ${path.relative(project.rootDir, assetPath)}`,
+					{ path: ownerPath, blockId: block.id, blockType: block.type }
+				)
+			);
+		}
+	}
+
+	if (project.rootConfig.assetsDir) {
+		const rootAssetsPath = resolveProjectPath(project.rootDir, project.rootConfig.assetsDir);
+
+		if (!(await absolutePathExists(rootAssetsPath))) {
+			diagnostics.push(
+				createDiagnostic(
+					'error',
+					'assets.missing-root-directory',
+					`Configured assets directory does not exist: ${project.rootConfig.assetsDir}`,
+					{ path: ROOT_CONFIG_PATH }
+				)
+			);
+		}
+	}
+
+	for (const config of project.configs) {
+		const blocks = [];
+		walkBlocks(config.raw.blocks, (block) => {
+			blocks.push(block);
+		});
+
+		for (const block of blocks) {
+			await checkAssetDir(config.path, `${config.label} config`, block);
+		}
+	}
+
+	for (const block of project.blocks) {
+		if (block.error) {
+			continue;
+		}
+
+		const nestedBlocks = [];
+		walkBlocks(block.raw.blocks, (nestedBlock) => {
+			nestedBlocks.push(nestedBlock);
+		});
+
+		for (const nestedBlock of nestedBlocks) {
+			await checkAssetDir(block.path, `${block.label} block`, nestedBlock);
+		}
+	}
+
+	return diagnostics;
+}
+
 export async function doctorTentmanProject(project) {
 	const diagnostics = [];
 
@@ -380,6 +686,9 @@ export async function doctorTentmanProject(project) {
 		);
 	}
 
+	diagnostics.push(...checkBlocks(project));
+	diagnostics.push(...checkPlugins(project));
+	diagnostics.push(...(await checkAssetDirectories(project)));
 	diagnostics.push(...checkNavigationManifestReferences(project));
 
 	return diagnostics;

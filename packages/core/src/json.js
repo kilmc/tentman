@@ -37,3 +37,23 @@ export function readRequiredString(value, key, context) {
 
 	return candidate;
 }
+
+export function readOptionalStringArray(value, key, context) {
+	const candidate = value[key];
+
+	if (candidate === undefined) {
+		return undefined;
+	}
+
+	if (!Array.isArray(candidate)) {
+		throw new Error(`${context}.${key} must be an array of non-empty strings`);
+	}
+
+	return candidate.map((item, index) => {
+		if (typeof item !== 'string' || item.length === 0) {
+			throw new Error(`${context}.${key}[${index}] must be a non-empty string`);
+		}
+
+		return item;
+	});
+}
