@@ -1,4 +1,4 @@
-function uniqueStrings(values) {
+export function uniqueStrings(values) {
 	const seen = new Set();
 	const output = [];
 
@@ -22,8 +22,16 @@ export function getConfigReferences(config) {
 	return uniqueStrings([config._tentmanId, config.id, config.slug]);
 }
 
+export function getPrimaryConfigReference(config) {
+	return getConfigReferences(config)[0];
+}
+
 export function getGroupReferences(group) {
 	return uniqueStrings([group._tentmanId, group.slug]);
+}
+
+export function getPrimaryGroupReference(group) {
+	return getGroupReferences(group)[0];
 }
 
 export function getItemReferences(item) {
@@ -34,6 +42,31 @@ export function getItemReferences(item) {
 		item.filename,
 		typeof item.filename === 'string' ? stripFileExtension(item.filename) : undefined
 	]);
+}
+
+export function getPrimaryItemReference(item) {
+	return getItemReferences(item)[0];
+}
+
+export function orderByReferences(items, orderedReferences, getReferences) {
+	if (!Array.isArray(orderedReferences) || orderedReferences.length === 0) {
+		return [...items];
+	}
+
+	const remainingItems = [...items];
+	const orderedItems = [];
+
+	for (const reference of orderedReferences) {
+		const matchIndex = remainingItems.findIndex((item) => getReferences(item).includes(reference));
+		if (matchIndex === -1) {
+			continue;
+		}
+
+		const [item] = remainingItems.splice(matchIndex, 1);
+		orderedItems.push(item);
+	}
+
+	return [...orderedItems, ...remainingItems];
 }
 
 export function getConfigByReference(project) {

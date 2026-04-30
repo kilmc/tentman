@@ -1,49 +1,12 @@
 import fs from 'node:fs/promises';
-import { isTentmanId } from './ids.js';
 import { NAVIGATION_MANIFEST_PATH, serializeNavigationManifest } from './manifest.js';
 import { resolveProjectPath } from './paths.js';
-import { getGroupByReference, stripFileExtension } from './references.js';
-
-function uniqueStrings(values) {
-	const seen = new Set();
-	const output = [];
-
-	for (const value of values) {
-		if (typeof value !== 'string' || value.length === 0 || seen.has(value)) {
-			continue;
-		}
-
-		seen.add(value);
-		output.push(value);
-	}
-
-	return output;
-}
-
-function getConfigReference(config) {
-	return uniqueStrings([
-		isTentmanId(config._tentmanId) ? config._tentmanId : undefined,
-		config.id,
-		config.slug
-	])[0];
-}
-
-function getGroupReference(group) {
-	return uniqueStrings([
-		isTentmanId(group._tentmanId) ? group._tentmanId : undefined,
-		group.slug
-	])[0];
-}
-
-function getItemReference(item) {
-	return uniqueStrings([
-		isTentmanId(item._tentmanId) ? item._tentmanId : undefined,
-		item.id,
-		item.slug,
-		item.filename,
-		typeof item.filename === 'string' ? stripFileExtension(item.filename) : undefined
-	])[0];
-}
+import {
+	getGroupByReference,
+	getPrimaryConfigReference,
+	getPrimaryGroupReference,
+	getPrimaryItemReference
+} from './references.js';
 
 function findNavigationGroupField(config) {
 	const blocks = Array.isArray(config.raw.blocks) ? config.raw.blocks : [];
@@ -72,7 +35,7 @@ function rebuildCollectionManifest(project, config) {
 	const ungroupedItems = [];
 
 	for (const group of config.groups) {
-		const groupReference = getGroupReference(group);
+		const groupReference = getPrimaryGroupReference(group);
 		if (!groupReference) {
 			continue;
 		}
@@ -86,14 +49,14 @@ function rebuildCollectionManifest(project, config) {
 	}
 
 	for (const item of items) {
-		const itemReference = getItemReference(item);
+		const itemReference = getPrimaryItemReference(item);
 		if (!itemReference) {
 			continue;
 		}
 
 		const groupValue = groupField ? item[groupField] : undefined;
 		const group = typeof groupValue === 'string' ? groupByReference.get(groupValue) : undefined;
-		const groupReference = group ? getGroupReference(group) : undefined;
+		const groupReference = group ? getPrimaryGroupReference(group) : undefined;
 
 		if (groupReference && groupsById.has(groupReference)) {
 			groupsById.get(groupReference).items.push(itemReference);
@@ -116,7 +79,7 @@ export async function rebuildNavigationManifest(project) {
 	const contentItems = [];
 
 	for (const config of project.configs) {
-		const configReference = getConfigReference(config);
+		const configReference = getPrimaryConfigReference(config);
 		if (!configReference) {
 			continue;
 		}

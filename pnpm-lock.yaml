@@ -9,6 +9,10 @@ importers:
   .: {}
 
   apps/test-app:
+    dependencies:
+      '@tentman/core':
+        specifier: workspace:*
+        version: link:../../packages/core
     devDependencies:
       '@eslint/compat':
         specifier: ^2.0.2

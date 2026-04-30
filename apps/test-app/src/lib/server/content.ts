@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { getItemReferences, orderByReferences } from './tentman-core';
 import type {
 	AboutPageContent,
 	BlogPost,
@@ -202,39 +203,6 @@ function comparePostDates(left: BlogPostPreview, right: BlogPostPreview): number
 	return right.date.localeCompare(left.date);
 }
 
-function orderByManifestIds<T extends { slug: string }>(
-	items: T[],
-	manifestIds: string[] | undefined
-): T[] {
-	if (!manifestIds?.length) {
-		return items;
-	}
-
-	const itemMap = new Map(items.map((item) => [item.slug, item]));
-	const orderedItems: T[] = [];
-	const usedIds = new Set<string>();
-
-	for (const itemId of manifestIds) {
-		const item = itemMap.get(itemId);
-		if (!item) {
-			continue;
-		}
-
-		orderedItems.push(item);
-		usedIds.add(itemId);
-	}
-
-	for (const item of items) {
-		if (usedIds.has(item.slug)) {
-			continue;
-		}
-
-		orderedItems.push(item);
-	}
-
-	return orderedItems;
-}
-
 export async function getPrimaryNavigation(): Promise<NavigationItem[]> {
 	const manifest = await readNavigationManifest();
 	const manifestIds = manifest?.content?.items;
@@ -277,7 +245,7 @@ export async function getAllPosts(): Promise<BlogPost[]> {
 	const manifest = await readNavigationManifest();
 	const sortedPosts = posts.sort(comparePostDates);
 
-	return orderByManifestIds(sortedPosts, manifest?.collections?.blog?.items);
+	return orderByReferences(sortedPosts, manifest?.collections?.blog?.items, getItemReferences);
 }
 
 export async function getPublishedPosts(): Promise<BlogPostPreview[]> {
