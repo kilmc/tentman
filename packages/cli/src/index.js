@@ -7,6 +7,7 @@ import {
 	doctorTentmanProject,
 	explainTentmanNavigation,
 	findUnusedTentmanAssets,
+	getTentmanSchema,
 	inspectTentmanContent,
 	listTentmanAssets,
 	listTentmanContent,
@@ -34,6 +35,7 @@ Usage:
   tentman ci [project-root]
   tentman content list [config-reference] [project-root]
   tentman content inspect <config-reference> [item-reference] [project-root]
+  tentman schema [config-reference] [project-root]
   tentman ids check [project-root]
   tentman ids write [project-root]
   tentman nav check [project-root]
@@ -337,6 +339,62 @@ async function run() {
 		console.log(
 			`${content.item.reference ?? `item-${content.item.index + 1}`}: ${content.item.label}${content.item.path ? ` (${content.item.path})` : ''}`
 		);
+		return 0;
+	}
+
+	if (command === 'schema') {
+		const selector = positional[1] && !looksLikeProjectRoot(positional[1]) ? positional[1] : undefined;
+		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 2 : 1));
+		const schema = getTentmanSchema(project, selector);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman schema', schema }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman schema');
+
+		if (Array.isArray(schema)) {
+			for (const entry of schema) {
+				console.log(
+					`${entry.kind}: ${entry.label} (${entry.reference ?? 'no-reference'}) -> ${entry.blockCount} field${entry.blockCount === 1 ? '' : 's'} in ${entry.contentMode} content`
+				);
+			}
+			return 0;
+		}
+
+		console.log(
+			`${schema.config.kind}: ${schema.config.label} (${schema.config.reference ?? 'no-reference'})`
+		);
+		console.log(
+			`content: ${schema.config.content.mode} -> ${schema.config.content.path}${schema.config.content.template ? ` (template ${schema.config.content.template})` : ''}`
+		);
+
+		if (schema.config.collection.enabled) {
+			console.log(
+				`collection: ${schema.config.collection.itemLabel ?? 'item'} via ${schema.config.collection.idField ?? 'no idField'}`
+			);
+		}
+
+		console.log('\nFields');
+
+		function printField(field, indent = '') {
+			const collection = field.collection ? '[]' : '';
+			const detail =
+				field.schemaKind === 'reusable-block'
+					? ` -> ${field.reusableBlock?.label ?? field.type}`
+					: '';
+			console.log(`${indent}${field.id ?? 'unknown'}: ${field.type ?? 'unknown'}${collection}${detail}`);
+
+			for (const nestedField of field.fields ?? []) {
+				printField(nestedField, `${indent}  `);
+			}
+		}
+
+		for (const field of schema.fields) {
+			printField(field);
+		}
+
 		return 0;
 	}
 
