@@ -11,6 +11,7 @@ import {
 	printTentmanNavigation,
 	rebuildNavigationManifest,
 	refreshNavigationManifest,
+	runTentmanCi,
 	summarizeFormatCheck,
 	summarizeIdWriteChanges,
 	summarizeNavigationRefreshChanges,
@@ -24,6 +25,7 @@ function printHelp() {
 
 Usage:
   tentman doctor [project-root]
+  tentman ci [project-root]
   tentman content list [config-reference] [project-root]
   tentman content inspect <config-reference> [item-reference] [project-root]
   tentman ids check [project-root]
@@ -123,6 +125,56 @@ async function run() {
 		const diagnostics = await doctorTentmanProject(project);
 		printDiagnostics('Tentman doctor', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
+	}
+
+	if (command === 'ci') {
+		const project = await loadTentmanProject(getProjectRoot(positional, 1));
+		const result = await runTentmanCi(project);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman ci', ...result }, null, 2));
+			return result.summary.errors > 0 ? 1 : 0;
+		}
+
+		console.log('Tentman ci');
+
+		for (const check of result.checks) {
+			if (check.id === 'format') {
+				if (check.rewrites.length === 0) {
+					console.log(`${check.title}: OK`);
+					continue;
+				}
+
+				console.log(
+					`${check.title}: would rewrite ${check.summary.files} file${check.summary.files === 1 ? '' : 's'}`
+				);
+				for (const rewrite of check.rewrites) {
+					const owner = rewrite.kind === 'content' ? ` (${rewrite.configPath})` : '';
+					console.log(`  ${rewrite.kind}: ${rewrite.path}${owner}`);
+				}
+				continue;
+			}
+
+			if (check.diagnostics.length === 0) {
+				console.log(`${check.title}: OK`);
+				continue;
+			}
+
+			console.log(
+				`${check.title}: ${check.errors} error${check.errors === 1 ? '' : 's'}, ${check.warnings} warning${check.warnings === 1 ? '' : 's'}`
+			);
+			for (const diagnostic of check.diagnostics) {
+				const location = diagnostic.path ? ` (${diagnostic.path})` : '';
+				console.log(
+					`  ${diagnostic.level.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}${location}`
+				);
+			}
+		}
+
+		console.log(
+			`\n${result.summary.errors} total error${result.summary.errors === 1 ? '' : 's'}, ${result.summary.warnings} total warning${result.summary.warnings === 1 ? '' : 's'}`
+		);
+		return result.summary.errors > 0 ? 1 : 0;
 	}
 
 	if (command === 'content' && subcommand === 'list') {
