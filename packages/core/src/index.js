@@ -15,7 +15,7 @@ export { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from '
 export { checkTentmanFormat, summarizeFormatCheck, writeTentmanFormat } from './format-check.js';
 export { runTentmanCi } from './ci.js';
 export { checkTentmanAssets } from './assets-check.js';
-export { listTentmanAssets } from './assets.js';
+export { findUnusedTentmanAssets, listTentmanAssets } from './assets.js';
 export { inspectTentmanContent } from './content-inspect.js';
 export { listTentmanContent } from './content-list.js';
 export { explainTentmanNavigation } from './nav-explain.js';

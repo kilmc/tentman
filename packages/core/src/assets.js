@@ -255,6 +255,188 @@ export async function collectTentmanConfigAssets(project, config) {
 	};
 }
 
+async function walkDirectoryFiles(rootDir, currentDir) {
+	const entries = (await fs.readdir(currentDir, { withFileTypes: true })).sort((a, b) =>
+		a.name.localeCompare(b.name)
+	);
+	const files = [];
+
+	for (const entry of entries) {
+		const absolutePath = path.join(currentDir, entry.name);
+
+		if (entry.isDirectory()) {
+			files.push(...(await walkDirectoryFiles(rootDir, absolutePath)));
+			continue;
+		}
+
+		if (entry.isFile()) {
+			files.push(toPosixPath(path.relative(rootDir, absolutePath)));
+		}
+	}
+
+	return files;
+}
+
+function collectTentmanConfigAssetDirectories(project, config, blockDefinitions) {
+	const directories = new Map();
+
+	function visitBlocks(blocks, ownerPath) {
+		if (!Array.isArray(blocks)) {
+			return;
+		}
+
+		for (const block of blocks) {
+			if (!block || typeof block !== 'object' || Array.isArray(block)) {
+				continue;
+			}
+
+			if (block.type === 'image' && typeof block.assetsDir === 'string' && block.assetsDir.length > 0) {
+				const mapping = getPublicAssetMapping(project.rootDir, ownerPath, block.assetsDir);
+
+				if (mapping) {
+					const directoryPath = toPosixPath(path.relative(project.rootDir, mapping.assetDirPath));
+
+					if (!directories.has(directoryPath)) {
+						directories.set(directoryPath, {
+							path: directoryPath,
+							assetsDir: block.assetsDir,
+							expectedPrefix: mapping.publicPrefix,
+							publicRoot: mapping.publicRoot ? toPosixPath(path.relative(project.rootDir, mapping.publicRoot)) : null
+						});
+					}
+				}
+			}
+
+			if (block.type === 'block') {
+				visitBlocks(block.blocks, ownerPath);
+				continue;
+			}
+
+			const reusableBlock = blockDefinitions.get(block.type);
+			if (!reusableBlock || reusableBlock.error) {
+				continue;
+			}
+
+			visitBlocks(reusableBlock.raw.blocks, reusableBlock.path);
+		}
+	}
+
+	visitBlocks(config.raw.blocks, config.path);
+
+	return [...directories.values()];
+}
+
+export async function findUnusedTentmanAssets(project, configReference) {
+	const blockDefinitions = getBlockDefinitions(project);
+	const allConfigAssets = new Map();
+
+	for (const config of project.configs) {
+		allConfigAssets.set(config.path, await collectTentmanConfigAssets(project, config));
+	}
+
+	const referencedProjectPaths = new Set(
+		[...allConfigAssets.values()]
+			.flatMap((detail) => detail.assets)
+			.filter((asset) => asset.matchesExpectedPath === true && typeof asset.projectPath === 'string')
+			.map((asset) => asset.projectPath)
+	);
+
+	if (configReference) {
+		const config = getConfigByReference(project).get(configReference);
+
+		if (!config) {
+			throw new Error(`Unknown content config reference: ${configReference}`);
+		}
+
+		const detail = allConfigAssets.get(config.path);
+		const directories = [];
+		const unusedFiles = [];
+
+		for (const directory of collectTentmanConfigAssetDirectories(project, config, blockDefinitions)) {
+			const absolutePath = resolveProjectPath(project.rootDir, directory.path);
+			const allFiles = await walkDirectoryFiles(project.rootDir, absolutePath);
+			const directoryUnusedFiles = allFiles.filter((file) => !referencedProjectPaths.has(file));
+
+			directories.push({
+				...directory,
+				fileCount: allFiles.length,
+				unusedCount: directoryUnusedFiles.length,
+				unusedFiles: directoryUnusedFiles
+			});
+
+			for (const file of directoryUnusedFiles) {
+				unusedFiles.push({
+					path: file,
+					directoryPath: directory.path,
+					expectedPrefix: directory.expectedPrefix
+				});
+			}
+		}
+
+		return {
+			config: detail?.config ?? {
+				label: config.label,
+				kind: getConfigKind(config),
+				path: config.path,
+				contentMode: config.content.mode,
+				contentPath: config.content.path,
+				contentExists: false,
+				reference: getPrimaryConfigReference(config) ?? null,
+				references: getConfigReferences(config),
+				itemCount: 0,
+				assetCount: 0
+			},
+			directories,
+			unusedFiles
+		};
+	}
+
+	const directories = new Map();
+
+	for (const config of project.configs) {
+		for (const directory of collectTentmanConfigAssetDirectories(project, config, blockDefinitions)) {
+			const existing = directories.get(directory.path);
+
+			if (existing) {
+				existing.configs.push({
+					label: config.label,
+					reference: getPrimaryConfigReference(config) ?? null,
+					path: config.path
+				});
+				continue;
+			}
+
+			directories.set(directory.path, {
+				...directory,
+				configs: [
+					{
+						label: config.label,
+						reference: getPrimaryConfigReference(config) ?? null,
+						path: config.path
+					}
+				]
+			});
+		}
+	}
+
+	const summaries = [];
+
+	for (const directory of [...directories.values()].sort((a, b) => a.path.localeCompare(b.path))) {
+		const absolutePath = resolveProjectPath(project.rootDir, directory.path);
+		const allFiles = await walkDirectoryFiles(project.rootDir, absolutePath);
+		const unusedFiles = allFiles.filter((file) => !referencedProjectPaths.has(file));
+
+		summaries.push({
+			...directory,
+			fileCount: allFiles.length,
+			unusedCount: unusedFiles.length,
+			unusedFiles
+		});
+	}
+
+	return summaries;
+}
+
 export async function listTentmanAssets(project, configReference) {
 	if (!configReference) {
 		const summaries = [];

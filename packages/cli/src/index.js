@@ -6,6 +6,7 @@ import {
 	checkNavigationManifest,
 	doctorTentmanProject,
 	explainTentmanNavigation,
+	findUnusedTentmanAssets,
 	inspectTentmanContent,
 	listTentmanAssets,
 	listTentmanContent,
@@ -29,6 +30,7 @@ Usage:
   tentman doctor [project-root]
   tentman assets check [project-root]
   tentman assets list [config-reference] [project-root]
+  tentman assets unused [config-reference] [project-root]
   tentman ci [project-root]
   tentman content list [config-reference] [project-root]
   tentman content inspect <config-reference> [item-reference] [project-root]
@@ -177,6 +179,48 @@ async function run() {
 							? 'MISSING'
 							: 'OK';
 				console.log(`  ${asset.fieldPath}: ${asset.value} [${status}]`);
+			}
+		}
+
+		return 0;
+	}
+
+	if (command === 'assets' && subcommand === 'unused') {
+		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
+		const unused = await findUnusedTentmanAssets(project, selector);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman assets unused', unused }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman assets unused');
+
+		if (Array.isArray(unused)) {
+			for (const entry of unused) {
+				const owners = entry.configs.map((config) => config.label).join(', ');
+				console.log(
+					`${entry.path} (${entry.expectedPrefix ?? 'no-public-prefix'}) -> ${entry.unusedCount} unused file${entry.unusedCount === 1 ? '' : 's'} across ${owners}`
+				);
+			}
+			return 0;
+		}
+
+		console.log(
+			`${unused.config.kind}: ${unused.config.label} (${unused.config.reference ?? 'no-reference'}) -> ${unused.unusedFiles.length} unused file${unused.unusedFiles.length === 1 ? '' : 's'}`
+		);
+
+		for (const directory of unused.directories) {
+			console.log(`\n${directory.path} (${directory.expectedPrefix ?? 'no-public-prefix'})`);
+
+			if (directory.unusedFiles.length === 0) {
+				console.log('  OK');
+				continue;
+			}
+
+			for (const file of directory.unusedFiles) {
+				console.log(`  ${file}`);
 			}
 		}
 
