@@ -417,7 +417,8 @@ Common block fields:
 ```
 
 For `source: "tentman.navigationGroups"`, Tentman reads groups from
-`tentman/navigation-manifest.json`, stores the selected group `id` in the content item, and
+`tentman/navigation-manifest.json` for the collection config identified by `options.collection`.
+Use the content config `id` for that value. Tentman stores the selected group `id` in the content item, and
 displays each group `label` with an `id` fallback. `addOption: true` lets authors add a new group
 inline; Tentman creates or updates the manifest group as `{ "id", "label", "items": [] }`.
 Generic JSON-backed select option sources are not implemented yet. Saving a content item stores

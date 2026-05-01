@@ -30,6 +30,26 @@ describe('navigation group select options', () => {
 		]);
 	});
 
+	it('resolves collection options by authored config id when the manifest is keyed by Tentman id', () => {
+		expect(
+			getSelectOptionsFromNavigationGroups(
+				{
+					version: 1,
+					collections: {
+						tent_01PROJECTS: {
+							id: 'tent_01PROJECTS',
+							slug: 'projects',
+							configId: 'project-collection',
+							items: ['project-one'],
+							groups: [{ id: 'identity', label: 'Identity', items: ['project-one'] }]
+						}
+					}
+				},
+				'project-collection'
+			)
+		).toEqual([{ value: 'identity', label: 'Identity' }]);
+	});
+
 	it('returns no options when the navigation manifest or collection groups are missing', () => {
 		expect(getSelectOptionsFromNavigationGroups(null, 'projects')).toEqual([]);
 		expect(
@@ -43,20 +63,26 @@ describe('navigation group select options', () => {
 				version: 1,
 				content: { items: ['projects'] },
 				collections: {
-					projects: {
+					tent_01PROJECTS: {
+						id: 'tent_01PROJECTS',
+						slug: 'projects',
+						configId: 'project-collection',
 						items: ['one'],
 						groups: [{ id: 'old', label: 'Old', items: ['one'] }]
 					}
 				}
 			},
 			{
-				collection: 'projects',
+				collection: 'project-collection',
 				id: 'new-work',
 				label: 'New Work'
 			}
 		);
 
-		expect(manifest.collections?.projects).toEqual({
+		expect(manifest.collections?.tent_01PROJECTS).toEqual({
+			id: 'tent_01PROJECTS',
+			slug: 'projects',
+			configId: 'project-collection',
 			items: ['one'],
 			groups: [
 				{ id: 'old', label: 'Old', items: ['one'] },
@@ -68,14 +94,14 @@ describe('navigation group select options', () => {
 	it('creates the manifest and collection shape when no manifest exists', () => {
 		expect(
 			addNavigationGroupToManifest(null, {
-				collection: 'projects',
+				collection: 'project-collection',
 				id: 'new-work',
 				label: 'New Work'
 			})
 		).toEqual({
 			version: 1,
 			collections: {
-				projects: {
+				'project-collection': {
 					items: [],
 					groups: [{ id: 'new-work', label: 'New Work', items: [] }]
 				}
@@ -89,14 +115,15 @@ describe('navigation group select options', () => {
 				{
 					version: 1,
 					collections: {
-						projects: {
+						tent_01PROJECTS: {
+							configId: 'project-collection',
 							items: [],
 							groups: [{ id: 'identity', label: 'Identity', items: [] }]
 						}
 					}
 				},
 				{
-					collection: 'projects',
+					collection: 'project-collection',
 					id: 'identity',
 					label: 'Identity again'
 				}

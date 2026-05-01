@@ -96,6 +96,7 @@ function rebuildCollectionManifest(project, config) {
 
 	return {
 		...(collectionReference ? buildConfigManifestEntry(config, collectionReference) : {}),
+		...(typeof config.id === 'string' && config.id.length > 0 ? { configId: config.id } : {}),
 		items: [...groups.flatMap((group) => group.items), ...ungroupedItems],
 		...(groups.length > 0 ? { groups } : {})
 	};

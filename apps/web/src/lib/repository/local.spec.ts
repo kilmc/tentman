@@ -401,6 +401,53 @@ describe('createLocalRepositoryBackend', () => {
 		await expect(backend.getDiscoverySignature()).resolves.toEqual(signature);
 	});
 
+	it('invalidates the local discovery signature when the navigation manifest changes', async () => {
+		let navigationManifest = JSON.stringify({
+			version: 1,
+			collections: {
+				posts: {
+					items: ['post-1'],
+					groups: []
+				}
+			}
+		});
+		const rootHandle = createDirectoryHandle({
+			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			tentman: createDirectoryHandle({
+				'navigation-manifest.json': createFileHandle(() => navigationManifest),
+				configs: createDirectoryHandle({
+					'posts.tentman.json': createFileHandle(`{
+						"type": "content",
+						"label": "Posts",
+						"content": { "mode": "file", "path": "./src/content/posts.json" },
+						"blocks": []
+					}`)
+				})
+			})
+		});
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+		const signature = await backend.getDiscoverySignature();
+
+		expect(signature.navigationManifestText).toBe(navigationManifest);
+
+		navigationManifest = JSON.stringify({
+			version: 1,
+			collections: {
+				posts: {
+					items: ['post-1'],
+					groups: [{ id: 'featured', items: ['post-1'] }]
+				}
+			}
+		});
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			navigationManifestText: navigationManifest
+		});
+	});
+
 	it('includes root discovery settings and registered plugin entrypoint existence in the signature', async () => {
 		let rootConfig = JSON.stringify({
 			configsDir: './tentman/configs',

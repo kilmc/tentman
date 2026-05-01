@@ -53,6 +53,9 @@ function parseNavigationManifestCollection(value, context) {
 			...(readOptionalString(value.label, `${context}.label`) ? { label: value.label } : {}),
 			...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug } : {}),
 			...(readOptionalString(value.href, `${context}.href`) ? { href: value.href } : {}),
+			...(readOptionalString(value.configId, `${context}.configId`)
+				? { configId: value.configId }
+				: {}),
 			items
 		};
 	}
@@ -66,6 +69,9 @@ function parseNavigationManifestCollection(value, context) {
 		...(readOptionalString(value.label, `${context}.label`) ? { label: value.label } : {}),
 		...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug } : {}),
 		...(readOptionalString(value.href, `${context}.href`) ? { href: value.href } : {}),
+		...(readOptionalString(value.configId, `${context}.configId`)
+			? { configId: value.configId }
+			: {}),
 		items,
 		groups: groupsValue.map((group, index) => {
 			assertPlainObject(group, `${context}.groups[${index}] must be an object`);

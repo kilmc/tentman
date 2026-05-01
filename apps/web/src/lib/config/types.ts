@@ -23,6 +23,21 @@ export interface NavigationGroupsSelectBlockOptions {
 	addOption?: boolean;
 }
 
+export interface NavigationManifestCollection {
+	id?: string;
+	label?: string;
+	slug?: string;
+	href?: string;
+	configId?: string;
+	items: string[];
+	groups?: Array<{
+		id: string;
+		label?: string;
+		slug?: string;
+		items: string[];
+	}>;
+}
+
 export type SelectBlockOptions = StaticSelectBlockOptions | NavigationGroupsSelectBlockOptions;
 
 export interface BaseBlockUsage {

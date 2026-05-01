@@ -38,6 +38,7 @@ export interface NavigationManifestCollection {
 	label?: string;
 	slug?: string;
 	href?: string;
+	configId?: string;
 	items: string[];
 	groups?: NavigationManifestGroup[];
 }
@@ -303,6 +304,11 @@ function cloneManifestCollection(
 	}
 
 	return {
+		...(collection.id ? { id: collection.id } : {}),
+		...(collection.label ? { label: collection.label } : {}),
+		...(collection.slug ? { slug: collection.slug } : {}),
+		...(collection.href ? { href: collection.href } : {}),
+		...(collection.configId ? { configId: collection.configId } : {}),
 		items: [...collection.items],
 		...(collection.groups
 			? {
@@ -363,6 +369,9 @@ function parseNavigationManifestCollection(
 				: {}),
 			...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug as string } : {}),
 			...(readOptionalString(value.href, `${context}.href`) ? { href: value.href as string } : {}),
+			...(readOptionalString(value.configId, `${context}.configId`)
+				? { configId: value.configId as string }
+				: {}),
 			items
 		};
 	}
@@ -378,6 +387,9 @@ function parseNavigationManifestCollection(
 			: {}),
 		...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug as string } : {}),
 		...(readOptionalString(value.href, `${context}.href`) ? { href: value.href as string } : {}),
+		...(readOptionalString(value.configId, `${context}.configId`)
+			? { configId: value.configId as string }
+			: {}),
 		items,
 		groups: groupsValue.map((group, index) => {
 			assertObject(group, `${context}.groups[${index}] must be an object`);
@@ -887,6 +899,7 @@ function setManifestCollectionOrder(
 	nextManifest.collections = {
 		...(nextManifest.collections ?? {}),
 		[configId]: {
+			...(nextManifest.collections?.[configId] ?? {}),
 			items: [...groups.flatMap((group) => group.items), ...ungroupedItems],
 			...(groups.length > 0 ? { groups } : {})
 		}
@@ -1248,6 +1261,10 @@ export async function buildNavigationManifestFromRepository(
 			return [
 				config.config._tentmanId,
 				{
+					id: config.config._tentmanId,
+					label: config.config.label,
+					slug: config.slug,
+					...(config.config.id ? { configId: config.config.id } : {}),
 					items: orderedItemIds,
 					...(groupIdentity.groups.length > 0
 						? {

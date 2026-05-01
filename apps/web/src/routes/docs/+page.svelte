@@ -400,13 +400,14 @@
 
 	const contentConfigExample = `{
   "type": "content",
+  "_tentmanId": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
   "label": "Blog Posts",
   "itemLabel": "Blog Post",
   "collection": {
     "sorting": "manual",
     "groups": [
       {
-        "_tentmanId": "blog-featured",
+        "_tentmanId": "tent_01KQD7Q131PWFNF90HG24K63ZD",
         "label": "Featured posts",
         "slug": "featured"
       }
@@ -430,7 +431,7 @@
       "label": "Group",
       "options": {
         "source": "tentman.navigationGroups",
-        "collection": "blog",
+        "collection": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
         "addOption": true
       }
     },
@@ -550,17 +551,31 @@ export default {
 	const navigationManifestExample = `{
   "version": 1,
   "content": {
-    "items": ["page-about", "page-contact", "content-blog"]
+    "items": [
+      { "id": "tent_01KQD7Q12XGD83Y8S1TAHW40G3", "label": "About Page", "slug": "about" },
+      { "id": "tent_01KQD7Q1301SNN4W42XV2XYA17", "label": "Contact Page", "slug": "contact" },
+      { "id": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07", "label": "Blog Posts", "slug": "blog" }
+    ]
   },
   "collections": {
-    "content-blog": {
-      "items": ["post-testing-content-workflows", "post-designing-a-realistic-fixture", "post-blooop"],
+    "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07": {
+      "id": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
+      "label": "Blog Posts",
+      "slug": "blog",
+      "items": [
+        { "id": "tent_01KQD7Q12ZHBTXG669982DV00K", "label": "Testing content workflows", "slug": "testing-content-workflows" },
+        { "id": "tent_01KQD7Q12ZH61M4XHDTEQ5MV98", "label": "Designing a realistic fixture", "slug": "designing-a-realistic-fixture" },
+        { "id": "tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD", "label": "Blooop", "slug": "blooop" }
+      ],
       "groups": [
         {
-          "id": "blog-featured",
+          "id": "tent_01KQD7Q131PWFNF90HG24K63ZD",
           "label": "Featured posts",
           "slug": "featured",
-          "items": ["post-testing-content-workflows", "post-designing-a-realistic-fixture"]
+          "items": [
+            { "id": "tent_01KQD7Q12ZHBTXG669982DV00K", "label": "Testing content workflows" },
+            { "id": "tent_01KQD7Q12ZH61M4XHDTEQ5MV98", "label": "Designing a realistic fixture" }
+          ]
         }
       ]
     }
@@ -993,7 +1008,10 @@ export default {
 					with
 					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
 						>source: "tentman.navigationGroups"</code
-					>.
+					>. Set
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">options.collection</code>
+					to the content config
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">id</code>.
 				</li>
 				<li>
 					When

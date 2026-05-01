@@ -245,6 +245,7 @@ export interface LocalRepositoryIdentity {
 
 export interface LocalDiscoverySignature {
 	rootConfigText: string | null;
+	navigationManifestText: string | null;
 	contentConfigPaths: string[];
 	blockConfigPaths: string[];
 	pluginEntrypoints: Array<{
@@ -354,6 +355,9 @@ export function createLocalRepositoryBackend(
 
 	async function getDiscoverySignature(): Promise<LocalDiscoverySignature> {
 		const rootConfigText = await readRootConfigTextFromDisk();
+		const navigationManifestText = await readFileText(rootHandle, 'tentman/navigation-manifest.json')
+			.then((value) => value)
+			.catch(() => null);
 		const rootConfig = (() => {
 			if (!rootConfigText) {
 				return null;
@@ -375,6 +379,7 @@ export function createLocalRepositoryBackend(
 
 		return {
 			rootConfigText,
+			navigationManifestText,
 			contentConfigPaths,
 			blockConfigPaths,
 			pluginEntrypoints

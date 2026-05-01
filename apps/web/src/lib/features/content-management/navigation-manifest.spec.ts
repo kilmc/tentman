@@ -278,6 +278,9 @@ describe('navigation manifest helpers', () => {
 			},
 			collections: {
 				posts: {
+					id: 'posts',
+					label: 'Posts',
+					slug: 'posts',
 					items: ['post-1', 'post-2'],
 					groups: [{ id: 'featured', label: 'Featured', slug: 'featured', items: [] }]
 				}
@@ -359,6 +362,10 @@ describe('navigation manifest helpers', () => {
 			},
 			collections: {
 				'content-posts': {
+					id: 'content-posts',
+					label: 'Posts',
+					slug: 'posts',
+					configId: 'posts',
 					items: ['post-2', 'post-1'],
 					groups: [{ id: 'featured-group', label: 'Featured', slug: 'featured', items: ['post-1'] }]
 				}
@@ -439,6 +446,10 @@ describe('navigation manifest helpers', () => {
 			},
 			collections: {
 				posts: {
+					id: 'posts',
+					label: 'Posts',
+					slug: 'posts',
+					configId: 'posts',
 					items: ['dup', 'hello-world', 'third-post'],
 					groups: [
 						{ id: 'featured', label: 'Featured', slug: 'featured', items: ['hello-world', 'dup'] }
@@ -510,6 +521,9 @@ describe('navigation manifest helpers', () => {
 			},
 			collections: {
 				projects: {
+					id: 'projects',
+					label: 'Projects',
+					slug: 'projects',
 					items: [],
 					groups: [{ id: 'identity', label: 'Identity', slug: 'identity', items: [] }]
 				}

@@ -1,5 +1,6 @@
 import type {
 	NavigationGroupsSelectBlockOptions,
+	NavigationManifestCollection,
 	SelectBlockOption,
 	SelectBlockOptions
 } from '$lib/config/types';
@@ -30,12 +31,39 @@ export function getSelectOptionsFromNavigationGroups(
 	manifest: NavigationManifest | null | undefined,
 	collectionId: string
 ): SelectBlockOption[] {
-	const groups = manifest?.collections?.[collectionId]?.groups ?? [];
+	const groups = getManifestCollectionByReference(manifest, collectionId)?.groups ?? [];
 
 	return groups.map((group) => ({
 		value: group.id,
 		label: group.label || group.id
 	}));
+}
+
+function getManifestCollectionByReference(
+	manifest: NavigationManifest | null | undefined,
+	collectionReference: string
+): NavigationManifestCollection | null {
+	if (!manifest?.collections || !collectionReference.trim()) {
+		return null;
+	}
+
+	const directMatch = manifest.collections[collectionReference];
+	if (directMatch) {
+		return directMatch;
+	}
+
+	for (const [key, collection] of Object.entries(manifest.collections)) {
+		if (
+			key === collectionReference ||
+			collection.configId === collectionReference ||
+			collection.id === collectionReference ||
+			collection.slug === collectionReference
+		) {
+			return collection;
+		}
+	}
+
+	return null;
 }
 
 export function resolveSelectOptions(
@@ -97,12 +125,18 @@ export function addNavigationGroupToManifest(
 							Object.entries(manifest.collections).map(([collectionId, collection]) => [
 								collectionId,
 								{
+									...(collection.id ? { id: collection.id } : {}),
+									...(collection.label ? { label: collection.label } : {}),
+									...(collection.slug ? { slug: collection.slug } : {}),
+									...(collection.href ? { href: collection.href } : {}),
+									...(collection.configId ? { configId: collection.configId } : {}),
 									items: [...collection.items],
 									...(collection.groups
 									? {
 												groups: collection.groups.map((group) => ({
 													id: group.id,
 													...(group.label && { label: group.label }),
+													...(group.slug && { slug: group.slug }),
 													items: [...group.items]
 												}))
 											}
@@ -115,7 +149,15 @@ export function addNavigationGroupToManifest(
 		: { version: 1 };
 
 	const collections = nextManifest.collections ?? {};
-	const collection = collections[input.collection] ?? { items: [] };
+	const resolvedCollectionKey =
+		Object.entries(collections).find(([_key, collection]) => {
+			return (
+				collection.configId === input.collection ||
+				collection.id === input.collection ||
+				collection.slug === input.collection
+			);
+		})?.[0] ?? input.collection;
+	const collection = collections[resolvedCollectionKey] ?? { items: [] };
 	const groups = collection.groups ?? [];
 
 	if (groups.some((group) => group.id === id)) {
@@ -124,7 +166,8 @@ export function addNavigationGroupToManifest(
 
 	nextManifest.collections = {
 		...collections,
-		[input.collection]: {
+		[resolvedCollectionKey]: {
+			...collection,
 			items: [...collection.items],
 			groups: [
 				...groups,

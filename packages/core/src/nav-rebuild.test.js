@@ -43,6 +43,7 @@ test('rebuilds navigation manifest from current configs and content', async () =
 		id: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07',
 		label: 'Blog Posts',
 		slug: 'blog',
+		configId: 'blog',
 		items: [
 			{
 				id: 'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD',
@@ -109,6 +110,7 @@ test('rebuilds config-backed collection groups', async () => {
 	);
 	const blogCollection = manifest.collections.tent_01KQD7Q12YAMHFJ3FWHBQ16Z07;
 
+	assert.equal(blogCollection.configId, 'blog');
 	assert.deepEqual(blogCollection.groups, [
 		{
 			id: 'tent_01KQD7Q131PWFNF90HG24K63ZD',
