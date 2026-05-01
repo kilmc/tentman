@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { createTentmanId, describeTentmanId } from './ids.js';
 import { parseJsonObject, serializeJson } from './json.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
+import { isTentmanGroupBlock, TENTMAN_GROUP_STORAGE_KEY } from './tentman-group.js';
 
 function hasUsableTentmanId(value) {
 	return describeTentmanId(value) === 'valid';
@@ -111,6 +112,36 @@ function addTentmanIdToMarkdownFrontmatter(source, id) {
 	return `---\n${nextLines.join('\n')}${rest}`;
 }
 
+function addMarkdownFrontmatterStringProperty(source, propertyKey, propertyValue) {
+	if (!source.startsWith('---')) {
+		throw new Error('Markdown file is missing frontmatter');
+	}
+
+	const endIndex = source.indexOf('\n---', 3);
+	if (endIndex === -1) {
+		throw new Error('Markdown file has unterminated frontmatter');
+	}
+
+	const frontmatter = source.slice(4, endIndex);
+	const rest = source.slice(endIndex);
+	const lines = frontmatter.split('\n');
+
+	if (lines.some((line) => new RegExp(`^${propertyKey}\\s*:`).test(line))) {
+		return source.replace(new RegExp(`^${propertyKey}\\s*:.*$`, 'm'), `${propertyKey}: '${propertyValue}'`);
+	}
+
+	const anchorIndex =
+		lines.findIndex((line) => /^_tentmanId\s*:/.test(line)) !== -1
+			? lines.findIndex((line) => /^_tentmanId\s*:/.test(line)) + 1
+			: lines.findIndex((line) => /^title\s*:/.test(line)) !== -1
+				? lines.findIndex((line) => /^title\s*:/.test(line)) + 1
+				: 0;
+	const nextLines = [...lines];
+	nextLines.splice(anchorIndex, 0, `${propertyKey}: '${propertyValue}'`);
+
+	return `---\n${nextLines.join('\n')}${rest}`;
+}
+
 async function writeConfigId(project, config, id) {
 	const absolutePath = resolveProjectPath(project.rootDir, config.path);
 	const source = await fs.readFile(absolutePath, 'utf8');
@@ -171,6 +202,23 @@ async function writeDirectoryItemId(project, item, id) {
 	}
 }
 
+async function writeDirectoryItemStringField(project, item, propertyKey, propertyValue) {
+	const relativePath = item.__tentmanSourcePath;
+	if (!relativePath) {
+		throw new Error(`Cannot write item field for ${item.title ?? item.slug ?? 'unknown item'}`);
+	}
+
+	const absolutePath = resolveProjectPath(project.rootDir, relativePath);
+	const source = await fs.readFile(absolutePath, 'utf8');
+	const nextSource = relativePath.endsWith('.json')
+		? replaceOrInsertJsonStringProperty(source, propertyKey, propertyValue, '_tentmanId')
+		: addMarkdownFrontmatterStringProperty(source, propertyKey, propertyValue);
+
+	if (nextSource !== source) {
+		await fs.writeFile(absolutePath, nextSource);
+	}
+}
+
 async function writeFileContentItemIds(project, config, itemIdsByIndex) {
 	if (itemIdsByIndex.size === 0) {
 		return;
@@ -201,6 +249,59 @@ async function writeFileContentItemIds(project, config, itemIdsByIndex) {
 		};
 		await fs.writeFile(contentPath, serializeJson(nextContent));
 	}
+}
+
+async function writeFileContentItemStringFields(project, config, fieldWritesByIndex) {
+	if (fieldWritesByIndex.size === 0) {
+		return;
+	}
+
+	const contentPath = resolveConfigRelativePath(project.rootDir, config.path, config.content.path);
+	const source = await fs.readFile(contentPath, 'utf8');
+	const parsed = JSON.parse(source);
+
+	function applyFields(item, index) {
+		const fieldWrites = fieldWritesByIndex.get(index);
+		if (!fieldWrites) {
+			return item;
+		}
+
+		return Object.entries(fieldWrites).reduce((nextItem, [propertyKey, propertyValue]) => {
+			return insertObjectPropertyAfterKey(nextItem, '_tentmanId', propertyKey, propertyValue);
+		}, item);
+	}
+
+	if (Array.isArray(parsed)) {
+		await fs.writeFile(contentPath, serializeJson(parsed.map(applyFields)));
+		return;
+	}
+
+	if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
+		await fs.writeFile(
+			contentPath,
+			serializeJson({
+				...parsed,
+				items: parsed.items.map(applyFields)
+			})
+		);
+	}
+}
+
+function configHasTentmanGroupBlock(config) {
+	return Array.isArray(config.raw.blocks) && config.raw.blocks.some((block) => isTentmanGroupBlock(block));
+}
+
+function getTentmanGroupIdByLegacyValue(config) {
+	return new Map(
+		config.groups.flatMap((group) =>
+			typeof group.value === 'string' &&
+			group.value.length > 0 &&
+			typeof group._tentmanId === 'string' &&
+			group._tentmanId.length > 0
+				? [[group.value, group._tentmanId]]
+				: []
+		)
+	);
 }
 
 export async function writeMissingTentmanIds(project, options = {}) {
@@ -238,6 +339,14 @@ export async function writeMissingTentmanIds(project, options = {}) {
 
 		const content = project.contentByConfigPath.get(config.path);
 		const fileContentItemIds = new Map();
+		const fileContentItemFieldWrites = new Map();
+		const shouldBackfillGroupIds = configHasTentmanGroupBlock(config);
+		const groupIdByLegacyValue = getTentmanGroupIdByLegacyValue({
+			...config,
+			groups: config.groups.map((group, index) =>
+				groupIdsByIndex.has(index) ? { ...group, _tentmanId: groupIdsByIndex.get(index) } : group
+			)
+		});
 
 		for (const [index, item] of (content?.items ?? []).entries()) {
 			if (hasUsableTentmanId(item._tentmanId)) {
@@ -259,8 +368,50 @@ export async function writeMissingTentmanIds(project, options = {}) {
 			}
 		}
 
+		if (shouldBackfillGroupIds) {
+			for (const [index, item] of (content?.items ?? []).entries()) {
+				if (
+					typeof item[TENTMAN_GROUP_STORAGE_KEY] === 'string' &&
+					item[TENTMAN_GROUP_STORAGE_KEY].length > 0
+				) {
+					continue;
+				}
+
+				const legacyGroupValue =
+					typeof item.group === 'string' && item.group.length > 0 ? item.group : null;
+				const nextGroupId = legacyGroupValue ? groupIdByLegacyValue.get(legacyGroupValue) : null;
+
+				if (!nextGroupId) {
+					continue;
+				}
+
+				changes.push({
+					kind: 'item-group',
+					path: item.__tentmanSourcePath ?? content.path,
+					index,
+					id: nextGroupId
+				});
+
+				if (config.content.mode === 'directory') {
+					await writeDirectoryItemStringField(
+						project,
+						item,
+						TENTMAN_GROUP_STORAGE_KEY,
+						nextGroupId
+					);
+				} else {
+					const sourceIndex = item.__tentmanSourceIndex ?? index;
+					fileContentItemFieldWrites.set(sourceIndex, {
+						...(fileContentItemFieldWrites.get(sourceIndex) ?? {}),
+						[TENTMAN_GROUP_STORAGE_KEY]: nextGroupId
+					});
+				}
+			}
+		}
+
 		if (config.content.mode === 'file') {
 			await writeFileContentItemIds(project, config, fileContentItemIds);
+			await writeFileContentItemStringFields(project, config, fileContentItemFieldWrites);
 		}
 	}
 
@@ -274,6 +425,7 @@ export function summarizeIdWriteChanges(changes) {
 		configs: changes.filter((change) => change.kind === 'config').length,
 		groups: changes.filter((change) => change.kind === 'group').length,
 		items: changes.filter((change) => change.kind === 'item').length,
+		itemGroups: changes.filter((change) => change.kind === 'item-group').length,
 		files: changedFiles.size
 	};
 }

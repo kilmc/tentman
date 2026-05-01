@@ -2,6 +2,8 @@ import { findBlockById, getBlockLabel } from '$lib/config/blocks';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { BlockRegistry } from '$lib/blocks/registry';
 import { DEFAULT_BLOCK_REGISTRY, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
+import { toBlockAdapterUsageFromBlock } from '$lib/blocks/compat';
+import { getBlockStorageKey } from '$lib/config/tentman-group';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export interface ValidationError {
@@ -21,13 +23,14 @@ export function validateFormData(
 	const errors: ValidationError[] = [];
 
 	for (const block of config.blocks) {
-		const value = data[block.id];
+		const storageKey = getBlockStorageKey(block);
+		const value = data[storageKey];
 		const adapter = resolveBlockAdapterForUsage(block, registry);
 
 		if (!adapter && block.collection) {
 			if (!Array.isArray(value)) {
 				errors.push({
-					field: block.id,
+					field: storageKey,
 					message: `${getBlockLabel(block)} must be an array`
 				});
 			}
@@ -38,8 +41,8 @@ export function validateFormData(
 			continue;
 		}
 
-		const fieldErrors = adapter.validate(value, block);
-		errors.push(...fieldErrors.map((message) => ({ field: block.id, message })));
+		const fieldErrors = adapter.validate(value, toBlockAdapterUsageFromBlock(block));
+		errors.push(...fieldErrors.map((message) => ({ field: storageKey, message })));
 	}
 
 	// Validate uniqueness for ID field (if configured)

@@ -1,6 +1,8 @@
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { normalizeFields } from '$lib/config/fields-compat';
 import type { BlockUsage } from '$lib/config/types';
+import { getBlockStorageKey } from '$lib/config/tentman-group';
+import { toBlockAdapterUsageFromBlock } from '$lib/blocks/compat';
 import type { BlockRegistry } from '$lib/blocks/registry';
 import { DEFAULT_BLOCK_REGISTRY, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
 import type { CardFields } from '$lib/features/content-management/item';
@@ -15,11 +17,12 @@ export function buildBlockFormData(
 
 	for (const block of blocks) {
 		const adapter = resolveBlockAdapterForUsage(block, registry);
-		formData[block.id] =
-			initialData[block.id] !== undefined
-				? initialData[block.id]
+		const storageKey = getBlockStorageKey(block);
+		formData[storageKey] =
+			initialData[storageKey] !== undefined
+				? initialData[storageKey]
 				: adapter
-					? adapter.getDefaultValue(block)
+					? adapter.getDefaultValue(toBlockAdapterUsageFromBlock(block))
 					: '';
 	}
 

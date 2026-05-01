@@ -78,17 +78,14 @@ test('rebuilds config-backed collection groups', async () => {
 			{
 				_tentmanId: 'tent_01KQD7Q131PWFNF90HG24K63ZD',
 				label: 'Featured posts',
-				slug: 'featured'
+				value: 'featured'
 			}
 		]
 	};
 	blogConfig.blocks.splice(4, 0, {
-		id: 'group',
-		type: 'select',
+		type: 'tentmanGroup',
 		label: 'Group',
-		options: {
-			source: 'tentman.navigationGroups'
-		}
+		collection: 'blog'
 	});
 	await fs.writeFile(blogConfigPath, `${JSON.stringify(blogConfig, null, '\t')}\n`);
 
@@ -98,7 +95,7 @@ test('rebuilds config-backed collection groups', async () => {
 		postPath,
 		post.replace(
 			"slug: testing-content-workflows\n",
-			"slug: testing-content-workflows\ngroup: featured\n"
+			"slug: testing-content-workflows\n_tentmanGroupId: tent_01KQD7Q131PWFNF90HG24K63ZD\ngroup: featured\n"
 		)
 	);
 
@@ -115,7 +112,7 @@ test('rebuilds config-backed collection groups', async () => {
 		{
 			id: 'tent_01KQD7Q131PWFNF90HG24K63ZD',
 			label: 'Featured posts',
-			slug: 'featured',
+			value: 'featured',
 			items: [
 				{
 					id: 'tent_01KQD7Q12ZHBTXG669982DV00K',

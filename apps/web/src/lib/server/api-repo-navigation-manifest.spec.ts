@@ -260,7 +260,8 @@ describe('POST /api/repo/navigation-manifest', () => {
 				body: JSON.stringify({
 					action: 'add-collection-group',
 					collection: 'projects',
-					id: 'identity',
+					id: 'tent_group_identity',
+					value: 'identity',
 					label: 'Identity'
 				})
 			}),
@@ -286,7 +287,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 				collections: {
 					projects: {
 						items: [],
-						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+						groups: [{ id: 'tent_group_identity', label: 'Identity', value: 'identity', items: [] }]
 					}
 				}
 			},

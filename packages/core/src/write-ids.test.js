@@ -60,6 +60,7 @@ test('writes missing config and collection item ids', async () => {
 		configs: 5,
 		groups: 0,
 		items: 4,
+		itemGroups: 0,
 		files: 9
 	});
 
@@ -94,7 +95,7 @@ test('writes missing collection group ids', async () => {
 		groups: [
 			{
 				label: 'Featured posts',
-				slug: 'featured'
+				value: 'featured'
 			}
 		]
 	};
@@ -110,6 +111,7 @@ test('writes missing collection group ids', async () => {
 		configs: 5,
 		groups: 1,
 		items: 4,
+		itemGroups: 0,
 		files: 9
 	});
 
@@ -141,7 +143,7 @@ test('replaces legacy and malformed ids', async () => {
 		groups: [
 			{
 				label: 'Featured posts',
-				slug: 'featured',
+				value: 'featured',
 				_tentmanId: '550e8400-e29b-41d4-a716-446655440000'
 			}
 		]
@@ -171,6 +173,7 @@ test('replaces legacy and malformed ids', async () => {
 		configs: 5,
 		groups: 1,
 		items: 4,
+		itemGroups: 0,
 		files: 9
 	});
 
@@ -199,4 +202,100 @@ test('replaces legacy and malformed ids', async () => {
 		/title: 'Designing a realistic fixture app'\n_tentmanId: 'tent_01KQD800000000000000000005'/
 	);
 	assert.doesNotMatch(nextPostSource, /_tentmanId: 'designing-a-realistic-fixture'/);
+});
+
+test('backfills _tentmanGroupId from legacy group values without rewriting group', async () => {
+	const projectRoot = await copyFixture();
+	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
+	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	blogConfig.collection = {
+		groups: [
+			{
+				label: 'Featured posts',
+				value: 'featured'
+			}
+		]
+	};
+	blogConfig.blocks.splice(4, 0, {
+		type: 'tentmanGroup',
+		label: 'Group',
+		collection: 'blog'
+	});
+	await fs.writeFile(blogConfigPath, `${JSON.stringify(blogConfig, null, '\t')}\n`);
+
+	const postPath = path.join(projectRoot, 'src/content/posts/testing-content-workflows.md');
+	const postSource = await fs.readFile(postPath, 'utf8');
+	await fs.writeFile(
+		postPath,
+		postSource.replace(
+			"slug: testing-content-workflows\n",
+			"slug: testing-content-workflows\ngroup: featured\n"
+		)
+	);
+
+	const project = await loadTentmanProject(projectRoot);
+	const changes = await writeMissingTentmanIds(project, {
+		generateId: createDeterministicIdGenerator()
+	});
+	const summary = summarizeIdWriteChanges(changes);
+
+	assert.deepEqual(summary, {
+		configs: 5,
+		groups: 1,
+		items: 4,
+		itemGroups: 1,
+		files: 9
+	});
+
+	const nextPostSource = await fs.readFile(postPath, 'utf8');
+	assert.match(nextPostSource, /group: featured/);
+	assert.match(nextPostSource, /_tentmanGroupId: 'tent_01KQD800000000000000000003'/);
+});
+
+test('does not overwrite an existing _tentmanGroupId during backfill', async () => {
+	const projectRoot = await copyFixture();
+	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
+	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	blogConfig.collection = {
+		groups: [
+			{
+				label: 'Featured posts',
+				value: 'featured'
+			}
+		]
+	};
+	blogConfig.blocks.splice(4, 0, {
+		type: 'tentmanGroup',
+		label: 'Group',
+		collection: 'blog'
+	});
+	await fs.writeFile(blogConfigPath, `${JSON.stringify(blogConfig, null, '\t')}\n`);
+
+	const postPath = path.join(projectRoot, 'src/content/posts/testing-content-workflows.md');
+	const postSource = await fs.readFile(postPath, 'utf8');
+	await fs.writeFile(
+		postPath,
+		postSource.replace(
+			"slug: testing-content-workflows\n",
+			"slug: testing-content-workflows\n_tentmanGroupId: 'tent_existing_group'\ngroup: featured\n"
+		)
+	);
+
+	const project = await loadTentmanProject(projectRoot);
+	const changes = await writeMissingTentmanIds(project, {
+		generateId: createDeterministicIdGenerator()
+	});
+	const summary = summarizeIdWriteChanges(changes);
+
+	assert.deepEqual(summary, {
+		configs: 5,
+		groups: 1,
+		items: 4,
+		itemGroups: 0,
+		files: 9
+	});
+
+	const nextPostSource = await fs.readFile(postPath, 'utf8');
+	assert.match(nextPostSource, /_tentmanGroupId: 'tent_existing_group'/);
+	assert.match(nextPostSource, /group: featured/);
 });

@@ -1,16 +1,22 @@
 <script lang="ts">
 	import ChevronDown from 'lucide-svelte/icons/chevron-down';
-	import type { NavigationGroupsSelectBlockOptions, SelectBlockOption } from '$lib/config/types';
-	import { slugifyNavigationGroupLabel } from '$lib/features/content-management/navigation-group-options';
+	import type { SelectBlockOption, TentmanGroupBlockOptions } from '$lib/config/types';
+	import { deriveNavigationGroupValue } from '$lib/features/content-management/navigation-group-options';
+	import { createTentmanId } from '$lib/features/content-management/stable-identity';
 
 	interface Props {
 		label: string;
 		value: string;
 		options?: SelectBlockOption[];
-		sourceOptions?: NavigationGroupsSelectBlockOptions;
+		sourceOptions?: TentmanGroupBlockOptions;
 		required?: boolean;
 		onchange?: () => void;
-		onaddoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
+		onaddoption?: (input: {
+			collection: string;
+			id: string;
+			value: string;
+			label: string;
+		}) => Promise<void>;
 	}
 
 	let {
@@ -44,7 +50,7 @@
 
 	function handleNewLabelInput() {
 		if (!idWasEdited) {
-			newId = slugifyNavigationGroupLabel(newLabel);
+			newId = deriveNavigationGroupValue(newLabel);
 		}
 		addError = '';
 	}
@@ -77,11 +83,13 @@
 		adding = true;
 
 		try {
-			const id = newId.trim();
+			const id = createTentmanId();
+			const optionValue = newId.trim();
 			const optionLabel = newLabel.trim();
 			await onaddoption({
 				collection: sourceOptions.collection,
 				id,
+				value: optionValue,
 				label: optionLabel
 			});
 			value = id;
@@ -150,7 +158,7 @@
 							idWasEdited = true;
 							addError = '';
 						}}
-						placeholder="group-id"
+						placeholder="group-value"
 						class="w-full rounded-md border border-stone-300 bg-white px-3 py-2 font-mono text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
 					/>
 				</label>

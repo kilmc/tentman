@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	addCollectionGroupToConfigSource,
 	addNavigationGroupToManifest,
-	getSelectOptionsFromNavigationGroups,
-	slugifyNavigationGroupLabel
+	deriveNavigationGroupValue,
+	getSelectOptionsFromNavigationGroups
 } from '$lib/features/content-management/navigation-group-options';
 
 describe('navigation group select options', () => {
@@ -16,7 +16,12 @@ describe('navigation group select options', () => {
 						projects: {
 							items: ['project-one'],
 							groups: [
-								{ id: 'identity', label: 'Identity', items: ['project-one'] },
+								{
+									id: 'tent_group_identity',
+									value: 'identity',
+									label: 'Identity',
+									items: ['project-one']
+								},
 								{ id: 'archive', label: '', items: [] }
 							]
 						}
@@ -25,7 +30,7 @@ describe('navigation group select options', () => {
 				'projects'
 			)
 		).toEqual([
-			{ value: 'identity', label: 'Identity' },
+			{ value: 'tent_group_identity', label: 'Identity' },
 			{ value: 'archive', label: 'archive' }
 		]);
 	});
@@ -41,13 +46,20 @@ describe('navigation group select options', () => {
 							slug: 'projects',
 							configId: 'project-collection',
 							items: ['project-one'],
-							groups: [{ id: 'identity', label: 'Identity', items: ['project-one'] }]
+							groups: [
+								{
+									id: 'tent_group_identity',
+									value: 'identity',
+									label: 'Identity',
+									items: ['project-one']
+								}
+							]
 						}
 					}
 				},
 				'project-collection'
 			)
-		).toEqual([{ value: 'identity', label: 'Identity' }]);
+		).toEqual([{ value: 'tent_group_identity', label: 'Identity' }]);
 	});
 
 	it('returns no options when the navigation manifest or collection groups are missing', () => {
@@ -68,13 +80,14 @@ describe('navigation group select options', () => {
 						slug: 'projects',
 						configId: 'project-collection',
 						items: ['one'],
-						groups: [{ id: 'old', label: 'Old', items: ['one'] }]
+						groups: [{ id: 'old', label: 'Old', value: 'old', items: ['one'] }]
 					}
 				}
 			},
 			{
 				collection: 'project-collection',
-				id: 'new-work',
+				id: 'tent_group_new_work',
+				value: 'new-work',
 				label: 'New Work'
 			}
 		);
@@ -85,8 +98,8 @@ describe('navigation group select options', () => {
 			configId: 'project-collection',
 			items: ['one'],
 			groups: [
-				{ id: 'old', label: 'Old', items: ['one'] },
-				{ id: 'new-work', label: 'New Work', items: [] }
+				{ id: 'old', label: 'Old', value: 'old', items: ['one'] },
+				{ id: 'tent_group_new_work', label: 'New Work', value: 'new-work', items: [] }
 			]
 		});
 	});
@@ -95,7 +108,8 @@ describe('navigation group select options', () => {
 		expect(
 			addNavigationGroupToManifest(null, {
 				collection: 'project-collection',
-				id: 'new-work',
+				id: 'tent_group_new_work',
+				value: 'new-work',
 				label: 'New Work'
 			})
 		).toEqual({
@@ -103,13 +117,15 @@ describe('navigation group select options', () => {
 			collections: {
 				'project-collection': {
 					items: [],
-					groups: [{ id: 'new-work', label: 'New Work', items: [] }]
+					groups: [
+						{ id: 'tent_group_new_work', label: 'New Work', value: 'new-work', items: [] }
+					]
 				}
 			}
 		});
 	});
 
-	it('prevents duplicate group ids in the same collection', () => {
+	it('prevents duplicate group values in the same collection', () => {
 		expect(() =>
 			addNavigationGroupToManifest(
 				{
@@ -118,13 +134,16 @@ describe('navigation group select options', () => {
 						tent_01PROJECTS: {
 							configId: 'project-collection',
 							items: [],
-							groups: [{ id: 'identity', label: 'Identity', items: [] }]
+							groups: [
+								{ id: 'tent_group_identity', label: 'Identity', value: 'identity', items: [] }
+							]
 						}
 					}
 				},
 				{
 					collection: 'project-collection',
-					id: 'identity',
+					id: 'tent_group_identity_2',
+					value: 'identity',
 					label: 'Identity again'
 				}
 			)
@@ -138,7 +157,7 @@ describe('navigation group select options', () => {
 				label: 'Projects',
 				collection: {
 					sorting: 'manual',
-					groups: [{ _tentmanId: 'old-group', label: 'Old', slug: 'old' }]
+					groups: [{ _tentmanId: 'old-group', label: 'Old', value: 'old' }]
 				},
 				content: {
 					mode: 'directory',
@@ -149,16 +168,17 @@ describe('navigation group select options', () => {
 			}),
 			{
 				collection: 'projects',
-				id: 'new-work',
+				id: 'tent_group_new_work',
+				value: 'new-work',
 				label: 'New Work'
 			}
 		);
 
-		expect(nextSource).toContain('"slug": "new-work"');
+		expect(nextSource).toContain('"value": "new-work"');
 		expect(nextSource).toContain('"label": "New Work"');
 	});
 
-	it('derives editable group ids from labels', () => {
-		expect(slugifyNavigationGroupLabel('Identity & Motion')).toBe('identity-motion');
+	it('derives editable group values from labels', () => {
+		expect(deriveNavigationGroupValue('Identity & Motion')).toBe('identity-motion');
 	});
 });

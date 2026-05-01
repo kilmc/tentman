@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import { NAVIGATION_MANIFEST_PATH, serializeNavigationManifest } from './manifest.js';
 import { resolveProjectPath } from './paths.js';
+import { isTentmanGroupBlock, TENTMAN_GROUP_STORAGE_KEY } from './tentman-group.js';
 import {
-	getGroupByReference,
 	getPrimaryConfigReference,
 	getPrimaryGroupReference,
 	getPrimaryItemReference
@@ -34,27 +34,25 @@ function buildItemManifestEntry(item, reference) {
 
 function findNavigationGroupField(config) {
 	const blocks = Array.isArray(config.raw.blocks) ? config.raw.blocks : [];
+	const collectionReferences = new Set([config._tentmanId, config.id, config.slug].filter(Boolean));
 	const matchingBlocks = blocks.filter(
-		(block) =>
-			block &&
-			typeof block === 'object' &&
-			!Array.isArray(block) &&
-			typeof block.id === 'string' &&
-			block.type === 'select' &&
-			block.options &&
-			typeof block.options === 'object' &&
-			!Array.isArray(block.options) &&
-			block.options.source === 'tentman.navigationGroups'
+		(block) => isTentmanGroupBlock(block) && collectionReferences.has(block.collection)
 	);
 
-	return matchingBlocks.length === 1 ? matchingBlocks[0].id : null;
+	return matchingBlocks.length === 1 ? TENTMAN_GROUP_STORAGE_KEY : null;
 }
 
 function rebuildCollectionManifest(project, config) {
 	const content = project.contentByConfigPath.get(config.path);
 	const items = content?.items ?? [];
 	const groupField = findNavigationGroupField(config);
-	const groupByReference = getGroupByReference(config.groups);
+	const groupByStableId = new Map(
+		config.groups.flatMap((group) =>
+			typeof group._tentmanId === 'string' && group._tentmanId.length > 0
+				? [[group._tentmanId, group]]
+				: []
+		)
+	);
 	const groupsById = new Map();
 	const ungroupedItems = [];
 
@@ -67,7 +65,7 @@ function rebuildCollectionManifest(project, config) {
 		groupsById.set(groupReference, {
 			id: groupReference,
 			label: group.label,
-			...(group.slug ? { slug: group.slug } : {}),
+			...(group.value ? { value: group.value } : {}),
 			items: []
 		});
 	}
@@ -79,7 +77,7 @@ function rebuildCollectionManifest(project, config) {
 		}
 
 		const groupValue = groupField ? item[groupField] : undefined;
-		const group = typeof groupValue === 'string' ? groupByReference.get(groupValue) : undefined;
+		const group = typeof groupValue === 'string' ? groupByStableId.get(groupValue) : undefined;
 		const groupReference = group ? getPrimaryGroupReference(group) : undefined;
 		const manifestEntry = buildItemManifestEntry(item, itemReference);
 

@@ -11,6 +11,10 @@ import {
 	toJsonFileContent
 } from '$lib/features/content-management/transforms';
 import { resolveConfigPath } from '$lib/utils/validation';
+import {
+	isTentmanGroupBlock,
+	TENTMAN_GROUP_STORAGE_KEY
+} from '$lib/config/tentman-group';
 import { getCollectionGroups, isCollectionManualSortingEnabled } from './config';
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
 import { hasGeneratedTentmanId } from './stable-identity';
@@ -29,7 +33,7 @@ const ROOT_CONFIG_PATH = '.tentman.json';
 export interface NavigationManifestGroup {
 	id: string;
 	label?: string;
-	slug?: string;
+	value?: string;
 	items: string[];
 }
 
@@ -220,7 +224,7 @@ function getConfigReferenceCandidates(config: DiscoveredConfig): string[] {
 }
 
 function getGroupReferenceCandidates(group: CollectionGroupConfig): string[] {
-	return uniqueStrings([group._tentmanId, group.slug]);
+	return uniqueStrings([group._tentmanId, group.value]);
 }
 
 function getItemReferenceCandidates(config: DiscoveredConfig, item: ContentRecord): string[] {
@@ -315,7 +319,7 @@ function cloneManifestCollection(
 					groups: collection.groups.map((group) => ({
 						id: group.id,
 						...(group.label ? { label: group.label } : {}),
-						...(group.slug ? { slug: group.slug } : {}),
+						...(group.value ? { value: group.value } : {}),
 						items: [...group.items]
 					}))
 				}
@@ -407,14 +411,14 @@ function parseNavigationManifestCollection(
 				);
 			}
 
-			if (group.slug !== undefined && (typeof group.slug !== 'string' || group.slug.length === 0)) {
-				throw new Error(`${context}.groups[${index}].slug must be a non-empty string when present`);
+			if (group.value !== undefined && (typeof group.value !== 'string' || group.value.length === 0)) {
+				throw new Error(`${context}.groups[${index}].value must be a non-empty string when present`);
 			}
 
 			return {
 				id: group.id,
 				...(group.label ? { label: group.label } : {}),
-				...(group.slug ? { slug: group.slug } : {}),
+				...(group.value ? { value: group.value } : {}),
 				items: readStringArray(group.items ?? [], `${context}.groups[${index}].items`)
 			};
 		})
@@ -683,15 +687,8 @@ function getCollectionGroupFieldIds(blocks: BlockUsage[], collectionIds: Set<str
 			continue;
 		}
 
-		const options = block.options;
-		if (
-			block.type === 'select' &&
-			options &&
-			!Array.isArray(options) &&
-			options.source === 'tentman.navigationGroups' &&
-			collectionIds.has(options.collection)
-		) {
-			matches.push(block.id);
+		if (isTentmanGroupBlock(block) && collectionIds.has(block.collection)) {
+			matches.push(TENTMAN_GROUP_STORAGE_KEY);
 		}
 	}
 
@@ -712,12 +709,12 @@ export function detectCollectionGroupField(config: DiscoveredConfig): string | n
 
 	if (matches.length === 0) {
 		throw new Error(
-			`Cannot move ${config.config.label} items between groups because no select field uses options.source "tentman.navigationGroups" for this collection.`
+			`Cannot move ${config.config.label} items between groups because no tentmanGroup block targets this collection.`
 		);
 	}
 
 	throw new Error(
-		`Cannot move ${config.config.label} items between groups because multiple select fields use options.source "tentman.navigationGroups" for this collection.`
+		`Cannot move ${config.config.label} items between groups because multiple tentmanGroup blocks target this collection.`
 	);
 }
 
@@ -868,7 +865,7 @@ function toManifestGroups(
 			{
 				id: group._tentmanId,
 				label: group.label,
-				...(group.slug ? { slug: group.slug } : {}),
+				...(group.value ? { value: group.value } : {}),
 				items: [...(draftGroups.get(group._tentmanId)?.items ?? [])]
 			}
 		];
@@ -1053,7 +1050,7 @@ function reconcileGroupIdentity(
 		}
 
 		const referencedEntries = entries.filter(({ group }) =>
-			hasNavigationReference(references, [group.slug])
+			hasNavigationReference(references, [group.value])
 		);
 		duplicateWinners.set(groupId, (referencedEntries[0] ?? entries[0]).index);
 	}
@@ -1074,7 +1071,7 @@ function reconcileGroupIdentity(
 			!usedIds.has(currentId);
 		const nextId = keepsCurrentId
 			? getUniqueIdFromBase(currentId, usedIds)
-			: getUniqueIdFromBase(group.slug ?? group.label.toLowerCase().replace(/\s+/g, '-'), usedIds);
+			: getUniqueIdFromBase(group.value ?? group.label.toLowerCase().replace(/\s+/g, '-'), usedIds);
 		const nextGroup: CollectionGroupConfig =
 			group._tentmanId === nextId
 				? group
@@ -1098,16 +1095,16 @@ function reconcileGroupIdentity(
 			continue;
 		}
 
-		const nextId = getUniqueIdFromBase(manifestGroup.id || manifestGroup.slug || 'group', usedIds);
+		const nextId = getUniqueIdFromBase(manifestGroup.id || manifestGroup.value || 'group', usedIds);
 		const nextGroup: CollectionGroupConfig = {
 			_tentmanId: nextId,
 			label: manifestGroup.label ?? manifestGroup.id,
-			...(manifestGroup.slug ? { slug: manifestGroup.slug } : { slug: manifestGroup.id })
+			value: manifestGroup.value ?? manifestGroup.id
 		};
 		groups.push(nextGroup);
 		setRefMapValue(refMap, manifestGroup.id, nextId);
-		if (manifestGroup.slug) {
-			setRefMapValue(refMap, manifestGroup.slug, nextId);
+		if (manifestGroup.value) {
+			setRefMapValue(refMap, manifestGroup.value, nextId);
 		}
 		changed = true;
 	}
@@ -1274,7 +1271,7 @@ export async function buildNavigationManifestFromRepository(
 												{
 													id: group._tentmanId,
 													label: group.label,
-													...(group.slug ? { slug: group.slug } : {}),
+													...(group.value ? { value: group.value } : {}),
 													items: orderByManifestReferences(
 														(manifestCollection?.groups ?? [])
 															.filter(

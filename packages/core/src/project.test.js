@@ -43,6 +43,29 @@ test('doctors the fixture without manifest or path errors', async () => {
 	assert.deepEqual(diagnostics, []);
 });
 
+test('doctor accepts newer built-in block types', async () => {
+	const projectRoot = await copyFixture();
+	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
+	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+
+	blogConfig.blocks.push({ id: 'published', type: 'toggle', label: 'Published' });
+	blogConfig.blocks.push({
+		type: 'tentmanGroup',
+		label: 'Group',
+		collection: 'blog',
+		addOption: true
+	});
+	await fs.writeFile(blogConfigPath, serializeJson(blogConfig));
+
+	const project = await loadTentmanProject(projectRoot);
+	const diagnostics = await doctorTentmanProject(project);
+
+	assert.equal(
+		diagnostics.filter((diagnostic) => diagnostic.code === 'blocks.unresolved').length,
+		0
+	);
+});
+
 test('reports the migrated fixture ids as clean', async () => {
 	const project = await loadTentmanProject(testAppRoot);
 	const diagnostics = checkTentmanIds(project);

@@ -131,7 +131,12 @@
 		applyRemoteData();
 	});
 
-	async function handleAddSelectOption(input: { collection: string; id: string; label: string }) {
+	async function handleAddSelectOption(input: {
+		collection: string;
+		id: string;
+		value: string;
+		label: string;
+	}) {
 		if (isLocalMode) {
 			const repoState = get(localRepo);
 			if (!repoState.backend) {

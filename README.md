@@ -137,8 +137,77 @@ Useful root fields:
 - `local.previewUrl`: preview link shown in local mode
 - `netlify.siteName`: enables Netlify preview links for draft branches
 - `blockPackages`: package-distributed blocks in GitHub-backed/server mode
+- `statePresets`: shared state case definitions that content configs can reuse by preset name
 
 `blockPackages` is not supported in local browser-backed mode yet.
+
+### Shared State Badges
+
+Tentman content can define optional state badges for navigation, headers, and cards.
+
+- Use top-level `state` for the content config itself
+- Use `collection.state` for items inside a collection
+- Use root `statePresets` when multiple configs share the same cases
+
+Example root preset:
+
+```json
+{
+	"statePresets": {
+		"publication": {
+			"cases": [
+				{ "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
+			]
+		}
+	}
+}
+```
+
+Example singleton page state:
+
+```json
+{
+	"type": "content",
+	"label": "About Page",
+	"state": {
+		"blockId": "published",
+		"preset": "publication"
+	},
+	"content": {
+		"mode": "file",
+		"path": "../../src/content/pages/about.json"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title" },
+		{ "id": "published", "type": "toggle", "label": "Published" }
+	]
+}
+```
+
+Example collection item state:
+
+```json
+{
+	"type": "content",
+	"label": "Blog Posts",
+	"itemLabel": "Blog Post",
+	"collection": {
+		"state": {
+			"blockId": "published",
+			"preset": "publication"
+		}
+	},
+	"content": {
+		"mode": "directory",
+		"path": "../../src/content/posts",
+		"template": "../templates/post.md"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title" },
+		{ "id": "published", "type": "toggle", "label": "Published" }
+	]
+}
+```
 
 ### Repo-Local Markdown Plugins
 
@@ -284,7 +353,7 @@ needs `idField`.
 				{
 					"id": "tent_01JC...",
 					"label": "Featured posts",
-					"slug": "featured",
+					"value": "featured",
 					"items": [{ "id": "tent_01JA...", "label": "Testing content workflows" }]
 				}
 			]
@@ -388,6 +457,7 @@ Built-in block types:
 - `toggle`
 - `image`
 - `select`
+- `tentmanGroup`
 
 Use `toggle` for on/off settings like `published`. It stores a boolean value and renders as a
 switch in the editor. Existing `boolean` fields remain supported.
@@ -404,30 +474,27 @@ Common block fields:
 - `minLength`
 - `maxLength`
 - `options` for `select` fields; supports static choices like `["stack", "inline"]` or
-  `[{ "value": "stack", "label": "Stack" }]`, plus Tentman-owned navigation group choices:
+  `[{ "value": "stack", "label": "Stack" }]`
+
+Tentman-owned collection grouping uses a dedicated block:
 
 ```json
 {
-	"id": "group",
-	"type": "select",
+	"type": "tentmanGroup",
 	"label": "Group",
 	"required": true,
-	"options": {
-		"source": "tentman.navigationGroups",
-		"collection": "projects",
-		"addOption": true
-	}
+	"collection": "projects",
+	"addOption": true
 }
 ```
 
-For `source: "tentman.navigationGroups"`, Tentman reads groups from
-`tentman/navigation-manifest.json` for the collection config identified by `options.collection`.
-Use the content config `id` for that value. Tentman stores the selected group `id` in the content item, and
-displays each group `label` with an `id` fallback. `addOption: true` lets authors add a new group
-inline; Tentman creates or updates the manifest group as `{ "id", "label", "items": [] }`.
-Generic JSON-backed select option sources are not implemented yet. Saving a content item stores
-only the selected group id; Tentman does not yet automatically move existing item ids between
-manifest group `items` arrays when this field changes.
+`tentmanGroup` reads groups from `collection.groups` and the navigation manifest for the collection
+identified by `collection`. Tentman stores the selected group stable id in
+`_tentmanGroupId`, displays each group `label` with an `id` fallback, and carries the
+developer-facing group `value` in the config and manifest. `addOption: true` lets authors add a
+new group inline; Tentman creates or updates the manifest group as
+`{ "id", "label", "value", "items": [] }`. Existing user content fields like `group` are left
+alone and are no longer Tentman’s canonical group-membership storage.
 
 - `assetsDir`
 - `generated`

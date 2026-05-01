@@ -13,6 +13,7 @@ import {
 import type { BlockAdapter } from '$lib/blocks/adapters/types';
 import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 import type { BlockUsage } from '$lib/config/types';
+import { isTentmanGroupBlock } from '$lib/config/tentman-group';
 import type { RepositoryBackend } from '$lib/repository/types';
 
 export interface LocalBlockDefinition {
@@ -86,6 +87,10 @@ export function resolveBlockAdapterForUsage(
 		});
 	}
 
+	if (isTentmanGroupBlock(usage)) {
+		return registry.getAdapter('select');
+	}
+
 	return registry.getAdapter(usage.type);
 }
 
@@ -107,7 +112,8 @@ export function getStructuredBlocksForUsage(
 
 	return {
 		blocks: entry.config.blocks,
-		collection: usage.collection ?? entry.config.collection ?? false
+		collection:
+			typeof usage.collection === 'boolean' ? usage.collection : entry.config.collection ?? false
 	};
 }
 

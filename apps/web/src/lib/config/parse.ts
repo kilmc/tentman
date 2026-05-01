@@ -6,11 +6,15 @@ import type {
 	ContentConfig,
 	DirectoryContentMode,
 	FileContentMode,
-	NavigationGroupsSelectBlockOptions,
 	PrimitiveBlockType,
 	RootConfig,
-	SelectBlockOptions
+	StateCase,
+	StateConfig,
+	StatePreset,
+	SelectBlockOptions,
+	TentmanGroupBlockOptions
 } from '$lib/config/types';
+import { TENTMAN_GROUP_BLOCK_ID } from '$lib/config/tentman-group';
 
 export interface ParsedContentConfig extends ContentConfig {
 	content: FileContentMode | DirectoryContentMode;
@@ -152,29 +156,29 @@ function readStaticSelectOptions(candidate: unknown, context: string): SelectBlo
 	});
 }
 
-function readNavigationGroupsSelectOptions(
+function readTentmanGroupBlockOptions(
 	value: Record<string, unknown>,
 	context: string
-): NavigationGroupsSelectBlockOptions {
-	const source = value.source;
-
-	if (source !== 'tentman.navigationGroups') {
-		throw new Error(`${context}.options.source must be "tentman.navigationGroups"`);
-	}
-
-	const collection = readRequiredString(value, 'collection', `${context}.options`);
-	const addOption = readOptionalBoolean(value, 'addOption', `${context}.options`);
-	const supportedKeys = new Set(['source', 'collection', 'addOption']);
+): TentmanGroupBlockOptions {
+	const collection = readRequiredString(value, 'collection', context);
+	const addOption = readOptionalBoolean(value, 'addOption', context);
+	const supportedKeys = new Set([
+		'type',
+		'label',
+		'required',
+		'show',
+		'collection',
+		'addOption'
+	]);
 	const unsupportedKeys = Object.keys(value).filter((key) => !supportedKeys.has(key));
 
 	if (unsupportedKeys.length > 0) {
 		throw new Error(
-			`${context}.options has unsupported key${unsupportedKeys.length === 1 ? '' : 's'}: ${unsupportedKeys.join(', ')}`
+			`${context} has unsupported key${unsupportedKeys.length === 1 ? '' : 's'}: ${unsupportedKeys.join(', ')}`
 		);
 	}
 
 	return {
-		source,
 		collection,
 		...(addOption !== undefined && { addOption })
 	};
@@ -187,12 +191,15 @@ function readSelectOptions(value: Record<string, unknown>, context: string): Sel
 		return readStaticSelectOptions(candidate, context);
 	}
 
-	assertObject(
-		candidate,
-		`${context}.options must be a non-empty array or a sourced options object`
-	);
+	assertObject(candidate, `${context}.options must be a non-empty array`);
 
-	return readNavigationGroupsSelectOptions(candidate, context);
+	if (candidate.source === 'tentman.navigationGroups') {
+		throw new Error(
+			`${context} uses removed Tentman navigation group select syntax. Replace it with type "tentmanGroup".`
+		);
+	}
+
+	throw new Error(`${context}.options must be a non-empty array`);
 }
 
 function getLabelFromOptionValue(value: string): string {
@@ -221,8 +228,8 @@ function parseCollectionGroupConfig(input: unknown, context: string): Collection
 			_tentmanId: readOptionalString(input, '_tentmanId', context)
 		}),
 		label: readRequiredString(input, 'label', context),
-		...(readOptionalString(input, 'slug', context) && {
-			slug: readOptionalString(input, 'slug', context)
+		...(readOptionalString(input, 'value', context) && {
+			value: readOptionalString(input, 'value', context)
 		})
 	};
 }
@@ -251,17 +258,194 @@ function parseCollectionBehaviorConfig(
 		throw new Error(`${context}.groups must be an array when present`);
 	}
 
+	const state = input.state;
+
 	return {
 		...(sorting === 'manual' ? { sorting } : {}),
-		...(groups ? { groups: groups.map((group, index) => parseCollectionGroupConfig(group, `${context}.groups[${index}]`)) } : {})
+		...(groups
+			? { groups: groups.map((group, index) => parseCollectionGroupConfig(group, `${context}.groups[${index}]`)) }
+			: {}),
+		...(state !== undefined ? { state: parseStateConfig(state, `${context}.state`) } : {})
 	};
+}
+
+function parseStateCase(input: unknown, context: string): StateCase {
+	assertObject(input, `${context} must be an object`);
+
+	const value = input.value;
+	if (
+		value !== null &&
+		typeof value !== 'string' &&
+		typeof value !== 'number' &&
+		typeof value !== 'boolean'
+	) {
+		throw new Error(`${context}.value must be a string, number, boolean, or null`);
+	}
+
+	const variant = input.variant;
+	if (
+		variant !== undefined &&
+		variant !== 'muted' &&
+		variant !== 'accent' &&
+		variant !== 'success' &&
+		variant !== 'warning' &&
+		variant !== 'danger'
+	) {
+		throw new Error(
+			`${context}.variant must be "muted", "accent", "success", "warning", or "danger"`
+		);
+	}
+
+	return {
+		value: value as StateCase['value'],
+		label: readRequiredString(input, 'label', context),
+		...(variant !== undefined ? { variant } : {}),
+		...(readOptionalString(input, 'icon', context) && {
+			icon: readOptionalString(input, 'icon', context)
+		})
+	};
+}
+
+function parseStateCases(input: unknown, context: string): StateCase[] {
+	if (!Array.isArray(input) || input.length === 0) {
+		throw new Error(`${context} must be a non-empty array`);
+	}
+
+	return input.map((item, index) => parseStateCase(item, `${context}[${index}]`));
+}
+
+function parseStateConfig(input: unknown, context: string): StateConfig {
+	assertObject(input, `${context} must be an object`);
+
+	const preset = readOptionalString(input, 'preset', context);
+	const cases = input.cases !== undefined ? parseStateCases(input.cases, `${context}.cases`) : undefined;
+	const visibility = input.visibility;
+
+	if (!preset && !cases) {
+		throw new Error(`${context} must define either ${context}.preset or ${context}.cases`);
+	}
+
+	if (visibility !== undefined) {
+		assertObject(visibility, `${context}.visibility must be an object`);
+
+		for (const key of ['navigation', 'header', 'card'] as const) {
+			const value = visibility[key];
+			if (value !== undefined && typeof value !== 'boolean') {
+				throw new Error(`${context}.visibility.${key} must be a boolean`);
+			}
+		}
+	}
+
+	return {
+		blockId: readRequiredString(input, 'blockId', context),
+		...(preset ? { preset } : {}),
+		...(cases ? { cases } : {}),
+		...(visibility !== undefined
+			? {
+					visibility: {
+						...(readOptionalBoolean(visibility, 'navigation', `${context}.visibility`) !==
+						undefined
+							? {
+									navigation: readOptionalBoolean(
+										visibility,
+										'navigation',
+										`${context}.visibility`
+									)!
+								}
+							: {}),
+						...(readOptionalBoolean(visibility, 'header', `${context}.visibility`) !== undefined
+							? {
+									header: readOptionalBoolean(visibility, 'header', `${context}.visibility`)!
+								}
+							: {}),
+						...(readOptionalBoolean(visibility, 'card', `${context}.visibility`) !== undefined
+							? { card: readOptionalBoolean(visibility, 'card', `${context}.visibility`)! }
+							: {})
+					}
+				}
+			: {})
+	};
+}
+
+function parseStatePresets(input: unknown, context: string): Record<string, StatePreset> {
+	assertObject(input, `${context} must be an object`);
+
+	return Object.fromEntries(
+		Object.entries(input).map(([key, value]) => {
+			assertObject(value, `${context}.${key} must be an object`);
+			return [key, { cases: parseStateCases(value.cases, `${context}.${key}.cases`) }];
+		})
+	);
 }
 
 function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	assertObject(input, `${context} must be an object`);
 
-	const id = readRequiredString(input, 'id', context);
 	const type = readRequiredString(input, 'type', context);
+	if (type === 'tentmanGroup') {
+		if ('id' in input && input.id !== undefined) {
+			throw new Error(`${context}.id is not supported on tentmanGroup blocks`);
+		}
+
+		if ('options' in input && input.options !== undefined) {
+			throw new Error(`${context}.options is not supported on tentmanGroup blocks`);
+		}
+
+		const label = readOptionalString(input, 'label', context);
+		const required = readOptionalBoolean(input, 'required', context);
+		const itemLabel = readOptionalString(input, 'itemLabel', context);
+		const assetsDir = readOptionalString(input, 'assetsDir', context);
+		const plugins = readOptionalStringArray(input, 'plugins', context);
+		const generated = readOptionalBoolean(input, 'generated', context);
+		const show = input.show;
+		const minLength = input.minLength;
+		const maxLength = input.maxLength;
+		const options = readTentmanGroupBlockOptions(input, context);
+
+		if (plugins) {
+			throw new Error(`${context}.plugins is not supported on tentmanGroup blocks`);
+		}
+
+		if (itemLabel) {
+			throw new Error(`${context}.itemLabel is not supported on tentmanGroup blocks`);
+		}
+
+		if (assetsDir) {
+			throw new Error(`${context}.assetsDir is not supported on tentmanGroup blocks`);
+		}
+
+		if (generated !== undefined) {
+			throw new Error(`${context}.generated is not supported on tentmanGroup blocks`);
+		}
+
+		if (show !== undefined && show !== 'primary' && show !== 'secondary') {
+			throw new Error(`${context}.show must be "primary" or "secondary"`);
+		}
+
+		if (minLength !== undefined) {
+			throw new Error(`${context}.minLength is not supported on tentmanGroup blocks`);
+		}
+
+		if (maxLength !== undefined) {
+			throw new Error(`${context}.maxLength is not supported on tentmanGroup blocks`);
+		}
+
+		if ('blocks' in input && input.blocks !== undefined) {
+			throw new Error(`${context}.blocks is not supported on tentmanGroup blocks`);
+		}
+
+		return {
+			id: TENTMAN_GROUP_BLOCK_ID,
+			type: 'tentmanGroup',
+			...(label && { label }),
+			...(required !== undefined && { required }),
+			collection: options.collection,
+			...(options.addOption !== undefined && { addOption: options.addOption }),
+			...(show && { show })
+		};
+	}
+
+	const id = readRequiredString(input, 'id', context);
 	const label = readOptionalString(input, 'label', context);
 	const required = readOptionalBoolean(input, 'required', context);
 	const collection = readOptionalBoolean(input, 'collection', context);
@@ -367,6 +551,7 @@ function parseContentMode(input: unknown, context: string): FileContentMode | Di
 function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig {
 	const collection = parseCollectionBehaviorConfig(input.collection, 'config.collection');
 	const content = parseContentMode(input.content, 'config.content');
+	const state = input.state !== undefined ? parseStateConfig(input.state, 'config.state') : undefined;
 
 	const config: ParsedContentConfig = {
 		type: 'content',
@@ -384,6 +569,7 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 		...(readOptionalString(input, 'idField', 'config') && {
 			idField: readOptionalString(input, 'idField', 'config')
 		}),
+		...(state !== undefined ? { state } : {}),
 		content,
 		blocks: readBlocks(input, 'config')
 	};
@@ -697,6 +883,7 @@ export function parseRootConfig(content: string): RootConfig {
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
 	const debugConfig = parsed.debug;
 	const contentConfig = parsed.content;
+	const statePresets = parsed.statePresets;
 
 	if (siteName) {
 		rootConfig.siteName = siteName;
@@ -745,6 +932,10 @@ export function parseRootConfig(content: string): RootConfig {
 		rootConfig.content = {
 			...(contentConfig.sorting === 'manual' ? { sorting: 'manual' as const } : {})
 		};
+	}
+
+	if (statePresets !== undefined) {
+		rootConfig.statePresets = parseStatePresets(statePresets, 'root.statePresets');
 	}
 
 	if (netlify && typeof netlify === 'object') {

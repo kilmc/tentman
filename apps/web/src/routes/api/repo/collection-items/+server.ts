@@ -26,9 +26,10 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
 
 	try {
-		const [configs, navigationManifest] = await Promise.all([
+		const [configs, navigationManifest, rootConfig] = await Promise.all([
 			getCachedConfigs(backend),
-			loadNavigationManifestState(backend)
+			loadNavigationManifestState(backend),
+			backend.readRootConfig()
 		]);
 		const discoveredConfig = configs.find((config) => config.slug === slug);
 
@@ -48,7 +49,12 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		);
 
 		return json(
-			getOrderedCollectionNavigation(discoveredConfig.config, content, navigationManifest.manifest)
+			getOrderedCollectionNavigation(
+				discoveredConfig.config,
+				content,
+				navigationManifest.manifest,
+				rootConfig
+			)
 		);
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);

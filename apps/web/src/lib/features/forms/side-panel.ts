@@ -29,7 +29,12 @@ export interface FormSidePanelState {
 	imagePath?: string;
 	blockRegistry: BlockRegistry;
 	navigationManifest?: NavigationManifest | null;
-	onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
+	onaddselectoption?: (input: {
+		collection: string;
+		id: string;
+		value: string;
+		label: string;
+	}) => Promise<void>;
 	isDirty: boolean;
 	submitError?: string;
 	hasParentPanel: boolean;

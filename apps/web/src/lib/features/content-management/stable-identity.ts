@@ -109,7 +109,7 @@ function normalizeRuntimeCollectionGroups(config: ParsedContentConfig): ParsedCo
 		changed = true;
 		return withTentmanId(
 			group,
-			createUniqueTentmanId(group.slug ?? group.label ?? `group-${index + 1}`, usedIds),
+			createUniqueTentmanId(group.value ?? group.label ?? `group-${index + 1}`, usedIds),
 			{ generated: true }
 		);
 	});

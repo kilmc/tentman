@@ -52,7 +52,7 @@ describe('parseConfigFile', () => {
 			"collection": {
 				"sorting": "manual",
 				"groups": [
-					{ "_tentmanId": "identity", "label": "Identity", "slug": "identity" }
+					{ "_tentmanId": "identity", "label": "Identity", "value": "identity" }
 				]
 			},
 			"idField": "slug",
@@ -74,7 +74,56 @@ describe('parseConfigFile', () => {
 		expect(parsed._tentmanId).toBe('projects');
 		expect(parsed.collection).toEqual({
 			sorting: 'manual',
-			groups: [{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' }]
+			groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
+		});
+	});
+
+	it('parses config and collection state metadata', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"itemLabel": "Post",
+			"state": {
+				"blockId": "published",
+				"preset": "publication",
+				"visibility": {
+					"card": false
+				}
+			},
+			"collection": {
+				"sorting": "manual",
+				"state": {
+					"blockId": "published",
+					"cases": [
+						{ "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
+					]
+				}
+			},
+			"content": {
+				"mode": "directory",
+				"path": "./posts",
+				"template": "./post.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" },
+				{ "id": "published", "type": "toggle", "label": "Published" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed.state).toEqual({
+			blockId: 'published',
+			preset: 'publication',
+			visibility: {
+				card: false
+			}
+		});
+		expect(parsed.collection.state).toEqual({
+			blockId: 'published',
+			cases: [{ value: false, label: 'Draft', variant: 'warning', icon: 'file-pen' }]
 		});
 	});
 
@@ -86,7 +135,7 @@ describe('parseConfigFile', () => {
 			"collection": {
 				"sorting": "manual",
 				"groups": [
-					{ "label": "Identity", "slug": "identity" }
+					{ "label": "Identity", "value": "identity" }
 				]
 			},
 			"content": {
@@ -105,7 +154,7 @@ describe('parseConfigFile', () => {
 
 		expect(parsed.collection).toEqual({
 			sorting: 'manual',
-			groups: [{ label: 'Identity', slug: 'identity' }]
+			groups: [{ label: 'Identity', value: 'identity' }]
 		});
 	});
 
@@ -218,7 +267,7 @@ describe('parseConfigFile', () => {
 		});
 	});
 
-	it('parses select blocks with Tentman navigation group sourced options', () => {
+	it('parses tentmanGroup blocks', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",
 			"label": "Projects",
@@ -233,15 +282,11 @@ describe('parseConfigFile', () => {
 			},
 			"blocks": [
 				{
-					"id": "group",
-					"type": "select",
+					"type": "tentmanGroup",
 					"label": "Group",
 					"required": true,
-					"options": {
-						"source": "tentman.navigationGroups",
-						"collection": "projects",
-						"addOption": true
-					}
+					"collection": "projects",
+					"addOption": true
 				}
 			]
 		}`);
@@ -251,17 +296,52 @@ describe('parseConfigFile', () => {
 		}
 
 		expect(parsed.blocks[0]).toMatchObject({
-			id: 'group',
-			type: 'select',
-			options: {
-				source: 'tentman.navigationGroups',
-				collection: 'projects',
-				addOption: true
-			}
+			id: 'tentmanGroup',
+			type: 'tentmanGroup',
+			collection: 'projects',
+			addOption: true
 		});
 	});
 
-	it('rejects unsupported sourced select option objects', () => {
+	it('rejects ids on tentmanGroup blocks', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Projects",
+				"content": {
+					"mode": "file",
+					"path": "./projects.json"
+				},
+				"blocks": [
+					{
+						"id": "group",
+						"type": "tentmanGroup",
+						"collection": "projects"
+					}
+				]
+			}`)
+		).toThrow(/id is not supported on tentmanGroup blocks/);
+	});
+
+	it('rejects missing collection on tentmanGroup blocks', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Projects",
+				"content": {
+					"mode": "file",
+					"path": "./projects.json"
+				},
+				"blocks": [
+					{
+						"type": "tentmanGroup"
+					}
+				]
+			}`)
+		).toThrow(/collection is required/);
+	});
+
+	it('rejects removed Tentman navigation group select syntax', () => {
 		expect(() =>
 			parseConfigFile(`{
 				"type": "content",
@@ -275,13 +355,13 @@ describe('parseConfigFile', () => {
 						"id": "group",
 						"type": "select",
 						"options": {
-							"source": "json",
-							"path": "./groups.json"
+							"source": "tentman.navigationGroups",
+							"collection": "projects"
 						}
 					}
 				]
 			}`)
-		).toThrow(/options\.source must be "tentman\.navigationGroups"/);
+		).toThrow(/Replace it with type "tentmanGroup"/);
 	});
 
 	it('rejects invalid select option shapes', () => {
@@ -445,6 +525,28 @@ describe('parseRootConfig', () => {
 		).toEqual({
 			content: {
 				sorting: 'manual'
+			}
+		});
+	});
+
+	it('parses shared state presets', () => {
+		expect(
+			parseRootConfig(`{
+				"statePresets": {
+					"publication": {
+						"cases": [
+							{ "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
+						]
+					}
+				}
+			}`)
+		).toEqual({
+			statePresets: {
+				publication: {
+					cases: [
+						{ value: false, label: 'Draft', variant: 'warning', icon: 'file-pen' }
+					]
+				}
 			}
 		});
 	});

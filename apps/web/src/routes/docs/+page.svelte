@@ -97,6 +97,14 @@
 				'When enabled, Tentman writes stable `_tentmanId` values into top-level content configs as needed and uses them in the navigation manifest.'
 		},
 		{
+			field: 'statePresets',
+			required: 'No',
+			type: 'Record<string, StatePreset>',
+			purpose: 'Define reusable state cases that content configs can reference by name.',
+			notes:
+				'Useful when multiple configs share the same labels and variants, such as Draft or Archived.'
+		},
+		{
 			field: 'netlify.siteName',
 			required: 'No',
 			type: 'string',
@@ -160,10 +168,18 @@
 		{
 			field: 'collection',
 			required: 'No',
-			type: 'boolean | { sorting?: "manual"; groups?: CollectionGroupConfig[] }',
+			type: 'boolean | { sorting?: "manual"; groups?: CollectionGroupConfig[]; state?: StateConfig }',
 			purpose: 'Marks the config as multi-item content.',
 			notes:
 				'Use `true` for the simple form, or the object form to opt into manual ordering and config-backed groups. Directory mode defaults to collection behavior.'
+		},
+		{
+			field: 'state',
+			required: 'No',
+			type: 'StateConfig',
+			purpose: 'Defines state badges for this config itself.',
+			notes:
+				'Best for singleton pages or single-document content where the state comes from the top-level content record.'
 		},
 		{
 			field: 'itemLabel',
@@ -280,10 +296,26 @@
 		{
 			field: 'options',
 			required: 'Select only',
-			type: 'string[] | { value: string, label: string }[] | tentman.navigationGroups source',
+			type: 'string[] | { value: string, label: string }[]',
 			purpose: 'Configures choices for select fields.',
 			notes:
-				'Static options stay local to the field. Tentman navigation group sources read from the manual navigation manifest. Generic JSON-backed sources are not implemented yet.'
+				'Static options stay local to the field. Generic JSON-backed sources are not implemented yet.'
+		},
+		{
+			field: 'collection',
+			required: 'tentmanGroup only',
+			type: 'string',
+			purpose: 'Targets the collection whose groups Tentman should manage.',
+			notes:
+				'Used by type "tentmanGroup". Tentman stores the selected stable id in _tentmanGroupId.'
+		},
+		{
+			field: 'addOption',
+			required: 'tentmanGroup only',
+			type: 'boolean',
+			purpose: 'Lets authors create a new Tentman group inline.',
+			notes:
+				'When enabled, Tentman adds the new definition to collection.groups and selects it via _tentmanGroupId.'
 		},
 		{
 			field: 'generated',
@@ -393,6 +425,13 @@
   "assetsDir": "./static/images",
   "pluginsDir": "./tentman/plugins",
   "plugins": ["buy-button"],
+  "statePresets": {
+    "publication": {
+      "cases": [
+        { "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
+      ]
+    }
+  },
   "blockPackages": ["@tentman/blocks-media"],
   "netlify": {
     "siteName": "my-site"
@@ -406,11 +445,18 @@
   "itemLabel": "Blog Post",
   "collection": {
     "sorting": "manual",
+    "state": {
+      "blockId": "published",
+      "preset": "publication",
+      "visibility": {
+        "header": false
+      }
+    },
     "groups": [
       {
         "_tentmanId": "tent_01KQD7Q131PWFNF90HG24K63ZD",
         "label": "Featured posts",
-        "slug": "featured"
+        "value": "featured"
       }
     ]
   },
@@ -428,14 +474,10 @@
     { "id": "layout", "type": "select", "label": "Layout", "options": ["stack", "inline"] },
     { "id": "published", "type": "toggle", "label": "Published", "show": "secondary" },
     {
-      "id": "group",
-      "type": "select",
+      "type": "tentmanGroup",
       "label": "Group",
-      "options": {
-        "source": "tentman.navigationGroups",
-        "collection": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
-        "addOption": true
-      }
+      "collection": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
+      "addOption": true
     },
     { "id": "body", "type": "markdown", "label": "Body", "required": true, "plugins": ["buy-button"] }
   ]
@@ -463,6 +505,12 @@
   "type": "content",
   "label": "About Page",
   "id": "about",
+  "state": {
+    "blockId": "published",
+    "cases": [
+      { "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
+    ]
+  },
   "content": {
     "mode": "file",
     "path": "./src/content/pages/about.json"
@@ -471,6 +519,64 @@
     { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
     { "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
     { "id": "body", "type": "markdown", "label": "Body", "required": true }
+  ]
+}`;
+
+	const statePresetExample = `{
+  "statePresets": {
+    "publication": {
+      "cases": [
+        { "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
+      ]
+    },
+    "releaseType": {
+      "cases": [
+        { "value": "single", "label": "Single", "variant": "accent", "icon": "disc-3" },
+        { "value": "ep", "label": "EP", "variant": "muted", "icon": "album" },
+        { "value": "album", "label": "Album", "variant": "success", "icon": "vinyl" }
+      ]
+    }
+  }
+}`;
+
+	const singletonStateExample = `{
+  "type": "content",
+  "label": "About Page",
+  "state": {
+    "blockId": "published",
+    "preset": "publication",
+    "visibility": {
+      "card": false
+    }
+  },
+  "content": {
+    "mode": "file",
+    "path": "./src/content/pages/about.json"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title", "show": "primary" },
+    { "id": "published", "type": "toggle", "label": "Published" }
+  ]
+}`;
+
+	const collectionStateExample = `{
+  "type": "content",
+  "label": "Blog Posts",
+  "itemLabel": "Blog Post",
+  "collection": {
+    "state": {
+      "blockId": "published",
+      "preset": "publication"
+    }
+  },
+  "content": {
+    "mode": "directory",
+    "path": "./src/content/posts",
+    "template": "./templates/post.md"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title", "show": "primary" },
+    { "id": "published", "type": "toggle", "label": "Published" }
   ]
 }`;
 
@@ -573,7 +679,7 @@ export default {
         {
           "id": "tent_01KQD7Q131PWFNF90HG24K63ZD",
           "label": "Featured posts",
-          "slug": "featured",
+          "value": "featured",
           "items": [
             { "id": "tent_01KQD7Q12ZHBTXG669982DV00K", "label": "Testing content workflows" },
             { "id": "tent_01KQD7Q12ZH61M4XHDTEQ5MV98", "label": "Designing a realistic fixture" }
@@ -729,6 +835,18 @@ export default {
 		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
 			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{rootConfigExample}</code></pre>
 		</div>
+
+		<h3 class="mt-6 text-lg font-semibold text-stone-950">Shared State Presets</h3>
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">statePresets</code> when
+			multiple configs should share the same labels, variants, or icons. A content config still
+			chooses its own <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">blockId</code>,
+			but it can reuse the preset’s cases through
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">preset</code>.
+		</p>
+		<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{statePresetExample}</code></pre>
+		</div>
 	</section>
 
 	<section id="content-configs" class="scroll-mt-24 border-t border-stone-200 py-8">
@@ -743,6 +861,14 @@ export default {
 			for author-facing routes or slugs, and let Tentman add
 			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
 			where it needs stable internal references.
+		</p>
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			State badges are optional. Use top-level
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">state</code> for the config itself,
+			and <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.state</code> for
+			individual items inside a collection. Visibility is on by default, so
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">visibility</code> is mostly for
+			turning a badge off in specific places like navigation, headers, or cards.
 		</p>
 
 		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
@@ -772,6 +898,29 @@ export default {
 
 		<div class="mt-6 overflow-x-auto rounded border border-stone-200 bg-stone-950">
 			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentConfigExample}</code></pre>
+		</div>
+
+		<div class="mt-6 grid gap-6 lg:grid-cols-2">
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">Singleton State</h3>
+				<p class="mt-3 text-sm leading-6 text-stone-600">
+					Use top-level <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">state</code>
+					when the content document itself has a status field such as Published.
+				</p>
+				<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{singletonStateExample}</code></pre>
+				</div>
+			</div>
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">Collection Item State</h3>
+				<p class="mt-3 text-sm leading-6 text-stone-600">
+					Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.state</code>
+					when each item in a collection can have its own state badge, such as Draft posts.
+				</p>
+				<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{collectionStateExample}</code></pre>
+				</div>
+			</div>
 		</div>
 	</section>
 
@@ -1011,14 +1160,10 @@ export default {
 				<li>Missing manifest references are ignored.</li>
 				<li>Grouped collection navigation is supported in the manifest loader.</li>
 				<li>
-					Select fields can source author-facing group options from config-backed collection groups
-					with
-					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
-						>source: "tentman.navigationGroups"</code
-					>. Set
-					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">options.collection</code>
-					to the content config
-					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">id</code>.
+					Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">type: "tentmanGroup"</code>
+					for Tentman-owned collection grouping. Set
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection</code>
+					to the content config id or Tentman id.
 				</li>
 				<li>
 					When
@@ -1030,8 +1175,11 @@ export default {
 					Generic JSON-backed select option sources are intentionally not implemented yet.
 				</li>
 				<li>
-					Saving a content item stores only the selected group id. Changing a field value does not
-					currently move the item between manifest group membership arrays automatically.
+					Saving a <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">tentmanGroup</code>
+					field writes <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanGroupId</code>.
+					Group definitions carry a human-facing
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">label</code> plus a
+					developer-facing <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">value</code>.
 				</li>
 				<li>If no manifest exists, Tentman keeps its discovery-based ordering behavior.</li>
 			</ul>

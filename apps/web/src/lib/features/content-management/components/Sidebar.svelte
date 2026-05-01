@@ -11,12 +11,17 @@
 	import Settings from 'lucide-svelte/icons/settings';
 	import X from 'lucide-svelte/icons/x';
 	import type { DiscoveredConfig } from '$lib/config/discovery';
+	import {
+		getStateBadgeClassName,
+		type ResolvedContentState
+	} from '$lib/features/content-management/state';
 	import type { WorkspaceNavItem } from './workspace-types';
 
 	interface Props {
 		siteName: string;
 		repoLabel?: string | null;
 		configs: DiscoveredConfig[];
+		configStatesBySlug?: Record<string, ResolvedContentState | null>;
 		currentPageSlug?: string | null;
 		isAuthenticated?: boolean;
 		isLocalMode?: boolean;
@@ -42,6 +47,7 @@
 		siteName,
 		repoLabel = null,
 		configs,
+		configStatesBySlug = {},
 		currentPageSlug = null,
 		isAuthenticated = false,
 		isLocalMode = false,
@@ -69,6 +75,13 @@
 		return resolve(
 			config.config.collection ? `/pages/${config.slug}` : `/pages/${config.slug}/edit`
 		);
+	}
+
+	function getConfigLinkLabel(config: DiscoveredConfig) {
+		const state = configStatesBySlug[config.slug];
+		const stateLabel =
+			state && state.visibility.navigation !== false ? `, ${state.label}` : '';
+		return `${config.config.label}${stateLabel}`;
 	}
 </script>
 
@@ -228,10 +241,18 @@
 					{@const isSelected = currentPageSlug === config.slug}
 					<a
 						href={getTopLevelHref(config)}
-						class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm font-semibold"
+						class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm font-semibold"
 						class:tm-nav-link-active={isSelected}
+						aria-label={getConfigLinkLabel(config)}
 					>
 						<span class="truncate">{config.config.label}</span>
+						{#if configStatesBySlug[config.slug] && configStatesBySlug[config.slug]?.visibility.navigation !== false}
+							<span
+								class={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(configStatesBySlug[config.slug]?.variant ?? null)}`}
+							>
+								{configStatesBySlug[config.slug]?.label}
+							</span>
+						{/if}
 						<span
 							class="h-2 w-2 rounded-full bg-transparent ring-1 ring-transparent"
 							aria-hidden="true"

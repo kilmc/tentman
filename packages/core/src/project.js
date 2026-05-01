@@ -136,7 +136,7 @@ function parseContentConfig(source, configPath) {
 			return {
 				_tentmanId: readOptionalString(group, '_tentmanId', `${configPath}.collection.groups[${index}]`),
 				label: readRequiredString(group, 'label', `${configPath}.collection.groups[${index}]`),
-				slug: readOptionalString(group, 'slug', `${configPath}.collection.groups[${index}]`)
+				value: readOptionalString(group, 'value', `${configPath}.collection.groups[${index}]`)
 			};
 		}),
 		raw: input

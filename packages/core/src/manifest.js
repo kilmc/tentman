@@ -85,7 +85,9 @@ function parseNavigationManifestCollection(value, context) {
 				...(typeof group.label === 'string' && group.label.length > 0
 					? { label: group.label }
 					: {}),
-				...(typeof group.slug === 'string' && group.slug.length > 0 ? { slug: group.slug } : {}),
+				...(typeof group.value === 'string' && group.value.length > 0
+					? { value: group.value }
+					: {}),
 				...(typeof group.href === 'string' && group.href.length > 0 ? { href: group.href } : {}),
 				items: readNavigationReferenceArray(group.items ?? [], `${context}.groups[${index}].items`)
 			};

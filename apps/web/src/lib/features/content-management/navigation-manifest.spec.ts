@@ -258,7 +258,7 @@ describe('navigation manifest helpers', () => {
 							label: 'Posts',
 							collection: {
 								sorting: 'manual',
-								groups: [{ _tentmanId: 'featured', label: 'Featured', slug: 'featured' }]
+								groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
 							},
 							idField: 'slug',
 							content: {
@@ -282,7 +282,7 @@ describe('navigation manifest helpers', () => {
 					label: 'Posts',
 					slug: 'posts',
 					items: ['post-1', 'post-2'],
-					groups: [{ id: 'featured', label: 'Featured', slug: 'featured', items: [] }]
+					groups: [{ id: 'featured', label: 'Featured', value: 'featured', items: [] }]
 				}
 			}
 		});
@@ -329,7 +329,7 @@ describe('navigation manifest helpers', () => {
 							label: 'Posts',
 							collection: {
 								sorting: 'manual',
-								groups: [{ _tentmanId: 'featured-group', label: 'Featured', slug: 'featured' }]
+								groups: [{ _tentmanId: 'featured-group', label: 'Featured', value: 'featured' }]
 							},
 							idField: 'slug',
 							content: {
@@ -367,7 +367,7 @@ describe('navigation manifest helpers', () => {
 					slug: 'posts',
 					configId: 'posts',
 					items: ['post-2', 'post-1'],
-					groups: [{ id: 'featured-group', label: 'Featured', slug: 'featured', items: ['post-1'] }]
+					groups: [{ id: 'featured-group', label: 'Featured', value: 'featured', items: ['post-1'] }]
 				}
 			}
 		});
@@ -452,7 +452,7 @@ describe('navigation manifest helpers', () => {
 					configId: 'posts',
 					items: ['dup', 'hello-world', 'third-post'],
 					groups: [
-						{ id: 'featured', label: 'Featured', slug: 'featured', items: ['hello-world', 'dup'] }
+						{ id: 'featured', label: 'Featured', value: 'featured', items: ['hello-world', 'dup'] }
 					]
 				}
 			}
@@ -472,7 +472,7 @@ describe('navigation manifest helpers', () => {
 				_tentmanId: 'projects',
 				collection: {
 					sorting: 'manual',
-					groups: [{ label: 'Identity', slug: 'identity' }]
+					groups: [{ label: 'Identity', value: 'identity' }]
 				},
 				idField: 'slug',
 				content: {
@@ -498,7 +498,7 @@ describe('navigation manifest helpers', () => {
 						label: 'Projects',
 						collection: {
 							sorting: 'manual',
-							groups: [{ label: 'Identity', slug: 'identity' }]
+							groups: [{ label: 'Identity', value: 'identity' }]
 						},
 						idField: 'slug',
 						content: {
@@ -525,7 +525,7 @@ describe('navigation manifest helpers', () => {
 					label: 'Projects',
 					slug: 'projects',
 					items: [],
-					groups: [{ id: 'identity', label: 'Identity', slug: 'identity', items: [] }]
+					groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
 				}
 			}
 		});
@@ -549,18 +549,15 @@ describe('navigation manifest helpers', () => {
 					},
 					blocks: [
 						{
-							id: 'group',
-							type: 'select',
+							id: 'tentmanGroup',
+							type: 'tentmanGroup',
 							label: 'Group',
-							options: {
-								source: 'tentman.navigationGroups',
-								collection: 'projects'
-							}
+							collection: 'projects'
 						}
 					]
 				}
 			})
-		).toBe('group');
+		).toBe('_tentmanGroupId');
 	});
 
 	it('blocks ambiguous or missing collection group fields with useful errors', () => {
@@ -580,7 +577,7 @@ describe('navigation manifest helpers', () => {
 			}
 		};
 
-		expect(() => detectCollectionGroupField(baseConfig)).toThrow(/no select field/);
+		expect(() => detectCollectionGroupField(baseConfig)).toThrow(/no tentmanGroup block/);
 		expect(() =>
 			detectCollectionGroupField({
 				...baseConfig,
@@ -588,25 +585,19 @@ describe('navigation manifest helpers', () => {
 					...baseConfig.config,
 					blocks: [
 						{
-							id: 'primaryGroup',
-							type: 'select',
-							options: {
-								source: 'tentman.navigationGroups',
-								collection: 'projects'
-							}
+							id: 'tentmanGroup',
+							type: 'tentmanGroup',
+							collection: 'projects'
 						},
 						{
-							id: 'secondaryGroup',
-							type: 'select',
-							options: {
-								source: 'tentman.navigationGroups',
-								collection: 'projects'
-							}
+							id: 'tentmanGroup',
+							type: 'tentmanGroup',
+							collection: 'projects'
 						}
 					]
 				}
 			})
-		).toThrow(/multiple select fields/);
+		).toThrow(/multiple tentmanGroup blocks/);
 	});
 
 	it('saves collection group order, moved item group values, and manifest order together', async () => {
@@ -618,8 +609,8 @@ describe('navigation manifest helpers', () => {
 				collection: {
 					sorting: 'manual',
 					groups: [
-						{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' },
-						{ _tentmanId: 'campaigns', label: 'Campaigns', slug: 'campaigns' }
+						{ _tentmanId: 'identity', label: 'Identity', value: 'identity' },
+						{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' }
 					]
 				},
 				content: {
@@ -634,19 +625,26 @@ describe('navigation manifest helpers', () => {
 						label: 'Title'
 					},
 					{
-						id: 'group',
-						type: 'select',
+						id: 'tentmanGroup',
+						type: 'tentmanGroup',
 						label: 'Group',
-						options: {
-							source: 'tentman.navigationGroups',
-							collection: 'projects'
-						}
+						collection: 'projects'
 					}
 				]
 			}),
 			'src/content/projects.json': JSON.stringify([
-				{ _tentmanId: 'brand-system', title: 'Brand system', group: 'identity' },
-				{ _tentmanId: 'launch', title: 'Launch', group: 'campaigns' },
+				{
+					_tentmanId: 'brand-system',
+					title: 'Brand system',
+					group: 'identity',
+					_tentmanGroupId: 'identity'
+				},
+				{
+					_tentmanId: 'launch',
+					title: 'Launch',
+					group: 'campaigns',
+					_tentmanGroupId: 'campaigns'
+				},
 				{ _tentmanId: 'archive', title: 'Archive' }
 			])
 		};
@@ -663,8 +661,8 @@ describe('navigation manifest helpers', () => {
 					collection: {
 						sorting: 'manual',
 						groups: [
-							{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' },
-							{ _tentmanId: 'campaigns', label: 'Campaigns', slug: 'campaigns' }
+							{ _tentmanId: 'identity', label: 'Identity', value: 'identity' },
+							{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' }
 						]
 					},
 					content: {
@@ -674,12 +672,9 @@ describe('navigation manifest helpers', () => {
 					},
 					blocks: [
 						{
-							id: 'group',
-							type: 'select',
-							options: {
-								source: 'tentman.navigationGroups',
-								collection: 'projects'
-							}
+							id: 'tentmanGroup',
+							type: 'tentmanGroup',
+							collection: 'projects'
 						}
 					]
 				}
@@ -706,12 +701,22 @@ describe('navigation manifest helpers', () => {
 		);
 
 		expect(JSON.parse(files['content/projects.tentman.json']).collection.groups).toEqual([
-			{ _tentmanId: 'campaigns', label: 'Campaigns', slug: 'campaigns' },
-			{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' }
+			{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' },
+			{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }
 		]);
 		expect(JSON.parse(files['src/content/projects.json'])).toEqual([
-			{ _tentmanId: 'brand-system', title: 'Brand system', group: 'campaigns' },
-			{ _tentmanId: 'launch', title: 'Launch', group: 'campaigns' },
+			{
+				_tentmanId: 'brand-system',
+				title: 'Brand system',
+				group: 'identity',
+				_tentmanGroupId: 'campaigns'
+			},
+			{
+				_tentmanId: 'launch',
+				title: 'Launch',
+				group: 'campaigns',
+				_tentmanGroupId: 'campaigns'
+			},
 			{ _tentmanId: 'archive', title: 'Archive' }
 		]);
 		expect(manifest.collections?.projects).toEqual({
@@ -720,10 +725,10 @@ describe('navigation manifest helpers', () => {
 				{
 					id: 'campaigns',
 					label: 'Campaigns',
-					slug: 'campaigns',
+					value: 'campaigns',
 					items: ['brand-system', 'launch']
 				},
-				{ id: 'identity', label: 'Identity', slug: 'identity', items: [] }
+				{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
 			]
 		});
 		expect(JSON.parse(files['tentman/navigation-manifest.json'])).toEqual(manifest);

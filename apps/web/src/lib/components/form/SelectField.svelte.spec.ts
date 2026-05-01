@@ -88,14 +88,11 @@ describe('components/form/SelectField.svelte', () => {
 				},
 				blocks: [
 					{
-						id: 'group',
-						type: 'select',
+						id: 'tentmanGroup',
+						type: 'tentmanGroup',
 						label: 'Group',
 						required: true,
-						options: {
-							source: 'tentman.navigationGroups',
-							collection: 'projects'
-						}
+						collection: 'projects'
 					}
 				]
 			},
@@ -104,16 +101,23 @@ describe('components/form/SelectField.svelte', () => {
 				collections: {
 					projects: {
 						items: [],
-						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+						groups: [
+							{
+								id: 'tent_group_identity',
+								value: 'identity',
+								label: 'Identity',
+								items: []
+							}
+						]
 					}
 				}
 			},
 			initialData: {
-				group: 'identity'
+				_tentmanGroupId: 'tent_group_identity'
 			}
 		});
 
-		await expect.element(screen.getByLabelText('Group')).toHaveValue('identity');
+		await expect.element(screen.getByLabelText('Group')).toHaveValue('tent_group_identity');
 		const select = document.querySelector('select');
 		if (!(select instanceof HTMLSelectElement)) {
 			throw new Error('Expected group select');
@@ -121,7 +125,7 @@ describe('components/form/SelectField.svelte', () => {
 		expect(Array.from(select.options).map((option) => option.textContent)).toContain('Identity');
 	});
 
-	it('adds a new navigation group and selects it', async () => {
+	it('adds a new navigation group and stores the new stable id', async () => {
 		const addOption = vi.fn(async () => {});
 		const screen = render(FormGeneratorSubmitHarness, {
 			config: {
@@ -133,14 +137,11 @@ describe('components/form/SelectField.svelte', () => {
 				},
 				blocks: [
 					{
-						id: 'group',
-						type: 'select',
+						id: 'tentmanGroup',
+						type: 'tentmanGroup',
 						label: 'Group',
-						options: {
-							source: 'tentman.navigationGroups',
-							collection: 'projects',
-							addOption: true
-						}
+						collection: 'projects',
+						addOption: true
 					}
 				]
 			},
@@ -149,12 +150,20 @@ describe('components/form/SelectField.svelte', () => {
 				collections: {
 					projects: {
 						items: [],
-						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+						groups: [
+							{
+								id: 'tent_group_identity',
+								value: 'identity',
+								label: 'Identity',
+								items: []
+							}
+						]
 					}
 				}
 			},
 			onaddselectoption: addOption,
 			initialData: {
+				_tentmanGroupId: 'tent_group_identity',
 				group: 'identity'
 			}
 		});
@@ -167,18 +176,21 @@ describe('components/form/SelectField.svelte', () => {
 		select.value = '__tentman_add_group__';
 		select.dispatchEvent(new Event('change', { bubbles: true }));
 		await screen.getByPlaceholder('Group title').fill('Identity & Motion');
-		await expect.element(screen.getByPlaceholder('group-id')).toHaveValue('identity-motion');
+		await expect.element(screen.getByPlaceholder('group-value')).toHaveValue('identity-motion');
 		await screen.getByRole('button', { name: 'Add', exact: true }).click();
 		await screen.getByRole('button', { name: 'Prepare submit' }).click();
 
 		expect(addOption).toHaveBeenCalledWith({
 			collection: 'projects',
-			id: 'identity-motion',
+			id: expect.any(String),
+			value: 'identity-motion',
 			label: 'Identity & Motion'
 		});
-		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent(
-			'{"group":"identity-motion"}'
-		);
+
+		const prepared = screen.getByTestId('prepared-data');
+		await expect.element(prepared).toHaveTextContent('"_tentmanGroupId":"');
+		await expect.element(prepared).toHaveTextContent('"group":"identity"');
+		expect(prepared.element().textContent).not.toContain('"group":"identity-motion"');
 	});
 
 	it('lets authors cancel adding a new group', async () => {
@@ -193,14 +205,11 @@ describe('components/form/SelectField.svelte', () => {
 				},
 				blocks: [
 					{
-						id: 'group',
-						type: 'select',
+						id: 'tentmanGroup',
+						type: 'tentmanGroup',
 						label: 'Group',
-						options: {
-							source: 'tentman.navigationGroups',
-							collection: 'projects',
-							addOption: true
-						}
+						collection: 'projects',
+						addOption: true
 					}
 				]
 			},
@@ -209,13 +218,20 @@ describe('components/form/SelectField.svelte', () => {
 				collections: {
 					projects: {
 						items: [],
-						groups: [{ id: 'identity', label: 'Identity', items: [] }]
+						groups: [
+							{
+								id: 'tent_group_identity',
+								value: 'identity',
+								label: 'Identity',
+								items: []
+							}
+						]
 					}
 				}
 			},
 			onaddselectoption: addOption,
 			initialData: {
-				group: 'identity'
+				_tentmanGroupId: 'tent_group_identity'
 			}
 		});
 
@@ -224,8 +240,8 @@ describe('components/form/SelectField.svelte', () => {
 			throw new Error('Expected group select');
 		}
 
-		await expect.element(screen.getByLabelText('Group')).toHaveValue('identity');
-		select.value = 'identity';
+		await expect.element(screen.getByLabelText('Group')).toHaveValue('tent_group_identity');
+		select.value = 'tent_group_identity';
 		select.dispatchEvent(new Event('change', { bubbles: true }));
 		select.value = '__tentman_add_group__';
 		select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -234,6 +250,6 @@ describe('components/form/SelectField.svelte', () => {
 
 		await expect.element(screen.getByPlaceholder('Group title')).not.toBeInTheDocument();
 		expect(addOption).not.toHaveBeenCalled();
-		await expect.element(screen.getByLabelText('Group')).toHaveValue('identity');
+		await expect.element(screen.getByLabelText('Group')).toHaveValue('tent_group_identity');
 	});
 });

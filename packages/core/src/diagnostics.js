@@ -25,8 +25,10 @@ const BUILT_IN_BLOCK_TYPES = new Set([
 	'number',
 	'date',
 	'boolean',
+	'toggle',
 	'image',
 	'select',
+	'tentmanGroup',
 	'block'
 ]);
 

@@ -1,0 +1,11 @@
+{
+	"name": "@tentman/runtime",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"test": "node --test src/*.test.js"
+	},
+	"exports": {
+		".": "./src/index.js"
+	}
+}

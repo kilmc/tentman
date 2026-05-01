@@ -8,6 +8,10 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { getContentItemTitle } from '$lib/features/content-management/navigation';
+	import {
+		getStateBadgeClassName,
+		resolveCollectionItemState
+	} from '$lib/features/content-management/state';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
@@ -40,6 +44,17 @@
 	const itemTitle = $derived(
 		config && item ? getContentItemTitle(config, item as ContentRecord) : data.itemId
 	);
+	const resolvedItemState = $derived.by(() => {
+		if (!config || !item) {
+			return null;
+		}
+
+		return resolveCollectionItemState(
+			config,
+			item as ContentRecord,
+			isLocalMode ? $localContent.rootConfig : (data.rootConfig ?? null)
+		);
+	});
 
 	function applyRemoteData() {
 		discoveredConfig = data.discoveredConfig;
@@ -158,9 +173,18 @@
 				class="border-b border-stone-200 bg-stone-50 px-4 py-4 sm:flex sm:items-start sm:justify-between"
 			>
 				<div>
-					<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
-						{itemTitle}
-					</h1>
+					<div class="flex flex-wrap items-center gap-2">
+						<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
+							{itemTitle}
+						</h1>
+						{#if resolvedItemState && resolvedItemState.visibility.header !== false}
+							<span
+								class={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(resolvedItemState.variant)}`}
+							>
+								{resolvedItemState.label}
+							</span>
+						{/if}
+					</div>
 					<p class="mt-1 text-sm text-stone-500">{config.label}</p>
 				</div>
 				<a

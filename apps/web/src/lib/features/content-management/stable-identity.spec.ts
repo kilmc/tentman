@@ -12,7 +12,7 @@ const manualCollectionConfig: ParsedContentConfig = {
 	itemLabel: 'Project',
 	collection: {
 		sorting: 'manual',
-		groups: [{ label: 'Identity', slug: 'identity' }]
+		groups: [{ label: 'Identity', value: 'identity' }]
 	},
 	idField: 'slug',
 	content: {
@@ -42,7 +42,7 @@ describe('stable identity runtime normalization', () => {
 		expect(config.config._tentmanId).toBe('projects');
 		expect(hasGeneratedTentmanId(config.config)).toBe(true);
 		expect(config.config.collection).toMatchObject({
-			groups: [{ _tentmanId: 'identity', label: 'Identity', slug: 'identity' }]
+			groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
 		});
 	});
 

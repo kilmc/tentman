@@ -15,7 +15,11 @@ const collectionConfig: ParsedContentConfig = {
 	itemLabel: 'Blog Post',
 	collection: {
 		sorting: 'manual',
-		groups: [{ _tentmanId: 'featured', label: 'Featured', slug: 'featured' }]
+		groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }],
+		state: {
+			blockId: 'published',
+			preset: 'publication'
+		}
 	},
 	idField: 'slug',
 	content: {
@@ -25,7 +29,8 @@ const collectionConfig: ParsedContentConfig = {
 	},
 	blocks: [
 		{ id: 'title', type: 'text', label: 'Title', show: 'primary' },
-		{ id: 'slug', type: 'text', label: 'Slug' }
+		{ id: 'slug', type: 'text', label: 'Slug' },
+		{ id: 'published', type: 'toggle', label: 'Published' }
 	]
 };
 
@@ -69,6 +74,41 @@ describe('content navigation helpers', () => {
 		).toEqual([
 			{ itemId: 'post-1', title: 'Hello World', sortDate: null },
 			{ itemId: 'post-2', title: 'Second Post', sortDate: null }
+		]);
+	});
+
+	it('includes matched collection state when collection items resolve a preset case', () => {
+		expect(
+			getCollectionNavigationItems(
+				collectionConfig,
+				[{ _tentmanId: 'post-1', title: 'Hello World', slug: 'hello-world', published: false }],
+				{
+					statePresets: {
+						publication: {
+							cases: [
+								{ value: false, label: 'Draft', variant: 'warning', icon: 'file-pen' }
+							]
+						}
+					}
+				}
+			)
+		).toEqual([
+			{
+				itemId: 'post-1',
+				title: 'Hello World',
+				sortDate: null,
+				state: {
+					value: false,
+					label: 'Draft',
+					variant: 'warning',
+					icon: 'file-pen',
+					visibility: {
+						navigation: true,
+						header: true,
+						card: true
+					}
+				}
+			}
 		]);
 	});
 

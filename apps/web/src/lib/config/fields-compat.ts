@@ -1,6 +1,6 @@
 import type { BlockUsage, PrimitiveBlockType, SelectBlockOptions } from '$lib/config/types';
 
-export type FieldType = PrimitiveBlockType | 'array';
+export type FieldType = PrimitiveBlockType | 'array' | 'tentmanGroup';
 
 export interface FieldOptions {
 	type: FieldType;

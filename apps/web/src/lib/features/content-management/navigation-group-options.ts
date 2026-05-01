@@ -1,8 +1,8 @@
 import type {
-	NavigationGroupsSelectBlockOptions,
 	NavigationManifestCollection,
 	SelectBlockOption,
-	SelectBlockOptions
+	SelectBlockOptions,
+	TentmanGroupBlockUsage
 } from '$lib/config/types';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 import { createTentmanId } from '$lib/features/content-management/stable-identity';
@@ -10,6 +10,7 @@ import { createTentmanId } from '$lib/features/content-management/stable-identit
 export interface NewNavigationGroupInput {
 	collection: string;
 	id: string;
+	value: string;
 	label: string;
 }
 
@@ -17,14 +18,13 @@ export function isStaticSelectOptions(options: SelectBlockOptions | undefined): 
 	return Array.isArray(options);
 }
 
-export function isNavigationGroupsSelectOptions(
-	options: SelectBlockOptions | undefined
-): options is NavigationGroupsSelectBlockOptions {
-	return (
-		!!options &&
-		!Array.isArray(options) &&
-		options.source === 'tentman.navigationGroups'
-	);
+export function getTentmanGroupOptions(
+	block: TentmanGroupBlockUsage
+): Pick<TentmanGroupBlockUsage, 'collection' | 'addOption'> {
+	return {
+		collection: block.collection,
+		...(block.addOption !== undefined ? { addOption: block.addOption } : {})
+	};
 }
 
 export function getSelectOptionsFromNavigationGroups(
@@ -70,23 +70,11 @@ export function resolveSelectOptions(
 	options: SelectBlockOptions | undefined,
 	manifest: NavigationManifest | null | undefined
 ): SelectBlockOption[] {
-	if (!options) {
-		return [];
-	}
-
-	if (Array.isArray(options)) {
-		return options;
-	}
-
-	if (isNavigationGroupsSelectOptions(options)) {
-		return getSelectOptionsFromNavigationGroups(manifest, options.collection);
-	}
-
-	return [];
+	return options ?? [];
 }
 
-export function slugifyNavigationGroupLabel(label: string): string {
-	const slug = label
+export function deriveNavigationGroupValue(label: string): string {
+	const value = label
 		.trim()
 		.toLowerCase()
 		.normalize('NFKD')
@@ -94,7 +82,7 @@ export function slugifyNavigationGroupLabel(label: string): string {
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '');
 
-	return slug || 'group';
+	return value || 'group';
 }
 
 export function addNavigationGroupToManifest(
@@ -102,6 +90,7 @@ export function addNavigationGroupToManifest(
 	input: NewNavigationGroupInput
 ): NavigationManifest {
 	const id = input.id.trim();
+	const value = input.value.trim();
 	const label = input.label.trim();
 
 	if (!input.collection.trim()) {
@@ -110,6 +99,10 @@ export function addNavigationGroupToManifest(
 
 	if (!id) {
 		throw new Error('Group id is required');
+	}
+
+	if (!value) {
+		throw new Error('Group value is required');
 	}
 
 	if (!label) {
@@ -136,7 +129,7 @@ export function addNavigationGroupToManifest(
 												groups: collection.groups.map((group) => ({
 													id: group.id,
 													...(group.label && { label: group.label }),
-													...(group.slug && { slug: group.slug }),
+													...(group.value && { value: group.value }),
 													items: [...group.items]
 												}))
 											}
@@ -160,8 +153,8 @@ export function addNavigationGroupToManifest(
 	const collection = collections[resolvedCollectionKey] ?? { items: [] };
 	const groups = collection.groups ?? [];
 
-	if (groups.some((group) => group.id === id)) {
-		throw new Error(`A group with id "${id}" already exists`);
+	if (groups.some((group) => group.value === value)) {
+		throw new Error(`A group with value "${value}" already exists`);
 	}
 
 	nextManifest.collections = {
@@ -174,6 +167,7 @@ export function addNavigationGroupToManifest(
 				{
 					id,
 					label,
+					value,
 					items: []
 				}
 			]
@@ -202,7 +196,7 @@ export function addCollectionGroupToConfigSource(
 	const nextGroup = {
 		_tentmanId: createTentmanId(),
 		label: input.label.trim(),
-		slug: input.id.trim()
+		value: input.value.trim()
 	};
 
 	if (collection === true) {
@@ -224,11 +218,11 @@ export function addCollectionGroupToConfigSource(
 	if (
 		currentGroups.some(
 			(group) =>
-				(typeof group.slug === 'string' && group.slug === nextGroup.slug) ||
+				(typeof group.value === 'string' && group.value === nextGroup.value) ||
 				(typeof group.label === 'string' && group.label === nextGroup.label)
 		)
 	) {
-		throw new Error(`A group with slug "${nextGroup.slug}" already exists`);
+		throw new Error(`A group with value "${nextGroup.value}" already exists`);
 	}
 
 	config.collection = {

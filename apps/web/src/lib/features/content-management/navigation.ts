@@ -1,8 +1,13 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { ParsedContentConfig } from '$lib/config/parse';
+import type { RootConfig } from '$lib/config/root-config';
 import { getCardFields } from '$lib/features/forms/helpers';
 import { getCollectionGroups } from '$lib/features/content-management/config';
 import { formatContentValue, getItemId, getItemRoute } from '$lib/features/content-management/item';
+import {
+	resolveCollectionItemState,
+	type ResolvedContentState
+} from '$lib/features/content-management/state';
 import type {
 	NavigationManifest,
 	NavigationManifestCollection
@@ -13,6 +18,7 @@ export interface CollectionNavigationItem {
 	itemId: string;
 	title: string;
 	sortDate?: number | null;
+	state?: ResolvedContentState | null;
 }
 
 export interface CollectionNavigationGroup {
@@ -26,6 +32,7 @@ export interface OrderedCollectionRecord {
 	title: string;
 	sortDate?: number | null;
 	item: ContentRecord;
+	state?: ResolvedContentState | null;
 }
 
 export interface OrderedCollectionRecordGroup {
@@ -86,7 +93,8 @@ export function getContentItemTitle(config: ParsedContentConfig, item: ContentRe
 
 export function getCollectionNavigationItems(
 	config: ParsedContentConfig,
-	content: ContentDocument
+	content: ContentDocument,
+	rootConfig?: RootConfig | null
 ): CollectionNavigationItem[] {
 	if (!config.collection || !Array.isArray(content)) {
 		return [];
@@ -101,11 +109,14 @@ export function getCollectionNavigationItems(
 			return [];
 		}
 
+		const state = resolveCollectionItemState(config, item, rootConfig);
+
 		return [
 			{
 				itemId,
 				title: getContentItemTitle(config, item),
-				sortDate: getCollectionSortDate(item, dateFieldId)
+				sortDate: getCollectionSortDate(item, dateFieldId),
+				...(state ? { state } : {})
 			}
 		];
 	});
@@ -264,18 +275,20 @@ export function orderDiscoveredConfigs(
 export function getOrderedCollectionNavigation(
 	config: ParsedContentConfig,
 	content: ContentDocument,
-	manifest: NavigationManifest | null | undefined
+	manifest: NavigationManifest | null | undefined,
+	rootConfig?: RootConfig | null
 ): OrderedCollectionNavigation {
-	const items = getCollectionNavigationItems(config, content);
+	const items = getCollectionNavigationItems(config, content, rootConfig);
 	return splitOrderedItemsIntoGroups(items, config, getManifestCollection(manifest, config));
 }
 
 export function getFirstCollectionItemId(
 	config: ParsedContentConfig,
 	content: ContentDocument,
-	manifest: NavigationManifest | null | undefined
+	manifest: NavigationManifest | null | undefined,
+	rootConfig?: RootConfig | null
 ): string | null {
-	const orderedNavigation = getOrderedCollectionNavigation(config, content, manifest);
+	const orderedNavigation = getOrderedCollectionNavigation(config, content, manifest, rootConfig);
 
 	for (const group of orderedNavigation.groups) {
 		const firstItem = group.items[0];
@@ -290,7 +303,8 @@ export function getFirstCollectionItemId(
 export function getOrderedCollectionRecords(
 	config: ParsedContentConfig,
 	content: ContentDocument,
-	manifest: NavigationManifest | null | undefined
+	manifest: NavigationManifest | null | undefined,
+	rootConfig?: RootConfig | null
 ): OrderedCollectionRecords {
 	if (!config.collection || !Array.isArray(content)) {
 		return {
@@ -305,6 +319,8 @@ export function getOrderedCollectionRecords(
 			return [];
 		}
 
+		const state = resolveCollectionItemState(config, item, rootConfig);
+
 		return [
 			{
 				itemId,
@@ -313,7 +329,8 @@ export function getOrderedCollectionRecords(
 					item,
 					config.blocks.find((block) => block.type === 'date')?.id
 				),
-				item
+				item,
+				...(state ? { state } : {})
 			}
 		];
 	});

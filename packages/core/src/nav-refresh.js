@@ -70,7 +70,7 @@ function refreshCollectionManifest(project, config, collectionManifest, changes,
 							collection: config._tentmanId ?? config.id ?? config.slug
 						}),
 						...(group.label ? { label: group.label } : {}),
-						...(group.slug ? { slug: group.slug } : {}),
+						...(group.value ? { value: group.value } : {}),
 						...(group.href ? { href: group.href } : {}),
 						items: (group.items ?? []).map((itemReference) =>
 							mapReference(itemReference, itemByReference, changes, {

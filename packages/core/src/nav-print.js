@@ -68,7 +68,7 @@ export function printTentmanNavigation(project, configReference) {
 	const groups = (manifestCollection?.groups ?? []).map((group) => ({
 		id: group.id,
 		label: group.label ?? group.id,
-		slug: group.slug ?? null,
+		value: group.value ?? null,
 		items: summarizeGroupItems(group, items)
 	}));
 

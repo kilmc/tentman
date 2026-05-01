@@ -12,6 +12,10 @@
 	import { get } from 'svelte/store';
 	import { getCardFields } from '$lib/features/forms/helpers';
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
+	import {
+		getStateBadgeClassName,
+		resolveCollectionItemState
+	} from '$lib/features/content-management/state';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import {
@@ -67,6 +71,17 @@
 		}
 
 		return createBlockRegistry(blockConfigs, { packageBlocks });
+	});
+	const resolvedItemState = $derived.by(() => {
+		if (!config || !item) {
+			return null;
+		}
+
+		return resolveCollectionItemState(
+			config,
+			item as ContentRecord,
+			isLocalMode ? $localContent.rootConfig : (data.rootConfig ?? null)
+		);
 	});
 
 	function handleDirtyStateChange(state: FormDirtyState) {
@@ -169,7 +184,12 @@
 		applyRemoteData();
 	});
 
-	async function handleAddSelectOption(input: { collection: string; id: string; label: string }) {
+	async function handleAddSelectOption(input: {
+		collection: string;
+		id: string;
+		value: string;
+		label: string;
+	}) {
 		if (isLocalMode) {
 			const repoState = get(localRepo);
 			if (!repoState.backend) {
@@ -335,6 +355,13 @@
 			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
 				{getItemTitle()}
 			</h1>
+			{#if resolvedItemState && resolvedItemState.visibility.header !== false}
+				<span
+					class={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(resolvedItemState.variant)}`}
+				>
+					{resolvedItemState.label}
+				</span>
+			{/if}
 			{#if hasUnsavedChanges}
 				<span
 					class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"

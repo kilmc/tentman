@@ -4,6 +4,7 @@
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 	import type { ParsedContentConfig } from '$lib/config/parse';
+	import { getBlockStorageKey } from '$lib/config/tentman-group';
 	import { buildFormData } from '$lib/features/forms/helpers';
 	import {
 		createFormEditSession,
@@ -34,7 +35,12 @@
 		onchange?: (data: ContentRecord) => void;
 		ondirtystatechange?: (state: FormDirtyState) => void;
 		navigationManifest?: NavigationManifest | null;
-		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
+		onaddselectoption?: (input: {
+			collection: string;
+			id: string;
+			value: string;
+			label: string;
+		}) => Promise<void>;
 	}
 
 	let {
@@ -241,19 +247,19 @@
 			{/if}
 		{/if}
 
-		{#each config.blocks as block}
+		{#each config.blocks as block, index}
 			<div>
 				<FormField
 					{block}
-					bind:value={formData[block.id]}
-					fieldPath={block.id}
+					bind:value={formData[getBlockStorageKey(config.blocks[index]!)]}
+					fieldPath={getBlockStorageKey(config.blocks[index]!)}
 					imagePath={config.imagePath}
 					{blockRegistry}
 					{navigationManifest}
 					{onaddselectoption}
-					onchange={() => handleFieldChange(block.id)}
+					onchange={() => handleFieldChange(getBlockStorageKey(config.blocks[index]!))}
 				/>
-				{#if showErrors && getFieldError(block.id)}
+				{#if showErrors && getFieldError(getBlockStorageKey(config.blocks[index]!))}
 					<div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">
 						<svg class="mt-0.5 h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
 							<path
@@ -262,7 +268,9 @@
 								clip-rule="evenodd"
 							/>
 						</svg>
-						<span class="font-medium">{getFieldError(block.id)}</span>
+						<span class="font-medium"
+							>{getFieldError(getBlockStorageKey(config.blocks[index]!))}</span
+						>
 					</div>
 				{/if}
 			</div>

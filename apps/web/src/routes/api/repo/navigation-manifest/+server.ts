@@ -48,6 +48,7 @@ type NavigationManifestMutation =
 			action: 'add-collection-group';
 			collection: string;
 			id: string;
+			value: string;
 			label: string;
 			branchName?: string;
 	  }
@@ -68,6 +69,7 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		manifest?: unknown;
 		collection?: unknown;
 		id?: unknown;
+		value?: unknown;
 		label?: unknown;
 		order?: unknown;
 		branchName?: unknown;
@@ -91,10 +93,12 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 			mutation.collection.length === 0 ||
 			typeof mutation.id !== 'string' ||
 			mutation.id.length === 0 ||
+			typeof mutation.value !== 'string' ||
+			mutation.value.length === 0 ||
 			typeof mutation.label !== 'string' ||
 			mutation.label.length === 0
 		) {
-			throw error(400, 'New navigation group requires collection, id, and label');
+			throw error(400, 'New navigation group requires collection, id, value, and label');
 		}
 
 		return mutation as NavigationManifestMutation;
@@ -277,6 +281,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 				addCollectionGroupToConfigSource(configSource, {
 					collection: mutation.collection,
 					id: mutation.id,
+					value: mutation.value,
 					label: mutation.label
 				}),
 				{
@@ -293,6 +298,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			const manifest = addNavigationGroupToManifest(manifestState.manifest, {
 				collection: mutation.collection,
 				id: mutation.id,
+				value: mutation.value,
 				label: mutation.label
 			});
 			await writeNavigationManifest(backend, manifest, {

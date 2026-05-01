@@ -39,6 +39,10 @@
 		type OrderedCollectionNavigation
 	} from '$lib/features/content-management/navigation';
 	import {
+		resolveContentDocumentState,
+		type ResolvedContentState
+	} from '$lib/features/content-management/state';
+	import {
 		getManualNavigationSetupState,
 		saveCollectionOrder,
 		writeNavigationManifest
@@ -53,6 +57,7 @@
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	type CollectionItemsBySlug = Record<string, OrderedCollectionNavigation>;
+	type ConfigStatesBySlug = Record<string, ResolvedContentState | null>;
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 	// Canonical layout terms:
@@ -73,6 +78,9 @@
 
 	let localCollectionItemsBySlug = $state<CollectionItemsBySlug>({});
 	let githubCollectionItemsBySlug = $state<CollectionItemsBySlug>({});
+	let localConfigStatesBySlug = $state<ConfigStatesBySlug>({});
+	let githubConfigStatesBySlug = $state<ConfigStatesBySlug>({});
+	let githubConfigStatesLoaded = $state(false);
 	let githubCollectionLoadStatusBySlug = $state<Record<string, CollectionLoadStatus>>({});
 	let githubCollectionErrorBySlug = $state<Record<string, string | null>>({});
 	let collectionLoadRequest = 0;
@@ -105,6 +113,7 @@
 	const collectionItemsBySlug = $derived(
 		isLocalMode ? localCollectionItemsBySlug : githubCollectionItemsBySlug
 	);
+	const configStatesBySlug = $derived(isLocalMode ? localConfigStatesBySlug : githubConfigStatesBySlug);
 	const currentPageSlug = $derived(page.params.page ?? null);
 	const currentItemId = $derived(page.params.itemId ?? null);
 	const currentConfig = $derived(
@@ -180,6 +189,24 @@
 
 		return currentConfig?.config.label ?? siteName;
 	});
+	const currentConfigState = $derived.by(() => {
+		if (!currentConfig?.config.state || !currentPageSlug) {
+			return null;
+		}
+
+		const currentPageContent = page.data.content;
+		const liveState = resolveContentDocumentState(
+			currentConfig.config,
+			currentPageContent ?? null,
+			rootConfig
+		);
+
+		if (liveState) {
+			return liveState;
+		}
+
+		return configStatesBySlug[currentPageSlug] ?? null;
+	});
 
 	onMount(() => {
 		const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -229,6 +256,10 @@
 		}
 
 		return getGitHubCollectionError(slug);
+	}
+
+	function getConfigsWithTopLevelState(nextConfigs: DiscoveredConfig[]) {
+		return nextConfigs.filter((config) => !!config.config.state);
 	}
 
 	function isShadowItem(item: { id: string } & Record<string, unknown>) {
@@ -418,7 +449,12 @@
 
 						return [
 							config.slug,
-							getOrderedCollectionNavigation(config.config, content, navigationManifest)
+							getOrderedCollectionNavigation(
+								config.config,
+								content,
+								navigationManifest,
+								rootConfig
+							)
 						] as const;
 					} catch (error) {
 						console.error(`Failed to load local collection items for ${config.slug}:`, error);
@@ -438,6 +474,65 @@
 		}
 
 		localCollectionItemsBySlug = Object.fromEntries(collectionEntries);
+	}
+
+	async function loadLocalConfigStates(nextConfigs: DiscoveredConfig[]) {
+		const repoState = get(localRepo);
+		if (!repoState.backend) {
+			localConfigStatesBySlug = {};
+			return;
+		}
+
+		const stateEntries = await Promise.all(
+			getConfigsWithTopLevelState(nextConfigs).map(async (config) => {
+				try {
+					const content = await fetchContentDocument(
+						repoState.backend!,
+						config.config,
+						config.path
+					);
+
+					return [config.slug, resolveContentDocumentState(config.config, content, rootConfig)] as const;
+				} catch (error) {
+					console.error(`Failed to load config state for ${config.slug}:`, error);
+					return [config.slug, null] as const;
+				}
+			})
+		);
+
+		localConfigStatesBySlug = Object.fromEntries(stateEntries);
+	}
+
+	async function loadGitHubConfigStates(options?: { force?: boolean }) {
+		if (isLocalMode) {
+			return;
+		}
+
+		if (!options?.force && githubConfigStatesLoaded) {
+			return;
+		}
+
+		try {
+			const response = await fetch(resolve('/api/repo/config-states'));
+
+			if (response.status === 401) {
+				await redirectToReposForExpiredSession();
+				return;
+			}
+
+			if (!response.ok) {
+				throw new Error(`Failed to load config states (${response.status})`);
+			}
+
+			const payload = (await response.json()) as {
+				statesBySlug?: ConfigStatesBySlug;
+			};
+
+			githubConfigStatesBySlug = payload.statesBySlug ?? {};
+			githubConfigStatesLoaded = true;
+		} catch (error) {
+			console.error('Failed to load config states:', error);
+		}
 	}
 
 	async function startNavigationEditing() {
@@ -495,6 +590,7 @@
 				});
 				await localContent.refresh({ force: true });
 				await loadLocalCollectionItems(configs);
+				await loadLocalConfigStates(configs);
 			} else {
 				const response = await fetch('/api/repo/navigation-manifest', {
 					method: 'POST',
@@ -557,6 +653,7 @@
 				});
 				await localContent.refresh({ force: true });
 				await loadLocalCollectionItems(configs);
+				await loadLocalConfigStates(configs);
 			} else {
 				const response = await fetch('/api/repo/navigation-manifest', {
 					method: 'POST',
@@ -615,6 +712,7 @@
 		}
 
 		void loadLocalCollectionItems(configs);
+		void loadLocalConfigStates(configs);
 	});
 
 	$effect(() => {
@@ -627,6 +725,7 @@
 				.filter((config: DiscoveredConfig) => config.config.collection)
 				.map((config: DiscoveredConfig) => loadGitHubCollectionItems(config))
 		);
+		void loadGitHubConfigStates();
 	});
 
 	$effect(() => {
@@ -655,6 +754,7 @@
 			{siteName}
 			{repoLabel}
 			{configs}
+			{configStatesBySlug}
 			{currentPageSlug}
 			isAuthenticated={data.isAuthenticated}
 			{isLocalMode}
@@ -691,6 +791,7 @@
 					{siteName}
 					{repoLabel}
 					{configs}
+					{configStatesBySlug}
 					{currentPageSlug}
 					isAuthenticated={data.isAuthenticated}
 					{isLocalMode}
@@ -718,6 +819,7 @@
 	<main class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
 		<Header
 			title={workspaceTitle}
+			state={currentConfigState}
 			{previewUrl}
 			showPublish={data.isAuthenticated && !!$draftBranch.branchName}
 			publishHref={resolve('/publish')}

@@ -4,9 +4,14 @@
 	import SidebarClose from 'lucide-svelte/icons/sidebar-close';
 	import SidebarOpen from 'lucide-svelte/icons/sidebar-open';
 	import UploadCloud from 'lucide-svelte/icons/upload-cloud';
+	import {
+		getStateBadgeClassName,
+		type ResolvedContentState
+	} from '$lib/features/content-management/state';
 
 	interface Props {
 		title: string;
+		state?: ResolvedContentState | null;
 		previewUrl?: string | null;
 		showPublish?: boolean;
 		publishHref: string;
@@ -22,6 +27,7 @@
 
 	let {
 		title,
+		state = null,
 		previewUrl = null,
 		showPublish = false,
 		publishHref,
@@ -81,7 +87,16 @@
 		{/if}
 
 		<div class="min-w-0">
-			<h1 class="truncate text-base font-semibold text-stone-950 sm:text-lg">{title}</h1>
+			<div class="flex min-w-0 items-center gap-2">
+				<h1 class="truncate text-base font-semibold text-stone-950 sm:text-lg">{title}</h1>
+				{#if state && state.visibility.header !== false}
+					<span
+						class={`inline-flex flex-shrink-0 items-center rounded-sm border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(state.variant)}`}
+					>
+						{state.label}
+					</span>
+				{/if}
+			</div>
 		</div>
 	</div>
 

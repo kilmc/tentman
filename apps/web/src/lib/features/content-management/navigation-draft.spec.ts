@@ -34,7 +34,7 @@ const configs: DiscoveredConfig[] = [
 			label: 'Blog Posts',
 			collection: {
 				sorting: 'manual',
-				groups: [{ _tentmanId: 'featured', label: 'Featured', slug: 'featured' }]
+				groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
 			},
 			idField: 'slug',
 			content: {

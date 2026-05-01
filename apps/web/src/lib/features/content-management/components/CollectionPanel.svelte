@@ -18,6 +18,7 @@
 		CollectionNavigationItem
 	} from '$lib/features/content-management/navigation';
 	import type { NavigationDraftCollection } from '$lib/features/content-management/navigation-draft';
+	import { getStateBadgeClassName } from '$lib/features/content-management/state';
 	import type { CollectionIndexItem, CollectionSortType } from './workspace-types';
 
 	interface Props {
@@ -178,7 +179,11 @@
 	}
 
 	function getItemLinkLabel(item: CollectionNavigationItem) {
-		return currentItemId === item.itemId ? `${item.title}, current ${itemLabel}` : item.title;
+		const stateLabel =
+			item.state && item.state.visibility.navigation !== false ? `, ${item.state.label}` : '';
+		return currentItemId === item.itemId
+			? `${item.title}${stateLabel}, current ${itemLabel}`
+			: `${item.title}${stateLabel}`;
 	}
 
 	function toggleSortDirection() {
@@ -526,12 +531,19 @@
 									{#each group.items as item (item.itemId)}
 										<a
 											href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
-											class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
+											class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 											class:tm-nav-link-active={currentItemId === item.itemId}
 											aria-label={getItemLinkLabel(item)}
 											title={item.title}
 										>
 											<span class="truncate font-medium">{item.title}</span>
+											{#if item.state && item.state.visibility.navigation !== false}
+												<span
+													class={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(item.state.variant)}`}
+												>
+													{item.state.label}
+												</span>
+											{/if}
 											<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
 										</a>
 									{/each}
@@ -545,12 +557,19 @@
 							{#each items as item (item.itemId)}
 								<a
 									href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
-									class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
+									class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 									class:tm-nav-link-active={currentItemId === item.itemId}
 									aria-label={getItemLinkLabel(item)}
 									title={item.title}
 								>
 									<span class="truncate font-medium">{item.title}</span>
+									{#if item.state && item.state.visibility.navigation !== false}
+										<span
+											class={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(item.state.variant)}`}
+										>
+											{item.state.label}
+										</span>
+									{/if}
 									<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
 								</a>
 							{/each}
@@ -562,12 +581,19 @@
 					{#each visibleItems as item (item.itemId)}
 						<a
 							href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
-							class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
+							class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 							class:tm-nav-link-active={currentItemId === item.itemId}
 							aria-label={getItemLinkLabel(item)}
 							title={item.title}
 						>
 							<span class="truncate font-medium">{item.title}</span>
+							{#if item.state && item.state.visibility.navigation !== false}
+								<span
+									class={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(item.state.variant)}`}
+								>
+									{item.state.label}
+								</span>
+							{/if}
 							<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
 						</a>
 					{/each}

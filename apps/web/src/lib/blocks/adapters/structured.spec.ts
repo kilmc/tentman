@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { toBlockAdapterUsageFromBlock } from '$lib/blocks/compat';
 import { createBlockRegistry, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
 import { parseDiscoveredBlockConfig } from '$lib/config/discovery';
 import { parseConfigFile } from '$lib/config/parse';
@@ -31,7 +32,7 @@ describe('structured block adapters', () => {
 		const registry = createBlockRegistry([]);
 		const adapter = resolveBlockAdapterForUsage(config.blocks[0], registry);
 
-		expect(adapter?.getDefaultValue(config.blocks[0])).toEqual({
+		expect(adapter?.getDefaultValue(toBlockAdapterUsageFromBlock(config.blocks[0]!))).toEqual({
 			title: '',
 			description: ''
 		});

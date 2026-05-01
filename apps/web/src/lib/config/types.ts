@@ -18,8 +18,7 @@ export interface SelectBlockOption {
 
 export type StaticSelectBlockOptions = SelectBlockOption[];
 
-export interface NavigationGroupsSelectBlockOptions {
-	source: 'tentman.navigationGroups';
+export interface TentmanGroupBlockOptions {
 	collection: string;
 	addOption?: boolean;
 }
@@ -34,12 +33,12 @@ export interface NavigationManifestCollection {
 	groups?: Array<{
 		id: string;
 		label?: string;
-		slug?: string;
+		value?: string;
 		items: string[];
 	}>;
 }
 
-export type SelectBlockOptions = StaticSelectBlockOptions | NavigationGroupsSelectBlockOptions;
+export type SelectBlockOptions = StaticSelectBlockOptions;
 
 export interface BaseBlockUsage {
 	id: string;
@@ -63,6 +62,15 @@ export interface PrimitiveBlockUsage extends BaseBlockUsage {
 	content?: never;
 }
 
+export interface TentmanGroupBlockUsage
+	extends Omit<BaseBlockUsage, 'id' | 'type' | 'options' | 'collection'> {
+	id: 'tentmanGroup';
+	type: 'tentmanGroup';
+	collection: string;
+	addOption?: boolean;
+	options?: never;
+}
+
 export interface InlineBlockUsage extends BaseBlockUsage {
 	type: 'block';
 	blocks: BlockUsage[];
@@ -75,7 +83,11 @@ export interface ReusableBlockUsage extends BaseBlockUsage {
 	content?: never;
 }
 
-export type BlockUsage = PrimitiveBlockUsage | InlineBlockUsage | ReusableBlockUsage;
+export type BlockUsage =
+	| PrimitiveBlockUsage
+	| TentmanGroupBlockUsage
+	| InlineBlockUsage
+	| ReusableBlockUsage;
 
 export interface EmbeddedContentMode {
 	mode: 'embedded';
@@ -99,12 +111,41 @@ export type ContentMode = EmbeddedContentMode | FileContentMode | DirectoryConte
 export interface CollectionGroupConfig {
 	_tentmanId?: string;
 	label: string;
-	slug?: string;
+	value?: string;
+}
+
+export type StateValue = string | number | boolean | null;
+
+export type StateVariant = 'muted' | 'accent' | 'success' | 'warning' | 'danger';
+
+export interface StateCase {
+	value: StateValue;
+	label: string;
+	variant?: StateVariant;
+	icon?: string;
+}
+
+export interface StatePreset {
+	cases: StateCase[];
+}
+
+export interface StateVisibility {
+	navigation?: boolean;
+	header?: boolean;
+	card?: boolean;
+}
+
+export interface StateConfig {
+	blockId: string;
+	preset?: string;
+	cases?: StateCase[];
+	visibility?: StateVisibility;
 }
 
 export interface CollectionBehaviorConfig {
 	sorting?: 'manual';
 	groups?: CollectionGroupConfig[];
+	state?: StateConfig;
 }
 
 export interface ContentConfig {
@@ -117,6 +158,7 @@ export interface ContentConfig {
 	idField?: string;
 	content: FileContentMode | DirectoryContentMode;
 	blocks: BlockUsage[];
+	state?: StateConfig;
 }
 
 export interface BlockConfig {
@@ -145,6 +187,7 @@ export interface RootConfig {
 	content?: {
 		sorting?: 'manual';
 	};
+	statePresets?: Record<string, StatePreset>;
 	netlify?: {
 		siteName: string;
 	};

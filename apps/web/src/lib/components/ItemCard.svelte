@@ -2,6 +2,10 @@
 	import AssetImage from '$lib/components/AssetImage.svelte';
 	import type { BlockUsage } from '$lib/config/types';
 	import { formatContentValue } from '$lib/features/content-management/item';
+	import {
+		getStateBadgeClassName,
+		type ResolvedContentState
+	} from '$lib/features/content-management/state';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	interface Props {
@@ -12,9 +16,10 @@
 			secondary: BlockUsage[];
 		};
 		badge?: 'draft' | 'new' | 'deleted';
+		state?: ResolvedContentState | null;
 	}
 
-	let { item, href, cardFields, badge }: Props = $props();
+	let { item, href, cardFields, badge, state = null }: Props = $props();
 
 	const allFields = $derived([...cardFields.primary, ...cardFields.secondary]);
 	const heroImageBlock = $derived(
@@ -65,10 +70,10 @@
 	function getStatusBadges() {
 		const badges: Array<{ label: string; className: string }> = [];
 
-		if (typeof item.published === 'boolean' && !item.published) {
+		if (state && state.visibility.card !== false) {
 			badges.push({
-				label: 'Unpublished',
-				className: 'border-amber-200 bg-amber-50 text-amber-800'
+				label: state.label,
+				className: getStateBadgeClassName(state.variant)
 			});
 		}
 

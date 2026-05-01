@@ -27,7 +27,7 @@ export function getPrimaryConfigReference(config) {
 }
 
 export function getGroupReferences(group) {
-	return uniqueStrings([group._tentmanId, group.slug]);
+	return uniqueStrings([group._tentmanId, group.value]);
 }
 
 export function getPrimaryGroupReference(group) {

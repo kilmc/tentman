@@ -11,7 +11,12 @@
 		initialData?: ContentRecord;
 		blockRegistry?: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
-		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
+		onaddselectoption?: (input: {
+			collection: string;
+			id: string;
+			value: string;
+			label: string;
+		}) => Promise<void>;
 	}
 
 	let { config, initialData = {}, blockRegistry, navigationManifest, onaddselectoption }: Props =

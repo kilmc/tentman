@@ -1,12 +1,14 @@
 <script lang="ts">
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
-	import type { BlockUsage } from '$lib/config/types';
+	import type { BlockUsage, TentmanGroupBlockUsage } from '$lib/config/types';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import {
-		isNavigationGroupsSelectOptions,
+		getSelectOptionsFromNavigationGroups,
+		getTentmanGroupOptions,
 		resolveSelectOptions
 	} from '$lib/features/content-management/navigation-group-options';
+	import { isTentmanGroupBlock } from '$lib/config/tentman-group';
 	import TextField from './TextField.svelte';
 	import TextareaField from './TextareaField.svelte';
 	import NumberField from './NumberField.svelte';
@@ -30,7 +32,12 @@
 		imagePath?: string; // Custom image storage path from config
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
-		onaddselectoption?: (input: { collection: string; id: string; label: string }) => Promise<void>;
+		onaddselectoption?: (input: {
+			collection: string;
+			id: string;
+			value: string;
+			label: string;
+		}) => Promise<void>;
 	}
 
 	let {
@@ -68,8 +75,18 @@
 			containsNestedStructuredCollection(structuredBlocks.blocks, blockRegistry)
 	);
 	const selectOptions = $derived(resolveSelectOptions(block.options, navigationManifest));
-	const sourceOptions = $derived(
-		isNavigationGroupsSelectOptions(block.options) ? block.options : undefined
+	const tentmanGroupOptions = $derived(
+		isTentmanGroupBlock(block)
+			? getTentmanGroupOptions(block as TentmanGroupBlockUsage)
+			: undefined
+	);
+	const tentmanGroupSelectOptions = $derived(
+		isTentmanGroupBlock(block)
+			? getSelectOptionsFromNavigationGroups(
+					navigationManifest,
+					(block as TentmanGroupBlockUsage).collection
+				)
+			: []
 	);
 </script>
 
@@ -99,7 +116,15 @@
 		{label}
 		bind:value
 		options={selectOptions}
-		{sourceOptions}
+		{required}
+		{onchange}
+	/>
+{:else if fieldType === 'tentmanGroup'}
+	<SelectField
+		{label}
+		bind:value
+		options={tentmanGroupSelectOptions}
+		sourceOptions={tentmanGroupOptions}
 		{required}
 		{onchange}
 		onaddoption={onaddselectoption}

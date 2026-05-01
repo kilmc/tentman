@@ -9,7 +9,7 @@ test('parses the current navigation manifest shape', () => {
 		"collections": {
 			"blog": {
 				"items": ["hello-world"],
-				"groups": [{ "id": "featured", "label": "Featured", "items": ["hello-world"] }]
+				"groups": [{ "id": "featured", "label": "Featured", "value": "featured", "items": ["hello-world"] }]
 			}
 		}
 	}`);
@@ -18,6 +18,7 @@ test('parses the current navigation manifest shape', () => {
 	assert.deepEqual(manifest.collections.blog.groups[0], {
 		id: 'featured',
 		label: 'Featured',
+		value: 'featured',
 		items: [{ id: 'hello-world' }]
 	});
 });

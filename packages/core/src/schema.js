@@ -3,6 +3,7 @@ import {
 	getConfigReferences,
 	getPrimaryConfigReference
 } from './references.js';
+import { isTentmanGroupBlock, TENTMAN_GROUP_STORAGE_KEY } from './tentman-group.js';
 
 function getConfigKind(config) {
 	return config.collection === true || typeof config.collection === 'object' ? 'collection' : 'singleton';
@@ -88,6 +89,16 @@ function summarizeField(block, blockDefinitions) {
 		return summary;
 	}
 
+	if (isTentmanGroupBlock(block)) {
+		summary.schemaKind = 'tentman-owned-field';
+		summary.storageField = TENTMAN_GROUP_STORAGE_KEY;
+		summary.collection = block.collection;
+		if (block.addOption === true) {
+			summary.addOption = true;
+		}
+		return summary;
+	}
+
 	const reusableBlock = typeof block.type === 'string' ? blockDefinitions.get(block.type) : null;
 
 	if (reusableBlock && !reusableBlock.error) {
@@ -143,7 +154,7 @@ export function getTentmanSchema(project, configReference) {
 							idField: typeof config.raw.idField === 'string' ? config.raw.idField : null,
 							groups: config.groups.map((group) => ({
 								label: group.label,
-								slug: group.slug ?? null,
+								value: group.value ?? null,
 								stableId: group._tentmanId ?? null
 							}))
 						}
