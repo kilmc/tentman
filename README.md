@@ -35,7 +35,7 @@ packages/
 
 ```sh
 nvm use
-pnpm install
+corepack pnpm install
 ```
 
 2. Copy the web app example env file:
@@ -101,7 +101,7 @@ Most repos only need:
 1. An optional root config at `.tentman.json`
 2. One or more content configs like `tentman/configs/blog.tentman.json`
 3. Optional reusable block configs like `tentman/blocks/image-gallery.tentman.json`
-4. An optional manual navigation manifest at `tentman/navigation-manifest.json`
+4. An optional navigation manifest at `tentman/navigation-manifest.json`
 
 ## Codex Skill
 
@@ -247,6 +247,8 @@ Use this for a single page or settings document stored in one JSON file.
 
 Tentman can optionally read and write a conventional JSON manifest at
 `tentman/navigation-manifest.json`. In v1, JSON is the only supported format.
+Treat it as shared editor state for navigation ordering, grouping, and materialized labels/slugs,
+not as the primary source of truth for content itself.
 
 Top-level manual ordering needs stable content config `id` values. Collection item ordering also
 needs `idField`.
@@ -255,16 +257,35 @@ needs `idField`.
 {
 	"version": 1,
 	"content": {
-		"items": ["about", "contact", "blog"]
+		"items": [
+			{ "id": "tent_01HX...", "label": "About", "slug": "about" },
+			{ "id": "tent_01HY...", "label": "Contact", "slug": "contact" },
+			{ "id": "tent_01HZ...", "label": "Blog", "slug": "blog" }
+		]
 	},
 	"collections": {
-		"blog": {
-			"items": ["testing-content-workflows", "designing-a-realistic-fixture"],
+		"tent_01HZ...": {
+			"id": "tent_01HZ...",
+			"label": "Blog",
+			"slug": "blog",
+			"items": [
+				{
+					"id": "tent_01JA...",
+					"label": "Testing content workflows",
+					"slug": "testing-content-workflows"
+				},
+				{
+					"id": "tent_01JB...",
+					"label": "Designing a realistic fixture",
+					"slug": "designing-a-realistic-fixture"
+				}
+			],
 			"groups": [
 				{
-					"id": "featured",
+					"id": "tent_01JC...",
 					"label": "Featured posts",
-					"items": ["testing-content-workflows"]
+					"slug": "featured",
+					"items": [{ "id": "tent_01JA...", "label": "Testing content workflows" }]
 				}
 			]
 		}
@@ -282,6 +303,38 @@ Manifest precedence in Tentman:
 If you want your live site navigation to match Tentman, read the same manifest in your site code.
 The example app in [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app)
 shows that pattern.
+
+`tentman ids write` updates stable `_tentmanId` values in configs and content. If a navigation
+manifest already exists, follow it with `tentman nav rebuild` so manifest references and
+materialized labels/slugs stay in sync.
+
+### CLI Navigation Workflow
+
+Tentman’s CLI now treats the navigation manifest as a maintained artifact with three main
+operations:
+
+- `tentman nav refresh` preserves the current manifest structure and editorial ordering while
+  refreshing references and materialized labels/slugs from current stable ids.
+- `tentman nav rebuild` fully regenerates the manifest from the current project state.
+- `tentman nav watch` watches relevant config and content roots, reruns navigation maintenance
+  after changes, reloads project state after each run, and updates its watch scope if the project
+  roots change.
+
+`tentman nav watch` defaults to rebuild mode:
+
+```sh
+tentman nav watch /path/to/project
+```
+
+Use `--refresh` when you want watch mode to preserve the existing manifest structure and only
+refresh references:
+
+```sh
+tentman nav watch --refresh /path/to/project
+```
+
+Watch mode ignores `tentman/navigation-manifest.json`, `.git`, and `node_modules` so Tentman does
+not retrigger itself on manifest writes or unrelated repo noise.
 
 ### Reusable Block Example
 

@@ -24,21 +24,21 @@ test('aggregates current non-writing checks for tentman ci', async () => {
 			{ id: 'doctor', errors: 0, warnings: 0 },
 			{ id: 'ids', errors: 0, warnings: 0 },
 			{ id: 'nav', errors: 0, warnings: 0 },
-			{ id: 'format', errors: 6, warnings: 0 },
+			{ id: 'format', errors: 7, warnings: 0 },
 			{ id: 'assets', errors: 0, warnings: 0 }
 		]
 	);
 	assert.deepEqual(result.summary, {
-		errors: 6,
+		errors: 7,
 		warnings: 0,
 		failedChecks: ['format'],
 		checks: 5
 	});
 	assert.deepEqual(result.checks[3]?.summary, {
-		files: 6,
+		files: 7,
 		configs: 5,
 		content: 1,
-		navigationManifests: 0
+		navigationManifests: 1
 	});
 });
 

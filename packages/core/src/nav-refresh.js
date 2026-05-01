@@ -1,6 +1,10 @@
 import fs from 'node:fs/promises';
 import { isTentmanId } from './ids.js';
-import { NAVIGATION_MANIFEST_PATH, serializeNavigationManifest } from './manifest.js';
+import {
+	getNavigationReferenceId,
+	NAVIGATION_MANIFEST_PATH,
+	serializeNavigationManifest
+} from './manifest.js';
 import { resolveProjectPath } from './paths.js';
 import {
 	getConfigByReference,
@@ -9,35 +13,49 @@ import {
 } from './references.js';
 
 function getStableReference(reference, referenceMap) {
-	const entity = referenceMap.get(reference);
+	const referenceId = getNavigationReferenceId(reference);
+	const entity = referenceMap.get(referenceId);
 
 	if (!entity || !isTentmanId(entity._tentmanId)) {
 		return reference;
 	}
 
-	return entity._tentmanId;
+	return typeof reference === 'string' ? entity._tentmanId : { ...reference, id: entity._tentmanId };
 }
 
 function mapReference(reference, referenceMap, changes, owner) {
 	const nextReference = getStableReference(reference, referenceMap);
+	const previousId = getNavigationReferenceId(reference);
+	const nextId = getNavigationReferenceId(nextReference);
 
-	if (nextReference !== reference) {
+	if (nextId !== previousId) {
 		changes.push({
 			...owner,
-			from: reference,
-			to: nextReference
+			from: previousId,
+			to: nextId
 		});
 	}
 
 	return nextReference;
 }
 
-function refreshCollectionManifest(project, config, collectionManifest, changes) {
+function refreshCollectionManifest(project, config, collectionManifest, changes, configByReference) {
 	const content = project.contentByConfigPath.get(config.path);
 	const itemByReference = getItemByReference(content?.items ?? []);
 	const groupByReference = getGroupByReference(config.groups);
 
 	return {
+		...(collectionManifest.id
+			? {
+					id: mapReference(collectionManifest.id, configByReference, changes, {
+						kind: 'collection',
+						collection: config._tentmanId ?? config.id ?? config.slug
+					})
+				}
+			: {}),
+		...(collectionManifest.label ? { label: collectionManifest.label } : {}),
+		...(collectionManifest.slug ? { slug: collectionManifest.slug } : {}),
+		...(collectionManifest.href ? { href: collectionManifest.href } : {}),
 		items: (collectionManifest.items ?? []).map((itemReference) =>
 			mapReference(itemReference, itemByReference, changes, {
 				kind: 'item',
@@ -53,6 +71,7 @@ function refreshCollectionManifest(project, config, collectionManifest, changes)
 						}),
 						...(group.label ? { label: group.label } : {}),
 						...(group.slug ? { slug: group.slug } : {}),
+						...(group.href ? { href: group.href } : {}),
 						items: (group.items ?? []).map((itemReference) =>
 							mapReference(itemReference, itemByReference, changes, {
 								kind: 'item',
@@ -108,7 +127,13 @@ export async function refreshNavigationManifest(project) {
 							return [
 								nextCollectionReference,
 								config
-									? refreshCollectionManifest(project, config, collectionManifest, changes)
+									? refreshCollectionManifest(
+											project,
+											config,
+											collectionManifest,
+											changes,
+											configByReference
+										)
 									: collectionManifest
 							];
 						})

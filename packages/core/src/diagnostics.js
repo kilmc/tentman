@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { describeTentmanId } from './ids.js';
+import { getNavigationReferenceId, getNavigationReferenceIds } from './manifest.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 import { NAVIGATION_MANIFEST_PATH } from './manifest.js';
 import {
@@ -139,7 +140,7 @@ function checkNavigationManifestReferences(project) {
 
 	const configByReference = getConfigByReference(project);
 
-	for (const configReference of manifest.content?.items ?? []) {
+	for (const configReference of getNavigationReferenceIds(manifest.content?.items)) {
 		if (!configByReference.has(configReference)) {
 			diagnostics.push(
 				createDiagnostic(
@@ -171,7 +172,7 @@ function checkNavigationManifestReferences(project) {
 		const itemReferences = new Set(itemByReference.keys());
 		const groupReferences = new Set(config.groups.flatMap((group) => getGroupReferences(group)));
 
-		for (const itemReference of collectionManifest.items ?? []) {
+		for (const itemReference of getNavigationReferenceIds(collectionManifest.items)) {
 			if (!itemReferences.has(itemReference)) {
 				diagnostics.push(
 					createDiagnostic(
@@ -196,7 +197,7 @@ function checkNavigationManifestReferences(project) {
 				);
 			}
 
-			for (const itemReference of group.items ?? []) {
+			for (const itemReference of getNavigationReferenceIds(group.items)) {
 				if (!itemReferences.has(itemReference)) {
 					diagnostics.push(
 						createDiagnostic(
@@ -245,7 +246,7 @@ function checkNavigationManifestLegacyReferences(project) {
 
 	const configByReference = getConfigByReference(project);
 
-	for (const configReference of manifest.content?.items ?? []) {
+	for (const configReference of getNavigationReferenceIds(manifest.content?.items)) {
 		const config = configByReference.get(configReference);
 		if (!config) {
 			continue;
@@ -276,8 +277,8 @@ function checkNavigationManifestLegacyReferences(project) {
 		const itemByReference = getItemByReference(content?.items ?? []);
 
 		for (const itemReference of [
-			...(collectionManifest.items ?? []),
-			...(collectionManifest.groups?.flatMap((group) => group.items ?? []) ?? [])
+			...getNavigationReferenceIds(collectionManifest.items),
+			...(collectionManifest.groups?.flatMap((group) => getNavigationReferenceIds(group.items)) ?? [])
 		]) {
 			const item = itemByReference.get(itemReference);
 			const key = `${collectionReference}:${itemReference}`;
@@ -292,6 +293,15 @@ function checkNavigationManifestLegacyReferences(project) {
 				{ kind: 'item', label: `Item ${item.title ?? item.label ?? item.slug ?? itemReference}` },
 				itemReference,
 				item._tentmanId
+			);
+		}
+
+		if (collectionManifest.id) {
+			addLegacyReferenceDiagnostic(
+				diagnostics,
+				{ kind: 'collection', label: `Collection ${config.label}` },
+				getNavigationReferenceId(collectionManifest.id),
+				config._tentmanId
 			);
 		}
 	}

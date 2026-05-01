@@ -209,13 +209,14 @@ Stable ids are Tentman-owned values. They must not be derived from slugs, filena
 
 ### `tentman ids write`
 
-Write missing stable ids using the canonical core id generator.
+Write stable ids using the canonical core id generator, replacing legacy or malformed values.
 
 This command should:
 
 - generate ids for content configs when needed
 - generate ids for collection groups when needed
 - generate ids for collection items when needed
+- replace any existing `_tentmanId` that is not a valid Tentman stable id
 - avoid rewriting unrelated content formatting where possible
 - print a concise summary of files changed
 

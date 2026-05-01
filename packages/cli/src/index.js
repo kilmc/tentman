@@ -22,6 +22,7 @@ import {
 	writeTentmanFormat,
 	writeMissingTentmanIds
 } from '@tentman/core';
+import { watch as createWatcher } from 'chokidar';
 import path from 'node:path';
 
 function printHelp() {
@@ -43,11 +44,14 @@ Usage:
   tentman nav print [config-reference] [project-root]
   tentman nav refresh [project-root]
   tentman nav rebuild [project-root]
+  tentman nav watch [project-root]
   tentman format --check [project-root]
   tentman format --write [project-root]
 
 Options:
   --check     Check formatting without writing files
+  --refresh   For \`nav watch\`, preserve manifest structure and refresh references
+  --rebuild   For \`nav watch\`, fully regenerate the manifest (default)
   --write     Write Tentman-owned formatting rewrites
   --json      Print machine-readable diagnostics
   -h, --help  Show help
@@ -115,6 +119,247 @@ function printDiagnostics(title, diagnostics, options = {}) {
 	}
 
 	console.log(`\n${counts.errors} error${counts.errors === 1 ? '' : 's'}, ${counts.warnings} warning${counts.warnings === 1 ? '' : 's'}`);
+}
+
+function getWatchMode(flags) {
+	if (flags.has('--refresh')) {
+		return 'refresh';
+	}
+
+	return 'rebuild';
+}
+
+function collectNavigationWatchRoots(project) {
+	const roots = new Set();
+	roots.add(path.join(project.rootDir, '.tentman.json'));
+	roots.add(path.join(project.rootDir, 'tentman', 'configs'));
+
+	for (const config of project.configs) {
+		const content = project.contentByConfigPath.get(config.path);
+		if (content?.path) {
+			const absoluteContentPath = path.join(project.rootDir, content.path);
+			roots.add(config.content.mode === 'file' ? path.dirname(absoluteContentPath) : absoluteContentPath);
+		}
+	}
+
+	return [...roots];
+}
+
+function normalizeWatchRoots(roots) {
+	const sortedRoots = [...new Set(roots.map((root) => path.resolve(root)))].sort(
+		(left, right) => left.length - right.length || left.localeCompare(right)
+	);
+	const normalizedRoots = [];
+
+	for (const root of sortedRoots) {
+		if (
+			normalizedRoots.some((existingRoot) => root.startsWith(`${existingRoot}${path.sep}`))
+		) {
+			continue;
+		}
+
+		normalizedRoots.push(root);
+	}
+
+	return normalizedRoots;
+}
+
+function haveSameRoots(left, right) {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+async function runNavigationCommand(projectRoot, mode) {
+	const project = await loadTentmanProject(projectRoot);
+
+	if (mode === 'refresh') {
+		const result = await refreshNavigationManifest(project);
+		const summary = summarizeNavigationRefreshChanges(result);
+		return {
+			mode,
+			changed: result.changed,
+			message: result.changed
+				? `Updated ${result.path}: ${summary.configs} config reference${summary.configs === 1 ? '' : 's'}, ${summary.collections} collection reference${summary.collections === 1 ? '' : 's'}, ${summary.groups} group reference${summary.groups === 1 ? '' : 's'}, and ${summary.items} item reference${summary.items === 1 ? '' : 's'}.`
+				: 'No legacy navigation references to refresh.'
+		};
+	}
+
+	const result = await rebuildNavigationManifest(project);
+	return {
+		mode,
+		changed: result.changed,
+		message: result.changed
+			? `Rebuilt ${result.path}.`
+			: 'Navigation manifest already matches the current project state.'
+	};
+}
+
+async function watchNavigationManifest(projectRoot, flags) {
+	const mode = getWatchMode(flags);
+	let running = false;
+	let pending = false;
+	let closed = false;
+	let debounceTimer = null;
+	let project = await loadTentmanProject(projectRoot);
+	let watchRoots = normalizeWatchRoots(collectNavigationWatchRoots(project));
+	let watcher = null;
+	const manifestPath = path.resolve(projectRoot, 'tentman/navigation-manifest.json');
+
+	const toRelativeWatchPath = (candidatePath) => {
+		const absolutePath = path.resolve(candidatePath);
+		const relativePath = path.relative(projectRoot, absolutePath);
+		return relativePath.replaceAll(path.sep, '/');
+	};
+
+	const isIgnoredRelativePath = (relativePath) =>
+		relativePath === 'tentman/navigation-manifest.json' ||
+		relativePath === '.git' ||
+		relativePath.startsWith('.git/') ||
+		relativePath === 'node_modules' ||
+		relativePath.startsWith('node_modules/');
+
+	const isIgnoredAbsolutePath = (candidatePath) =>
+		path.resolve(candidatePath) === manifestPath ||
+		isIgnoredRelativePath(toRelativeWatchPath(candidatePath));
+
+	const refreshWatcherScope = async (nextRoots) => {
+		if (!watcher || haveSameRoots(watchRoots, nextRoots)) {
+			watchRoots = nextRoots;
+			return;
+		}
+
+		const previousRoots = new Set(watchRoots);
+		const nextRootSet = new Set(nextRoots);
+		const removedRoots = watchRoots.filter((root) => !nextRootSet.has(root));
+		const addedRoots = nextRoots.filter((root) => !previousRoots.has(root));
+
+		if (removedRoots.length > 0) {
+			await watcher.unwatch(removedRoots);
+		}
+
+		if (addedRoots.length > 0) {
+			await watcher.add(addedRoots);
+		}
+
+		watchRoots = nextRoots;
+	};
+
+	const logRun = async (reason) => {
+		if (running || closed) {
+			pending = true;
+			return;
+		}
+
+		running = true;
+
+		try {
+			const result = await runNavigationCommand(projectRoot, mode);
+			project = await loadTentmanProject(projectRoot);
+			const nextRoots = normalizeWatchRoots(collectNavigationWatchRoots(project));
+			await refreshWatcherScope(nextRoots);
+			const timestamp = new Date().toLocaleTimeString();
+			console.log(`[${timestamp}] ${reason}: ${result.message}`);
+		} catch (error) {
+			const timestamp = new Date().toLocaleTimeString();
+			console.error(
+				`[${timestamp}] watch error: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		} finally {
+			running = false;
+			if (pending && !closed) {
+				pending = false;
+				void logRun('queued change');
+			}
+		}
+	};
+
+	const scheduleRun = (reason) => {
+		if (closed) {
+			return;
+		}
+
+		if (debounceTimer) {
+			clearTimeout(debounceTimer);
+		}
+
+		debounceTimer = setTimeout(() => {
+			debounceTimer = null;
+			void logRun(reason);
+		}, 150);
+	};
+
+	const closeWatcher = async () => {
+		if (closed) {
+			return;
+		}
+
+		closed = true;
+		if (debounceTimer) {
+			clearTimeout(debounceTimer);
+		}
+		if (watcher) {
+			await watcher.close();
+			watcher = null;
+		}
+	};
+
+	const handleWatchEvent = (eventName, changedPath) => {
+		if (!changedPath || isIgnoredAbsolutePath(changedPath)) {
+			return;
+		}
+
+		const relativePath = toRelativeWatchPath(changedPath);
+		scheduleRun(relativePath ? `${eventName} in ${relativePath}` : eventName);
+	};
+
+	const waitForReady = async (activeWatcher) =>
+		new Promise((resolve, reject) => {
+			const handleReady = () => {
+				activeWatcher.off('error', handleError);
+				resolve();
+			};
+			const handleError = (error) => {
+				activeWatcher.off('ready', handleReady);
+				reject(error);
+			};
+
+			activeWatcher.once('ready', handleReady);
+			activeWatcher.once('error', handleError);
+		});
+
+	const stopWatching = async (exitCode) => {
+		await closeWatcher();
+		if (typeof exitCode === 'number') {
+			if (exitCode === 0) {
+				console.log('\nStopped Tentman nav watch.');
+			}
+			process.exit(exitCode);
+		}
+	};
+
+	process.once('SIGINT', () => {
+		void stopWatching(0);
+	});
+	process.once('SIGTERM', () => {
+		void stopWatching(0);
+	});
+
+	console.log(`Tentman nav watch (${mode})`);
+	watcher = createWatcher(watchRoots, {
+		ignoreInitial: true,
+		ignored: (candidatePath) => isIgnoredAbsolutePath(candidatePath)
+	});
+	watcher.on('all', (eventName, changedPath) => {
+		handleWatchEvent(eventName, changedPath);
+	});
+	watcher.on('error', (error) => {
+		const timestamp = new Date().toLocaleTimeString();
+		console.error(`[${timestamp}] watch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+	});
+	await waitForReady(watcher);
+	console.log(`Watching ${watchRoots.length} navigation source path${watchRoots.length === 1 ? '' : 's'}...`);
+	await logRun('initial run');
+
+	await new Promise(() => {});
 }
 
 async function run() {
@@ -409,15 +654,35 @@ async function run() {
 		const project = await loadTentmanProject(getProjectRoot(positional, 2));
 		const changes = await writeMissingTentmanIds(project);
 		const summary = summarizeIdWriteChanges(changes);
+		const shouldSuggestNavRebuild = project.navigationManifest.exists && changes.length > 0;
 
 		if (json) {
-			console.log(JSON.stringify({ title: 'Tentman ids write', summary, changes }, null, 2));
+			console.log(
+				JSON.stringify(
+					{
+						title: 'Tentman ids write',
+						summary,
+						changes,
+						...(shouldSuggestNavRebuild
+							? {
+									followUp: {
+										suggestedCommand: 'tentman nav rebuild',
+										reason:
+											'Stable ids changed while a navigation manifest exists, so manifest references and materialized metadata may need a rebuild.'
+									}
+								}
+							: {})
+					},
+					null,
+					2
+				)
+			);
 			return 0;
 		}
 
 		console.log('Tentman ids write');
 		if (changes.length === 0) {
-			console.log('OK, no missing ids.');
+			console.log('OK, all ids are already valid.');
 			return 0;
 		}
 
@@ -427,6 +692,12 @@ async function run() {
 
 		for (const change of changes) {
 			console.log(`${change.kind}: ${change.path} -> ${change.id}`);
+		}
+
+		if (shouldSuggestNavRebuild) {
+			console.log(
+				'Next step: run `tentman nav rebuild` to refresh navigation manifest references and materialized navigation metadata.'
+			);
 		}
 
 		return 0;
@@ -556,6 +827,11 @@ async function run() {
 		}
 
 		console.log(`Rebuilt ${result.path}.`);
+		return 0;
+	}
+
+	if (command === 'nav' && subcommand === 'watch') {
+		await watchNavigationManifest(getProjectRoot(positional, 2), flags);
 		return 0;
 	}
 

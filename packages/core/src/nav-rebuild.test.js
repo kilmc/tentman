@@ -33,18 +33,37 @@ test('rebuilds navigation manifest from current configs and content', async () =
 	);
 
 	assert.deepEqual(manifest.content.items, [
-		'tent_01KQD7Q12XGD83Y8S1TAHW40G3',
-		'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07',
-		'tent_01KQD7Q1301SNN4W42XV2XYA17',
-		'tent_01KQD7Q130YKZ4XV6JRZ8B9BH8',
-		'tent_01KQD7Q130M4G8TR170P1H4FKX'
+		{ id: 'tent_01KQD7Q12XGD83Y8S1TAHW40G3', label: 'About Page', slug: 'about' },
+		{ id: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07', label: 'Blog Posts', slug: 'blog' },
+		{ id: 'tent_01KQD7Q1301SNN4W42XV2XYA17', label: 'Contact Page', slug: 'contact' },
+		{ id: 'tent_01KQD7Q130YKZ4XV6JRZ8B9BH8', label: 'News', slug: 'news' },
+		{ id: 'tent_01KQD7Q130M4G8TR170P1H4FKX', label: 'Projects', slug: 'projects' }
 	]);
 	assert.deepEqual(manifest.collections.tent_01KQD7Q12YAMHFJ3FWHBQ16Z07, {
+		id: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07',
+		label: 'Blog Posts',
+		slug: 'blog',
 		items: [
-			'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD',
-			'tent_01KQD7Q12ZH61M4XHDTEQ5MV98',
-			'tent_01KQD7Q12Z8C6K7C008CDDVCR4',
-			'tent_01KQD7Q12ZHBTXG669982DV00K'
+			{
+				id: 'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD',
+				label: 'Another Page',
+				slug: 'another-page'
+			},
+			{
+				id: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98',
+				label: 'Designing a realistic fixture app',
+				slug: 'designing-a-realistic-fixture'
+			},
+			{
+				id: 'tent_01KQD7Q12Z8C6K7C008CDDVCR4',
+				label: 'Stuff 2',
+				slug: 'stuff-2'
+			},
+			{
+				id: 'tent_01KQD7Q12ZHBTXG669982DV00K',
+				label: 'Testing the new content workflows',
+				slug: 'testing-content-workflows'
+			}
 		]
 	});
 });
@@ -95,13 +114,35 @@ test('rebuilds config-backed collection groups', async () => {
 			id: 'tent_01KQD7Q131PWFNF90HG24K63ZD',
 			label: 'Featured posts',
 			slug: 'featured',
-			items: ['tent_01KQD7Q12ZHBTXG669982DV00K']
+			items: [
+				{
+					id: 'tent_01KQD7Q12ZHBTXG669982DV00K',
+					label: 'Testing the new content workflows',
+					slug: 'testing-content-workflows'
+				}
+			]
 		}
 	]);
 	assert.deepEqual(blogCollection.items, [
-		'tent_01KQD7Q12ZHBTXG669982DV00K',
-		'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD',
-		'tent_01KQD7Q12ZH61M4XHDTEQ5MV98',
-		'tent_01KQD7Q12Z8C6K7C008CDDVCR4'
+		{
+			id: 'tent_01KQD7Q12ZHBTXG669982DV00K',
+			label: 'Testing the new content workflows',
+			slug: 'testing-content-workflows'
+		},
+		{
+			id: 'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD',
+			label: 'Another Page',
+			slug: 'another-page'
+		},
+		{
+			id: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98',
+			label: 'Designing a realistic fixture app',
+			slug: 'designing-a-realistic-fixture'
+		},
+		{
+			id: 'tent_01KQD7Q12Z8C6K7C008CDDVCR4',
+			label: 'Stuff 2',
+			slug: 'stuff-2'
+		}
 	]);
 });

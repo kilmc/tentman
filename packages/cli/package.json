@@ -10,6 +10,7 @@
 		"tentman": "./src/index.js"
 	},
 	"dependencies": {
-		"@tentman/core": "workspace:*"
+		"@tentman/core": "workspace:*",
+		"chokidar": "^5.0.0"
 	}
 }

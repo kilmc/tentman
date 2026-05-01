@@ -8,6 +8,30 @@ import {
 	getPrimaryItemReference
 } from './references.js';
 
+function buildConfigManifestEntry(config, reference) {
+	return {
+		id: reference,
+		label: config.label,
+		...(config.slug ? { slug: config.slug } : {})
+	};
+}
+
+function buildItemManifestEntry(item, reference) {
+	const label = item.title ?? item.label ?? item.slug ?? item.filename ?? reference;
+	const slug =
+		typeof item.slug === 'string' && item.slug.length > 0
+			? item.slug
+			: typeof item.filename === 'string' && item.filename.length > 0
+				? item.filename.replace(/\.[^.]+$/, '')
+				: undefined;
+
+	return {
+		id: reference,
+		label,
+		...(slug ? { slug } : {})
+	};
+}
+
 function findNavigationGroupField(config) {
 	const blocks = Array.isArray(config.raw.blocks) ? config.raw.blocks : [];
 	const matchingBlocks = blocks.filter(
@@ -57,18 +81,21 @@ function rebuildCollectionManifest(project, config) {
 		const groupValue = groupField ? item[groupField] : undefined;
 		const group = typeof groupValue === 'string' ? groupByReference.get(groupValue) : undefined;
 		const groupReference = group ? getPrimaryGroupReference(group) : undefined;
+		const manifestEntry = buildItemManifestEntry(item, itemReference);
 
 		if (groupReference && groupsById.has(groupReference)) {
-			groupsById.get(groupReference).items.push(itemReference);
+			groupsById.get(groupReference).items.push(manifestEntry);
 			continue;
 		}
 
-		ungroupedItems.push(itemReference);
+		ungroupedItems.push(manifestEntry);
 	}
 
 	const groups = [...groupsById.values()];
+	const collectionReference = getPrimaryConfigReference(config);
 
 	return {
+		...(collectionReference ? buildConfigManifestEntry(config, collectionReference) : {}),
 		items: [...groups.flatMap((group) => group.items), ...ungroupedItems],
 		...(groups.length > 0 ? { groups } : {})
 	};
@@ -84,7 +111,7 @@ export async function rebuildNavigationManifest(project) {
 			continue;
 		}
 
-		contentItems.push(configReference);
+		contentItems.push(buildConfigManifestEntry(config, configReference));
 
 		if (config.collection === true || typeof config.collection === 'object') {
 			collections[configReference] = rebuildCollectionManifest(project, config);

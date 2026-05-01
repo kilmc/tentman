@@ -2,28 +2,59 @@ import { assertPlainObject } from './json.js';
 
 export const NAVIGATION_MANIFEST_PATH = 'tentman/navigation-manifest.json';
 
-function readStringArray(value, context) {
-	if (!Array.isArray(value)) {
-		throw new Error(`${context} must be an array of strings`);
+function readOptionalString(value, context) {
+	if (value === undefined) {
+		return undefined;
 	}
 
-	return value.map((entry, index) => {
-		if (typeof entry !== 'string' || entry.length === 0) {
-			throw new Error(`${context}[${index}] must be a non-empty string`);
-		}
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new Error(`${context} must be a non-empty string when present`);
+	}
 
-		return entry;
-	});
+	return value;
+}
+
+function parseNavigationReference(value, context) {
+	if (typeof value === 'string' && value.length > 0) {
+		return { id: value };
+	}
+
+	assertPlainObject(value, `${context} must be a string or object`);
+
+	if (typeof value.id !== 'string' || value.id.length === 0) {
+		throw new Error(`${context}.id must be a non-empty string`);
+	}
+
+	return {
+		id: value.id,
+		...(readOptionalString(value.label, `${context}.label`) ? { label: value.label } : {}),
+		...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug } : {}),
+		...(readOptionalString(value.href, `${context}.href`) ? { href: value.href } : {})
+	};
+}
+
+function readNavigationReferenceArray(value, context) {
+	if (!Array.isArray(value)) {
+		throw new Error(`${context} must be an array`);
+	}
+
+	return value.map((entry, index) => parseNavigationReference(entry, `${context}[${index}]`));
 }
 
 function parseNavigationManifestCollection(value, context) {
 	assertPlainObject(value, `${context} must be an object`);
 
-	const items = readStringArray(value.items ?? [], `${context}.items`);
+	const items = readNavigationReferenceArray(value.items ?? [], `${context}.items`);
 	const groupsValue = value.groups;
 
 	if (groupsValue === undefined) {
-		return { items };
+		return {
+			...(readOptionalString(value.id, `${context}.id`) ? { id: value.id } : {}),
+			...(readOptionalString(value.label, `${context}.label`) ? { label: value.label } : {}),
+			...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug } : {}),
+			...(readOptionalString(value.href, `${context}.href`) ? { href: value.href } : {}),
+			items
+		};
 	}
 
 	if (!Array.isArray(groupsValue)) {
@@ -31,6 +62,10 @@ function parseNavigationManifestCollection(value, context) {
 	}
 
 	return {
+		...(readOptionalString(value.id, `${context}.id`) ? { id: value.id } : {}),
+		...(readOptionalString(value.label, `${context}.label`) ? { label: value.label } : {}),
+		...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug } : {}),
+		...(readOptionalString(value.href, `${context}.href`) ? { href: value.href } : {}),
 		items,
 		groups: groupsValue.map((group, index) => {
 			assertPlainObject(group, `${context}.groups[${index}] must be an object`);
@@ -45,7 +80,8 @@ function parseNavigationManifestCollection(value, context) {
 					? { label: group.label }
 					: {}),
 				...(typeof group.slug === 'string' && group.slug.length > 0 ? { slug: group.slug } : {}),
-				items: readStringArray(group.items ?? [], `${context}.groups[${index}].items`)
+				...(typeof group.href === 'string' && group.href.length > 0 ? { href: group.href } : {}),
+				items: readNavigationReferenceArray(group.items ?? [], `${context}.groups[${index}].items`)
 			};
 		})
 	};
@@ -64,7 +100,7 @@ export function parseNavigationManifest(input) {
 	if (parsed.content !== undefined) {
 		assertPlainObject(parsed.content, 'navigation manifest content must be an object');
 		manifest.content = {
-			items: readStringArray(parsed.content.items ?? [], 'navigation manifest content.items')
+			items: readNavigationReferenceArray(parsed.content.items ?? [], 'navigation manifest content.items')
 		};
 	}
 
@@ -83,4 +119,16 @@ export function parseNavigationManifest(input) {
 
 export function serializeNavigationManifest(manifest) {
 	return `${JSON.stringify(manifest, null, '\t')}\n`;
+}
+
+export function getNavigationReferenceId(reference) {
+	return typeof reference === 'string' ? reference : reference?.id;
+}
+
+export function getNavigationReferenceIds(references) {
+	return Array.isArray(references)
+		? references
+				.map((reference) => getNavigationReferenceId(reference))
+				.filter((reference) => typeof reference === 'string' && reference.length > 0)
+		: [];
 }

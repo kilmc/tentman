@@ -53,13 +53,18 @@ test('reports current fixture files Tentman would rewrite conservatively', async
 			path: 'tentman/configs/projects.tentman.json',
 			kind: 'config',
 			formatter: 'json'
+		},
+		{
+			path: 'tentman/navigation-manifest.json',
+			kind: 'navigation-manifest',
+			formatter: 'navigation-manifest'
 		}
 	]);
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 6,
+		files: 7,
 		configs: 5,
 		content: 1,
-		navigationManifests: 0
+		navigationManifests: 1
 	});
 });
 
@@ -140,10 +145,10 @@ test('writes Tentman-owned formatting rewrites and becomes clean on recheck', as
 	const rewrites = await writeTentmanFormat(project);
 
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 6,
+		files: 7,
 		configs: 5,
 		content: 1,
-		navigationManifests: 0
+		navigationManifests: 1
 	});
 
 	const nextProject = await loadTentmanProject(projectRoot);

@@ -97,28 +97,25 @@ test('refreshes navigation manifest references to stable ids', async () => {
 	const manifest = parseNavigationManifest(manifestSource);
 
 	assert.deepEqual(manifest.content.items, [
-		'tent_01KQD7Q1301SNN4W42XV2XYA17',
-		'tent_01KQD7Q12XGD83Y8S1TAHW40G3',
-		'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07',
-		'tent_01KQD7Q130YKZ4XV6JRZ8B9BH8',
-		'tent_01KQD7Q130M4G8TR170P1H4FKX'
+		{ id: 'tent_01KQD7Q1301SNN4W42XV2XYA17' },
+		{ id: 'tent_01KQD7Q12XGD83Y8S1TAHW40G3' },
+		{ id: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07' },
+		{ id: 'tent_01KQD7Q130YKZ4XV6JRZ8B9BH8' },
+		{ id: 'tent_01KQD7Q130M4G8TR170P1H4FKX' }
 	]);
 
 	const blogCollection = manifest.collections.tent_01KQD7Q12YAMHFJ3FWHBQ16Z07;
 	assert.deepEqual(blogCollection.items, [
-		'tent_01KQD7Q12ZHBTXG669982DV00K',
-		'tent_01KQD7Q12ZH61M4XHDTEQ5MV98',
-		'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD',
-		'tent_01KQD7Q12Z8C6K7C008CDDVCR4'
+		{ id: 'tent_01KQD7Q12ZHBTXG669982DV00K' },
+		{ id: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98' },
+		{ id: 'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD' },
+		{ id: 'tent_01KQD7Q12Z8C6K7C008CDDVCR4' }
 	]);
 	assert.deepEqual(blogCollection.groups, [
 		{
 			id: 'featured',
 			label: 'Featured posts',
-			items: [
-				'tent_01KQD7Q12ZHBTXG669982DV00K',
-				'tent_01KQD7Q12ZH61M4XHDTEQ5MV98'
-			]
+			items: [{ id: 'tent_01KQD7Q12ZHBTXG669982DV00K' }, { id: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98' }]
 		}
 	]);
 });

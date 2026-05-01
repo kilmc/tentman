@@ -14,11 +14,36 @@ test('parses the current navigation manifest shape', () => {
 		}
 	}`);
 
-	assert.deepEqual(manifest.content.items, ['about']);
+	assert.deepEqual(manifest.content.items, [{ id: 'about' }]);
 	assert.deepEqual(manifest.collections.blog.groups[0], {
 		id: 'featured',
 		label: 'Featured',
-		items: ['hello-world']
+		items: [{ id: 'hello-world' }]
+	});
+});
+
+test('parses richer materialized navigation entries', () => {
+	const manifest = parseNavigationManifest(`{
+		"version": 1,
+		"content": {
+			"items": [{ "id": "about", "label": "About", "slug": "about" }]
+		},
+		"collections": {
+			"blog": {
+				"id": "blog",
+				"label": "Blog",
+				"slug": "blog",
+				"items": [{ "id": "hello-world", "label": "Hello world", "slug": "hello-world" }]
+			}
+		}
+	}`);
+
+	assert.deepEqual(manifest.content.items, [{ id: 'about', label: 'About', slug: 'about' }]);
+	assert.deepEqual(manifest.collections.blog, {
+		id: 'blog',
+		label: 'Blog',
+		slug: 'blog',
+		items: [{ id: 'hello-world', label: 'Hello world', slug: 'hello-world' }]
 	});
 });
 

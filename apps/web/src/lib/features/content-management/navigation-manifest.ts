@@ -34,6 +34,10 @@ export interface NavigationManifestGroup {
 }
 
 export interface NavigationManifestCollection {
+	id?: string;
+	label?: string;
+	slug?: string;
+	href?: string;
 	items: string[];
 	groups?: NavigationManifestGroup[];
 }
@@ -118,16 +122,38 @@ function assertObject(value: unknown, message: string): asserts value is Record<
 
 function readStringArray(value: unknown, context: string): string[] {
 	if (!Array.isArray(value)) {
-		throw new Error(`${context} must be an array of strings`);
+		throw new Error(`${context} must be an array`);
 	}
 
 	return value.map((entry, index) => {
-		if (typeof entry !== 'string' || entry.length === 0) {
-			throw new Error(`${context}[${index}] must be a non-empty string`);
+		if (typeof entry === 'string' && entry.length > 0) {
+			return entry;
 		}
 
-		return entry;
+		if (
+			entry &&
+			typeof entry === 'object' &&
+			!Array.isArray(entry) &&
+			typeof entry.id === 'string' &&
+			entry.id.length > 0
+		) {
+			return entry.id;
+		}
+
+		throw new Error(`${context}[${index}] must be a non-empty string or object with id`);
 	});
+}
+
+function readOptionalString(value: unknown, context: string): string | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new Error(`${context} must be a non-empty string when present`);
+	}
+
+	return value;
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
@@ -330,7 +356,15 @@ function parseNavigationManifestCollection(
 	const groupsValue = value.groups;
 
 	if (groupsValue === undefined) {
-		return { items };
+		return {
+			...(readOptionalString(value.id, `${context}.id`) ? { id: value.id as string } : {}),
+			...(readOptionalString(value.label, `${context}.label`)
+				? { label: value.label as string }
+				: {}),
+			...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug as string } : {}),
+			...(readOptionalString(value.href, `${context}.href`) ? { href: value.href as string } : {}),
+			items
+		};
 	}
 
 	if (!Array.isArray(groupsValue)) {
@@ -338,6 +372,12 @@ function parseNavigationManifestCollection(
 	}
 
 	return {
+		...(readOptionalString(value.id, `${context}.id`) ? { id: value.id as string } : {}),
+		...(readOptionalString(value.label, `${context}.label`)
+			? { label: value.label as string }
+			: {}),
+		...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug as string } : {}),
+		...(readOptionalString(value.href, `${context}.href`) ? { href: value.href as string } : {}),
 		items,
 		groups: groupsValue.map((group, index) => {
 			assertObject(group, `${context}.groups[${index}] must be an object`);

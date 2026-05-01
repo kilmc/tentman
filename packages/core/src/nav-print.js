@@ -1,4 +1,5 @@
 import { listTentmanContent } from './content-list.js';
+import { getNavigationReferenceIds } from './manifest.js';
 import {
 	getConfigByReference,
 	getConfigReferences,
@@ -7,7 +8,7 @@ import {
 } from './references.js';
 
 function orderConfigs(project, entries) {
-	const manifestIds = project.navigationManifest.manifest?.content?.items;
+	const manifestIds = getNavigationReferenceIds(project.navigationManifest.manifest?.content?.items);
 	return orderByReferences(entries, manifestIds, (entry) => entry.references);
 }
 
@@ -20,14 +21,19 @@ function orderCollectionItems(project, config, items) {
 		: undefined;
 
 	return {
-		items: orderByReferences(items, manifestCollection?.items, (item) => item.references),
+		items: orderByReferences(
+			items,
+			getNavigationReferenceIds(manifestCollection?.items),
+			(item) => item.references
+		),
 		manifestCollection
 	};
 }
 
 function summarizeGroupItems(group, items) {
-	return orderByReferences(items, group.items, (item) => item.references).filter((item) =>
-		item.references.some((reference) => group.items.includes(reference))
+	const groupItemIds = getNavigationReferenceIds(group.items);
+	return orderByReferences(items, groupItemIds, (item) => item.references).filter((item) =>
+		item.references.some((reference) => groupItemIds.includes(reference))
 	);
 }
 

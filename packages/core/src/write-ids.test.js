@@ -44,7 +44,7 @@ function createDeterministicIdGenerator() {
 
 	return () => {
 		index += 1;
-		return `tent_01KQD800000000000000000${String(index).padStart(2, '0')}`;
+		return `tent_01KQD8000000000000000000${String(index).padStart(2, '0')}`;
 	};
 }
 
@@ -73,7 +73,7 @@ test('writes missing config and collection item ids', async () => {
 		path.join(projectRoot, 'tentman/configs/about.tentman.json'),
 		'utf8'
 	);
-	assert.match(aboutConfig, /"_tentmanId": "tent_01KQD80000000000000000001"/);
+	assert.match(aboutConfig, /"_tentmanId": "tent_01KQD800000000000000000001"/);
 	assert.match(
 		aboutConfig,
 		/\{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" \}/
@@ -122,6 +122,81 @@ test('writes missing collection group ids', async () => {
 	const nextBlogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
 	assert.equal(
 		nextBlogConfig.collection.groups[0]._tentmanId,
-		'tent_01KQD80000000000000000003'
+		'tent_01KQD800000000000000000003'
 	);
+});
+
+test('replaces legacy and malformed ids', async () => {
+	const projectRoot = await copyFixture();
+	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
+	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
+	const postPath = path.join(projectRoot, 'src/content/posts/designing-a-realistic-fixture.md');
+
+	const aboutConfig = JSON.parse(await fs.readFile(aboutConfigPath, 'utf8'));
+	aboutConfig._tentmanId = 'about';
+	await fs.writeFile(aboutConfigPath, `${JSON.stringify(aboutConfig, null, '\t')}\n`);
+
+	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	blogConfig.collection = {
+		groups: [
+			{
+				label: 'Featured posts',
+				slug: 'featured',
+				_tentmanId: '550e8400-e29b-41d4-a716-446655440000'
+			}
+		]
+	};
+	const blogConfigSource = `${JSON.stringify(blogConfig, null, '\t')}\n`.replace(
+		/^(\t"label": "Blog Posts",)$/m,
+		'$1\n\t"_tentmanId": "blog",'
+	);
+	await fs.writeFile(blogConfigPath, blogConfigSource);
+
+	const postSource = await fs.readFile(postPath, 'utf8');
+	await fs.writeFile(
+		postPath,
+		postSource.replace(
+			/^title: 'Designing a realistic fixture app'$/m,
+			"title: 'Designing a realistic fixture app'\n_tentmanId: 'designing-a-realistic-fixture'"
+		)
+	);
+
+	const project = await loadTentmanProject(projectRoot);
+	const changes = await writeMissingTentmanIds(project, {
+		generateId: createDeterministicIdGenerator()
+	});
+	const summary = summarizeIdWriteChanges(changes);
+
+	assert.deepEqual(summary, {
+		configs: 5,
+		groups: 1,
+		items: 4,
+		files: 9
+	});
+
+	const nextProject = await loadTentmanProject(projectRoot);
+	assert.equal(
+		checkTentmanIds(nextProject).filter((diagnostic) => diagnostic.code === 'id.missing').length,
+		0
+	);
+	assert.equal(
+		checkTentmanIds(nextProject).filter((diagnostic) => diagnostic.code === 'id.legacy').length,
+		0
+	);
+
+	const nextAboutConfig = JSON.parse(await fs.readFile(aboutConfigPath, 'utf8'));
+	assert.equal(nextAboutConfig._tentmanId, 'tent_01KQD800000000000000000001');
+
+	const nextBlogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	assert.equal(
+		nextBlogConfig.collection.groups[0]._tentmanId,
+		'tent_01KQD800000000000000000003'
+	);
+
+	const nextPostSource = await fs.readFile(postPath, 'utf8');
+	assert.match(
+		nextPostSource,
+		/title: 'Designing a realistic fixture app'\n_tentmanId: 'tent_01KQD800000000000000000005'/
+	);
+	assert.doesNotMatch(nextPostSource, /_tentmanId: 'designing-a-realistic-fixture'/);
 });

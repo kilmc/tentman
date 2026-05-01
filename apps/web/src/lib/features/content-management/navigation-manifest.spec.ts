@@ -122,6 +122,40 @@ describe('navigation manifest helpers', () => {
 		});
 	});
 
+	it('accepts richer materialized manifest entries by normalizing them to ids', () => {
+		expect(
+			parseNavigationManifest(`{
+				"version": 1,
+				"content": {
+					"items": [{ "id": "about", "label": "About", "slug": "about" }]
+				},
+				"collections": {
+					"projects": {
+						"id": "projects",
+						"label": "Projects",
+						"slug": "projects",
+						"items": [
+							{ "id": "poster-design", "label": "Poster design", "slug": "poster-design" }
+						]
+					}
+				}
+			}`)
+		).toEqual({
+			version: 1,
+			content: {
+				items: ['about']
+			},
+			collections: {
+				projects: {
+					id: 'projects',
+					label: 'Projects',
+					slug: 'projects',
+					items: ['poster-design']
+				}
+			}
+		});
+	});
+
 	it('suggests ids only for configs that are still missing them', () => {
 		expect(
 			getMissingContentConfigIds([

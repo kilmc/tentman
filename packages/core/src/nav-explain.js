@@ -1,4 +1,5 @@
 import { printTentmanNavigation } from './nav-print.js';
+import { getNavigationReferenceIds } from './manifest.js';
 import { getConfigByReference } from './references.js';
 
 function findCollectionReference(project, config) {
@@ -16,7 +17,7 @@ export function explainTentmanNavigation(project, configReference, itemReference
 
 	const topLevelNavigation = printTentmanNavigation(project);
 	const topLevelIndex = topLevelNavigation.content.findIndex((entry) => entry.path === config.path);
-	const manifestTopLevelItems = project.navigationManifest.manifest?.content?.items ?? [];
+	const manifestTopLevelItems = getNavigationReferenceIds(project.navigationManifest.manifest?.content?.items);
 	const topLevelMatchedReference =
 		topLevelNavigation.content[topLevelIndex]?.references.find((reference) =>
 			manifestTopLevelItems.includes(reference)
@@ -54,7 +55,7 @@ export function explainTentmanNavigation(project, configReference, itemReference
 	const group = groupIndex === -1 ? null : collectionNavigation.groups[groupIndex];
 	const collectionReference = findCollectionReference(project, config);
 	const manifestCollectionItems = collectionReference
-		? project.navigationManifest.manifest?.collections?.[collectionReference]?.items ?? []
+		? getNavigationReferenceIds(project.navigationManifest.manifest?.collections?.[collectionReference]?.items)
 		: [];
 	const itemMatchedReference =
 		item.references.find((reference) => manifestCollectionItems.includes(reference)) ?? null;

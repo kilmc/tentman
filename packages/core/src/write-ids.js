@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
-import { createTentmanId } from './ids.js';
+import { createTentmanId, describeTentmanId } from './ids.js';
 import { parseJsonObject, serializeJson } from './json.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 
 function hasUsableTentmanId(value) {
-	return typeof value === 'string' && value.length > 0;
+	return describeTentmanId(value) === 'valid';
 }
 
 function insertObjectPropertyAfterKey(object, anchorKey, propertyKey, propertyValue) {
@@ -42,18 +42,30 @@ function getJsonStringPropertyIndent(source, propertyKey) {
 	return match?.[1] ?? '\t';
 }
 
+function escapeRegExp(value) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function replaceOrInsertJsonStringProperty(source, propertyKey, propertyValue, anchorKey) {
-	const serializedProperty = `${getJsonStringPropertyIndent(source, anchorKey)}"${propertyKey}": ${JSON.stringify(propertyValue)},`;
+	const propertyIndent = getJsonStringPropertyIndent(source, anchorKey);
 	const existingPropertyPattern = new RegExp(
-		`^(\\s*)"${propertyKey}"\\s*:\\s*"[^"]*"\\s*,?\\s*$`,
+		`^(${escapeRegExp(propertyIndent)})"${propertyKey}"\\s*:\\s*"[^"]*"\\s*(,?)\\s*$`,
 		'm'
 	);
 
 	if (existingPropertyPattern.test(source)) {
-		return source.replace(existingPropertyPattern, serializedProperty);
+		return source.replace(
+			existingPropertyPattern,
+			(_match, indent, trailingComma) =>
+				`${indent}"${propertyKey}": ${JSON.stringify(propertyValue)}${trailingComma}`
+		);
 	}
 
-	const anchorPattern = new RegExp(`^(\\s*)"${anchorKey}"\\s*:\\s*("[^"]*"|[^,\\n]+),?\\s*$`, 'm');
+	const serializedProperty = `${propertyIndent}"${propertyKey}": ${JSON.stringify(propertyValue)},`;
+	const anchorPattern = new RegExp(
+		`^(${escapeRegExp(propertyIndent)})"${anchorKey}"\\s*:\\s*("[^"]*"|[^,\\n]+),?\\s*$`,
+		'm'
+	);
 	const anchorMatch = source.match(anchorPattern);
 
 	if (!anchorMatch) {
