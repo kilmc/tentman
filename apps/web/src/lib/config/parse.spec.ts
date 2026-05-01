@@ -194,6 +194,30 @@ describe('parseConfigFile', () => {
 		});
 	});
 
+	it('parses toggle blocks as built-in primitive fields', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"content": {
+				"mode": "file",
+				"path": "./posts.json"
+			},
+			"blocks": [
+				{ "id": "published", "type": "toggle", "label": "Published" }
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks[0]).toMatchObject({
+			id: 'published',
+			type: 'toggle',
+			label: 'Published'
+		});
+	});
+
 	it('parses select blocks with Tentman navigation group sourced options', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",

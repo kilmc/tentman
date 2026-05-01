@@ -7,6 +7,7 @@ export type PrimitiveBlockType =
 	| 'number'
 	| 'date'
 	| 'boolean'
+	| 'toggle'
 	| 'image'
 	| 'select';
 

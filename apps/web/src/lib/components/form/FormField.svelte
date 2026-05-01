@@ -108,7 +108,7 @@
 	<NumberField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'date'}
 	<DateField {label} bind:value {required} {onchange} />
-{:else if fieldType === 'boolean'}
+{:else if fieldType === 'boolean' || fieldType === 'toggle'}
 	<BooleanField {label} bind:value {required} {onchange} />
 {:else if fieldType === 'image'}
 	<ImageField

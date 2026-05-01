@@ -94,4 +94,32 @@ describe('CollectionPanel customize mode', () => {
 		await expect.element(screen.getByRole('button', { name: 'Drag Identity' })).toBeVisible();
 		expect(document.body.textContent).not.toContain('Brand system');
 	});
+
+	it('collapses and expands grouped items in the panel view', async () => {
+		const screen = render(CollectionPanel, {
+			slug: 'projects',
+			label: 'Projects',
+			itemLabel: 'Project',
+			items: [],
+			groups: [
+				{
+					id: 'identity',
+					label: 'Identity',
+					items: [{ itemId: 'brand-system', title: 'Brand system', sortDate: null }]
+				}
+			]
+		});
+
+		await expect.element(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();
+
+		const toggle = screen.getByRole('button', { name: 'Collapse Identity' });
+		expect(toggle.element().parentElement?.className).toContain('sticky');
+		await toggle.click();
+
+		expect(document.body.textContent).not.toContain('Brand system');
+		await expect.element(screen.getByRole('button', { name: 'Expand Identity' })).toBeVisible();
+
+		await screen.getByRole('button', { name: 'Expand Identity' }).click();
+		await expect.element(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();
+	});
 });

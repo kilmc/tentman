@@ -40,6 +40,6 @@
 			"maxLength": 300
 		},
 		{ "id": "body", "label": "Body", "type": "markdown", "required": true, "minLength": 50 },
-		{ "id": "published", "label": "Published", "type": "boolean" }
+		{ "id": "published", "label": "Published", "type": "toggle" }
 	]
 }

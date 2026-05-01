@@ -385,8 +385,12 @@ Built-in block types:
 - `number`
 - `date`
 - `boolean`
+- `toggle`
 - `image`
 - `select`
+
+Use `toggle` for on/off settings like `published`. It stores a boolean value and renders as a
+switch in the editor. Existing `boolean` fields remain supported.
 
 Common block fields:
 

@@ -33,6 +33,7 @@ export const BUILT_IN_BLOCKS: BuiltInBlockDefinition[] = [
 		label: 'Boolean',
 		adapter: BUILT_IN_BLOCK_ADAPTERS.boolean
 	},
+	{ id: 'toggle', kind: 'built_in', label: 'Toggle', adapter: BUILT_IN_BLOCK_ADAPTERS.toggle },
 	{ id: 'image', kind: 'built_in', label: 'Image', adapter: BUILT_IN_BLOCK_ADAPTERS.image },
 	{ id: 'select', kind: 'built_in', label: 'Select', adapter: BUILT_IN_BLOCK_ADAPTERS.select }
 ];

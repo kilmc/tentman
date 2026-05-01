@@ -8,6 +8,7 @@
 	import ArrowUpAZ from 'lucide-svelte/icons/arrow-up-a-z';
 	import Check from 'lucide-svelte/icons/check';
 	import ChevronDown from 'lucide-svelte/icons/chevron-down';
+	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
 	import Pencil from 'lucide-svelte/icons/pencil';
 	import Plus from 'lucide-svelte/icons/plus';
@@ -68,6 +69,7 @@
 	let editableUngroupedItems = $state<CollectionIndexItem[]>([]);
 	let draggingGroup = $state(false);
 	let sortMenu = $state<HTMLDetailsElement | null>(null);
+	let collapsedGroupIds = $state<string[]>([]);
 
 	const branchQuery = $derived(branch ? `?branch=${encodeURIComponent(branch)}` : '');
 	const allItems = $derived([...groups.flatMap((group) => group.items), ...items]);
@@ -211,6 +213,16 @@
 			sortMenu.open = false;
 		}
 	}
+
+	function isGroupCollapsed(groupId: string) {
+		return collapsedGroupIds.includes(groupId);
+	}
+
+	function toggleGroupCollapsed(groupId: string) {
+		collapsedGroupIds = isGroupCollapsed(groupId)
+			? collapsedGroupIds.filter((id) => id !== groupId)
+			: [...collapsedGroupIds, groupId];
+	}
 </script>
 
 <aside
@@ -330,26 +342,36 @@
 								class="grid gap-1"
 								data-is-dnd-shadow-item-hint={group[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
 							>
-								<button
-									type="button"
-									use:dragHandle
-									class="grid min-h-5 cursor-grab grid-cols-[auto_minmax(0,1fr)] items-center gap-1 px-1 text-left active:cursor-grabbing"
-									aria-label={`Drag ${group.label}`}
-									onpointerdown={beginGroupDragPreview}
-									onpointerup={endGroupDragPreview}
-									onpointercancel={endGroupDragPreview}
-								>
-									<span
-										aria-hidden="true"
-										class="inline-flex h-5 w-5 items-center justify-center rounded-md text-stone-400"
+									<div class="sticky top-[-0.75rem] z-10 -mx-1 grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-1 bg-white/95 px-1 pt-4 pb-1 backdrop-blur">
+									<button
+										type="button"
+										class="inline-flex h-6 w-6 items-center justify-center rounded-md text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
+										aria-label={`${isGroupCollapsed(group.id) ? 'Expand' : 'Collapse'} ${group.label}`}
+										aria-expanded={!isGroupCollapsed(group.id)}
+										onclick={() => toggleGroupCollapsed(group.id)}
+									>
+										{#if isGroupCollapsed(group.id)}
+											<ChevronRight class="h-3.5 w-3.5" />
+										{:else}
+											<ChevronDown class="h-3.5 w-3.5" />
+										{/if}
+									</button>
+									<button
+										type="button"
+										use:dragHandle
+										class="inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-md text-stone-400 active:cursor-grabbing"
+										aria-label={`Drag ${group.label}`}
+										onpointerdown={beginGroupDragPreview}
+										onpointerup={endGroupDragPreview}
+										onpointercancel={endGroupDragPreview}
 									>
 										<GripVertical class="h-3.5 w-3.5" />
-									</span>
+									</button>
 									<h3 class="truncate text-xs font-semibold text-stone-500 uppercase">
 										{group.label}
 									</h3>
-								</button>
-								{#if !draggingGroup}
+								</div>
+								{#if !draggingGroup && !isGroupCollapsed(group.id)}
 									<div
 										class="grid gap-1"
 										data-testid={`collection-group-zone-${group.id}`}
@@ -477,21 +499,43 @@
 					{#each groups as group (group.id)}
 						{#if group.items.length > 0}
 							<section class="grid gap-1">
-								<h3 class="px-1 text-xs font-semibold text-stone-500 uppercase">
-									{group.label}
-								</h3>
-								{#each group.items as item (item.itemId)}
-									<a
-										href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
-										class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
-										class:tm-nav-link-active={currentItemId === item.itemId}
-										aria-label={getItemLinkLabel(item)}
-										title={item.title}
+									<div class="sticky top-[-0.75rem] z-10 -mx-1 bg-white/95 px-1 pt-4 pb-1 backdrop-blur">
+									<button
+										type="button"
+										class="grid min-h-6 w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-stone-100"
+										aria-label={`${isGroupCollapsed(group.id) ? 'Expand' : 'Collapse'} ${group.label}`}
+										aria-expanded={!isGroupCollapsed(group.id)}
+										onclick={() => toggleGroupCollapsed(group.id)}
 									>
-										<span class="truncate font-medium">{item.title}</span>
-										<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
-									</a>
-								{/each}
+										<span
+											aria-hidden="true"
+											class="inline-flex h-5 w-5 items-center justify-center rounded-md text-stone-500"
+										>
+											{#if isGroupCollapsed(group.id)}
+												<ChevronRight class="h-3.5 w-3.5" />
+											{:else}
+												<ChevronDown class="h-3.5 w-3.5" />
+											{/if}
+										</span>
+										<h3 class="truncate text-xs font-semibold text-stone-500 uppercase">
+											{group.label}
+										</h3>
+									</button>
+								</div>
+								{#if !isGroupCollapsed(group.id)}
+									{#each group.items as item (item.itemId)}
+										<a
+											href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+											class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
+											class:tm-nav-link-active={currentItemId === item.itemId}
+											aria-label={getItemLinkLabel(item)}
+											title={item.title}
+										>
+											<span class="truncate font-medium">{item.title}</span>
+											<span class="h-2 w-2 rounded-full bg-current opacity-0"></span>
+										</a>
+									{/each}
+								{/if}
 							</section>
 						{/if}
 					{/each}

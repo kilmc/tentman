@@ -8,6 +8,9 @@ describe('BUILT_IN_BLOCK_ADAPTERS', () => {
 		expect(
 			BUILT_IN_BLOCK_ADAPTERS.boolean.getDefaultValue({ id: 'published', type: 'boolean' })
 		).toBe(false);
+		expect(
+			BUILT_IN_BLOCK_ADAPTERS.toggle.getDefaultValue({ id: 'published', type: 'toggle' })
+		).toBe(false);
 		expect(BUILT_IN_BLOCK_ADAPTERS.image.getDefaultValue({ id: 'heroImage', type: 'image' })).toBe(
 			''
 		);
@@ -39,5 +42,13 @@ describe('BUILT_IN_BLOCK_ADAPTERS', () => {
 				label: 'Rank'
 			})
 		).toEqual(['Rank must be a valid number']);
+
+		expect(
+			BUILT_IN_BLOCK_ADAPTERS.toggle.validate?.('yes', {
+				id: 'published',
+				type: 'toggle',
+				label: 'Published'
+			})
+		).toEqual(['Published must be true or false']);
 	});
 });

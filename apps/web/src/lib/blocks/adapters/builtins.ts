@@ -161,24 +161,29 @@ const dateAdapter: BlockAdapter = {
 	}
 };
 
-const booleanAdapter: BlockAdapter = {
-	type: 'boolean',
-	getDefaultValue() {
-		return false;
-	},
-	validate(value, usage) {
-		const requiredErrors = validateRequired(value, usage);
-		if (requiredErrors.length > 0) {
-			return requiredErrors;
-		}
+function createBooleanAdapter(type: 'boolean' | 'toggle'): BlockAdapter {
+	return {
+		type,
+		getDefaultValue() {
+			return false;
+		},
+		validate(value, usage) {
+			const requiredErrors = validateRequired(value, usage);
+			if (requiredErrors.length > 0) {
+				return requiredErrors;
+			}
 
-		if (value === undefined || value === null || value === '') {
-			return [];
-		}
+			if (value === undefined || value === null || value === '') {
+				return [];
+			}
 
-		return typeof value === 'boolean' ? [] : [`${getBlockLabel(usage)} must be true or false`];
-	}
-};
+			return typeof value === 'boolean' ? [] : [`${getBlockLabel(usage)} must be true or false`];
+		}
+	};
+}
+
+const booleanAdapter = createBooleanAdapter('boolean');
+const toggleAdapter = createBooleanAdapter('toggle');
 
 const imageAdapter: BlockAdapter = {
 	type: 'image',
@@ -238,6 +243,7 @@ export const BUILT_IN_BLOCK_ADAPTERS: Record<PrimitiveBlockType, BlockAdapter> =
 	number: numberAdapter,
 	date: dateAdapter,
 	boolean: booleanAdapter,
+	toggle: toggleAdapter,
 	image: imageAdapter,
 	select: selectAdapter
 };

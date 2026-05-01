@@ -31,7 +31,7 @@ const config = parseContentConfigFixture(`{
 	"blocks": [
 		{ "id": "title", "label": "Title", "type": "text", "show": "primary", "required": true },
 		{ "id": "slug", "label": "Slug", "type": "text", "required": true },
-		{ "id": "published", "label": "Published", "type": "boolean", "show": "secondary" },
+		{ "id": "published", "label": "Published", "type": "toggle", "show": "secondary" },
 		{
 			"id": "tags",
 			"label": "Tags",
@@ -57,14 +57,14 @@ describe('forms/helpers', () => {
 	it('normalizes array-based field configs', () => {
 		expect(normalizeFields(config.blocks)).toMatchObject({
 			title: { type: 'text', label: 'Title' },
-			published: { type: 'boolean', label: 'Published', show: 'secondary' }
+			published: { type: 'toggle', label: 'Published', show: 'secondary' }
 		});
 	});
 
 	it('derives card fields from show metadata', () => {
 		expect(getCardFields(config)).toEqual({
 			primary: [expect.objectContaining({ id: 'title', type: 'text' })],
-			secondary: [expect.objectContaining({ id: 'published', type: 'boolean' })]
+			secondary: [expect.objectContaining({ id: 'published', type: 'toggle' })]
 		});
 	});
 });

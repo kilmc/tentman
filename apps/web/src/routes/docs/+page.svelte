@@ -8,6 +8,7 @@
 		'number',
 		'date',
 		'boolean',
+		'toggle',
 		'image',
 		'select'
 	];
@@ -218,7 +219,7 @@
 			required: 'Yes',
 			type: 'string',
 			purpose: 'Primitive type, inline `block`, or reusable block id.',
-			notes: ''
+			notes: 'Use `toggle` for on/off settings like Published. `boolean` remains supported.'
 		},
 		{
 			field: 'label',
@@ -425,6 +426,7 @@
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
     { "id": "date", "type": "date", "label": "Publish Date", "show": "secondary" },
     { "id": "layout", "type": "select", "label": "Layout", "options": ["stack", "inline"] },
+    { "id": "published", "type": "toggle", "label": "Published", "show": "secondary" },
     {
       "id": "group",
       "type": "select",
@@ -829,6 +831,11 @@ export default {
 					<span class="text-stone-400"> </span>
 				{/if}
 			{/each}
+		</p>
+
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			`toggle` stores a boolean value and renders as an accessible switch. It is a good fit for
+			on/off states such as published flags, feature switches, or visibility settings.
 		</p>
 
 		<h3 class="mt-6 text-lg font-semibold text-stone-950">Reusable block config fields</h3>
