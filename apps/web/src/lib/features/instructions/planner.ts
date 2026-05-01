@@ -1,5 +1,6 @@
 import {
 	NAVIGATION_MANIFEST_PATH,
+	addContentConfigIdToSource,
 	loadNavigationManifestState,
 	type NavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
@@ -25,6 +26,33 @@ const TEMPLATE_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
 function normalizePath(path: string): string {
 	return path.replace(/^\.?\//, '').replace(/\/{2,}/g, '/');
+}
+
+function getPathBasename(path: string): string {
+	const filename = path.split('/').pop() ?? path;
+	return filename.replace(/\.tentman\.json$/, '');
+}
+
+function maybeAddTentmanConfigId(path: string, content: string): string {
+	if (!path.endsWith('.tentman.json')) {
+		return content;
+	}
+
+	try {
+		const parsed = JSON.parse(content) as Record<string, unknown>;
+		if (parsed.type !== 'content') {
+			return content;
+		}
+
+		const configId =
+			typeof parsed.id === 'string' && parsed.id.trim().length > 0
+				? parsed.id.trim()
+				: getPathBasename(path);
+
+		return addContentConfigIdToSource(content, configId);
+	} catch {
+		return content;
+	}
 }
 
 export { createInstructionInputDefaults, normalizeSlug } from '$lib/features/instructions/input';
@@ -205,7 +233,7 @@ async function buildPlannedFiles(
 		const path = normalizePath(renderStringTemplate(template.destinationPathTemplate, values));
 		const isDuplicatePath = seenPaths.has(path);
 		seenPaths.add(path);
-		const content = renderStringTemplate(template.body, values);
+		const content = maybeAddTentmanConfigId(path, renderStringTemplate(template.body, values));
 		const exists = isDuplicatePath ? false : await backend.fileExists(path);
 		const status = isDuplicatePath
 			? 'conflict'

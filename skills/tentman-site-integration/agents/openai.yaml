@@ -1,0 +1,7 @@
+interface:
+  display_name: "Tentman Integrator"
+  short_description: "Integrate Tentman into existing sites"
+  default_prompt: "Use $tentman-site-integration to inspect this site, refresh the latest published Tentman docs, and make the right Tentman config changes."
+
+policy:
+  allow_implicit_invocation: true

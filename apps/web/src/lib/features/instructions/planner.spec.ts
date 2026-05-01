@@ -142,7 +142,7 @@ const createPageInstruction: DiscoveredInstruction = {
 			sourcePath: 'tentman/instructions/create-page/templates/config.tmpl',
 			destinationPathTemplate: 'tentman/configs/{{slug}}.tentman.json',
 			skipIfExists: false,
-			body: '{"id":"{{slug}}","label":"{{title}}"}\n'
+			body: '{"type":"content","id":"{{slug}}","label":"{{title}}"}\n'
 		},
 		{
 			sourcePath: 'tentman/instructions/create-page/templates/route.tmpl',
@@ -215,7 +215,8 @@ describe('instruction planner', () => {
 				},
 				{
 					path: 'tentman/configs/press-kit.tentman.json',
-					content: '{"id":"press-kit","label":"Press Kit"}\n',
+					content:
+						'{\n\t"type": "content",\n\t"id": "press-kit",\n\t"label": "Press Kit",\n\t"_tentmanId": "press-kit"\n}\n',
 					sourceTemplatePath: 'tentman/instructions/create-page/templates/config.tmpl',
 					status: 'create',
 					reason: null

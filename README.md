@@ -12,6 +12,10 @@ The current docs live in two places:
 - In-app config reference at `/docs`
 - A complete example consumer repo in [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app)
 
+This repo also maintains the installable Codex skill at
+[`skills/tentman-site-integration`](/Users/kilmc/code/tentman/tentman/skills/tentman-site-integration)
+for integrating Tentman into existing external sites.
+
 ## Repository Layout
 
 This repo is a pnpm workspace:
@@ -98,6 +102,15 @@ Most repos only need:
 2. One or more content configs like `tentman/configs/blog.tentman.json`
 3. Optional reusable block configs like `tentman/blocks/image-gallery.tentman.json`
 4. An optional manual navigation manifest at `tentman/navigation-manifest.json`
+
+## Codex Skill
+
+The canonical repo-owned `tentman-site-integration` skill lives at
+[`skills/tentman-site-integration`](/Users/kilmc/code/tentman/tentman/skills/tentman-site-integration)
+and is maintained here.
+
+Use the normal repo or path-based skill installer flow to install or refresh it from this repo path.
+The installed skill name stays `tentman-site-integration`.
 
 ### Optional Root Config
 

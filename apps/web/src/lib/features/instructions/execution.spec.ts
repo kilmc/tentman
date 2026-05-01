@@ -80,7 +80,8 @@ const basePlan: InstructionExecutionPlan = {
 	files: [
 		{
 			path: 'tentman/configs/press-kit.tentman.json',
-			content: '{"id":"press-kit"}\n',
+			content:
+				'{\n\t"type": "content",\n\t"label": "Press Kit",\n\t"_tentmanId": "press-kit",\n\t"id": "press-kit"\n}\n',
 			sourceTemplatePath: 'templates/config.tmpl',
 			status: 'create',
 			reason: null
@@ -123,7 +124,9 @@ describe('instruction execution', () => {
 			navigationUpdated: true,
 			navigationStatus: 'append-item'
 		});
-		expect(backend.files['tentman/configs/press-kit.tentman.json']).toBe('{"id":"press-kit"}\n');
+		expect(backend.files['tentman/configs/press-kit.tentman.json']).toContain(
+			'"_tentmanId": "press-kit"'
+		);
 		expect(backend.files['tentman/navigation-manifest.json']).toContain('"press-kit"');
 		expect(backend.files['src/routes/press-kit/+page.svelte']).toBe('<h1>Existing page</h1>\n');
 	});
