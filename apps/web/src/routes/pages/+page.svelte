@@ -88,7 +88,11 @@
 			<div class="mt-4 grid gap-3">
 				{#each data.summary.changedPages as changedPage (changedPage.slug)}
 					<a
-						href={resolve(`/pages/${changedPage.slug}`)}
+						href={resolve(
+							changedPage.isCollection
+								? `/pages/${changedPage.slug}`
+								: `/pages/${changedPage.slug}/edit`
+						)}
 						class="grid gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 transition-colors hover:border-stone-300 hover:bg-white"
 					>
 						<div class="flex items-start justify-between gap-4">

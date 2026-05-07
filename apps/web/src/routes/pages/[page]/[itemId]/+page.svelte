@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
+	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
@@ -15,6 +16,7 @@
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { toasts } from '$lib/stores/toasts';
 	import { fetchContentDocument } from '$lib/content/service';
 	import { findContentItemByRoute } from '$lib/features/content-management/item';
 
@@ -30,6 +32,7 @@
 	let item = $state(data.item);
 	let contentError = $state(data.contentError);
 	let localLoadRequest = 0;
+	const flashMessageKeys = ['published', 'deleted', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
@@ -144,6 +147,49 @@
 
 		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
 		draftBranchStore.setBranch(data.branch, repoFullName);
+	});
+
+	function getFlashMessageKey() {
+		const url = new URL(window.location.href);
+		const relevantEntries = flashMessageKeys
+			.map((key) => [key, url.searchParams.get(key)] as const)
+			.filter(([, value]) => value !== null);
+
+		if (relevantEntries.length === 0) {
+			return null;
+		}
+
+		return `tentman:flash:${url.pathname}?${new URLSearchParams(
+			relevantEntries.map(([key, value]) => [key, value ?? ''])
+		).toString()}`;
+	}
+
+	function handleUrlMessages() {
+		const urlParams = new URLSearchParams(window.location.search);
+		const flashKey = getFlashMessageKey();
+
+		if (flashKey && sessionStorage.getItem(flashKey) === 'seen') {
+			return;
+		}
+
+		if (urlParams.get('published') === 'true') {
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes published successfully!',
+				'success'
+			);
+		}
+
+		if (urlParams.get('deleted') === 'true') {
+			toasts.add('Item deleted successfully!', 'success');
+		}
+
+		if (flashKey) {
+			sessionStorage.setItem(flashKey, 'seen');
+		}
+	}
+
+	onMount(() => {
+		handleUrlMessages();
 	});
 </script>
 

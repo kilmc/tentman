@@ -55,7 +55,7 @@ export const actions: Actions = {
 			// Redirect back to index page
 			throw redirect(
 				303,
-				`/pages/${params.page}?saved=true&branch=${encodeURIComponent(branchName)}`
+				`/pages/${params.page}/edit?saved=true&branch=${encodeURIComponent(branchName)}`
 			);
 		} catch (err) {
 			// Handle redirects
@@ -98,8 +98,8 @@ export const actions: Actions = {
 				// No branch option = commits to default branch
 			);
 
-			// Redirect to index with success message
-			throw redirect(303, `/pages/${params.page}?published=true`);
+			// Redirect back to edit with success message
+			throw redirect(303, `/pages/${params.page}/edit?published=true`);
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {

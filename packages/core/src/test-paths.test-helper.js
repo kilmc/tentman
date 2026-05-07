@@ -3,3 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 export const testAppRoot = path.join(repoRoot, 'apps/test-app');
+export const contentComponentsFixturesRoot = path.join(
+	repoRoot,
+	'packages/core/src/fixtures/content-components'
+);

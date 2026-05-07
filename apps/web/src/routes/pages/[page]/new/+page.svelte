@@ -3,6 +3,7 @@
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
+	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -327,7 +328,7 @@
 				/>
 			{/if}
 
-			<div class="mt-6 flex gap-3">
+			<PageStickyFooter>
 				<button
 					type="button"
 					onclick={() => void handleLocalCreate()}
@@ -337,7 +338,7 @@
 					{saving ? 'Creating...' : 'Create Item'}
 				</button>
 				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary"> Cancel </a>
-			</div>
+			</PageStickyFooter>
 		</form>
 	{:else}
 		<form
@@ -412,7 +413,7 @@
 				/>
 			{/if}
 
-			<div class="mt-6 flex gap-3">
+			<PageStickyFooter>
 				<button
 					type="submit"
 					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
@@ -423,7 +424,7 @@
 				<a href={resolve(`/pages/${data.pageSlug}`) + branchQuery} class="tm-btn tm-btn-secondary">
 					Cancel
 				</a>
-			</div>
+			</PageStickyFooter>
 		</form>
 	{/if}
 </div>

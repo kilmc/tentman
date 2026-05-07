@@ -3,6 +3,10 @@
 	import { page } from '$app/state';
 	import { get } from 'svelte/store';
 	import AssetImage from '$lib/components/AssetImage.svelte';
+	import {
+		loadContentComponentRegistryForMode
+	} from '$lib/content-components/browser';
+	import { applyPreviewContentComponentTransforms } from '$lib/content-components/preview';
 	import { loadPluginRegistryForMode } from '$lib/plugins/browser';
 	import { applyPreviewPluginTransforms } from '$lib/plugins/registry';
 	import { localContent } from '$lib/stores/local-content';
@@ -108,36 +112,46 @@
 		const markdownValue = value;
 
 		async function loadPreviewMarkdown() {
-			if ((block.plugins?.length ?? 0) === 0) {
-				previewMarkdown = markdownValue;
-				previewPluginError = null;
-				return;
-			}
-
 			try {
-				const registry = await getPreviewPluginRegistry();
-				const enabledPlugins: UnifiedLocalPlugin[] = [];
 				const errors: string[] = [];
+				let nextMarkdown = markdownValue;
 
-				for (const pluginId of Array.from(new Set(block.plugins ?? []))) {
-					const loadedPlugin = registry.get(pluginId);
+				if ((block.plugins?.length ?? 0) > 0) {
+					const registry = await getPreviewPluginRegistry();
+					const enabledPlugins: UnifiedLocalPlugin[] = [];
 
-					if (!loadedPlugin) {
-						const loadError = registry.errors.find((error) => error.includes(`"${pluginId}"`));
+					for (const pluginId of Array.from(new Set(block.plugins ?? []))) {
+						const loadedPlugin = registry.get(pluginId);
 
-						errors.push(
-							loadError
-								? `Markdown preview could not load plugin "${pluginId}": ${loadError}`
-								: `Markdown preview enables plugin "${pluginId}", but it is not registered in root.plugins`
-						);
-						continue;
+						if (!loadedPlugin) {
+							const loadError = registry.errors.find((error) => error.includes(`"${pluginId}"`));
+
+							errors.push(
+								loadError
+									? `Markdown preview could not load plugin "${pluginId}": ${loadError}`
+									: `Markdown preview enables plugin "${pluginId}", but it is not registered in root.plugins`
+							);
+							continue;
+						}
+
+						enabledPlugins.push(loadedPlugin.plugin);
 					}
 
-					enabledPlugins.push(loadedPlugin.plugin);
+					nextMarkdown = applyPreviewPluginTransforms(nextMarkdown, enabledPlugins);
 				}
 
+				const componentRegistry = await loadContentComponentRegistryForMode(getPluginMode(), {
+					scopeKey: getPluginScopeKey()
+				});
+				const componentPreview = applyPreviewContentComponentTransforms(
+					nextMarkdown,
+					componentRegistry
+				);
+				nextMarkdown = componentPreview.markdown;
+				errors.push(...componentPreview.errors);
+
 				if (!cancelled) {
-					previewMarkdown = applyPreviewPluginTransforms(markdownValue, enabledPlugins);
+					previewMarkdown = nextMarkdown;
 					previewPluginError = errors.length > 0 ? errors.join(' ') : null;
 				}
 			} catch (error) {

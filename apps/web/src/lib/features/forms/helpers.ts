@@ -13,7 +13,7 @@ export function buildBlockFormData(
 	initialData: ContentRecord = {},
 	registry: BlockRegistry = DEFAULT_BLOCK_REGISTRY
 ): ContentRecord {
-	const formData: ContentRecord = {};
+	const formData: ContentRecord = { ...initialData };
 
 	for (const block of blocks) {
 		const adapter = resolveBlockAdapterForUsage(block, registry);

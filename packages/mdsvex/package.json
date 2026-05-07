@@ -1,0 +1,19 @@
+{
+	"name": "@tentman/mdsvex",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"test": "node --test src/*.test.js"
+	},
+	"exports": {
+		".": "./src/index.js"
+	},
+	"dependencies": {
+		"@tentman/core": "workspace:*",
+		"unist-util-visit": "^5.1.0"
+	},
+	"devDependencies": {
+		"mdsvex": "^0.12.7",
+		"remark-directive": "^4.0.0"
+	}
+}

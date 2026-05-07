@@ -1,0 +1,11 @@
+{
+	"id": "missing-preview",
+	"name": "missing-preview",
+	"attributes": {
+		"label": {
+			"type": "string",
+			"required": true,
+			"valueFromMarkdownLabel": true
+		}
+	}
+}

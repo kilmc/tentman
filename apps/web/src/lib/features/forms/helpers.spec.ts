@@ -54,6 +54,23 @@ describe('forms/helpers', () => {
 		});
 	});
 
+	it('preserves metadata fields alongside block-backed values', () => {
+		expect(
+			buildFormData(config, {
+				title: 'Hello',
+				_tentmanId: 'hello-world',
+				_filename: 'hello-world.md'
+			})
+		).toEqual({
+			title: 'Hello',
+			slug: '',
+			published: false,
+			tags: [],
+			_tentmanId: 'hello-world',
+			_filename: 'hello-world.md'
+		});
+	});
+
 	it('normalizes array-based field configs', () => {
 		expect(normalizeFields(config.blocks)).toMatchObject({
 			title: { type: 'text', label: 'Title' },

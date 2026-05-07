@@ -7,6 +7,10 @@
 		"test": "node --test src/*.test.js"
 	},
 	"exports": {
-		".": "./src/index.js"
+		".": "./src/index.js",
+		"./content-components": "./src/content-components.js"
+	},
+	"dependencies": {
+		"nunjucks": "^3.2.4"
 	}
 }

@@ -367,6 +367,14 @@
 		}
 	}
 
+	function handleSidebarConfigSelect(config: DiscoveredConfig) {
+		if (!config.config.collection) {
+			return;
+		}
+
+		isCollectionPanelCollapsed = false;
+	}
+
 	async function loadGitHubCollectionItems(
 		config: DiscoveredConfig,
 		options?: { force?: boolean }
@@ -765,6 +773,7 @@
 			{savingNavigation}
 			{hasUnsavedNavigationChanges}
 			{topLevelEditorItems}
+			onselectconfig={handleSidebarConfigSelect}
 			onstartnavigationedit={() => void startNavigationEditing()}
 			oncancelnavigationedit={cancelNavigationEditing}
 			onsavenavigationedit={() => void saveNavigationEditing()}
@@ -802,6 +811,7 @@
 					{savingNavigation}
 					{hasUnsavedNavigationChanges}
 					{topLevelEditorItems}
+					onselectconfig={handleSidebarConfigSelect}
 					mobile={true}
 					onclose={() => (isMobileSidebarOpen = false)}
 					onstartnavigationedit={() => void startNavigationEditing()}
@@ -858,7 +868,7 @@
 			{/if}
 
 			<section
-				class="min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6"
+				class="min-h-0 min-w-0 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6"
 				data-testid="pages-main-panel"
 			>
 				<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">

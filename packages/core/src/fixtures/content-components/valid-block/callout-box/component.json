@@ -1,0 +1,16 @@
+{
+	"id": "callout-box",
+	"name": "callout-box",
+	"kind": "block",
+	"attributes": {
+		"title": {
+			"type": "string",
+			"required": true
+		},
+		"tone": {
+			"type": "enum",
+			"default": "info",
+			"options": ["info", "warning"]
+		}
+	}
+}

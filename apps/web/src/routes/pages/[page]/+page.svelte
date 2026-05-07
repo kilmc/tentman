@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
@@ -310,6 +311,12 @@
 		localLoadRequest += 1;
 		applyRemoteData();
 		void loadRemoteDraftStatus(data.pageSlug);
+	});
+
+	$effect(() => {
+		if (isLocalMode && config && !config.collection) {
+			void goto(getEditHref(), { replaceState: true });
+		}
 	});
 
 	function getEditHref() {

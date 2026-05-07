@@ -17,6 +17,9 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test:unit": "vitest",
+		"test:browser:sync": "svelte-kit sync",
+		"test:browser": "pnpm run test:browser:sync && VITEST_BROWSER=1 pnpm exec vitest run --project client",
+		"test:browser:file": "pnpm run test:browser:sync && VITEST_BROWSER=1 pnpm exec vitest run --project client",
 		"test": "pnpm run test:unit -- --run"
 	},
 	"devDependencies": {
@@ -49,6 +52,7 @@
 	"dependencies": {
 		"@humanspeak/svelte-markdown": "^0.8.13",
 		"@octokit/auth-oauth-app": "^9.0.3",
+		"@tentman/core": "workspace:*",
 		"@tailwindcss/typography": "^0.5.19",
 		"@tiptap/core": "^3.22.3",
 		"@tiptap/extension-file-handler": "^3.22.3",

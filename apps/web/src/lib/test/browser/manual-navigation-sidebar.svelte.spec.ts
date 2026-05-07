@@ -363,6 +363,28 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expect.element(screen.getByRole('button', { name: 'Done' })).toBeVisible();
 	});
 
+	it('reopens the collection panel when selecting a collection from the sidebar', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog');
+
+		const screen = render(PagesLayout, {
+			data: layoutData
+		});
+
+		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await screen.getByRole('button', { name: 'Hide collection panel' }).click();
+
+		await expect.element(screen.getByText('Hello world')).not.toBeInTheDocument();
+		await expect.element(screen.getByRole('link', { name: 'Open first item' })).toBeVisible();
+
+		await screen.getByRole('link', { name: 'Blog Posts' }).click();
+
+		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await expect.element(screen.getByRole('button', { name: 'Hide collection panel' })).toBeVisible();
+	});
+
 	it('renders the side panel as a sibling of the main panel', async () => {
 		sidebarEditorMocks.page.params = {
 			page: 'blog',

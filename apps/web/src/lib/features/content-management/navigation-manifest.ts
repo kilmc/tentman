@@ -1436,6 +1436,73 @@ export async function saveCollectionOrder(
 	return manifest;
 }
 
+export async function syncCollectionItemGroupSelection(
+	backend: RepositoryBackend,
+	config: DiscoveredConfig,
+	item: ContentRecord,
+	existingManifest?: NavigationManifest | null,
+	options?: RepositoryWriteOptions
+): Promise<NavigationManifest | null> {
+	if (!config.config._tentmanId || !isCollectionManualSortingEnabled(config.config)) {
+		return existingManifest ?? null;
+	}
+
+	const itemId = getItemId(item);
+	if (!itemId) {
+		return existingManifest ?? null;
+	}
+
+	let groupFieldId: string;
+
+	try {
+		groupFieldId = detectCollectionGroupField(config);
+	} catch {
+		return existingManifest ?? null;
+	}
+
+	const selectedGroupId =
+		typeof item[groupFieldId] === 'string' && item[groupFieldId]!.length > 0
+			? (item[groupFieldId] as string)
+			: null;
+	const manifestState =
+		existingManifest === undefined ? await loadNavigationManifestState(backend, options) : null;
+	const baseManifest = existingManifest ?? manifestState?.manifest ?? null;
+	const manifestCollection = cloneManifestCollection(
+		getConfigManifestCollection(baseManifest, config) ?? {
+			items: []
+		}
+	);
+	const nextItems = manifestCollection.items.includes(itemId)
+		? [...manifestCollection.items]
+		: [...manifestCollection.items, itemId];
+	const nextItemGroups = getManifestItemGroupMap(baseManifest, config);
+	nextItemGroups.set(itemId, selectedGroupId);
+	const nextGroups = getCollectionGroups(config.config).flatMap((group) => {
+		if (!group._tentmanId) {
+			return [];
+		}
+
+		return [
+			{
+				id: group._tentmanId,
+				label: group.label,
+				...(group.value ? { value: group.value } : {}),
+				items: nextItems.filter((candidate) => nextItemGroups.get(candidate) === group._tentmanId)
+			}
+		];
+	});
+	const groupedItemIds = new Set(nextGroups.flatMap((group) => group.items));
+	const manifest = setManifestCollectionOrder(
+		baseManifest,
+		config.config._tentmanId,
+		nextGroups,
+		nextItems.filter((candidate) => !groupedItemIds.has(candidate))
+	);
+	await writeNavigationManifest(backend, manifest, options);
+
+	return manifest;
+}
+
 export async function writeNavigationManifest(
 	backend: RepositoryBackend,
 	manifest: NavigationManifest,

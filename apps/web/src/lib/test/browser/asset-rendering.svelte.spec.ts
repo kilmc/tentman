@@ -35,6 +35,10 @@ const pluginLoaderMocks = vi.hoisted(() => ({
 	loadPluginRegistryForMode: vi.fn()
 }));
 
+const contentComponentLoaderMocks = vi.hoisted(() => ({
+	loadContentComponentRegistryForMode: vi.fn()
+}));
+
 vi.mock('$app/state', () => ({
 	page: {
 		data: {
@@ -79,6 +83,10 @@ vi.mock('$lib/plugins/browser', () => ({
 	loadPluginRegistryForMode: pluginLoaderMocks.loadPluginRegistryForMode
 }));
 
+vi.mock('$lib/content-components/browser', () => ({
+	loadContentComponentRegistryForMode: contentComponentLoaderMocks.loadContentComponentRegistryForMode
+}));
+
 import ItemCard from '$lib/components/ItemCard.svelte';
 import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 
@@ -98,6 +106,14 @@ describe('shared draft asset rendering surfaces', () => {
 			plugins: [],
 			errors: [],
 			get() {
+				return undefined;
+			}
+		});
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockReset();
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
+			components: [],
+			errors: [],
+			getByName() {
 				return undefined;
 			}
 		});
@@ -177,6 +193,54 @@ describe('shared draft asset rendering surfaces', () => {
 			.toHaveClass('tentman-preview-buy-button');
 	});
 
+	it('renders discovered content component directives through preview.njk markup', async () => {
+		const buyButtonComponent = {
+			directory: 'src/lib/content-components/buy-button',
+			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
+			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
+			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
+			renderTemplateSource: '<a>{{ label }}</a>',
+			previewTemplateSource:
+				'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>',
+			definition: {
+				id: 'buy-button',
+				name: 'buy-button',
+				kind: 'inline',
+				attributes: {
+					href: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: false
+					},
+					label: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: true
+					}
+				}
+			}
+		};
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
+			components: [buyButtonComponent],
+			errors: [],
+			getByName(name: string) {
+				return name === 'buy-button' ? buyButtonComponent : undefined;
+			}
+		});
+
+		const screen = render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body'
+			},
+			value: ':buy-button[Buy tickets]{href="/tickets"}',
+			blockRegistry: new Map() as never
+		});
+
+		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+	});
+
 	it('surfaces missing markdown preview plugin errors without hiding the markdown', async () => {
 		const screen = render(ContentValueDisplay, {
 			block: {
@@ -235,6 +299,57 @@ describe('shared draft asset rendering surfaces', () => {
 
 		await expect.element(screen.getByText('Buy online')).toBeVisible();
 		await expect.element(screen.getByText('Buy button preview failed')).toBeVisible();
+	});
+
+	it('surfaces content component preview errors without hiding the markdown', async () => {
+		const buyButtonComponent = {
+			directory: 'src/lib/content-components/buy-button',
+			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
+			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
+			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
+			renderTemplateSource: '<a>{{ label }}</a>',
+			previewTemplateSource:
+				'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>',
+			definition: {
+				id: 'buy-button',
+				name: 'buy-button',
+				kind: 'inline',
+				attributes: {
+					href: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: false
+					},
+					label: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: true
+					}
+				}
+			}
+		};
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
+			components: [buyButtonComponent],
+			errors: [],
+			getByName(name: string) {
+				return name === 'buy-button' ? buyButtonComponent : undefined;
+			}
+		});
+
+		const screen = render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body'
+			},
+			value: ':buy-button[Buy tickets]',
+			blockRegistry: new Map() as never
+		});
+
+		await expect.element(screen.getByText(':buy-button[Buy tickets]')).toBeVisible();
+		await expect
+			.element(screen.getByText(/Markdown preview failed for content component "buy-button"/))
+			.toBeVisible();
 	});
 
 	it('shares preview plugin registry loading across nested markdown children', async () => {

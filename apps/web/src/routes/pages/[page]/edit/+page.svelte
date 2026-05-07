@@ -4,6 +4,7 @@
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -16,6 +17,7 @@
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { toasts } from '$lib/stores/toasts';
 	import { fetchContentDocument, saveContentDocument } from '$lib/content/service';
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
@@ -37,6 +39,7 @@
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const isDraftView = $derived(!isLocalMode && !!data.branch);
@@ -71,6 +74,8 @@
 	});
 
 	onMount(() => {
+		handleUrlMessages();
+
 		const cleanup = registerKeyboardShortcuts([
 			{
 				key: 's',
@@ -86,6 +91,48 @@
 
 		return cleanup;
 	});
+
+	function getFlashMessageKey() {
+		const url = new URL(window.location.href);
+		const relevantEntries = flashMessageKeys
+			.map((key) => [key, url.searchParams.get(key)] as const)
+			.filter(([, value]) => value !== null);
+
+		if (relevantEntries.length === 0) {
+			return null;
+		}
+
+		return `tentman:flash:${url.pathname}?${new URLSearchParams(
+			relevantEntries.map(([key, value]) => [key, value ?? ''])
+		).toString()}`;
+	}
+
+	function handleUrlMessages() {
+		const urlParams = new URLSearchParams(window.location.search);
+		const flashKey = getFlashMessageKey();
+
+		if (flashKey && sessionStorage.getItem(flashKey) === 'seen') {
+			return;
+		}
+
+		if (urlParams.get('saved') === 'true') {
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes saved to draft!',
+				'success'
+			);
+		}
+
+		if (urlParams.get('published') === 'true') {
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes published successfully!',
+				'success'
+			);
+		}
+
+		if (flashKey) {
+			sessionStorage.setItem(flashKey, 'seen');
+		}
+	}
 
 	async function loadLocalContent(pageSlug: string) {
 		const requestId = ++localLoadRequest;
@@ -209,7 +256,7 @@
 			);
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
 			await localContent.refresh({ force: true });
-			await goto(`/pages/${discoveredConfig.slug}?published=true`);
+			await goto(resolve(`/pages/${discoveredConfig.slug}/edit`) + '?published=true');
 		} catch (error) {
 			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save local changes';
@@ -282,7 +329,7 @@
 					/>
 				{/key}
 			{/if}
-			<div class="mt-6 flex gap-3">
+			<PageStickyFooter>
 				<button
 					type="button"
 					onclick={() => void handleLocalSave()}
@@ -292,7 +339,7 @@
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 				<a href="/pages/{data.pageSlug}" class="tm-btn tm-btn-secondary"> Cancel </a>
-			</div>
+			</PageStickyFooter>
 		</form>
 	{:else}
 		<form
@@ -332,7 +379,7 @@
 					/>
 				{/key}
 			{/if}
-			<div class="mt-6 flex gap-3">
+			<PageStickyFooter>
 				<button
 					type="submit"
 					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
@@ -343,7 +390,7 @@
 				<a href={resolve(`/pages/${data.pageSlug}${branchQuery}`)} class="tm-btn tm-btn-secondary">
 					Cancel
 				</a>
-			</div>
+			</PageStickyFooter>
 		</form>
 	{/if}
 </div>

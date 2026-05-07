@@ -1,0 +1,21 @@
+{
+	"id": "buy-button",
+	"name": "buy-button",
+	"kind": "inline",
+	"attributes": {
+		"href": {
+			"type": "string",
+			"required": true
+		},
+		"label": {
+			"type": "string",
+			"required": true,
+			"valueFromMarkdownLabel": true
+		},
+		"variant": {
+			"type": "enum",
+			"default": "default",
+			"options": ["default", "secondary"]
+		}
+	}
+}

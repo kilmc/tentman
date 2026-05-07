@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { get } from 'svelte/store';
-	import { DropdownMenu, Separator, Toolbar } from 'bits-ui';
+	import { DropdownMenu, Popover, Separator, Toolbar } from 'bits-ui';
 	import { page } from '$app/state';
+	import { loadContentComponentRegistryForMode } from '$lib/content-components/browser';
+	import { createMarkdownContentComponentArtifacts } from '$lib/content-components/markdown';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import ToolbarIcon from '$lib/features/markdown-editor/ToolbarIcon.svelte';
 	import { loadMarkdownPluginsForMode } from '$lib/plugins/browser';
 	import type { MarkdownToolbarItemContribution } from '$lib/plugins/types';
 	import { localContent } from '$lib/stores/local-content';
+	import { createMarkdownEditor } from '$lib/features/markdown-editor/create-editor';
 	import {
 		collectDraftAssetRefsFromString,
 		getDraftAssetRepoKey
@@ -63,6 +66,13 @@
 	let pluginDialogError = $state<string | null>(null);
 	let pluginDialogForm = $state<HTMLFormElement | null>(null);
 	let pluginDialogReturnFocus = $state<HTMLElement | null>(null);
+	let contextualPopover = $state<ContextualPopoverState | null>(null);
+	let contextualPopoverOpen = $state(false);
+	let linkPopoverMode = $state<'view' | 'edit'>('view');
+	let linkPopoverValue = $state('');
+	let linkPopoverInput = $state<HTMLInputElement | null>(null);
+	let contextualPopoverAnchor = $state<HTMLDivElement | null>(null);
+	let destroyed = false;
 
 	const textareaId = `markdown-field-${Math.random().toString(36).substring(2, 9)}`;
 	type ToolbarIconName =
@@ -116,11 +126,20 @@
 		toggle?: boolean;
 		isActive?: (editor: Editor) => boolean;
 		run?: (editor: Editor) => void;
-		select?: () => void;
+		select?: (trigger?: HTMLElement) => void;
 	}
 
 	interface PluginToolbarButton extends MarkdownToolbarItemContribution {
 		buttonLabel: string;
+	}
+
+	interface ContextualPopoverState {
+		kind: 'link' | 'plugin';
+		href: string;
+		top: number;
+		left: number;
+		placement: 'above' | 'below';
+		editItem: PluginToolbarButton | null;
 	}
 
 	const repoKey = $derived(
@@ -138,7 +157,7 @@
 	let pluginToolbarButtons = $state<PluginToolbarButton[]>([]);
 
 	function getEditor(): Editor | null {
-		editorUiVersion;
+		void editorUiVersion;
 		return richEditor?.editor ?? null;
 	}
 
@@ -192,6 +211,10 @@
 		}
 
 		queueMicrotask(() => {
+			if (destroyed) {
+				return;
+			}
+
 			const activeRefs = new Set(collectDraftAssetRefsFromString(value));
 			const refsToDelete = removedRefs.filter((ref) => !activeRefs.has(ref));
 
@@ -212,6 +235,10 @@
 		value = nextMarkdown;
 		onchange?.();
 		queueDraftCleanup(previousMarkdown, nextMarkdown);
+	}
+
+	function normalizeHref(value: unknown): string {
+		return typeof value === 'string' ? value.trim() : '';
 	}
 
 	async function stageImage(file: File): Promise<{ ref: string }> {
@@ -245,25 +272,21 @@
 	}
 
 	function handleLinkAction() {
-		handleToolbarAction((editor) => {
-			const currentHref =
-				typeof editor.getAttributes('link').href === 'string'
-					? editor.getAttributes('link').href
-					: '';
-			const nextHref = window.prompt('Enter a link URL', currentHref);
+		const editor = getEditor();
+		if (!editor) {
+			return;
+		}
 
-			if (nextHref === null) {
-				return;
-			}
+		uploadError = null;
+		const currentHref = normalizeHref(editor.getAttributes('link').href);
+		contextualPopover = createLinkPopoverState(editor, currentHref);
+		if (!contextualPopover) {
+			return;
+		}
 
-			const normalizedHref = nextHref.trim();
-			if (!normalizedHref) {
-				editor.chain().focus().extendMarkRange('link').unsetLink().run();
-				return;
-			}
-
-			editor.chain().focus().extendMarkRange('link').setLink({ href: normalizedHref }).run();
-		});
+		contextualPopoverOpen = true;
+		linkPopoverValue = currentHref;
+		void startLinkEditing();
 	}
 
 	async function handleImageFiles(files: File[]) {
@@ -301,6 +324,264 @@
 		fileInput?.click();
 	}
 
+	function getSelectionRect(editor: Editor): DOMRect | null {
+		const { from, to } = editor.state.selection;
+
+		try {
+			const start = editor.view.coordsAtPos(from);
+			const end = editor.view.coordsAtPos(to);
+			const left = Math.min(start.left, end.left);
+			const right = Math.max(start.right, end.right);
+			const top = Math.min(start.top, end.top);
+			const bottom = Math.max(start.bottom, end.bottom);
+
+			return new DOMRect(left, top, Math.max(right - left, 1), Math.max(bottom - top, 1));
+		} catch {
+			return null;
+		}
+	}
+
+	function getPopoverPosition(
+		rect: DOMRect
+	): Pick<ContextualPopoverState, 'top' | 'left' | 'placement'> {
+		const prefersAbove = rect.top > 140;
+		const viewportPadding = 16;
+
+		return {
+			top: prefersAbove ? rect.top - 12 : rect.bottom + 12,
+			left: Math.min(
+				Math.max(rect.left + rect.width / 2, viewportPadding),
+				window.innerWidth - viewportPadding
+			),
+			placement: prefersAbove ? 'above' : 'below'
+		};
+	}
+
+	function createPopoverStateFromRect(
+		kind: ContextualPopoverState['kind'],
+		href: string,
+		rect: DOMRect,
+		editItem: PluginToolbarButton | null = null
+	): ContextualPopoverState {
+		return {
+			kind,
+			href,
+			editItem,
+			...getPopoverPosition(rect)
+		};
+	}
+
+	function createLinkPopoverState(editor: Editor, href: string): ContextualPopoverState | null {
+		const rect = getSelectionRect(editor);
+		if (!rect) {
+			return null;
+		}
+
+		return createPopoverStateFromRect('link', href, rect);
+	}
+
+	function getActivePluginToolbarButton(editor: Editor): PluginToolbarButton | null {
+		return pluginToolbarButtons.find((item) => item.dialog && item.isActive?.(editor)) ?? null;
+	}
+
+	function dedupeToolbarButtons(
+		items: PluginToolbarButton[],
+		preferred: 'first' | 'last' = 'last'
+	): PluginToolbarButton[] {
+		const byId = new Map<string, PluginToolbarButton>();
+		const orderedItems = preferred === 'last' ? items : [...items].reverse();
+
+		for (const item of orderedItems) {
+			if (!byId.has(item.id)) {
+				byId.set(item.id, item);
+			}
+		}
+
+		return preferred === 'last' ? Array.from(byId.values()) : Array.from(byId.values()).reverse();
+	}
+
+	function getContextualPopoverState(editor: Editor): ContextualPopoverState | null {
+		const selection = editor.state.selection as {
+			from: number;
+			node?: {
+				attrs?: Record<string, unknown>;
+			};
+		};
+		const nodeHref = normalizeHref(selection.node?.attrs?.href);
+
+		if (selection.node && nodeHref) {
+			const nodeDom = editor.view.nodeDOM(selection.from);
+			const rect = nodeDom instanceof Element ? nodeDom.getBoundingClientRect() : null;
+			if (!rect) {
+				return null;
+			}
+
+			const editItem = getActivePluginToolbarButton(editor);
+			return createPopoverStateFromRect('plugin', nodeHref, rect, editItem);
+		}
+
+		if (!editor.isActive('link')) {
+			return null;
+		}
+
+		const href = normalizeHref(editor.getAttributes('link').href);
+		return href ? createLinkPopoverState(editor, href) : null;
+	}
+
+	function closeContextualPopover() {
+		contextualPopoverOpen = false;
+		contextualPopover = null;
+		linkPopoverMode = 'view';
+		linkPopoverValue = '';
+	}
+
+	function dismissContextualPopover() {
+		closeContextualPopover();
+	}
+
+	function openLinkPopoverFromEditorClick(href: string, rect: DOMRect) {
+		if (destroyed) {
+			return;
+		}
+
+		contextualPopover = createPopoverStateFromRect('link', href, rect);
+		contextualPopoverOpen = true;
+		linkPopoverValue = href;
+		void startLinkEditing();
+	}
+
+	async function startLinkEditing() {
+		if (destroyed || !contextualPopover || contextualPopover.kind !== 'link') {
+			return;
+		}
+
+		linkPopoverMode = 'edit';
+		linkPopoverValue = contextualPopover.href;
+		await tick();
+		if (destroyed || linkPopoverMode !== 'edit') {
+			return;
+		}
+
+		linkPopoverInput?.focus();
+		linkPopoverInput?.select();
+	}
+
+	function cancelLinkEditing() {
+		dismissContextualPopover();
+	}
+
+	function submitLinkEditing() {
+		const editor = getEditor();
+		if (!editor) {
+			return;
+		}
+
+		const normalizedLink = linkPopoverValue.trim();
+		handleToolbarAction((activeEditor) => {
+			const chain = activeEditor.chain().focus().extendMarkRange('link');
+			if (!normalizedLink) {
+				chain.unsetLink().run();
+				return;
+			}
+
+			chain.setLink({ href: normalizedLink }).run();
+		});
+		dismissContextualPopover();
+	}
+
+	function openCurrentPopoverHref() {
+		if (!contextualPopover?.href) {
+			return;
+		}
+
+		window.open(contextualPopover.href, '_blank', 'noopener');
+	}
+
+	function editCurrentPopoverTarget() {
+		if (!contextualPopover) {
+			return;
+		}
+
+		if (contextualPopover.kind === 'link') {
+			void startLinkEditing();
+			return;
+		}
+
+		if (contextualPopover.editItem) {
+			void openPluginDialog(
+				contextualPopover.editItem,
+				contextualPopoverAnchor ?? editorHost ?? undefined
+			);
+		}
+	}
+
+	function removeCurrentLink() {
+		if (contextualPopover?.kind !== 'link') {
+			return;
+		}
+
+		handleToolbarAction((editor) => {
+			editor.chain().focus().extendMarkRange('link').unsetLink().run();
+		});
+		dismissContextualPopover();
+	}
+
+	function contextualPopoverAnchorStyle(popover: ContextualPopoverState): string {
+		return `left:${popover.left}px;top:${
+			popover.placement === 'above' ? popover.top : popover.top - 1
+		}px;`;
+	}
+
+	function handleEditorHostClick(event: MouseEvent) {
+		if (event.metaKey || event.ctrlKey || pluginDialogItem) {
+			return;
+		}
+
+		const target = event.target;
+		if (
+			target instanceof Element &&
+			target.closest('a[href]') &&
+			!target.closest('[data-tentman-content-component-node]')
+		) {
+			return;
+		}
+
+		queueMicrotask(() => {
+			if (destroyed) {
+				return;
+			}
+
+			const editor = getEditor();
+			if (!editor) {
+				return;
+			}
+
+			const nextPopover = getContextualPopoverState(editor);
+			if (!nextPopover) {
+				return;
+			}
+
+			contextualPopover = nextPopover;
+			contextualPopoverOpen = true;
+			linkPopoverValue = nextPopover.href;
+
+			if (nextPopover.kind === 'link') {
+				void startLinkEditing();
+				return;
+			}
+
+			linkPopoverMode = 'view';
+		});
+	}
+
+	function handleContextualPopoverOpenChange(nextOpen: boolean) {
+		if (nextOpen) {
+			return;
+		}
+
+		dismissContextualPopover();
+	}
+
 	function isToolbarItemActive(item: { isActive?: (editor: Editor) => boolean }): boolean {
 		const editor = getEditor();
 		if (!editor || !item.isActive) {
@@ -315,7 +596,7 @@
 		trigger?: HTMLElement
 	) {
 		if ('select' in item && item.select) {
-			item.select();
+			item.select(trigger);
 			return;
 		}
 
@@ -333,10 +614,11 @@
 
 	async function openPluginDialog(item: PluginToolbarButton, trigger?: HTMLElement) {
 		const editor = getEditor();
-		if (!editor || !item.dialog) {
+		if (destroyed || !editor || !item.dialog) {
 			return;
 		}
 
+		dismissContextualPopover();
 		pluginDialogReturnFocus = trigger ?? (document.activeElement as HTMLElement | null);
 		pluginDialogItem = item;
 		pluginDialogError = null;
@@ -348,6 +630,10 @@
 		};
 
 		await tick();
+		if (destroyed || pluginDialogItem !== item) {
+			return;
+		}
+
 		pluginDialogForm
 			?.querySelector<
 				HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -355,19 +641,19 @@
 			?.focus();
 	}
 
-	function closePluginDialog() {
+	function closePluginDialog({ restoreFocus = true }: { restoreFocus?: boolean } = {}) {
 		pluginDialogItem = null;
 		pluginDialogValues = {};
 		pluginDialogError = null;
 		const returnFocus = pluginDialogReturnFocus;
 		pluginDialogReturnFocus = null;
 
-		if (returnFocus?.isConnected) {
+		if (restoreFocus && !destroyed && returnFocus?.isConnected) {
 			queueMicrotask(() => returnFocus.focus());
 		}
 	}
 
-	function handlePluginDialogKeydown(event: KeyboardEvent) {
+	function handleWindowKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || !pluginDialogItem) {
 			return;
 		}
@@ -623,52 +909,69 @@
 	);
 	const activeListValue = $derived(getActiveListValue());
 	const activeInlineValues = $derived(getActiveInlineFormatValues());
-	const activeListLabel = $derived(
-		activeListValue === 'none'
-			? 'Lists'
-			: (listOptions.find((item) => item.value === activeListValue)?.label ?? 'Lists')
-	);
 	const activeListIcon = $derived(activeListValue === 'orderedList' ? 'orderedList' : 'bulletList');
 
 	onMount(() => {
 		let mounted = true;
+		destroyed = false;
 
 		async function setupEditor() {
 			if (!editorHost) {
 				return;
 			}
 
-			const { createMarkdownEditor } = await import('$lib/features/markdown-editor/create-editor');
-			const pluginResult = await loadMarkdownPluginsForMode(
-				{
-					id: fieldId ?? textareaId,
-					type: 'markdown',
-					plugins
-				},
-				getActiveRootConfig(),
-				getPluginMode(),
-				{
-					scopeKey: repoKey ?? getPluginMode()
-				}
-			);
+			const pluginMode = getPluginMode();
+			const scopeKey = repoKey ?? pluginMode;
+			const [pluginResult, contentComponentRegistry] = await Promise.all([
+				loadMarkdownPluginsForMode(
+					{
+						id: fieldId ?? textareaId,
+						type: 'markdown',
+						plugins
+					},
+					getActiveRootConfig(),
+					pluginMode,
+					{
+						scopeKey
+					}
+				),
+				loadContentComponentRegistryForMode(pluginMode, {
+					scopeKey
+				})
+			]);
 
 			if (!mounted || !editorHost) {
 				return;
 			}
 
-			pluginToolbarButtons = pluginResult.toolbarItems.map((item) => ({
-				...item,
-				buttonLabel: item.buttonLabel ?? item.label
-			}));
-			pluginLoadError = pluginResult.errors.length > 0 ? pluginResult.errors.join(' ') : null;
+			const contentComponentArtifacts =
+				createMarkdownContentComponentArtifacts(contentComponentRegistry);
+			pluginToolbarButtons = dedupeToolbarButtons(
+				[
+					...pluginResult.toolbarItems.map((item) => ({
+						...item,
+						buttonLabel: item.buttonLabel ?? item.label
+					})),
+					...contentComponentArtifacts.toolbarItems.map((item) => ({
+						...item,
+						buttonLabel: item.buttonLabel ?? item.label
+					}))
+				],
+				'last'
+			);
+			const loadErrors = [...pluginResult.errors, ...contentComponentRegistry.errors];
+			pluginLoadError = loadErrors.length > 0 ? loadErrors.join(' ') : null;
 
 			richEditor = createMarkdownEditor({
 				markdown: value,
 				placeholder,
 				assetsDir,
 				storagePath,
-				extensions: pluginResult.extensions,
+				extensions: [...pluginResult.extensions, ...contentComponentArtifacts.extensions],
 				stageImage,
+				onLinkClick({ href, rect }) {
+					openLinkPopoverFromEditorClick(href, rect);
+				},
 				onMarkdownChange(nextMarkdown) {
 					applyMarkdownChange(nextMarkdown);
 				},
@@ -694,6 +997,9 @@
 
 		return () => {
 			mounted = false;
+			destroyed = true;
+			closeContextualPopover();
+			closePluginDialog({ restoreFocus: false });
 			richEditor?.destroy();
 			richEditor = null;
 		};
@@ -719,9 +1025,15 @@
 			document.body.style.overflow = previousOverflow;
 		};
 	});
+
+	$effect(() => {
+		if (activeTab !== 'rich' || pluginDialogItem) {
+			closeContextualPopover();
+		}
+	});
 </script>
 
-<svelte:window onkeydown={handlePluginDialogKeydown} />
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="mb-4">
 	<div class="mb-1 flex items-center justify-between">
@@ -996,11 +1308,110 @@
 			<div class="px-4 py-3 text-sm text-gray-500">Loading rich editor...</div>
 		{/if}
 
-		<div bind:this={editorHost} class="min-h-0" data-testid="markdown-rich-editor"></div>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			bind:this={editorHost}
+			class="min-h-0"
+			data-testid="markdown-rich-editor"
+			onclick={handleEditorHostClick}
+		></div>
 	</div>
 	{#if activeTab === 'rich'}
+		{#if contextualPopover && contextualPopoverOpen}
+			<div
+				bind:this={contextualPopoverAnchor}
+				aria-hidden="true"
+				class="pointer-events-none fixed h-px w-px"
+				style={contextualPopoverAnchorStyle(contextualPopover)}
+			></div>
+
+			<Popover.Root open={contextualPopoverOpen} onOpenChange={handleContextualPopoverOpenChange}>
+				<Popover.Portal>
+					<Popover.Content
+						customAnchor={contextualPopoverAnchor}
+						side={contextualPopover?.placement === 'above' ? 'top' : 'bottom'}
+						sideOffset={12}
+						align="center"
+						trapFocus={false}
+						onCloseAutoFocus={(event) => event.preventDefault()}
+						class="z-40 w-[min(24rem,calc(100vw-1rem))] rounded-lg border border-stone-200 bg-white p-3 shadow-xl focus:outline-none"
+						aria-label={contextualPopover?.kind === 'link' ? 'Link actions' : 'Plugin link actions'}
+					>
+						{#if contextualPopover?.kind === 'link' && linkPopoverMode === 'edit'}
+							<form
+								class="space-y-3"
+								onsubmit={(event) => {
+									event.preventDefault();
+									submitLinkEditing();
+								}}
+							>
+								<label class="block text-sm font-medium text-stone-700">
+									<span class="mb-1 block">URL</span>
+									<input
+										bind:this={linkPopoverInput}
+										class="w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
+										type="url"
+										value={linkPopoverValue}
+										placeholder="https://example.com"
+										oninput={(event) => (linkPopoverValue = event.currentTarget.value)}
+									/>
+								</label>
+
+								<div class="flex flex-wrap justify-end gap-2">
+									<button
+										type="button"
+										class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+										onclick={cancelLinkEditing}
+									>
+										Cancel
+									</button>
+									<button
+										type="submit"
+										class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+									>
+										Save link
+									</button>
+								</div>
+							</form>
+						{:else}
+							<div class="flex flex-wrap gap-2">
+								<p class="min-w-full break-all text-sm text-stone-900">{contextualPopover?.href}</p>
+								<button
+									type="button"
+									class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+									onclick={editCurrentPopoverTarget}
+								>
+									{contextualPopover?.kind === 'link'
+										? 'Edit link'
+										: `Edit ${contextualPopover?.editItem?.buttonLabel?.toLowerCase() ?? 'item'}`}
+								</button>
+								<button
+									type="button"
+									class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+									onclick={openCurrentPopoverHref}
+								>
+									Open link
+								</button>
+								{#if contextualPopover?.kind === 'link'}
+									<button
+										type="button"
+										class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+										onclick={removeCurrentLink}
+									>
+										Remove link
+									</button>
+								{/if}
+							</div>
+						{/if}
+					</Popover.Content>
+				</Popover.Portal>
+			</Popover.Root>
+		{/if}
+
 		<p class="mt-1 text-xs text-gray-500">
-			Rich editing is client-only. Images are staged locally until you explicitly save.
+			Rich editing is client-only. Images are staged locally until you explicitly save. Use Cmd +
+			click to open a selected link.
 		</p>
 
 		{#if pluginDialogItem?.dialog}
@@ -1151,6 +1562,15 @@
 
 	:global(.markdown-editor-content p) {
 		margin-block: 0.75rem;
+	}
+
+	:global(.markdown-editor-content .markdown-editor-image-node) {
+		width: 100%;
+	}
+
+	:global(.markdown-editor-content .ProseMirror-selectednode) {
+		outline: 2px solid rgb(168 162 158 / 0.9);
+		outline-offset: 2px;
 	}
 
 	:global(.markdown-editor-content > :first-child) {

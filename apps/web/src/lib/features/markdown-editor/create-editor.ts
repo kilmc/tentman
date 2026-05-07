@@ -20,6 +20,7 @@ interface CreateMarkdownEditorOptions {
 	onMarkdownChange(markdown: string): void;
 	onUiChange?: () => void;
 	onError?: (message: string) => void;
+	onLinkClick?: (payload: { href: string; rect: DOMRect }) => void;
 	stageImage(file: File): Promise<{ ref: string }>;
 }
 
@@ -67,11 +68,54 @@ function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : 'Failed to stage image';
 }
 
+function isModifierClick(event: MouseEvent): boolean {
+	return event.metaKey || event.ctrlKey;
+}
+
+function isContentComponentTarget(target: Element): boolean {
+	return Boolean(target.closest('[data-tentman-content-component-node]'));
+}
+
+function openEditorHref(href: unknown): boolean {
+	if (typeof href !== 'string') {
+		return false;
+	}
+
+	const normalizedHref = href.trim();
+	if (!normalizedHref) {
+		return false;
+	}
+
+	window.open(normalizedHref, '_blank', 'noopener');
+	return true;
+}
+
 export function createMarkdownEditor(
 	options: CreateMarkdownEditorOptions
 ): MarkdownEditorController {
+	let destroyed = false;
 	let syncingFromOutside = false;
 	let lastKnownMarkdown = options.markdown;
+
+	function runIfActive(callback: () => void) {
+		if (destroyed) {
+			return;
+		}
+
+		callback();
+	}
+
+	function reportUiChange() {
+		runIfActive(() => {
+			options.onUiChange?.();
+		});
+	}
+
+	function reportError(error: unknown) {
+		runIfActive(() => {
+			options.onError?.(toErrorMessage(error));
+		});
+	}
 
 	const editor = new Editor({
 		content: options.markdown,
@@ -81,6 +125,48 @@ export function createMarkdownEditor(
 			attributes: {
 				class:
 					'ProseMirror markdown-editor-content prose prose-sm max-w-none focus:outline-none prose-headings:font-semibold prose-code:rounded prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:text-stone-800 prose-pre:font-mono prose-pre:shadow-none'
+			},
+			handleClick(view, _pos, event) {
+				const target = event.target;
+				if (!(target instanceof Element)) {
+					return false;
+				}
+
+				const anchor = target.closest('a[href]');
+				if (!(anchor instanceof HTMLAnchorElement) || !view.dom.contains(anchor)) {
+					return false;
+				}
+
+				if (isContentComponentTarget(anchor)) {
+					return isModifierClick(event) ? openEditorHref(anchor.getAttribute('href')) : false;
+				}
+
+				if (isModifierClick(event)) {
+					return openEditorHref(anchor.getAttribute('href'));
+				}
+
+				const href = anchor.getAttribute('href')?.trim();
+				if (!href) {
+					return false;
+				}
+
+				queueMicrotask(() => {
+					runIfActive(() => {
+						options.onLinkClick?.({
+							href,
+							rect: anchor.getBoundingClientRect()
+						});
+					});
+				});
+
+				return false;
+			},
+			handleClickOn(_view, _pos, node, _nodePos, event) {
+				if (!isModifierClick(event)) {
+					return false;
+				}
+
+				return openEditorHref(node.attrs.href);
 			}
 		},
 		extensions: [
@@ -103,27 +189,23 @@ export function createMarkdownEditor(
 			}),
 			FileHandler.configure({
 				onPaste: (_editor, files) => {
-					void insertImageFiles(files).catch((error) => {
-						options.onError?.(toErrorMessage(error));
-					});
+					void insertImageFiles(files).catch(reportError);
 				},
 				onDrop: (_editor, files, position) => {
-					void insertImageFiles(files, position).catch((error) => {
-						options.onError?.(toErrorMessage(error));
-					});
+					void insertImageFiles(files, position).catch(reportError);
 				}
 			}),
 			Markdown,
 			...(options.extensions ?? [])
 		],
 		onCreate: () => {
-			options.onUiChange?.();
+			reportUiChange();
 		},
 		onTransaction: () => {
-			options.onUiChange?.();
+			reportUiChange();
 		},
 		onUpdate: ({ editor: activeEditor }) => {
-			if (syncingFromOutside) {
+			if (destroyed || syncingFromOutside) {
 				return;
 			}
 
@@ -133,13 +215,19 @@ export function createMarkdownEditor(
 			}
 
 			lastKnownMarkdown = nextMarkdown;
-			options.onMarkdownChange(nextMarkdown);
+			runIfActive(() => {
+				options.onMarkdownChange(nextMarkdown);
+			});
 		}
 	});
 
 	async function insertImageFiles(files: File[], position?: number): Promise<void> {
 		for (const [index, file] of files.entries()) {
 			const staged = await options.stageImage(file);
+			if (destroyed) {
+				return;
+			}
+
 			const targetPosition = index === 0 ? position : undefined;
 
 			if (typeof targetPosition === 'number') {
@@ -155,7 +243,7 @@ export function createMarkdownEditor(
 		editor,
 		insertImageFiles,
 		setMarkdown(markdown: string) {
-			if (markdown === lastKnownMarkdown) {
+			if (destroyed || markdown === lastKnownMarkdown) {
 				return;
 			}
 
@@ -165,9 +253,10 @@ export function createMarkdownEditor(
 				contentType: 'markdown'
 			});
 			syncingFromOutside = false;
-			options.onUiChange?.();
+			reportUiChange();
 		},
 		destroy() {
+			destroyed = true;
 			editor.destroy();
 		}
 	};

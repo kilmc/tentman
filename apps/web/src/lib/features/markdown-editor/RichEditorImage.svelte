@@ -33,13 +33,13 @@
 	});
 </script>
 
-<figure class="my-4 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+<figure class="my-4 w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
 	{#if resolvedSrc}
 		<img
 			src={resolvedSrc}
 			alt={alt ?? ''}
 			title={title ?? undefined}
-			class="max-h-80 w-full bg-white object-contain"
+			class="h-auto w-full bg-white"
 			draggable="false"
 		/>
 	{:else}

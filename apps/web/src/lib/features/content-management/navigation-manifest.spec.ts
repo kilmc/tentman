@@ -8,7 +8,8 @@ import {
 	getMissingContentConfigIds,
 	parseNavigationManifest,
 	reconcileManualNavigationSetup,
-	saveCollectionOrder
+	saveCollectionOrder,
+	syncCollectionItemGroupSelection
 } from '$lib/features/content-management/navigation-manifest';
 import type {
 	RepositoryBackend,
@@ -217,6 +218,164 @@ describe('navigation manifest helpers', () => {
 
 	it('adds root manual sorting to the root config source', () => {
 		expect(addRootManualSortingToSource('{"siteName":"Docs"}')).toContain('"sorting": "manual"');
+	});
+
+	it('syncs edited tentmanGroup selection into the navigation manifest', async () => {
+		const backend = createBackend({
+			'tentman/navigation-manifest.json': JSON.stringify({
+				version: 1,
+				collections: {
+					projects: {
+						items: ['berlin-neukoelln-kiezkulisse', 'other-project'],
+						groups: [
+							{ id: 'illustration', label: 'Illustration', items: ['other-project'] },
+							{ id: 'study-projects', label: 'Study Projects', items: [] }
+						]
+					}
+				}
+			}),
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				label: 'Projects',
+				_tentmanId: 'projects',
+				collection: {
+					sorting: 'manual',
+					groups: [
+						{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' },
+						{ _tentmanId: 'study-projects', label: 'Study Projects', value: 'study-projects' }
+					]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+			})
+		});
+
+		const manifest = await syncCollectionItemGroupSelection(
+			backend,
+			{
+				slug: 'projects',
+				path: 'content/projects.tentman.json',
+				config: {
+					type: 'content',
+					label: 'Projects',
+					_tentmanId: 'projects',
+					collection: {
+						sorting: 'manual',
+						groups: [
+							{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' },
+							{
+								_tentmanId: 'study-projects',
+								label: 'Study Projects',
+								value: 'study-projects'
+							}
+						]
+					},
+					content: {
+						mode: 'file',
+						path: 'src/content/projects.json',
+						itemsPath: '$'
+					},
+					blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+				}
+			},
+			{
+				_tentmanId: 'berlin-neukoelln-kiezkulisse',
+				_tentmanGroupId: 'study-projects'
+			}
+		);
+
+		expect(manifest?.collections?.projects?.groups).toEqual([
+			{ id: 'illustration', label: 'Illustration', value: 'illustration', items: ['other-project'] },
+			{
+				id: 'study-projects',
+				label: 'Study Projects',
+				value: 'study-projects',
+				items: ['berlin-neukoelln-kiezkulisse']
+			}
+		]);
+	});
+
+	it('preserves item order when syncing a save that does not change group membership', async () => {
+		const backend = createBackend({
+			'tentman/navigation-manifest.json': JSON.stringify({
+				version: 1,
+				collections: {
+					projects: {
+						items: ['first-project', 'edited-project', 'third-project'],
+						groups: [
+							{
+								id: 'illustration',
+								label: 'Illustration',
+								items: ['first-project', 'edited-project', 'third-project']
+							}
+						]
+					}
+				}
+			}),
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				label: 'Projects',
+				_tentmanId: 'projects',
+				collection: {
+					sorting: 'manual',
+					groups: [{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' }]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+			})
+		});
+
+		const manifest = await syncCollectionItemGroupSelection(
+			backend,
+			{
+				slug: 'projects',
+				path: 'content/projects.tentman.json',
+				config: {
+					type: 'content',
+					label: 'Projects',
+					_tentmanId: 'projects',
+					collection: {
+						sorting: 'manual',
+						groups: [
+							{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' }
+						]
+					},
+					content: {
+						mode: 'file',
+						path: 'src/content/projects.json',
+						itemsPath: '$'
+					},
+					blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+				}
+			},
+			{
+				_tentmanId: 'edited-project',
+				_tentmanGroupId: 'illustration',
+				published: true
+			}
+		);
+
+		expect(manifest?.collections?.projects?.items).toEqual([
+			'first-project',
+			'edited-project',
+			'third-project'
+		]);
+		expect(manifest?.collections?.projects?.groups).toEqual([
+			{
+				id: 'illustration',
+				label: 'Illustration',
+				value: 'illustration',
+				items: ['first-project', 'edited-project', 'third-project']
+			}
+		]);
 	});
 
 	it('builds an initial manifest from Tentman ids and manual sorting config', async () => {

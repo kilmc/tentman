@@ -4,11 +4,14 @@
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
+	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import { get } from 'svelte/store';
 	import { getCardFields } from '$lib/features/forms/helpers';
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
@@ -26,6 +29,7 @@
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { toasts } from '$lib/stores/toasts';
 	import {
 		deleteContentDocument,
 		fetchContentDocument,
@@ -54,12 +58,14 @@
 	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let hasUnsavedChanges = $state(false);
+	let actionMenu = $state<HTMLDetailsElement | null>(null);
 	let showDeleteConfirm = $state(false);
 	let deleting = $state(false);
 	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
 	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
@@ -107,6 +113,8 @@
 	});
 
 	onMount(() => {
+		handleUrlMessages();
+
 		const cleanup = registerKeyboardShortcuts([
 			{ key: 's', meta: true, ctrl: true, callback: () => currentForm?.requestSubmit() },
 			{ key: 'Escape', callback: () => window.history.back() }
@@ -114,6 +122,48 @@
 
 		return cleanup;
 	});
+
+	function getFlashMessageKey() {
+		const url = new URL(window.location.href);
+		const relevantEntries = flashMessageKeys
+			.map((key) => [key, url.searchParams.get(key)] as const)
+			.filter(([, value]) => value !== null);
+
+		if (relevantEntries.length === 0) {
+			return null;
+		}
+
+		return `tentman:flash:${url.pathname}?${new URLSearchParams(
+			relevantEntries.map(([key, value]) => [key, value ?? ''])
+		).toString()}`;
+	}
+
+	function handleUrlMessages() {
+		const urlParams = new URLSearchParams(window.location.search);
+		const flashKey = getFlashMessageKey();
+
+		if (flashKey && sessionStorage.getItem(flashKey) === 'seen') {
+			return;
+		}
+
+		if (urlParams.get('saved') === 'true') {
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes saved to draft!',
+				'success'
+			);
+		}
+
+		if (urlParams.get('published') === 'true') {
+			toasts.add(
+				isLocalMode ? 'Changes saved to local files.' : 'Changes published successfully!',
+				'success'
+			);
+		}
+
+		if (flashKey) {
+			sessionStorage.setItem(flashKey, 'seen');
+		}
+	}
 
 	async function loadLocalItem(
 		pageSlug: string,
@@ -297,7 +347,7 @@
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
 			await localContent.refresh({ force: true });
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
+			await goto(resolve(`/pages/${discoveredConfig.slug}/${data.itemId}/edit`) + '?published=true');
 		} catch (error) {
 			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save changes';
@@ -351,28 +401,55 @@
 
 <div class="min-w-0">
 	<div class="mb-5">
-		<div class="flex flex-wrap items-center gap-2">
-			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
-				{getItemTitle()}
-			</h1>
-			{#if resolvedItemState && resolvedItemState.visibility.header !== false}
-				<span
-					class={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(resolvedItemState.variant)}`}
-				>
-					{resolvedItemState.label}
-				</span>
-			{/if}
-			{#if hasUnsavedChanges}
-				<span
-					class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
-				>
-					Unsaved changes
-				</span>
+		<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+			<div class="min-w-0">
+				<div class="flex flex-wrap items-center gap-2">
+					<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
+						{getItemTitle()}
+					</h1>
+					{#if resolvedItemState && resolvedItemState.visibility.header !== false}
+						<span
+							class={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(resolvedItemState.variant)}`}
+						>
+							{resolvedItemState.label}
+						</span>
+					{/if}
+					{#if hasUnsavedChanges}
+						<span
+							class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
+						>
+							Unsaved changes
+						</span>
+					{/if}
+				</div>
+				{#if config}
+					<p class="mt-1 text-sm text-stone-500">{getConfigItemLabel(config)}</p>
+				{/if}
+			</div>
+			{#if config}
+				<details bind:this={actionMenu} class="relative justify-self-start sm:justify-self-end">
+					<summary class="tm-icon-btn list-none" aria-label={`${getItemTitle()} actions`}>
+						<MoreHorizontal class="h-4 w-4" />
+					</summary>
+					<div
+						class="absolute top-full right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
+					>
+						<button
+							type="button"
+							onclick={() => {
+								actionMenu?.removeAttribute('open');
+								showDeleteConfirm = true;
+							}}
+							class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+							aria-label={`Delete ${getItemTitle()}`}
+						>
+							<Trash2 class="h-4 w-4" />
+							<span>Delete {getConfigItemLabel(config)}</span>
+						</button>
+					</div>
+				</details>
 			{/if}
 		</div>
-		{#if config}
-			<p class="mt-1 text-sm text-stone-500">{getConfigItemLabel(config)}</p>
-		{/if}
 	</div>
 
 	{#if isDraftView}
@@ -432,7 +509,7 @@
 					/>
 				{/key}
 			{/if}
-			<div class="mt-6 flex flex-wrap gap-3">
+			<PageStickyFooter>
 				<button
 					type="button"
 					onclick={() => void handleLocalSave()}
@@ -442,14 +519,7 @@
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary"> Cancel </a>
-				<button
-					type="button"
-					onclick={() => (showDeleteConfirm = true)}
-					class="tm-btn border-red-600 bg-red-600 text-white hover:bg-red-700"
-				>
-					Delete {getConfigItemLabel(config)}
-				</button>
-			</div>
+			</PageStickyFooter>
 		</form>
 	{:else}
 		<form
@@ -494,7 +564,7 @@
 					/>
 				{/key}
 			{/if}
-			<div class="mt-6 flex flex-wrap gap-3">
+			<PageStickyFooter>
 				<button
 					type="submit"
 					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
@@ -508,7 +578,7 @@
 				>
 					Cancel
 				</a>
-			</div>
+			</PageStickyFooter>
 		</form>
 	{/if}
 

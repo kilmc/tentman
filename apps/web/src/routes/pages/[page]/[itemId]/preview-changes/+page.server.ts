@@ -5,6 +5,7 @@ import { createContentDocument, saveContentDocument } from '$lib/content/service
 import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 import { getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { getExistingItemMutationOptions } from '$lib/server/preview';
@@ -81,6 +82,9 @@ export const actions: Actions = {
 					materialized.content,
 					saveOptions
 				);
+				await syncCollectionItemGroupSelection(backend, discoveredConfig, materialized.content, undefined, {
+					ref: branchName
+				});
 			}
 
 			console.log(`✅ Saved content to ${branchName}`);
@@ -88,7 +92,7 @@ export const actions: Actions = {
 			// Redirect back to index page
 			throw redirect(
 				303,
-				`/pages/${params.page}?saved=true&branch=${encodeURIComponent(branchName)}`
+				`/pages/${params.page}/${params.itemId}/edit?saved=true&branch=${encodeURIComponent(branchName)}`
 			);
 		} catch (err) {
 			// Handle redirects
@@ -158,10 +162,11 @@ export const actions: Actions = {
 					materialized.content,
 					saveOptions
 				);
+				await syncCollectionItemGroupSelection(backend, discoveredConfig, materialized.content);
 			}
 
-			// Redirect to list view with success message
-			throw redirect(303, `/pages/${params.page}?published=true`);
+			// Redirect back to edit with success message
+			throw redirect(303, `/pages/${params.page}/${params.itemId}/edit?published=true`);
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {

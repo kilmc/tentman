@@ -18,6 +18,14 @@ export { checkTentmanAssets } from './assets-check.js';
 export { findUnusedTentmanAssets, listTentmanAssets } from './assets.js';
 export { inspectTentmanContent } from './content-inspect.js';
 export { listTentmanContent } from './content-list.js';
+export {
+	collectContentComponents,
+	discoverContentComponents,
+	loadContentComponent,
+	normalizeContentComponentInstance,
+	renderContentComponent,
+	validateContentComponent
+} from './content-components.js';
 export { getTentmanSchema } from './schema.js';
 export { explainTentmanNavigation } from './nav-explain.js';
 export { printTentmanNavigation } from './nav-print.js';

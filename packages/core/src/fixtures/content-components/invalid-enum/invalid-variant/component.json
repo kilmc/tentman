@@ -1,0 +1,11 @@
+{
+	"id": "invalid-variant",
+	"name": "invalid-variant",
+	"attributes": {
+		"variant": {
+			"type": "enum",
+			"default": "tertiary",
+			"options": ["default", "secondary"]
+		}
+	}
+}

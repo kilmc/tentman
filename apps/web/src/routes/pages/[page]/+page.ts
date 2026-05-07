@@ -52,5 +52,11 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		throw httpError(response.status, 'Failed to load page view');
 	}
 
-	return response.json();
+	const data = await response.json();
+
+	if (data?.discoveredConfig?.config?.collection === false) {
+		throw redirect(302, `/pages/${params.page}/edit${url.search}`);
+	}
+
+	return data;
 };

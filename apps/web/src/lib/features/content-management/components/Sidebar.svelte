@@ -32,6 +32,7 @@
 		savingNavigation?: boolean;
 		hasUnsavedNavigationChanges?: boolean;
 		topLevelEditorItems?: WorkspaceNavItem[];
+		onselectconfig?: (config: DiscoveredConfig) => void;
 		onstartnavigationedit?: () => void;
 		oncancelnavigationedit?: () => void;
 		onsavenavigationedit?: () => void;
@@ -58,6 +59,7 @@
 		savingNavigation = false,
 		hasUnsavedNavigationChanges = false,
 		topLevelEditorItems = [],
+		onselectconfig,
 		onstartnavigationedit,
 		oncancelnavigationedit,
 		onsavenavigationedit,
@@ -241,6 +243,7 @@
 					{@const isSelected = currentPageSlug === config.slug}
 					<a
 						href={getTopLevelHref(config)}
+						onclick={() => onselectconfig?.(config)}
 						class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm font-semibold"
 						class:tm-nav-link-active={isSelected}
 						aria-label={getConfigLinkLabel(config)}
