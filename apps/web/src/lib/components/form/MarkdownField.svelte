@@ -66,6 +66,7 @@
 	let pluginDialogError = $state<string | null>(null);
 	let pluginDialogForm = $state<HTMLFormElement | null>(null);
 	let pluginDialogReturnFocus = $state<HTMLElement | null>(null);
+	let pluginDialogMode = $state<'insert' | 'edit'>('insert');
 	let contextualPopover = $state<ContextualPopoverState | null>(null);
 	let contextualPopoverOpen = $state(false);
 	let linkPopoverMode = $state<'view' | 'edit'>('view');
@@ -313,6 +314,10 @@
 		return page.data.selectedBackend?.kind === 'local' ? 'local' : 'github';
 	}
 
+	function getActiveComponentsDir(): string | undefined {
+		return getActiveRootConfig()?.componentsDir;
+	}
+
 	function handleMarkdownInput(event: Event) {
 		uploadError = null;
 		const nextMarkdown = (event.currentTarget as HTMLTextAreaElement).value;
@@ -322,6 +327,38 @@
 
 	function openImagePicker() {
 		fileInput?.click();
+	}
+
+	function getPluginDialogTitle(item: PluginToolbarButton | null): string {
+		if (!item?.dialog) {
+			return '';
+		}
+
+		return pluginDialogMode === 'edit' ? `Edit ${item.dialog.title}` : `Insert ${item.dialog.title}`;
+	}
+
+	function getPluginDialogSubmitLabel(item: PluginToolbarButton | null): string {
+		if (!item?.dialog) {
+			return 'Insert';
+		}
+
+		if (item.dialog.submitLabel) {
+			return item.dialog.submitLabel;
+		}
+
+		return pluginDialogMode === 'edit' ? 'Save changes' : 'Insert';
+	}
+
+	function getPluginDialogSerializedValue(): string | null {
+		if (!pluginDialogItem?.dialog?.serialize) {
+			return null;
+		}
+
+		try {
+			return pluginDialogItem.dialog.serialize(pluginDialogValues) ?? null;
+		} catch {
+			return null;
+		}
 	}
 
 	function getSelectionRect(editor: Editor): DOMRect | null {
@@ -620,6 +657,7 @@
 
 		dismissContextualPopover();
 		pluginDialogReturnFocus = trigger ?? (document.activeElement as HTMLElement | null);
+		pluginDialogMode = item.isActive?.(editor) ? 'edit' : 'insert';
 		pluginDialogItem = item;
 		pluginDialogError = null;
 		pluginDialogValues = {
@@ -645,6 +683,7 @@
 		pluginDialogItem = null;
 		pluginDialogValues = {};
 		pluginDialogError = null;
+		pluginDialogMode = 'insert';
 		const returnFocus = pluginDialogReturnFocus;
 		pluginDialogReturnFocus = null;
 
@@ -670,6 +709,21 @@
 		pluginDialogError = null;
 	}
 
+	function getPluginDialogValidationError(item = pluginDialogItem): string | null {
+		if (!item?.dialog) {
+			return null;
+		}
+
+		const missingRequiredField = item.dialog.fields.find(
+			(field) => field.required && !pluginDialogValues[field.id]?.trim()
+		);
+		if (missingRequiredField) {
+			return `${missingRequiredField.label} is required.`;
+		}
+
+		return item.dialog.validate?.(pluginDialogValues) ?? null;
+	}
+
 	function submitPluginDialog() {
 		const editor = getEditor();
 		const item = pluginDialogItem;
@@ -678,16 +732,7 @@
 			return;
 		}
 
-		const missingRequiredField = item.dialog.fields.find(
-			(field) => field.required && !pluginDialogValues[field.id]?.trim()
-		);
-
-		if (missingRequiredField) {
-			pluginDialogError = `${missingRequiredField.label} is required.`;
-			return;
-		}
-
-		const validationError = item.dialog.validate?.(pluginDialogValues);
+		const validationError = getPluginDialogValidationError(item);
 		if (validationError) {
 			pluginDialogError = validationError;
 			return;
@@ -936,7 +981,8 @@
 					}
 				),
 				loadContentComponentRegistryForMode(pluginMode, {
-					scopeKey
+					scopeKey,
+					componentsDir: getActiveComponentsDir()
 				})
 			]);
 
@@ -1439,7 +1485,7 @@
 					>
 						<div class="mb-4 flex items-start justify-between gap-4">
 							<h2 id="markdown-plugin-dialog-title" class="text-base font-semibold text-stone-950">
-								{pluginDialogItem.dialog.title}
+								{getPluginDialogTitle(pluginDialogItem)}
 							</h2>
 							<button
 								type="button"
@@ -1486,11 +1532,23 @@
 							{/each}
 						</div>
 
-						{#if pluginDialogError}
+						{#if getPluginDialogSerializedValue()}
+							<div class="mt-4 rounded-md border border-stone-200 bg-stone-50 px-3 py-3">
+								<p class="text-xs font-medium tracking-wide text-stone-500 uppercase">
+									Markdown marker
+								</p>
+								<code class="mt-2 block whitespace-pre-wrap break-all font-mono text-xs text-stone-900">
+									{getPluginDialogSerializedValue()}
+								</code>
+							</div>
+						{/if}
+
+						{#if pluginDialogError ?? getPluginDialogValidationError()}
 							<div
 								class="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+								role="alert"
 							>
-								{pluginDialogError}
+								{pluginDialogError ?? getPluginDialogValidationError()}
 							</div>
 						{/if}
 
@@ -1504,9 +1562,10 @@
 							</button>
 							<button
 								type="submit"
-								class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+								class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-100 disabled:shadow-none"
+								disabled={Boolean(getPluginDialogValidationError())}
 							>
-								{pluginDialogItem.dialog.submitLabel ?? 'Insert'}
+								{getPluginDialogSubmitLabel(pluginDialogItem)}
 							</button>
 						</div>
 					</form>

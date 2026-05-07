@@ -11,6 +11,7 @@ export interface GitHubUserSnapshot {
 
 export interface GitHubRootConfigSnapshot {
 	siteName?: RootConfig['siteName'];
+	componentsDir?: RootConfig['componentsDir'];
 }
 
 export interface RecentGitHubRepositorySnapshot extends GitHubRepositoryIdentity {

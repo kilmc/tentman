@@ -63,16 +63,19 @@ function getRegistryCacheKey(mode: 'local' | 'github', scopeKey: string): string
 
 export async function loadContentComponentRegistryForMode(
 	mode: 'local' | 'github',
-	options: { scopeKey?: string } = {}
+	options: { scopeKey?: string; componentsDir?: string } = {}
 ): Promise<ContentComponentRegistry> {
 	const scopeKey = options.scopeKey ?? mode;
-	const cacheKey = getRegistryCacheKey(mode, scopeKey);
+	const cacheKey = getRegistryCacheKey(mode, JSON.stringify([scopeKey, options.componentsDir ?? null]));
 	let cached = contentComponentRegistryCache.get(cacheKey);
 
 	if (!cached) {
 		cached = loadContentComponentRegistryFromRepository(
 			mode === 'local' ? createLocalLoader() : createGitHubLoader(),
-			{ onError: 'warn' }
+			{
+				componentsDir: options.componentsDir,
+				onError: 'warn'
+			}
 		);
 		contentComponentRegistryCache.set(cacheKey, cached);
 	}

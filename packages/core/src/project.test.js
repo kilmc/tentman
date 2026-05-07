@@ -23,6 +23,7 @@ test('loads the monorepo fixture app as a Tentman project', async () => {
 	assert.equal(project.blocksDir, 'tentman/blocks');
 	assert.equal(project.blocks.length, 1);
 	assert.equal(project.blocks[0]?.id, 'imageGallery');
+	assert.equal(project.componentsDir, 'src/lib/content-components');
 	assert.equal(project.pluginsDir, 'tentman/plugins');
 	assert.deepEqual(project.plugins, [
 		{
@@ -34,6 +35,19 @@ test('loads the monorepo fixture app as a Tentman project', async () => {
 	]);
 	assert.equal(project.navigationManifest.exists, true);
 	assert.equal(project.navigationManifest.error, null);
+});
+
+test('loads configured content components directory from root config', async () => {
+	const projectRoot = await copyFixture();
+	const rootConfigPath = path.join(projectRoot, '.tentman.json');
+	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
+	rootConfig.componentsDir = './src/lib/components/content';
+	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));
+
+	const project = await loadTentmanProject(projectRoot);
+
+	assert.equal(project.rootConfig.componentsDir, './src/lib/components/content');
+	assert.equal(project.componentsDir, 'src/lib/components/content');
 });
 
 test('doctors the fixture without manifest or path errors', async () => {

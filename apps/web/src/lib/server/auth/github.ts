@@ -197,7 +197,8 @@ export function persistSelectedGitHubRepository(
 	const options = getGitHubCookieOptions();
 	const rootConfigSnapshot: GitHubRootConfigSnapshot | null = rootConfig
 		? {
-				...(rootConfig.siteName ? { siteName: rootConfig.siteName } : {})
+				...(rootConfig.siteName ? { siteName: rootConfig.siteName } : {}),
+				...(rootConfig.componentsDir ? { componentsDir: rootConfig.componentsDir } : {})
 			}
 		: null;
 

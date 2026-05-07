@@ -4,6 +4,8 @@ import type { RequestHandler } from './$types';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubRepository } from '$lib/server/page-context';
 
+const DEFAULT_COMPONENTS_DIR = 'src/lib/content-components';
+
 function normalizeRequestedPath(path: string): string {
 	return path.replace(/^\.\//, '').replace(/\/+$/, '');
 }
@@ -12,8 +14,12 @@ function isSafeRequestedPath(path: string): boolean {
 	return path.length > 0 && !path.startsWith('/') && !path.split('/').includes('..');
 }
 
-function isPathInContentComponentsDir(path: string): boolean {
-	return path === 'src/lib/content-components' || path.startsWith('src/lib/content-components/');
+function resolveConfiguredComponentsDir(componentsDir: string | undefined): string {
+	return normalizeRequestedPath(componentsDir ?? '') || DEFAULT_COMPONENTS_DIR;
+}
+
+function isPathInContentComponentsDir(path: string, componentsDir: string): boolean {
+	return path === componentsDir || path.startsWith(`${componentsDir}/`);
 }
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
@@ -26,12 +32,14 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 	const path = normalizeRequestedPath(rawPath);
 
-	if (!isSafeRequestedPath(path) || !isPathInContentComponentsDir(path)) {
-		throw error(400, 'Invalid content component path');
-	}
-
 	try {
 		const { backend } = requireGitHubRepository({ locals, cookies });
+		const rootConfig = await backend.readRootConfig();
+		const componentsDir = resolveConfiguredComponentsDir(rootConfig?.componentsDir);
+
+		if (!isSafeRequestedPath(path) || !isPathInContentComponentsDir(path, componentsDir)) {
+			throw error(400, 'Invalid content component path');
+		}
 
 		if (mode === 'exists') {
 			return json({ exists: await backend.fileExists(path) });

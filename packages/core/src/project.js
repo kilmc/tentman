@@ -56,6 +56,7 @@ export function parseRootConfig(source) {
 		blocksDir: readOptionalString(input, 'blocksDir', ROOT_CONFIG_PATH),
 		configsDir: readOptionalString(input, 'configsDir', ROOT_CONFIG_PATH),
 		assetsDir: readOptionalString(input, 'assetsDir', ROOT_CONFIG_PATH),
+		componentsDir: readOptionalString(input, 'componentsDir', ROOT_CONFIG_PATH),
 		pluginsDir: readOptionalString(input, 'pluginsDir', ROOT_CONFIG_PATH),
 		plugins: readOptionalStringArray(input, 'plugins', ROOT_CONFIG_PATH) ?? [],
 		content:
@@ -222,6 +223,7 @@ export async function loadTentmanProject(projectRoot) {
 	const blocksDir = rootConfig.blocksDir ? stripLeadingDotSlash(rootConfig.blocksDir) : null;
 	const blocksDirPath = blocksDir ? resolveProjectPath(rootDir, blocksDir) : null;
 	const blocksDirExists = blocksDirPath ? await pathExists(blocksDirPath) : false;
+	const componentsDir = stripLeadingDotSlash(rootConfig.componentsDir ?? 'src/lib/content-components');
 	const pluginsDir = stripLeadingDotSlash(rootConfig.pluginsDir ?? 'tentman/plugins');
 	const pluginsDirPath = resolveProjectPath(rootDir, pluginsDir);
 	const pluginsDirExists = await pathExists(pluginsDirPath);
@@ -297,6 +299,7 @@ export async function loadTentmanProject(projectRoot) {
 		blocksDir: blocksDir ? toPosixPath(blocksDir) : null,
 		blocksDirExists,
 		blocks,
+		componentsDir: toPosixPath(componentsDir),
 		pluginsDir: toPosixPath(pluginsDir),
 		pluginsDirExists,
 		plugins,

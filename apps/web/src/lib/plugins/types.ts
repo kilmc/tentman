@@ -47,6 +47,7 @@ export interface MarkdownToolbarDialogContribution {
 	submitLabel?: string;
 	fields: MarkdownToolbarDialogField[];
 	getInitialValues?(editor: Editor): Record<string, string>;
+	serialize?(values: Record<string, string>): string | null | undefined;
 	validate?(values: Record<string, string>): string | null | undefined;
 	submit(editor: Editor, values: Record<string, string>): void;
 }

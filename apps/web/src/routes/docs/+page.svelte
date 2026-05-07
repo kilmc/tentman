@@ -21,6 +21,7 @@
 		{ id: 'content-modes', label: 'Content Modes' },
 		{ id: 'block-configs', label: 'Block Configs' },
 		{ id: 'package-blocks', label: 'Package Blocks' },
+		{ id: 'content-components', label: 'Content Components' },
 		{ id: 'markdown-plugins', label: 'Markdown Plugins' },
 		{ id: 'manual-navigation', label: 'Manual Navigation' },
 		{ id: 'custom-adapters', label: 'Custom Adapters' },
@@ -56,6 +57,14 @@
 			type: 'string',
 			purpose: 'Provide a default image upload path.',
 			notes: 'A block can still override this locally with its own `assetsDir`.'
+		},
+		{
+			field: 'componentsDir',
+			required: 'No',
+			type: 'string',
+			purpose: 'Directory containing repo-local content components.',
+			notes:
+				'Defaults to `src/lib/content-components`; markdown authoring and preview discovery resolve from here.'
 		},
 		{
 			field: 'pluginsDir',
@@ -405,6 +414,7 @@
 		'Custom adapter paths resolve relative to the reusable block config file that declares them.',
 		'If `configsDir` is set, Tentman only discovers top-level content configs inside that directory.',
 		'If `blocksDir` is set, Tentman discovers reusable block configs there and excludes them from top-level content discovery.',
+		'If `componentsDir` is set, Tentman only discovers content components inside that directory.',
 		'If `pluginsDir` is set, GitHub-backed plugin module loading only serves `plugin.js` or `plugin.mjs` entrypoints from that directory.',
 		'Files whose names start with an underscore are skipped during top-level content discovery.',
 		'Manual navigation uses the fixed manifest path `tentman/navigation-manifest.json`.',
@@ -419,6 +429,7 @@
   "siteName": "Field Notes",
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
+  "componentsDir": "./src/lib/content-components",
   "content": {
     "sorting": "manual"
   },
@@ -437,6 +448,65 @@
     "siteName": "my-site"
   }
 }`;
+
+	const contentComponentConfigExample = `{
+  "id": "buy-button",
+  "name": "buy-button",
+  "kind": "inline",
+  "attributes": {
+    "href": {
+      "type": "string",
+      "required": true
+    },
+    "label": {
+      "type": "string",
+      "required": true,
+      "valueFromMarkdownLabel": true
+    },
+    "variant": {
+      "type": "enum",
+      "default": "default",
+      "options": ["default", "secondary"]
+    }
+  }
+}`;
+
+	const contentComponentRenderExample = `<a class="buy-button buy-button--{{ variant }}" href="{{ href }}">
+  {{ label }}
+</a>`;
+
+	const contentComponentPreviewExample = `<span class="tm-component-preview tm-component-preview--buy-button">
+  Buy button: {{ label }}
+</span>`;
+
+	const contentComponentMdsvexExample = `import adapter from '@sveltejs/adapter-auto';
+import { mdsvex } from 'mdsvex';
+import remarkDirective from 'remark-directive';
+import { tentmanComponents } from '@tentman/mdsvex';
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+  kit: {
+    adapter: adapter()
+  },
+  preprocess: [
+    mdsvex({
+      extensions: ['.svx', '.md'],
+      remarkPlugins: [remarkDirective, tentmanComponents()]
+    })
+  ],
+  extensions: ['.svelte', '.svx', '.md']
+};
+
+export default config;`;
+
+	const contentComponentCliExample = `tentman component create buy-button
+tentman component create callout-box --kind block
+tentman component list
+tentman component inspect buy-button
+tentman component validate`;
+
+	const contentComponentMarkerExample = `:buy-button[Buy tickets]{href="/tickets" variant="secondary"}`;
 
 	const contentConfigExample = `{
   "type": "content",
@@ -796,8 +866,8 @@ export default {
 	<section id="root-config" class="scroll-mt-24 border-t border-stone-200 py-8">
 		<h2 class="text-2xl font-semibold text-stone-950">Root Config</h2>
 		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
-			The root <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">.tentman.json</code> file is
-			optional. Keep it for project-wide defaults like discovery paths, preview links, and package blocks.
+			The root <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">.tentman.json</code> file is optional.
+			Keep it for project-wide defaults like discovery paths, preview links, and package blocks.
 		</p>
 		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
 			If you turn on top-level manual ordering with
@@ -838,10 +908,10 @@ export default {
 
 		<h3 class="mt-6 text-lg font-semibold text-stone-950">Shared State Presets</h3>
 		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
-			Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">statePresets</code> when
-			multiple configs should share the same labels, variants, or icons. A content config still
-			chooses its own <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">blockId</code>,
-			but it can reuse the preset’s cases through
+			Use <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">statePresets</code> when multiple
+			configs should share the same labels, variants, or icons. A content config still chooses its
+			own <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">blockId</code>, but it can reuse
+			the preset’s cases through
 			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">preset</code>.
 		</p>
 		<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
@@ -867,8 +937,8 @@ export default {
 			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">state</code> for the config itself,
 			and <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.state</code> for
 			individual items inside a collection. Visibility is on by default, so
-			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">visibility</code> is mostly for
-			turning a badge off in specific places like navigation, headers, or cards.
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">visibility</code> is mostly for turning
+			a badge off in specific places like navigation, headers, or cards.
 		</p>
 
 		<div class="mt-6 overflow-x-auto rounded border border-stone-200">
@@ -908,7 +978,8 @@ export default {
 					when the content document itself has a status field such as Published.
 				</p>
 				<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
-					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{singletonStateExample}</code></pre>
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{singletonStateExample}</code
+						></pre>
 				</div>
 			</div>
 			<div>
@@ -918,7 +989,8 @@ export default {
 					when each item in a collection can have its own state badge, such as Draft posts.
 				</p>
 				<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
-					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{collectionStateExample}</code></pre>
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code>{collectionStateExample}</code
+						></pre>
 				</div>
 			</div>
 		</div>
@@ -1067,6 +1139,157 @@ export default {
 		</ul>
 	</section>
 
+	<section id="content-components" class="scroll-mt-24 border-t border-stone-200 py-8">
+		<h2 class="text-2xl font-semibold text-stone-950">Content Components</h2>
+		<div class="mt-4 space-y-4 text-base leading-7 text-stone-700">
+			<p>
+				Content components are the preferred source-authoring model for reusable markdown content
+				when you want to store semantic markers instead of final HTML.
+			</p>
+			<p>
+				By default, Tentman discovers components in
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">src/lib/content-components</code>.
+				Set
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">componentsDir</code>
+				in the root config when a repo uses a different location.
+			</p>
+		</div>
+
+		<div class="mt-6 grid gap-6 lg:grid-cols-2">
+			<div class="overflow-x-auto rounded border border-stone-200 bg-stone-950">
+				<pre class="p-4 text-sm leading-6 text-stone-100"><code
+						>src/lib/content-components/
+  buy-button/
+    component.json
+    render.njk
+    preview.njk</code
+					></pre>
+			</div>
+			<div class="overflow-x-auto rounded border border-stone-200 bg-stone-950">
+				<pre class="p-4 text-sm leading-6 text-stone-100"><code
+						>{contentComponentConfigExample}</code
+					></pre>
+			</div>
+		</div>
+
+		<ul class="mt-4 list-disc space-y-2 pl-6 text-base leading-7 text-stone-700">
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">component.json</code> defines the stable
+				component contract.
+			</li>
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">id</code> and
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">name</code> are required strings.
+			</li>
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">kind</code> may be
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">inline</code> or
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">block</code> and defaults to
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">inline</code>.
+			</li>
+			<li>
+				Attributes support
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">type</code>,
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">required</code>,
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">default</code>,
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">options</code> for enums, and
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">valueFromMarkdownLabel</code>.
+			</li>
+			<li>Only one attribute may opt into markdown-label binding.</li>
+			<li>
+				The current schema supports
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">string</code> and
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">enum</code> attributes.
+			</li>
+		</ul>
+
+		<div class="mt-6 grid gap-6 lg:grid-cols-2">
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">render.njk</h3>
+				<p class="mt-3 text-sm leading-6 text-stone-600">
+					Produces the final site output during the markdown build.
+				</p>
+				<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code
+							>{contentComponentRenderExample}</code
+						></pre>
+				</div>
+			</div>
+			<div>
+				<h3 class="text-lg font-semibold text-stone-950">preview.njk</h3>
+				<p class="mt-3 text-sm leading-6 text-stone-600">
+					Produces the safe authoring preview shown inside Tentman.
+				</p>
+				<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+					<pre class="p-4 text-sm leading-6 text-stone-100"><code
+							>{contentComponentPreviewExample}</code
+						></pre>
+				</div>
+			</div>
+		</div>
+
+		<p class="mt-6 max-w-3xl text-sm leading-6 text-stone-600">
+			Both templates receive the normalized attribute map. Stored markdown remains semantic, so
+			changing either template updates every existing instance the next time the site or Tentman
+			preview rebuilds.
+		</p>
+
+		<h3 class="mt-6 text-lg font-semibold text-stone-950">mdsvex Setup</h3>
+		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
+			For mdsvex-based sites, install
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">@tentman/mdsvex</code>
+			and
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">remark-directive</code>, then add
+			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">tentmanComponents()</code>
+			to the mdsvex remark plugins list.
+		</p>
+		<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentComponentMdsvexExample}</code
+				></pre>
+		</div>
+
+		<h3 class="mt-6 text-lg font-semibold text-stone-950">Authoring Markers</h3>
+		<div class="mt-3 space-y-3 text-sm leading-6 text-stone-600">
+			<p>
+				Inline content components use semantic directive markers such as
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
+					>{contentComponentMarkerExample}</code
+				>.
+			</p>
+			<p>
+				Tentman writes all active non-label attributes explicitly, sorts attributes alphabetically,
+				avoids duplicating the markdown label into an attribute, and canonicalizes quoting and
+				escaping on serialization.
+			</p>
+		</div>
+
+		<h3 class="mt-6 text-lg font-semibold text-stone-950">CLI Workflow</h3>
+		<div class="mt-4 overflow-x-auto rounded border border-stone-200 bg-stone-950">
+			<pre class="p-4 text-sm leading-6 text-stone-100"><code>{contentComponentCliExample}</code
+				></pre>
+		</div>
+		<ul class="mt-4 list-disc space-y-2 pl-6 text-base leading-7 text-stone-700">
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">create</code> scaffolds
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">component.json</code>,
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">render.njk</code>, and
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">preview.njk</code>.
+			</li>
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">list</code> shows discovered components
+				and attribute counts.
+			</li>
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">inspect</code> shows resolved file paths
+				and normalized attribute definitions.
+			</li>
+			<li>
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">validate</code> reports schema errors
+				and duplicate registry ids or names.
+			</li>
+		</ul>
+	</section>
+
 	<section id="markdown-plugins" class="scroll-mt-24 border-t border-stone-200 py-8">
 		<h2 class="text-2xl font-semibold text-stone-950">Markdown Plugins</h2>
 		<div class="mt-4 space-y-4 text-base leading-7 text-stone-700">
@@ -1151,8 +1374,8 @@ export default {
 				You do not need to add these stable ids by hand first. When you opt into top-level or
 				collection manual ordering, Tentman can write missing
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
-				values into content configs, collection items, and config-backed groups, repair duplicates,
-				and rewrite legacy manifest references during setup.
+				values into content configs, collection items, and config-backed groups, repair duplicates, and
+				rewrite legacy manifest references during setup.
 			</p>
 			<ul class="list-disc space-y-2 pl-6">
 				<li>If a manifest section exists, Tentman uses it first.</li>
@@ -1171,13 +1394,12 @@ export default {
 					Tentman lets authors add groups inline and stores the definition in
 					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.groups</code>.
 				</li>
-				<li>
-					Generic JSON-backed select option sources are intentionally not implemented yet.
-				</li>
+				<li>Generic JSON-backed select option sources are intentionally not implemented yet.</li>
 				<li>
 					Saving a <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">tentmanGroup</code>
-					field writes <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanGroupId</code>.
-					Group definitions carry a human-facing
+					field writes
+					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanGroupId</code>. Group
+					definitions carry a human-facing
 					<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">label</code> plus a
 					developer-facing <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">value</code>.
 				</li>
@@ -1188,8 +1410,8 @@ export default {
 				can add or repair
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
 				values, migrate legacy group definitions into
-				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.groups</code>,
-				explain when collection ordering is blocked by a missing
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">collection.groups</code>, explain
+				when collection ordering is blocked by a missing
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">idField</code>, and generate the
 				initial manifest from the current discovered order.
 			</p>
@@ -1251,8 +1473,8 @@ export default {
 			If you are starting from scratch, most projects only need one or two of these shapes.
 		</p>
 		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">
-			These examples show the steady-state config shapes. If you enable manual ordering later, Tentman
-			can add or reconcile the stable
+			These examples show the steady-state config shapes. If you enable manual ordering later,
+			Tentman can add or reconcile the stable
 			<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">_tentmanId</code>
 			values it needs instead of requiring a manual migration first.
 		</p>

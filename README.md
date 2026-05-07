@@ -120,6 +120,7 @@ The installed skill name stays `tentman-site-integration`.
 	"configsDir": "./tentman/configs",
 	"blocksDir": "./tentman/blocks",
 	"assetsDir": "./static/images",
+	"componentsDir": "./src/lib/content-components",
 	"local": {
 		"previewUrl": "http://localhost:4321"
 	}
@@ -132,6 +133,7 @@ Useful root fields:
 - `configsDir`: restrict top-level content config discovery
 - `blocksDir`: restrict reusable block discovery
 - `assetsDir`: default upload location for image fields
+- `componentsDir`: directory containing repo-local content components; defaults to `src/lib/content-components`
 - `pluginsDir`: directory containing repo-local plugins; defaults to `tentman/plugins`
 - `plugins`: repo-local plugin ids that fields may opt into
 - `local.previewUrl`: preview link shown in local mode
@@ -155,9 +157,7 @@ Example root preset:
 {
 	"statePresets": {
 		"publication": {
-			"cases": [
-				{ "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }
-			]
+			"cases": [{ "value": false, "label": "Draft", "variant": "warning", "icon": "file-pen" }]
 		}
 	}
 }
@@ -245,6 +245,150 @@ Tentman can recognize those markers in the rich editor, serialize them back to m
 plugin preview transforms inside Tentman previews. The consumer website still owns its runtime
 markdown rendering and styling. Use a site markdown renderer that supports safe inline HTML, or add
 a site-side allowlist transform for the stored marker shape.
+
+### Repo-Local Content Components
+
+Content components are the preferred source-authoring model for reusable markdown content when you
+want semantic markers in source files instead of stored final HTML.
+
+Register an optional custom components directory in the root config:
+
+```json
+{
+	"componentsDir": "./src/lib/content-components"
+}
+```
+
+If omitted, Tentman uses `src/lib/content-components`.
+
+Each component lives in its own folder:
+
+```text
+src/lib/content-components/
+  buy-button/
+    component.json
+    render.njk
+    preview.njk
+```
+
+`component.json` defines the component contract:
+
+```json
+{
+	"id": "buy-button",
+	"name": "buy-button",
+	"kind": "inline",
+	"attributes": {
+		"href": {
+			"type": "string",
+			"required": true
+		},
+		"label": {
+			"type": "string",
+			"required": true,
+			"valueFromMarkdownLabel": true
+		},
+		"variant": {
+			"type": "enum",
+			"default": "default",
+			"options": ["default", "secondary"]
+		}
+	}
+}
+```
+
+Supported schema rules:
+
+- `id`: stable component identifier
+- `name`: component name used in markdown markers
+- `kind`: `inline` or `block`; defaults to `inline`
+- `attributes`: object of named attribute definitions
+- attribute `type`: `string` or `enum`
+- attribute `required`: optional boolean
+- attribute `default`: optional non-empty string
+- attribute `options`: required for `enum` attributes
+- attribute `valueFromMarkdownLabel`: optional boolean; only one attribute may use it
+
+`render.njk` produces final site output. `preview.njk` produces the safe authoring representation
+shown inside Tentman. Both receive the normalized attribute map.
+
+Example `render.njk`:
+
+```njk
+<a class="buy-button buy-button--{{ variant }}" href="{{ href }}">
+	{{ label }}
+</a>
+```
+
+Example `preview.njk`:
+
+```njk
+<span class="tm-component-preview tm-component-preview--buy-button">
+	Buy button: {{ label }}
+</span>
+```
+
+For mdsvex-based sites, install `@tentman/mdsvex` and `remark-directive`, then wire the Tentman
+adapter into mdsvex:
+
+```sh
+pnpm add -D @tentman/mdsvex mdsvex remark-directive
+```
+
+```js
+import adapter from '@sveltejs/adapter-auto';
+import { mdsvex } from 'mdsvex';
+import remarkDirective from 'remark-directive';
+import { tentmanComponents } from '@tentman/mdsvex';
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+	kit: {
+		adapter: adapter()
+	},
+	preprocess: [
+		mdsvex({
+			extensions: ['.svx', '.md'],
+			remarkPlugins: [remarkDirective, tentmanComponents()]
+		})
+	],
+	extensions: ['.svelte', '.svx', '.md']
+};
+
+export default config;
+```
+
+Use inline components in markdown with semantic directive markers:
+
+```md
+:buy-button[Buy tickets]{href="/tickets" variant="secondary"}
+```
+
+Current authoring rules:
+
+- inline components use `:name[label]{attrs...}`
+- Tentman writes all active non-label attributes explicitly
+- attributes serialize in alphabetical order
+- the markdown-label value is not duplicated into an explicit attribute
+- quoting and escaping are canonicalized on serialization
+- Tentman stores the semantic marker, not rendered HTML
+
+CLI workflow:
+
+```sh
+tentman component create buy-button
+tentman component create callout-box --kind block
+tentman component list
+tentman component inspect buy-button
+tentman component validate
+```
+
+`create` scaffolds a working component folder, `list` shows discovered components, `inspect` shows
+the resolved files and attribute definitions, and `validate` reports schema or registry problems.
+
+This keeps source representation semantic and deterministic. When you change `render.njk` or
+`preview.njk`, all existing component instances pick up the new output on the next site rebuild or
+Tentman preview refresh because the stored content only contains the component marker and values.
 
 ### Directory-Backed Collection Example
 

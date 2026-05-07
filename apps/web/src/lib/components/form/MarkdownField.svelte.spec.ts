@@ -538,8 +538,23 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Buy Button' }).click();
+		await expect.element(screen.getByText('Insert Buy Button')).toBeVisible();
 		await screen.getByLabelText('URL *').fill('https://example.com/buy');
+		await expect
+			.element(
+				screen.getByText(
+					':buy-button[Buy online]{href="https://example.com/buy" variant="default"}'
+				)
+			)
+			.toBeVisible();
 		await screen.getByLabelText('Label *').fill('Buy tickets');
+		await expect
+			.element(
+				screen.getByText(
+					':buy-button[Buy tickets]{href="https://example.com/buy" variant="default"}'
+				)
+			)
+			.toBeVisible();
 
 		const variantSelect = document.querySelector('select');
 		if (!(variantSelect instanceof HTMLSelectElement)) {
@@ -547,6 +562,13 @@ describe('components/form/MarkdownField.svelte', () => {
 		}
 		variantSelect.value = 'secondary';
 		variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
+		await expect
+			.element(
+				screen.getByText(
+					':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}'
+				)
+			)
+			.toBeVisible();
 
 		await screen.getByRole('button', { name: 'Save buy button' }).click();
 		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
@@ -555,6 +577,30 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expect
 			.element(screen.getByLabelText('Body'))
 			.toHaveValue(':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}');
+	});
+
+	it('shows live validation state for content component dialogs before submit', async () => {
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
+			createBuyButtonContentComponentRegistry()
+		);
+
+		const screen = render(MarkdownField, {
+			fieldId: 'body',
+			label: 'Body',
+			value: ''
+		});
+
+		await screen.getByRole('button', { name: 'Buy Button' }).click();
+		await expect.element(screen.getByText('URL is required.')).toBeVisible();
+		await expect
+			.element(screen.getByRole('button', { name: 'Save buy button' }))
+			.toBeDisabled();
+
+		await screen.getByLabelText('URL *').fill('https://example.com/buy');
+		await expect.poll(() => document.querySelector('[role="alert"]')?.textContent ?? null).toBeNull();
+		await expect
+			.element(screen.getByRole('button', { name: 'Save buy button' }))
+			.toBeEnabled();
 	});
 
 	it('focuses and dismisses content component dialogs from the keyboard', async () => {
@@ -594,6 +640,7 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByText('Buy button: Old label').click();
 		await screen.getByRole('button', { name: 'Edit buy button' }).click();
+		await expect.element(screen.getByText('Edit Buy Button')).toBeVisible();
 
 		await expect.element(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
 		await expect.element(screen.getByLabelText('Label *')).toHaveValue('Old label');

@@ -72,3 +72,12 @@ It also demonstrates the repo-local markdown plugin contract:
   Tentman preview transforms.
 - The Test App site renders markdown with mdsvex in `src/lib/content/markdown.ts`, because the
   consumer site is responsible for rendering and styling stored plugin markers at runtime.
+
+For the newer content-components workflow:
+
+- The canonical setup docs live in the repo root [README.md](/Users/kilmc/code/tentman/tentman/README.md)
+  and in Tentman’s in-app `/docs` page.
+- The Test App does not yet ship a checked-in content component fixture by default.
+- To try the feature here, add a `src/lib/content-components` directory in this app, wire
+  `@tentman/mdsvex` plus `remark-directive` into `svelte.config.js`, and then scaffold components
+  with `tentman component create <name> apps/test-app`.

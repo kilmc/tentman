@@ -26,6 +26,10 @@ export {
 	renderContentComponent,
 	validateContentComponent
 } from './content-components.js';
+export { createContentComponentScaffold } from './content-component-create.js';
+export { inspectTentmanContentComponent } from './content-component-inspect.js';
+export { listTentmanContentComponents } from './content-component-list.js';
+export { validateTentmanContentComponents } from './content-component-validate.js';
 export { getTentmanSchema } from './schema.js';
 export { explainTentmanNavigation } from './nav-explain.js';
 export { printTentmanNavigation } from './nav-print.js';

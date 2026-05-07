@@ -79,6 +79,10 @@
 		});
 	}
 
+	function getActiveComponentsDir(): string | undefined {
+		return getActiveRootConfig()?.componentsDir;
+	}
+
 	function getPreviewPluginRegistry(): Promise<SitePluginRegistry> {
 		if (previewPluginRegistryLoader) {
 			return previewPluginRegistryLoader();
@@ -141,7 +145,8 @@
 				}
 
 				const componentRegistry = await loadContentComponentRegistryForMode(getPluginMode(), {
-					scopeKey: getPluginScopeKey()
+					scopeKey: getPluginScopeKey(),
+					componentsDir: getActiveComponentsDir()
 				});
 				const componentPreview = applyPreviewContentComponentTransforms(
 					nextMarkdown,

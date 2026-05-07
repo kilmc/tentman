@@ -70,4 +70,28 @@ describe('loadContentComponentRegistryFromRepository', () => {
 		expect(registry.components).toEqual([]);
 		expect(registry.errors).toEqual([]);
 	});
+
+	it('respects a configured componentsDir when discovering components', async () => {
+		const registry = await loadContentComponentRegistryFromRepository(
+			createRepository({
+				'cms/components/buy-button/component.json': JSON.stringify({
+					id: 'buy-button',
+					name: 'buy-button',
+					kind: 'inline',
+					attributes: {
+						href: { type: 'string', required: true },
+						label: { type: 'string', required: true, valueFromMarkdownLabel: true }
+					}
+				}),
+				'cms/components/buy-button/render.njk': '<a>{{ label }}</a>',
+				'cms/components/buy-button/preview.njk': '<span>Buy button: {{ label }}</span>'
+			}),
+			{
+				componentsDir: './cms/components'
+			}
+		);
+
+		expect(registry.getByName('buy-button')?.directory).toBe('cms/components/buy-button');
+		expect(registry.errors).toEqual([]);
+	});
 });

@@ -178,6 +178,7 @@ export interface RootConfig {
 	blocksDir?: string;
 	configsDir?: string;
 	assetsDir?: string;
+	componentsDir?: string;
 	pluginsDir?: string;
 	plugins?: string[];
 	blockPackages?: string[];

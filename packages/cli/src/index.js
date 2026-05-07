@@ -9,7 +9,9 @@ import {
 	findUnusedTentmanAssets,
 	getTentmanSchema,
 	inspectTentmanContent,
+	inspectTentmanContentComponent,
 	listTentmanAssets,
+	listTentmanContentComponents,
 	listTentmanContent,
 	loadTentmanProject,
 	printTentmanNavigation,
@@ -19,8 +21,10 @@ import {
 	summarizeFormatCheck,
 	summarizeIdWriteChanges,
 	summarizeNavigationRefreshChanges,
+	validateTentmanContentComponents,
 	writeTentmanFormat,
-	writeMissingTentmanIds
+	writeMissingTentmanIds,
+	createContentComponentScaffold
 } from '@tentman/core';
 import { watch as createWatcher } from 'chokidar';
 import path from 'node:path';
@@ -30,6 +34,10 @@ function printHelp() {
 
 Usage:
   tentman doctor [project-root]
+  tentman component create <name> [project-root]
+  tentman component inspect <name> [project-root]
+  tentman component list [project-root]
+  tentman component validate [project-root]
   tentman assets check [project-root]
   tentman assets list [config-reference] [project-root]
   tentman assets unused [config-reference] [project-root]
@@ -50,6 +58,7 @@ Usage:
 
 Options:
   --check     Check formatting without writing files
+  --kind      For \`component create\`, scaffold \`inline\` (default) or \`block\`
   --refresh   For \`nav watch\`, preserve manifest structure and refresh references
   --rebuild   For \`nav watch\`, fully regenerate the manifest (default)
   --write     Write Tentman-owned formatting rewrites
@@ -59,12 +68,44 @@ Options:
 }
 
 function parseArgs(argv) {
-	const flags = new Set(argv.filter((arg) => arg.startsWith('-')));
-	const positional = argv.filter((arg) => !arg.startsWith('-'));
+	const flags = new Set();
+	const positional = [];
+	const optionValues = new Map();
+
+	for (let index = 0; index < argv.length; index += 1) {
+		const arg = argv[index];
+
+		if (!arg.startsWith('-')) {
+			positional.push(arg);
+			continue;
+		}
+
+		if (arg.includes('=')) {
+			const separatorIndex = arg.indexOf('=');
+			const flag = arg.slice(0, separatorIndex);
+			const value = arg.slice(separatorIndex + 1);
+			flags.add(flag);
+			optionValues.set(flag, value);
+			continue;
+		}
+
+		if (arg === '--kind') {
+			const value = argv[index + 1];
+			if (value && !value.startsWith('-')) {
+				flags.add(arg);
+				optionValues.set(arg, value);
+				index += 1;
+				continue;
+			}
+		}
+
+		flags.add(arg);
+	}
 
 	return {
 		flags,
-		positional
+		positional,
+		optionValues
 	};
 }
 
@@ -363,7 +404,7 @@ async function watchNavigationManifest(projectRoot, flags) {
 }
 
 async function run() {
-	const { flags, positional } = parseArgs(process.argv.slice(2));
+	const { flags, positional, optionValues } = parseArgs(process.argv.slice(2));
 
 	if (flags.has('-h') || flags.has('--help') || positional.length === 0) {
 		printHelp();
@@ -377,6 +418,107 @@ async function run() {
 		const project = await loadTentmanProject(getProjectRoot(positional, 1));
 		const diagnostics = await doctorTentmanProject(project);
 		printDiagnostics('Tentman doctor', diagnostics, { json });
+		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
+	}
+
+	if (command === 'component' && subcommand === 'create') {
+		const name = positional[2];
+
+		if (!name) {
+			throw new Error('tentman component create requires a component name');
+		}
+
+		const created = await createContentComponentScaffold(getProjectRoot(positional, 3), name, {
+			kind: optionValues.get('--kind')
+		});
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman component create', created }, null, 2));
+			return 0;
+		}
+
+		console.log(`Created ${created.kind} content component ${created.name}`);
+		for (const filePath of created.files) {
+			console.log(`- ${filePath}`);
+		}
+		console.log('\nNext steps:');
+		console.log('1. Edit component.json');
+		console.log('2. Edit render.njk');
+		console.log('3. Edit preview.njk');
+		console.log(`4. Use the ${created.name} marker in markdown`);
+		return 0;
+	}
+
+	if (command === 'component' && subcommand === 'list') {
+		const project = await loadTentmanProject(getProjectRoot(positional, 2));
+		const components = await listTentmanContentComponents(project);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman component list', components }, null, 2));
+			return 0;
+		}
+
+		console.log('Tentman component list');
+
+		if (components.length === 0) {
+			console.log('No content components found.');
+			return 0;
+		}
+
+		for (const component of components) {
+			console.log(
+				`${component.kind}: ${component.name} (${component.attributeCount} attribute${component.attributeCount === 1 ? '' : 's'}) -> ${component.path}`
+			);
+		}
+
+		return 0;
+	}
+
+	if (command === 'component' && subcommand === 'inspect') {
+		const reference = positional[2];
+
+		if (!reference) {
+			throw new Error('tentman component inspect requires a component name');
+		}
+
+		const project = await loadTentmanProject(getProjectRoot(positional, 3));
+		const component = await inspectTentmanContentComponent(project, reference);
+
+		if (json) {
+			console.log(JSON.stringify({ title: 'Tentman component inspect', component }, null, 2));
+			return 0;
+		}
+
+		console.log(`Tentman component inspect: ${component.name}`);
+		console.log(`Kind: ${component.kind}`);
+		console.log(`Path: ${component.path}`);
+		console.log(`component.json: ${component.componentJsonPath}`);
+		console.log(`render.njk: ${component.renderTemplatePath}`);
+		console.log(`preview.njk: ${component.previewTemplatePath}`);
+		console.log('Attributes:');
+		for (const [attributeName, definition] of Object.entries(component.attributes)) {
+			const parts = [definition.type];
+			if (definition.required) {
+				parts.push('required');
+			}
+			if (definition.valueFromMarkdownLabel) {
+				parts.push('markdown-label');
+			}
+			if (definition.default) {
+				parts.push(`default=${definition.default}`);
+			}
+			if (Array.isArray(definition.options) && definition.options.length > 0) {
+				parts.push(`options=${definition.options.join(',')}`);
+			}
+			console.log(`- ${attributeName}: ${parts.join(', ')}`);
+		}
+		return 0;
+	}
+
+	if (command === 'component' && subcommand === 'validate') {
+		const project = await loadTentmanProject(getProjectRoot(positional, 2));
+		const diagnostics = await validateTentmanContentComponents(project);
+		printDiagnostics('Tentman component validate', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;
 	}
 

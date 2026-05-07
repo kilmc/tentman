@@ -134,25 +134,25 @@ The initial component definition should be a plain JSON file:
 
 ```json
 {
-  "id": "buy-button",
-  "name": "buy-button",
-  "kind": "inline",
-  "attributes": {
-    "href": {
-      "type": "string",
-      "required": true
-    },
-    "label": {
-      "type": "string",
-      "required": true,
-      "valueFromMarkdownLabel": true
-    },
-    "variant": {
-      "type": "enum",
-      "default": "default",
-      "options": ["default", "secondary"]
-    }
-  }
+	"id": "buy-button",
+	"name": "buy-button",
+	"kind": "inline",
+	"attributes": {
+		"href": {
+			"type": "string",
+			"required": true
+		},
+		"label": {
+			"type": "string",
+			"required": true,
+			"valueFromMarkdownLabel": true
+		},
+		"variant": {
+			"type": "enum",
+			"default": "default",
+			"options": ["default", "secondary"]
+		}
+	}
 }
 ```
 
@@ -375,16 +375,16 @@ For `buy-button`, the starter file could look like:
 
 ```json
 {
-  "id": "buy-button",
-  "name": "buy-button",
-  "kind": "inline",
-  "attributes": {
-    "label": {
-      "type": "string",
-      "required": true,
-      "valueFromMarkdownLabel": true
-    }
-  }
+	"id": "buy-button",
+	"name": "buy-button",
+	"kind": "inline",
+	"attributes": {
+		"label": {
+			"type": "string",
+			"required": true,
+			"valueFromMarkdownLabel": true
+		}
+	}
 }
 ```
 
@@ -651,39 +651,39 @@ Conceptually:
 type ContentComponentKind = 'inline' | 'block';
 
 type ContentComponentAttributeDefinition =
-  | {
-      type: 'string';
-      required?: boolean;
-      default?: string;
-      valueFromMarkdownLabel?: boolean;
-    }
-  | {
-      type: 'enum';
-      required?: boolean;
-      default?: string;
-      options: string[];
-      valueFromMarkdownLabel?: boolean;
-    };
+	| {
+			type: 'string';
+			required?: boolean;
+			default?: string;
+			valueFromMarkdownLabel?: boolean;
+	  }
+	| {
+			type: 'enum';
+			required?: boolean;
+			default?: string;
+			options: string[];
+			valueFromMarkdownLabel?: boolean;
+	  };
 
 type ContentComponentDefinition = {
-  id: string;
-  name: string;
-  kind: ContentComponentKind;
-  attributes: Record<string, ContentComponentAttributeDefinition>;
+	id: string;
+	name: string;
+	kind: ContentComponentKind;
+	attributes: Record<string, ContentComponentAttributeDefinition>;
 };
 
 type LoadedContentComponent = {
-  definition: ContentComponentDefinition;
-  directory: string;
-  renderTemplatePath: string;
-  previewTemplatePath: string;
+	definition: ContentComponentDefinition;
+	directory: string;
+	renderTemplatePath: string;
+	previewTemplatePath: string;
 };
 
 type NormalizedContentComponentInstance = {
-  componentId: string;
-  componentName: string;
-  kind: ContentComponentKind;
-  attributes: Record<string, string>;
+	componentId: string;
+	componentName: string;
+	kind: ContentComponentKind;
+	attributes: Record<string, string>;
 };
 
 type ContentComponentRenderMode = 'render' | 'preview';
@@ -715,8 +715,8 @@ Suggested input:
 
 ```ts
 type DiscoverContentComponentsOptions = {
-  componentsDir: string;
-  onError?: 'throw' | 'warn';
+	componentsDir: string;
+	onError?: 'throw' | 'warn';
 };
 ```
 
@@ -780,8 +780,8 @@ Suggested input shape:
 
 ```ts
 type NormalizeContentComponentInstanceInput = {
-  markdownLabel?: string | null;
-  attributes?: Record<string, string | null | undefined>;
+	markdownLabel?: string | null;
+	attributes?: Record<string, string | null | undefined>;
 };
 ```
 
@@ -1019,13 +1019,13 @@ import remarkDirective from 'remark-directive';
 import { tentmanComponents } from '@tentman/mdsvex';
 
 export default {
-  extensions: ['.md', '.svx'],
-  remarkPlugins: [
-    remarkDirective,
-    tentmanComponents({
-      componentsDir: './src/lib/content-components'
-    })
-  ]
+	extensions: ['.md', '.svx'],
+	remarkPlugins: [
+		remarkDirective,
+		tentmanComponents({
+			componentsDir: './src/lib/content-components'
+		})
+	]
 };
 ```
 
@@ -1039,9 +1039,9 @@ The intended shape of `TentmanMdsvexOptions` is:
 
 ```ts
 type TentmanMdsvexOptions = {
-  componentsDir?: string;
-  templateEngine?: 'nunjucks';
-  onError?: 'throw' | 'warn';
+	componentsDir?: string;
+	templateEngine?: 'nunjucks';
+	onError?: 'throw' | 'warn';
 };
 ```
 
@@ -1412,6 +1412,10 @@ Document:
 Deliverable:
 
 - docs that teach the feature without requiring unified internals knowledge
+
+Status:
+
+- completed in the repo README and the in-app `/docs` reference
 
 ## Recommendation
 

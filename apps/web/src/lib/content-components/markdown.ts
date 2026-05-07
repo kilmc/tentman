@@ -235,6 +235,25 @@ function createToolbarItem(
 					])
 				);
 			},
+			serialize(values) {
+				const instance = normalizeContentComponentInstance(component, {
+					markdownLabel: labelAttributeName ? values[labelAttributeName] ?? '' : undefined,
+					attributes: values
+				});
+
+				return serializeContentComponentDirective(component, instance.attributes);
+			},
+			validate(values) {
+				try {
+					normalizeContentComponentInstance(component, {
+						markdownLabel: labelAttributeName ? values[labelAttributeName] ?? '' : undefined,
+						attributes: values
+					});
+					return null;
+				} catch (error) {
+					return error instanceof Error ? error.message : 'Invalid content component values.';
+				}
+			},
 			submit(editor, values) {
 				const instance = normalizeContentComponentInstance(component, {
 					markdownLabel: labelAttributeName ? values[labelAttributeName] ?? '' : undefined,

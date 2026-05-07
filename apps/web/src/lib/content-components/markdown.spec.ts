@@ -161,6 +161,39 @@ describe('createMarkdownContentComponentArtifacts', () => {
 		});
 	});
 
+	it('serializes dialog values back into semantic markdown markers', () => {
+		const artifacts = createMarkdownContentComponentArtifacts(createRegistry());
+		const toolbarItem = artifacts.toolbarItems[0];
+
+		expect(
+			toolbarItem.dialog?.serialize?.({
+				href: 'https://example.com/tickets',
+				label: 'Buy tickets',
+				variant: 'secondary'
+			})
+		).toBe(':buy-button[Buy tickets]{href="https://example.com/tickets" variant="secondary"}');
+	});
+
+	it('validates dialog values through the shared content component normalizer', () => {
+		const artifacts = createMarkdownContentComponentArtifacts(createRegistry());
+		const toolbarItem = artifacts.toolbarItems[0];
+
+		expect(
+			toolbarItem.dialog?.validate?.({
+				href: 'https://example.com/tickets',
+				label: 'Buy tickets',
+				variant: 'secondary'
+			})
+		).toBeNull();
+		expect(
+			toolbarItem.dialog?.validate?.({
+				href: 'https://example.com/tickets',
+				label: 'Buy tickets',
+				variant: 'loud'
+			})
+		).toBe('Content component attribute variant must be one of: default, secondary');
+	});
+
 	it('updates existing nodes and inserts new nodes through the generated dialog contract', () => {
 		const artifacts = createMarkdownContentComponentArtifacts(createRegistry());
 		const toolbarItem = artifacts.toolbarItems[0];

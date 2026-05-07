@@ -878,6 +878,7 @@ export function parseRootConfig(content: string): RootConfig {
 	const blocksDir = readOptionalString(parsed, 'blocksDir', 'root');
 	const configsDir = readOptionalString(parsed, 'configsDir', 'root');
 	const assetsDir = readOptionalString(parsed, 'assetsDir', 'root');
+	const componentsDir = readOptionalString(parsed, 'componentsDir', 'root');
 	const pluginsDir = readOptionalString(parsed, 'pluginsDir', 'root');
 	const plugins = readOptionalStringArray(parsed, 'plugins', 'root');
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
@@ -899,6 +900,10 @@ export function parseRootConfig(content: string): RootConfig {
 
 	if (assetsDir) {
 		rootConfig.assetsDir = assetsDir;
+	}
+
+	if (componentsDir) {
+		rootConfig.componentsDir = componentsDir;
 	}
 
 	if (pluginsDir) {
