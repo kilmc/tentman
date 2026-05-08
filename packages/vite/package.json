@@ -1,0 +1,14 @@
+{
+	"name": "@tentman/vite",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"test": "node --test src/*.test.js"
+	},
+	"exports": {
+		".": "./src/index.js"
+	},
+	"peerDependencies": {
+		"vite": "^7.0.0"
+	}
+}

@@ -14,6 +14,7 @@ type CodeFenceMeta = {
 
 const componentsDir = resolve(process.cwd(), 'src/lib/content-components');
 let componentsPromise: Promise<Map<string, ContentComponent>> | null = null;
+const shouldCacheComponents = !import.meta.env.DEV;
 
 function escapeHtml(value: string): string {
 	return value
@@ -168,6 +169,20 @@ function parseDirectiveAttributes(source: string): Record<string, string> {
 }
 
 async function getComponentsByName(): Promise<Map<string, ContentComponent>> {
+	if (!shouldCacheComponents) {
+		const { discoverContentComponents } = await getTentmanContentComponentApi();
+		const components = await discoverContentComponents({
+			componentsDir
+		});
+		const byName = new Map<string, ContentComponent>();
+
+		for (const component of components) {
+			byName.set(component.definition.name, component);
+		}
+
+		return byName;
+	}
+
 	if (!componentsPromise) {
 		const { discoverContentComponents } = await getTentmanContentComponentApi();
 

@@ -401,6 +401,56 @@ describe('createLocalRepositoryBackend', () => {
 		await expect(backend.getDiscoverySignature()).resolves.toEqual(signature);
 	});
 
+	it('invalidates the local discovery signature when content component templates change', async () => {
+		let renderTemplate = '<a class="buy-button" href="{{ href | escape }}">{{ label | escape }}</a>';
+		const rootHandle = createDirectoryHandle({
+			src: createDirectoryHandle({
+				lib: createDirectoryHandle({
+					'content-components': createDirectoryHandle({
+						'buy-button': createDirectoryHandle({
+							'component.json': createFileHandle(`{
+								"id": "buy-button",
+								"name": "buy-button",
+								"attributes": {
+									"href": { "type": "string", "required": true },
+									"label": { "type": "string", "valueFromMarkdownLabel": true, "required": true }
+								}
+							}`),
+							'render.njk': createFileHandle(() => renderTemplate),
+							'preview.njk': createFileHandle('<span>{{ label | escape }}</span>')
+						})
+					})
+				})
+			})
+		});
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+		const signature = await backend.getDiscoverySignature();
+
+		expect(signature.contentComponentFiles).toEqual(
+			expect.arrayContaining([
+				{
+					path: 'src/lib/content-components/buy-button/render.njk',
+					content: renderTemplate
+				}
+			])
+		);
+
+		renderTemplate =
+			'<a class="buy-button" href="{{ href | escape }}"><span class="sr-only">{{ label | escape }}</span></a>';
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			contentComponentFiles: expect.arrayContaining([
+				{
+					path: 'src/lib/content-components/buy-button/render.njk',
+					content: renderTemplate
+				}
+			])
+		});
+	});
+
 	it('invalidates the local discovery signature when the navigation manifest changes', async () => {
 		let navigationManifest = JSON.stringify({
 			version: 1,

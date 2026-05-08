@@ -296,7 +296,7 @@ function createStore() {
 
 				if (persistedState) {
 					backend.invalidateDiscoveryCache();
-					clearPluginRegistryCache();
+					clearContentComponentRegistryCache();
 					clearPersistedState(backend.cacheKey);
 				}
 			}

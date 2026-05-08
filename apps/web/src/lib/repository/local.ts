@@ -238,6 +238,42 @@ async function findTentmanFiles(root: FileSystemDirectoryHandle, path = '.'): Pr
 	return configPaths;
 }
 
+async function collectContentComponentFiles(
+	root: FileSystemDirectoryHandle,
+	path: string
+): Promise<Array<{ path: string; content: string }>> {
+	try {
+		const entries = await listDirectoryEntries(root, path);
+		const files = await Promise.all(
+			entries
+				.filter((entry) => entry.kind === 'directory')
+				.map(async (entry) => {
+					const componentFiles = ['component.json', 'render.njk', 'preview.njk'];
+					const resolvedFiles = await Promise.all(
+						componentFiles.map(async (fileName) => {
+							const filePath = `${entry.path}/${fileName}`;
+
+							try {
+								return {
+									path: filePath,
+									content: await readFileText(root, filePath)
+								};
+							} catch {
+								return null;
+							}
+						})
+					);
+
+					return resolvedFiles.flatMap((file) => (file ? [file] : []));
+				})
+		);
+
+		return files.flat().sort((left, right) => left.path.localeCompare(right.path));
+	} catch {
+		return [];
+	}
+}
+
 export interface LocalRepositoryIdentity {
 	name: string;
 	pathLabel: string;
@@ -248,6 +284,10 @@ export interface LocalDiscoverySignature {
 	navigationManifestText: string | null;
 	contentConfigPaths: string[];
 	blockConfigPaths: string[];
+	contentComponentFiles: Array<{
+		path: string;
+		content: string;
+	}>;
 }
 
 export interface LocalRepositoryBackend extends RepositoryBackend {
@@ -352,11 +392,15 @@ export function createLocalRepositoryBackend(
 			}
 		})();
 		const { contentConfigPaths, blockConfigPaths } = await getDiscoveryFilePaths(rootConfig);
+		const componentsDir =
+			rootConfig?.componentsDir?.replace(/^\.\//, '').replace(/\/+$/, '') ||
+			'src/lib/content-components';
 		return {
 			rootConfigText,
 			navigationManifestText,
 			contentConfigPaths,
-			blockConfigPaths
+			blockConfigPaths,
+			contentComponentFiles: await collectContentComponentFiles(rootHandle, componentsDir)
 		};
 	}
 
