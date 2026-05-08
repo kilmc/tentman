@@ -1,0 +1,27 @@
+{
+	"id": "doc-link",
+	"name": "doc-link",
+	"kind": "inline",
+	"editor": {
+		"toolbarLabel": "Doc Link",
+		"dialogTitle": "Document link",
+		"submitLabel": "Save document link"
+	},
+	"attributes": {
+		"href": {
+			"type": "string",
+			"required": true,
+			"editor": {
+				"label": "URL",
+				"control": "url"
+			}
+		},
+		"label": {
+			"type": "string",
+			"default": "Read more",
+			"editor": {
+				"hidden": true
+			}
+		}
+	}
+}

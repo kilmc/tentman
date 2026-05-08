@@ -10,9 +10,10 @@ test('summarizes repo schema across content configs', async () => {
 	assert.deepEqual(
 		schema.map((entry) => [entry.label, entry.kind, entry.blockCount, entry.groupCount]),
 		[
-			['About Page', 'singleton', 5, 0],
+			['About', 'singleton', 5, 0],
 			['Blog Posts', 'collection', 8, 0],
-			['Contact Page', 'singleton', 9, 0],
+			['Contact', 'singleton', 7, 0],
+			['FAQ', 'singleton', 4, 0],
 			['News', 'singleton', 3, 0],
 			['Projects', 'singleton', 3, 0]
 		]
@@ -25,7 +26,7 @@ test('expands effective fields for a selected config schema', async () => {
 	const project = await loadTentmanProject(testAppRoot);
 	const schema = getTentmanSchema(project, 'about');
 
-	assert.equal(schema.config.label, 'About Page');
+	assert.equal(schema.config.label, 'About');
 	assert.equal(schema.config.collection.enabled, false);
 	assert.equal(schema.fields.length, 5);
 	assert.deepEqual(schema.fields[0], {
@@ -61,7 +62,7 @@ test('includes collection metadata in selected config schema', async () => {
 	assert.deepEqual(schema.config.collection.groups, []);
 	assert.equal(schema.fields[4]?.type, 'image');
 	assert.equal(schema.fields[4]?.assetsDir, '../../static/images/posts');
-	assert.deepEqual(schema.fields[6]?.plugins, ['callout-chip']);
+	assert.deepEqual(schema.fields[6]?.components, undefined);
 });
 
 test('throws when exporting schema for an unknown config reference', async () => {

@@ -448,13 +448,10 @@ describe('createLocalRepositoryBackend', () => {
 		});
 	});
 
-	it('includes root discovery settings and registered plugin entrypoint existence in the signature', async () => {
+	it('includes root discovery settings in the signature', async () => {
 		let rootConfig = JSON.stringify({
-			configsDir: './tentman/configs',
-			pluginsDir: './tentman/plugins',
-			plugins: ['buy-button']
+			configsDir: './tentman/configs'
 		});
-		const buyButtonEntries: Record<string, FileSystemFileHandle> = {};
 		const rootHandle = createDirectoryHandle({
 			'.tentman.json': createFileHandle(() => rootConfig),
 			tentman: createDirectoryHandle({
@@ -465,9 +462,6 @@ describe('createLocalRepositoryBackend', () => {
 						"content": { "mode": "file", "path": "./src/content/posts.json" },
 						"blocks": []
 					}`)
-				}),
-				plugins: createDirectoryHandle({
-					'buy-button': createDirectoryHandle(buyButtonEntries)
 				})
 			})
 		});
@@ -477,25 +471,10 @@ describe('createLocalRepositoryBackend', () => {
 		});
 
 		const initialSignature = await backend.getDiscoverySignature();
-		expect(initialSignature.rootConfigText).toContain('"plugins"');
-		expect(initialSignature.pluginEntrypoints).toEqual([
-			{ path: 'tentman/plugins/buy-button/plugin.js', exists: false },
-			{ path: 'tentman/plugins/buy-button/plugin.mjs', exists: false }
-		]);
-
-		buyButtonEntries['plugin.js'] = createFileHandle('export default {};');
-
-		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
-			pluginEntrypoints: [
-				{ path: 'tentman/plugins/buy-button/plugin.js', exists: true },
-				{ path: 'tentman/plugins/buy-button/plugin.mjs', exists: false }
-			]
-		});
+		expect(initialSignature.rootConfigText).toContain('"configsDir"');
 
 		rootConfig = JSON.stringify({
-			configsDir: './content',
-			pluginsDir: './tentman/plugins',
-			plugins: ['buy-button']
+			configsDir: './content'
 		});
 
 		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({

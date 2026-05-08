@@ -4,11 +4,12 @@
 	import { DropdownMenu, Popover, Separator, Toolbar } from 'bits-ui';
 	import { page } from '$app/state';
 	import { loadContentComponentRegistryForMode } from '$lib/content-components/browser';
+	import { filterContentComponentRegistry } from '$lib/content-components/registry';
 	import { createMarkdownContentComponentArtifacts } from '$lib/content-components/markdown';
+	import { parseContentDirectiveMatches } from '$lib/content-components/directives';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import ToolbarIcon from '$lib/features/markdown-editor/ToolbarIcon.svelte';
-	import { loadMarkdownPluginsForMode } from '$lib/plugins/browser';
-	import type { MarkdownToolbarItemContribution } from '$lib/plugins/types';
+	import type { MarkdownToolbarItemContribution } from '$lib/features/markdown-editor/types';
 	import { localContent } from '$lib/stores/local-content';
 	import { createMarkdownEditor } from '$lib/features/markdown-editor/create-editor';
 	import {
@@ -28,7 +29,7 @@
 		rows?: number;
 		minLength?: number;
 		maxLength?: number;
-		plugins?: string[];
+		components?: string[];
 		onchange?: () => void;
 		storagePath?: string;
 		assetsDir?: string;
@@ -43,7 +44,7 @@
 		rows = 12,
 		minLength,
 		maxLength,
-		plugins = [],
+		components = [],
 		onchange,
 		storagePath = 'static/images/',
 		assetsDir
@@ -54,19 +55,19 @@
 	let editorHost = $state<HTMLDivElement | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let editorLoadError = $state<string | null>(null);
-	let pluginLoadError = $state<string | null>(null);
+	let componentLoadError = $state<string | null>(null);
 	let uploadError = $state<string | null>(null);
 	let editorUiVersion = $state(0);
 	let structureMenuOpen = $state(false);
 	let listMenuOpen = $state(false);
 	let structureMenuAnchor = $state<HTMLButtonElement | null>(null);
 	let listMenuAnchor = $state<HTMLButtonElement | null>(null);
-	let pluginDialogItem = $state<PluginToolbarButton | null>(null);
-	let pluginDialogValues = $state<Record<string, string>>({});
-	let pluginDialogError = $state<string | null>(null);
-	let pluginDialogForm = $state<HTMLFormElement | null>(null);
-	let pluginDialogReturnFocus = $state<HTMLElement | null>(null);
-	let pluginDialogMode = $state<'insert' | 'edit'>('insert');
+	let componentDialogItem = $state<ContentComponentToolbarButton | null>(null);
+	let componentDialogValues = $state<Record<string, string>>({});
+	let componentDialogError = $state<string | null>(null);
+	let componentDialogForm = $state<HTMLFormElement | null>(null);
+	let componentDialogReturnFocus = $state<HTMLElement | null>(null);
+	let componentDialogMode = $state<'insert' | 'edit'>('insert');
 	let contextualPopover = $state<ContextualPopoverState | null>(null);
 	let contextualPopoverOpen = $state(false);
 	let linkPopoverMode = $state<'view' | 'edit'>('view');
@@ -130,17 +131,17 @@
 		select?: (trigger?: HTMLElement) => void;
 	}
 
-	interface PluginToolbarButton extends MarkdownToolbarItemContribution {
+	interface ContentComponentToolbarButton extends MarkdownToolbarItemContribution {
 		buttonLabel: string;
 	}
 
 	interface ContextualPopoverState {
-		kind: 'link' | 'plugin';
+		kind: 'link' | 'component';
 		href: string;
 		top: number;
 		left: number;
 		placement: 'above' | 'below';
-		editItem: PluginToolbarButton | null;
+		editItem: ContentComponentToolbarButton | null;
 	}
 
 	const repoKey = $derived(
@@ -155,7 +156,7 @@
 		minLength !== undefined && characterCount > 0 && characterCount < minLength
 	);
 	const toolbarDisabled = $derived(!richEditor || editorLoadError !== null);
-	let pluginToolbarButtons = $state<PluginToolbarButton[]>([]);
+	let componentToolbarButtons = $state<ContentComponentToolbarButton[]>([]);
 
 	function getEditor(): Editor | null {
 		void editorUiVersion;
@@ -242,6 +243,30 @@
 		return typeof value === 'string' ? value.trim() : '';
 	}
 
+	function getComponentAvailabilityErrors(
+		markdown: string,
+		availableComponentNames: Set<string>,
+		enabledComponentNames: Set<string>
+	): string[] {
+		const errors = new Set<string>();
+
+		for (const match of [
+			...parseContentDirectiveMatches(markdown, 'inline'),
+			...parseContentDirectiveMatches(markdown, 'block')
+		]) {
+			if (!availableComponentNames.has(match.name)) {
+				errors.add(`Markdown field contains unknown content component "${match.name}"`);
+				continue;
+			}
+
+			if (!enabledComponentNames.has(match.name)) {
+				errors.add(`Markdown field contains content component "${match.name}" that is not enabled on this field`);
+			}
+		}
+
+		return Array.from(errors);
+	}
+
 	async function stageImage(file: File): Promise<{ ref: string }> {
 		const validationError = getDraftImageValidationError(file);
 		if (validationError) {
@@ -310,7 +335,7 @@
 			: (page.data.rootConfig ?? null);
 	}
 
-	function getPluginMode(): 'local' | 'github' {
+	function getComponentMode(): 'local' | 'github' {
 		return page.data.selectedBackend?.kind === 'local' ? 'local' : 'github';
 	}
 
@@ -329,15 +354,15 @@
 		fileInput?.click();
 	}
 
-	function getPluginDialogTitle(item: PluginToolbarButton | null): string {
+	function getComponentDialogTitle(item: ContentComponentToolbarButton | null): string {
 		if (!item?.dialog) {
 			return '';
 		}
 
-		return pluginDialogMode === 'edit' ? `Edit ${item.dialog.title}` : `Insert ${item.dialog.title}`;
+		return componentDialogMode === 'edit' ? `Edit ${item.dialog.title}` : `Insert ${item.dialog.title}`;
 	}
 
-	function getPluginDialogSubmitLabel(item: PluginToolbarButton | null): string {
+	function getComponentDialogSubmitLabel(item: ContentComponentToolbarButton | null): string {
 		if (!item?.dialog) {
 			return 'Insert';
 		}
@@ -346,16 +371,16 @@
 			return item.dialog.submitLabel;
 		}
 
-		return pluginDialogMode === 'edit' ? 'Save changes' : 'Insert';
+		return componentDialogMode === 'edit' ? 'Save changes' : 'Insert';
 	}
 
-	function getPluginDialogSerializedValue(): string | null {
-		if (!pluginDialogItem?.dialog?.serialize) {
+	function getComponentDialogSerializedValue(): string | null {
+		if (!componentDialogItem?.dialog?.serialize) {
 			return null;
 		}
 
 		try {
-			return pluginDialogItem.dialog.serialize(pluginDialogValues) ?? null;
+			return componentDialogItem.dialog.serialize(componentDialogValues) ?? null;
 		} catch {
 			return null;
 		}
@@ -398,7 +423,7 @@
 		kind: ContextualPopoverState['kind'],
 		href: string,
 		rect: DOMRect,
-		editItem: PluginToolbarButton | null = null
+		editItem: ContentComponentToolbarButton | null = null
 	): ContextualPopoverState {
 		return {
 			kind,
@@ -417,15 +442,15 @@
 		return createPopoverStateFromRect('link', href, rect);
 	}
 
-	function getActivePluginToolbarButton(editor: Editor): PluginToolbarButton | null {
-		return pluginToolbarButtons.find((item) => item.dialog && item.isActive?.(editor)) ?? null;
+	function getActiveContentComponentToolbarButton(editor: Editor): ContentComponentToolbarButton | null {
+		return componentToolbarButtons.find((item) => item.dialog && item.isActive?.(editor)) ?? null;
 	}
 
 	function dedupeToolbarButtons(
-		items: PluginToolbarButton[],
+		items: ContentComponentToolbarButton[],
 		preferred: 'first' | 'last' = 'last'
-	): PluginToolbarButton[] {
-		const byId = new Map<string, PluginToolbarButton>();
+	): ContentComponentToolbarButton[] {
+		const byId = new Map<string, ContentComponentToolbarButton>();
 		const orderedItems = preferred === 'last' ? items : [...items].reverse();
 
 		for (const item of orderedItems) {
@@ -453,8 +478,8 @@
 				return null;
 			}
 
-			const editItem = getActivePluginToolbarButton(editor);
-			return createPopoverStateFromRect('plugin', nodeHref, rect, editItem);
+			const editItem = getActiveContentComponentToolbarButton(editor);
+			return createPopoverStateFromRect('component', nodeHref, rect, editItem);
 		}
 
 		if (!editor.isActive('link')) {
@@ -545,7 +570,7 @@
 		}
 
 		if (contextualPopover.editItem) {
-			void openPluginDialog(
+			void openComponentDialog(
 				contextualPopover.editItem,
 				contextualPopoverAnchor ?? editorHost ?? undefined
 			);
@@ -570,7 +595,7 @@
 	}
 
 	function handleEditorHostClick(event: MouseEvent) {
-		if (event.metaKey || event.ctrlKey || pluginDialogItem) {
+		if (event.metaKey || event.ctrlKey || componentDialogItem) {
 			return;
 		}
 
@@ -629,7 +654,7 @@
 	}
 
 	function activateToolbarItem(
-		item: ActionToolbarButton | InlineToggleButton | PluginToolbarButton,
+		item: ActionToolbarButton | InlineToggleButton | ContentComponentToolbarButton,
 		trigger?: HTMLElement
 	) {
 		if ('select' in item && item.select) {
@@ -638,7 +663,7 @@
 		}
 
 		if ('dialog' in item && item.dialog) {
-			void openPluginDialog(item, trigger);
+			void openComponentDialog(item, trigger);
 			return;
 		}
 
@@ -649,18 +674,18 @@
 		handleToolbarAction(item.run);
 	}
 
-	async function openPluginDialog(item: PluginToolbarButton, trigger?: HTMLElement) {
+	async function openComponentDialog(item: ContentComponentToolbarButton, trigger?: HTMLElement) {
 		const editor = getEditor();
 		if (destroyed || !editor || !item.dialog) {
 			return;
 		}
 
 		dismissContextualPopover();
-		pluginDialogReturnFocus = trigger ?? (document.activeElement as HTMLElement | null);
-		pluginDialogMode = item.isActive?.(editor) ? 'edit' : 'insert';
-		pluginDialogItem = item;
-		pluginDialogError = null;
-		pluginDialogValues = {
+		componentDialogReturnFocus = trigger ?? (document.activeElement as HTMLElement | null);
+		componentDialogMode = item.isActive?.(editor) ? 'edit' : 'insert';
+		componentDialogItem = item;
+		componentDialogError = null;
+		componentDialogValues = {
 			...Object.fromEntries(
 				item.dialog.fields.map((field) => [field.id, field.defaultValue ?? ''])
 			),
@@ -668,24 +693,24 @@
 		};
 
 		await tick();
-		if (destroyed || pluginDialogItem !== item) {
+		if (destroyed || componentDialogItem !== item) {
 			return;
 		}
 
-		pluginDialogForm
+		componentDialogForm
 			?.querySelector<
 				HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
 			>('input, select, textarea')
 			?.focus();
 	}
 
-	function closePluginDialog({ restoreFocus = true }: { restoreFocus?: boolean } = {}) {
-		pluginDialogItem = null;
-		pluginDialogValues = {};
-		pluginDialogError = null;
-		pluginDialogMode = 'insert';
-		const returnFocus = pluginDialogReturnFocus;
-		pluginDialogReturnFocus = null;
+	function closeComponentDialog({ restoreFocus = true }: { restoreFocus?: boolean } = {}) {
+		componentDialogItem = null;
+		componentDialogValues = {};
+		componentDialogError = null;
+		componentDialogMode = 'insert';
+		const returnFocus = componentDialogReturnFocus;
+		componentDialogReturnFocus = null;
 
 		if (restoreFocus && !destroyed && returnFocus?.isConnected) {
 			queueMicrotask(() => returnFocus.focus());
@@ -693,55 +718,55 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key !== 'Escape' || !pluginDialogItem) {
+		if (event.key !== 'Escape' || !componentDialogItem) {
 			return;
 		}
 
 		event.preventDefault();
-		closePluginDialog();
+		closeComponentDialog();
 	}
 
-	function setPluginDialogValue(fieldId: string, nextValue: string) {
-		pluginDialogValues = {
-			...pluginDialogValues,
+	function setComponentDialogValue(fieldId: string, nextValue: string) {
+		componentDialogValues = {
+			...componentDialogValues,
 			[fieldId]: nextValue
 		};
-		pluginDialogError = null;
+		componentDialogError = null;
 	}
 
-	function getPluginDialogValidationError(item = pluginDialogItem): string | null {
+	function getComponentDialogValidationError(item = componentDialogItem): string | null {
 		if (!item?.dialog) {
 			return null;
 		}
 
 		const missingRequiredField = item.dialog.fields.find(
-			(field) => field.required && !pluginDialogValues[field.id]?.trim()
+			(field) => field.required && !componentDialogValues[field.id]?.trim()
 		);
 		if (missingRequiredField) {
 			return `${missingRequiredField.label} is required.`;
 		}
 
-		return item.dialog.validate?.(pluginDialogValues) ?? null;
+		return item.dialog.validate?.(componentDialogValues) ?? null;
 	}
 
-	function submitPluginDialog() {
+	function submitComponentDialog() {
 		const editor = getEditor();
-		const item = pluginDialogItem;
+		const item = componentDialogItem;
 
 		if (!editor || !item?.dialog) {
 			return;
 		}
 
-		const validationError = getPluginDialogValidationError(item);
+		const validationError = getComponentDialogValidationError(item);
 		if (validationError) {
-			pluginDialogError = validationError;
+			componentDialogError = validationError;
 			return;
 		}
 
 		handleToolbarAction((activeEditor) => {
-			item.dialog?.submit(activeEditor, pluginDialogValues);
+			item.dialog?.submit(activeEditor, componentDialogValues);
 		});
-		closePluginDialog();
+		closeComponentDialog();
 	}
 
 	const structureOptions: StructureOption[] = [
@@ -965,55 +990,52 @@
 				return;
 			}
 
-			const pluginMode = getPluginMode();
-			const scopeKey = repoKey ?? pluginMode;
-			const [pluginResult, contentComponentRegistry] = await Promise.all([
-				loadMarkdownPluginsForMode(
-					{
-						id: fieldId ?? textareaId,
-						type: 'markdown',
-						plugins
-					},
-					getActiveRootConfig(),
-					pluginMode,
-					{
-						scopeKey
-					}
-				),
-				loadContentComponentRegistryForMode(pluginMode, {
-					scopeKey,
-					componentsDir: getActiveComponentsDir()
-				})
-			]);
+			const componentMode = getComponentMode();
+			const scopeKey = repoKey ?? componentMode;
+			const contentComponentRegistry = await loadContentComponentRegistryForMode(componentMode, {
+				scopeKey,
+				componentsDir: getActiveComponentsDir()
+			});
 
 			if (!mounted || !editorHost) {
 				return;
 			}
 
+			const enabledComponentRegistry = filterContentComponentRegistry(
+				contentComponentRegistry,
+				components
+			);
 			const contentComponentArtifacts =
-				createMarkdownContentComponentArtifacts(contentComponentRegistry);
-			pluginToolbarButtons = dedupeToolbarButtons(
-				[
-					...pluginResult.toolbarItems.map((item) => ({
-						...item,
-						buttonLabel: item.buttonLabel ?? item.label
-					})),
-					...contentComponentArtifacts.toolbarItems.map((item) => ({
-						...item,
-						buttonLabel: item.buttonLabel ?? item.label
-					}))
-				],
+				createMarkdownContentComponentArtifacts(enabledComponentRegistry);
+			componentToolbarButtons = dedupeToolbarButtons(
+				contentComponentArtifacts.toolbarItems.map((item) => ({
+					...item,
+					buttonLabel: item.buttonLabel ?? item.label
+				})),
 				'last'
 			);
-			const loadErrors = [...pluginResult.errors, ...contentComponentRegistry.errors];
-			pluginLoadError = loadErrors.length > 0 ? loadErrors.join(' ') : null;
+			const discoveredNames = new Set(
+				contentComponentRegistry.components.map((component) => component.definition.name)
+			);
+			const enabledNames = new Set(
+				enabledComponentRegistry.components.map((component) => component.definition.name)
+			);
+			const loadErrors = [
+				...contentComponentRegistry.errors,
+				...components
+					.filter((name, index, values) => values.indexOf(name) === index)
+					.filter((name) => !discoveredNames.has(name))
+					.map((name) => `Markdown field enables unknown content component "${name}"`),
+				...getComponentAvailabilityErrors(value, discoveredNames, enabledNames)
+			];
+			componentLoadError = loadErrors.length > 0 ? loadErrors.join(' ') : null;
 
 			richEditor = createMarkdownEditor({
 				markdown: value,
 				placeholder,
 				assetsDir,
 				storagePath,
-				extensions: [...pluginResult.extensions, ...contentComponentArtifacts.extensions],
+				extensions: [...contentComponentArtifacts.extensions],
 				stageImage,
 				onLinkClick({ href, rect }) {
 					openLinkPopoverFromEditorClick(href, rect);
@@ -1045,7 +1067,7 @@
 			mounted = false;
 			destroyed = true;
 			closeContextualPopover();
-			closePluginDialog({ restoreFocus: false });
+			closeComponentDialog({ restoreFocus: false });
 			richEditor?.destroy();
 			richEditor = null;
 		};
@@ -1060,7 +1082,7 @@
 	});
 
 	$effect(() => {
-		if (!pluginDialogItem) {
+		if (!componentDialogItem) {
 			return;
 		}
 
@@ -1073,7 +1095,7 @@
 	});
 
 	$effect(() => {
-		if (activeTab !== 'rich' || pluginDialogItem) {
+		if (activeTab !== 'rich' || componentDialogItem) {
 			closeContextualPopover();
 		}
 	});
@@ -1123,10 +1145,10 @@
 		</div>
 	{/if}
 
-	{#if pluginLoadError}
+	{#if componentLoadError}
 		<div class="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-			<p class="font-medium">Plugin issue</p>
-			<p class="mt-1 text-amber-800">{pluginLoadError}</p>
+			<p class="font-medium">Content component issue</p>
+			<p class="mt-1 text-amber-800">{componentLoadError}</p>
 		</div>
 	{/if}
 
@@ -1313,7 +1335,7 @@
 						</Toolbar.Button>
 					{/each}
 
-					{#each pluginToolbarButtons as item (item.id)}
+					{#each componentToolbarButtons as item (item.id)}
 						<Toolbar.Button disabled={toolbarDisabled}>
 							{#snippet child({ props })}
 								<button
@@ -1382,7 +1404,7 @@
 						trapFocus={false}
 						onCloseAutoFocus={(event) => event.preventDefault()}
 						class="z-40 w-[min(24rem,calc(100vw-1rem))] rounded-lg border border-stone-200 bg-white p-3 shadow-xl focus:outline-none"
-						aria-label={contextualPopover?.kind === 'link' ? 'Link actions' : 'Plugin link actions'}
+						aria-label={contextualPopover?.kind === 'link' ? 'Link actions' : 'Content component link actions'}
 					>
 						{#if contextualPopover?.kind === 'link' && linkPopoverMode === 'edit'}
 							<form
@@ -1460,13 +1482,13 @@
 			click to open a selected link.
 		</p>
 
-		{#if pluginDialogItem?.dialog}
+		{#if componentDialogItem?.dialog}
 			<div
 				class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/35 p-4"
 				role="presentation"
 				onclick={(event) => {
 					if (event.target === event.currentTarget) {
-						closePluginDialog();
+						closeComponentDialog();
 					}
 				}}
 			>
@@ -1474,31 +1496,31 @@
 					class="w-full max-w-md rounded-lg border border-stone-200 bg-white p-5 shadow-xl"
 					role="dialog"
 					aria-modal="true"
-					aria-labelledby="markdown-plugin-dialog-title"
+					aria-labelledby="markdown-component-dialog-title"
 				>
 					<form
-						bind:this={pluginDialogForm}
+						bind:this={componentDialogForm}
 						onsubmit={(event) => {
 							event.preventDefault();
-							submitPluginDialog();
+							submitComponentDialog();
 						}}
 					>
 						<div class="mb-4 flex items-start justify-between gap-4">
-							<h2 id="markdown-plugin-dialog-title" class="text-base font-semibold text-stone-950">
-								{getPluginDialogTitle(pluginDialogItem)}
+							<h2 id="markdown-component-dialog-title" class="text-base font-semibold text-stone-950">
+								{getComponentDialogTitle(componentDialogItem)}
 							</h2>
 							<button
 								type="button"
 								class="rounded-md px-2 py-1 text-sm font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
 								aria-label="Close"
-								onclick={closePluginDialog}
+								onclick={closeComponentDialog}
 							>
 								Close
 							</button>
 						</div>
 
 						<div class="space-y-4">
-							{#each pluginDialogItem.dialog.fields as field (field.id)}
+							{#each componentDialogItem.dialog.fields as field (field.id)}
 								<label class="block text-sm font-medium text-stone-700">
 									<span class="mb-1 block">
 										{field.label}
@@ -1510,10 +1532,10 @@
 									{#if field.type === 'select'}
 										<select
 											class="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
-											value={pluginDialogValues[field.id] ?? ''}
+											value={componentDialogValues[field.id] ?? ''}
 											required={field.required}
 											onchange={(event) =>
-												setPluginDialogValue(field.id, event.currentTarget.value)}
+												setComponentDialogValue(field.id, event.currentTarget.value)}
 										>
 											{#each field.options ?? [] as option (option.value)}
 												<option value={option.value}>{option.label}</option>
@@ -1523,32 +1545,33 @@
 										<input
 											class="w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
 											type={field.type === 'url' ? 'url' : 'text'}
-											value={pluginDialogValues[field.id] ?? ''}
+											value={componentDialogValues[field.id] ?? ''}
 											required={field.required}
-											oninput={(event) => setPluginDialogValue(field.id, event.currentTarget.value)}
+											oninput={(event) =>
+												setComponentDialogValue(field.id, event.currentTarget.value)}
 										/>
 									{/if}
 								</label>
 							{/each}
 						</div>
 
-						{#if getPluginDialogSerializedValue()}
+						{#if getComponentDialogSerializedValue()}
 							<div class="mt-4 rounded-md border border-stone-200 bg-stone-50 px-3 py-3">
 								<p class="text-xs font-medium tracking-wide text-stone-500 uppercase">
 									Markdown marker
 								</p>
 								<code class="mt-2 block whitespace-pre-wrap break-all font-mono text-xs text-stone-900">
-									{getPluginDialogSerializedValue()}
+									{getComponentDialogSerializedValue()}
 								</code>
 							</div>
 						{/if}
 
-						{#if pluginDialogError ?? getPluginDialogValidationError()}
+						{#if componentDialogError ?? getComponentDialogValidationError()}
 							<div
 								class="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
 								role="alert"
 							>
-								{pluginDialogError ?? getPluginDialogValidationError()}
+								{componentDialogError ?? getComponentDialogValidationError()}
 							</div>
 						{/if}
 
@@ -1556,16 +1579,16 @@
 							<button
 								type="button"
 								class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
-								onclick={closePluginDialog}
+								onclick={closeComponentDialog}
 							>
 								Cancel
 							</button>
 							<button
 								type="submit"
 								class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-100 disabled:shadow-none"
-								disabled={Boolean(getPluginDialogValidationError())}
+								disabled={Boolean(getComponentDialogValidationError())}
 							>
-								{getPluginDialogSubmitLabel(pluginDialogItem)}
+								{getComponentDialogSubmitLabel(componentDialogItem)}
 							</button>
 						</div>
 					</form>

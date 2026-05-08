@@ -51,6 +51,52 @@ describe('applyPreviewContentComponentTransforms', () => {
 		expect(result.errors).toEqual([]);
 	});
 
+	it('renders label-less inline directives through preview templates', () => {
+		const registry = createRegistry({
+			definition: {
+				id: 'doc-link',
+				name: 'doc-link',
+				kind: 'inline',
+				attributes: {
+					href: {
+						type: 'string',
+						required: true
+					}
+				}
+			},
+			previewTemplateSource: '<span>Doc link: {{ href | escape }}</span>'
+		});
+
+		const result = applyPreviewContentComponentTransforms(':doc-link{href="/docs"}', registry);
+		expect(result.markdown).toContain('Doc link: /docs');
+		expect(result.errors).toEqual([]);
+	});
+
+	it('renders block directives through preview templates', () => {
+		const registry = createRegistry({
+			directory: 'src/lib/content-components/callout-box',
+			componentJsonPath: 'src/lib/content-components/callout-box/component.json',
+			renderTemplatePath: 'src/lib/content-components/callout-box/render.njk',
+			previewTemplatePath: 'src/lib/content-components/callout-box/preview.njk',
+			previewTemplateSource: '<aside>Callout: {{ title | escape }}</aside>',
+			definition: {
+				id: 'callout-box',
+				name: 'callout-box',
+				kind: 'block',
+				attributes: {
+					title: {
+						type: 'string',
+						required: true
+					}
+				}
+			}
+		});
+
+		const result = applyPreviewContentComponentTransforms('::callout-box{title="Latest update"}', registry);
+		expect(result.markdown).toContain('Callout: Latest update');
+		expect(result.errors).toEqual([]);
+	});
+
 	it('preserves source and reports errors for invalid component instances', () => {
 		const result = applyPreviewContentComponentTransforms(
 			':buy-button[Buy tickets]',

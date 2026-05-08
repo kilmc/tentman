@@ -17,10 +17,19 @@ function createRegistry(): ContentComponentRegistry {
 			id: 'buy-button',
 			name: 'buy-button',
 			kind: 'inline' as const,
+			editor: {
+				toolbarLabel: 'Buy Button',
+				dialogTitle: 'Buy button',
+				submitLabel: 'Save buy button'
+			},
 			attributes: {
 				href: {
 					type: 'string' as const,
-					required: true
+					required: true,
+					editor: {
+						label: 'URL',
+						control: 'url'
+					}
 				},
 				label: {
 					type: 'string' as const,
@@ -101,6 +110,8 @@ describe('createMarkdownContentComponentArtifacts', () => {
 			label: 'Buy Button',
 			buttonLabel: 'Buy Button'
 		});
+		expect(toolbarItem.dialog?.title).toBe('Buy button');
+		expect(toolbarItem.dialog?.submitLabel).toBe('Save buy button');
 		expect(toolbarItem.dialog?.fields).toEqual([
 			{
 				id: 'href',
@@ -142,6 +153,29 @@ describe('createMarkdownContentComponentArtifacts', () => {
 				variant: 'secondary'
 			})
 		).toBe(':buy-button[Buy tickets]{href="https://example.com/tickets" variant="secondary"}');
+	});
+
+	it('omits empty markdown labels for label-less inline components', () => {
+		const component = {
+			...createRegistry().components[0],
+			definition: {
+				...createRegistry().components[0].definition,
+				id: 'doc-link',
+				name: 'doc-link',
+				attributes: {
+					href: {
+						type: 'string' as const,
+						required: true
+					}
+				}
+			}
+		};
+
+		expect(
+			serializeContentComponentDirective(component, {
+				href: '/docs'
+			})
+		).toBe(':doc-link{href="/docs"}');
 	});
 
 	it('hydrates existing node attributes into editable values', () => {

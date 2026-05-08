@@ -102,7 +102,7 @@
 		{required}
 		{minLength}
 		{maxLength}
-		plugins={block.plugins}
+		components={block.components}
 		{onchange}
 		storagePath={block.assetsDir ?? imagePath}
 		assetsDir={block.assetsDir}

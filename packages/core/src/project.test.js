@@ -18,21 +18,11 @@ test('loads the monorepo fixture app as a Tentman project', async () => {
 	const project = await loadTentmanProject(testAppRoot);
 
 	assert.equal(project.rootConfig.siteName, 'Test App');
-	assert.deepEqual(project.rootConfig.plugins, ['callout-chip']);
-	assert.equal(project.configs.length, 5);
+	assert.equal(project.configs.length, 6);
 	assert.equal(project.blocksDir, 'tentman/blocks');
 	assert.equal(project.blocks.length, 1);
 	assert.equal(project.blocks[0]?.id, 'imageGallery');
 	assert.equal(project.componentsDir, 'src/lib/content-components');
-	assert.equal(project.pluginsDir, 'tentman/plugins');
-	assert.deepEqual(project.plugins, [
-		{
-			id: 'callout-chip',
-			paths: ['tentman/plugins/callout-chip/plugin.js', 'tentman/plugins/callout-chip/plugin.mjs'],
-			path: 'tentman/plugins/callout-chip/plugin.js',
-			exists: true
-		}
-	]);
 	assert.equal(project.navigationManifest.exists, true);
 	assert.equal(project.navigationManifest.error, null);
 });
@@ -87,12 +77,11 @@ test('reports the migrated fixture ids as clean', async () => {
 	assert.equal(diagnostics.filter((diagnostic) => diagnostic.code === 'id.missing').length, 0);
 });
 
-test('doctors missing reusable blocks, unresolved plugins, unsupported plugin surfaces, and missing asset directories', async () => {
+test('doctors missing reusable blocks and missing asset directories', async () => {
 	const projectRoot = await copyFixture();
 	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blockConfigPath = path.join(projectRoot, 'tentman/blocks/image-gallery.tentman.json');
-	const pluginPath = path.join(projectRoot, 'tentman/plugins/callout-chip/plugin.js');
 	const rootConfigPath = path.join(projectRoot, '.tentman.json');
 
 	const aboutConfig = JSON.parse(await fs.readFile(aboutConfigPath, 'utf8'));
@@ -100,9 +89,7 @@ test('doctors missing reusable blocks, unresolved plugins, unsupported plugin su
 	await fs.writeFile(aboutConfigPath, serializeJson(aboutConfig));
 
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
-	blogConfig.blocks[0].plugins = ['callout-chip'];
 	blogConfig.blocks[4].assetsDir = '../../static/images/missing-posts';
-	blogConfig.blocks[6].plugins = ['missing-plugin'];
 	await fs.writeFile(blogConfigPath, serializeJson(blogConfig));
 
 	const blockConfig = JSON.parse(await fs.readFile(blockConfigPath, 'utf8'));
@@ -113,8 +100,6 @@ test('doctors missing reusable blocks, unresolved plugins, unsupported plugin su
 	rootConfig.assetsDir = './static/missing-images';
 	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));
 
-	await fs.unlink(pluginPath);
-
 	const project = await loadTentmanProject(projectRoot);
 	const diagnostics = await doctorTentmanProject(project);
 
@@ -122,10 +107,6 @@ test('doctors missing reusable blocks, unresolved plugins, unsupported plugin su
 		diagnostics.map((diagnostic) => diagnostic.code),
 		[
 			'blocks.unresolved',
-			'plugin.missing',
-			'plugin.unsupported-surface',
-			'plugin.unresolved',
-			'plugin.unregistered',
 			'assets.missing-root-directory',
 			'assets.missing-directory',
 			'assets.missing-directory'
@@ -133,19 +114,7 @@ test('doctors missing reusable blocks, unresolved plugins, unsupported plugin su
 	);
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'blocks.unresolved')?.message ?? '',
-		/About Page config references unknown reusable block type: missingGallery/
-	);
-	assert.match(
-		diagnostics.find((diagnostic) => diagnostic.code === 'plugin.missing')?.message ?? '',
-		/Registered plugin callout-chip could not be resolved/
-	);
-	assert.match(
-		diagnostics.find((diagnostic) => diagnostic.code === 'plugin.unsupported-surface')?.message ?? '',
-		/Blog Posts config enables plugins on non-markdown block title/
-	);
-	assert.match(
-		diagnostics.find((diagnostic) => diagnostic.code === 'plugin.unregistered')?.message ?? '',
-		/Blog Posts config references unregistered plugin missing-plugin/
+		/About config references unknown reusable block type: missingGallery/
 	);
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.missing-root-directory')?.message ?? '',

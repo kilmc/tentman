@@ -6,9 +6,8 @@
 	import {
 		loadContentComponentRegistryForMode
 	} from '$lib/content-components/browser';
+	import { filterContentComponentRegistry } from '$lib/content-components/registry';
 	import { applyPreviewContentComponentTransforms } from '$lib/content-components/preview';
-	import { loadPluginRegistryForMode } from '$lib/plugins/browser';
-	import { applyPreviewPluginTransforms } from '$lib/plugins/registry';
 	import { localContent } from '$lib/stores/local-content';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
@@ -16,22 +15,16 @@
 	import type { BlockUsage } from '$lib/config/types';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
-	import type { SitePluginRegistry, UnifiedLocalPlugin } from '$lib/plugins/types';
-
-	type PreviewPluginRegistryLoader = () => Promise<SitePluginRegistry>;
 
 	interface Props {
 		block: BlockUsage;
 		value: ContentValue | undefined;
 		blockRegistry: BlockRegistry;
-		previewPluginRegistryLoader?: PreviewPluginRegistryLoader;
 	}
 
-	let { block, value, blockRegistry, previewPluginRegistryLoader }: Props = $props();
+	let { block, value, blockRegistry }: Props = $props();
 	let previewMarkdown = $state(typeof value === 'string' ? value : '');
-	let previewPluginError = $state<string | null>(null);
-	let localPreviewPluginRegistryPromise: Promise<SitePluginRegistry> | null = null;
-	let localPreviewPluginRegistryKey: string | null = null;
+	let previewComponentError = $state<string | null>(null);
 
 	const structuredBlocks = getStructuredBlocksForUsage(block, blockRegistry);
 
@@ -52,11 +45,11 @@
 			: (page.data.rootConfig ?? null);
 	}
 
-	function getPluginMode(): 'local' | 'github' {
+	function getComponentMode(): 'local' | 'github' {
 		return page.data.selectedBackend?.kind === 'local' ? 'local' : 'github';
 	}
 
-	function getPluginScopeKey(): string {
+	function getComponentScopeKey(): string {
 		if (page.data.selectedBackend?.kind === 'local') {
 			return `local:${page.data.selectedBackend.repo.pathLabel}`;
 		}
@@ -65,50 +58,17 @@
 			return `github:${page.data.selectedRepo.owner}/${page.data.selectedRepo.name}`;
 		}
 
-		return getPluginMode();
-	}
-
-	function getPreviewPluginRegistryKey(): string {
-		const rootConfig = getActiveRootConfig();
-
-		return JSON.stringify({
-			mode: getPluginMode(),
-			scopeKey: getPluginScopeKey(),
-			pluginsDir: rootConfig?.pluginsDir ?? null,
-			plugins: rootConfig?.plugins ?? []
-		});
+		return getComponentMode();
 	}
 
 	function getActiveComponentsDir(): string | undefined {
 		return getActiveRootConfig()?.componentsDir;
 	}
 
-	function getPreviewPluginRegistry(): Promise<SitePluginRegistry> {
-		if (previewPluginRegistryLoader) {
-			return previewPluginRegistryLoader();
-		}
-
-		const nextKey = getPreviewPluginRegistryKey();
-
-		if (!localPreviewPluginRegistryPromise || localPreviewPluginRegistryKey !== nextKey) {
-			localPreviewPluginRegistryKey = nextKey;
-			localPreviewPluginRegistryPromise = loadPluginRegistryForMode(
-				getActiveRootConfig(),
-				getPluginMode(),
-				{ scopeKey: getPluginScopeKey() }
-			);
-		}
-
-		return localPreviewPluginRegistryPromise;
-	}
-
-	const childPreviewPluginRegistryLoader: PreviewPluginRegistryLoader = () =>
-		getPreviewPluginRegistry();
-
 	$effect(() => {
 		if (block.type !== 'markdown' || typeof value !== 'string') {
 			previewMarkdown = typeof value === 'string' ? value : '';
-			previewPluginError = null;
+			previewComponentError = null;
 			return;
 		}
 
@@ -120,50 +80,44 @@
 				const errors: string[] = [];
 				let nextMarkdown = markdownValue;
 
-				if ((block.plugins?.length ?? 0) > 0) {
-					const registry = await getPreviewPluginRegistry();
-					const enabledPlugins: UnifiedLocalPlugin[] = [];
-
-					for (const pluginId of Array.from(new Set(block.plugins ?? []))) {
-						const loadedPlugin = registry.get(pluginId);
-
-						if (!loadedPlugin) {
-							const loadError = registry.errors.find((error) => error.includes(`"${pluginId}"`));
-
-							errors.push(
-								loadError
-									? `Markdown preview could not load plugin "${pluginId}": ${loadError}`
-									: `Markdown preview enables plugin "${pluginId}", but it is not registered in root.plugins`
-							);
-							continue;
-						}
-
-						enabledPlugins.push(loadedPlugin.plugin);
-					}
-
-					nextMarkdown = applyPreviewPluginTransforms(nextMarkdown, enabledPlugins);
-				}
-
-				const componentRegistry = await loadContentComponentRegistryForMode(getPluginMode(), {
-					scopeKey: getPluginScopeKey(),
+				const componentRegistry = await loadContentComponentRegistryForMode(getComponentMode(), {
+					scopeKey: getComponentScopeKey(),
 					componentsDir: getActiveComponentsDir()
 				});
+				const enabledComponentRegistry = filterContentComponentRegistry(
+					componentRegistry,
+					block.components
+				);
+				const discoveredNames = new Set(
+					componentRegistry.components.map((component) => component.definition.name)
+				);
+				errors.push(
+					...((block.components ?? [])
+						.filter((name, index, values) => values.indexOf(name) === index)
+						.filter((name) => !discoveredNames.has(name))
+						.map((name) => `Markdown preview enables unknown content component "${name}"`))
+				);
 				const componentPreview = applyPreviewContentComponentTransforms(
 					nextMarkdown,
-					componentRegistry
+					enabledComponentRegistry,
+					{
+						availableRegistry: componentRegistry
+					}
 				);
 				nextMarkdown = componentPreview.markdown;
 				errors.push(...componentPreview.errors);
 
 				if (!cancelled) {
 					previewMarkdown = nextMarkdown;
-					previewPluginError = errors.length > 0 ? errors.join(' ') : null;
+					previewComponentError = errors.length > 0 ? errors.join(' ') : null;
 				}
 			} catch (error) {
 				if (!cancelled) {
 					previewMarkdown = markdownValue;
-					previewPluginError =
-						error instanceof Error ? error.message : 'Failed to load markdown preview plugins';
+					previewComponentError =
+						error instanceof Error
+							? error.message
+							: 'Failed to load markdown preview components';
 				}
 			}
 		}
@@ -201,7 +155,6 @@
 												block={childBlock}
 												value={(item as ContentRecord)[childBlock.id]}
 												{blockRegistry}
-												previewPluginRegistryLoader={childPreviewPluginRegistryLoader}
 											/>
 										</dd>
 									</div>
@@ -226,7 +179,6 @@
 							block={childBlock}
 							value={(value as ContentRecord)[childBlock.id]}
 							{blockRegistry}
-							previewPluginRegistryLoader={childPreviewPluginRegistryLoader}
 						/>
 					</dd>
 				</div>
@@ -241,10 +193,10 @@
 	>
 		<SvelteMarkdown source={previewMarkdown} />
 	</div>
-	{#if previewPluginError}
+	{#if previewComponentError}
 		<div class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-			<p class="font-medium">Preview plugin issue</p>
-			<p class="mt-1 text-amber-800">{previewPluginError}</p>
+			<p class="font-medium">Preview component issue</p>
+			<p class="mt-1 text-amber-800">{previewComponentError}</p>
 		</div>
 	{/if}
 {:else if block.type === 'image' && typeof value === 'string' && value}

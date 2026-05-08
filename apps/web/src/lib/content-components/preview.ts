@@ -2,10 +2,8 @@ import {
 	normalizeContentComponentInstance,
 	renderContentComponent
 } from '@tentman/core/content-components';
-import { parseDirectiveAttributes } from './directives';
+import { parseContentDirectiveMatches } from './directives';
 import type { ContentComponentRegistry } from './registry';
-
-const INLINE_DIRECTIVE_PATTERN = /:([A-Za-z0-9][A-Za-z0-9-]*)\[([^\]]*)\](?:\{([^}]*)\})?/g;
 
 export interface ContentComponentPreviewTransformResult {
 	markdown: string;
@@ -21,42 +19,91 @@ function getLineAndColumn(source: string, offset: number): { line: number; colum
 	};
 }
 
-export function applyPreviewContentComponentTransforms(
+function applyDirectiveMatches(
 	markdown: string,
-	registry: ContentComponentRegistry
-): ContentComponentPreviewTransformResult {
-	const errors = [...registry.errors];
-	const transformed = markdown.replaceAll(INLINE_DIRECTIVE_PATTERN, (raw, name, label, attributeSource, offset) => {
-		const component = registry.getByName(name);
-		const location = getLineAndColumn(markdown, Number(offset));
+	registry: ContentComponentRegistry,
+	kind: 'inline' | 'block',
+	errors: string[],
+	availableRegistry?: ContentComponentRegistry
+): string {
+	const matches = parseContentDirectiveMatches(markdown, kind);
+	if (matches.length === 0) {
+		return markdown;
+	}
+
+	let cursor = 0;
+	let transformed = '';
+
+	for (const match of matches) {
+		transformed += markdown.slice(cursor, match.offset);
+		cursor = match.offset + match.raw.length;
+
+		const component = registry.getByName(match.name);
+		const location = getLineAndColumn(markdown, match.offset);
 
 		if (!component) {
-			errors.push(`Markdown preview unknown content component "${name}" at ${location.line}:${location.column}`);
-			return raw;
+			const unavailableComponent = availableRegistry?.getByName(match.name);
+			errors.push(
+				unavailableComponent
+					? `Markdown preview content component "${match.name}" is not enabled on this markdown field at ${location.line}:${location.column}`
+					: `Markdown preview unknown content component "${match.name}" at ${location.line}:${location.column}`
+			);
+			transformed += match.raw;
+			continue;
 		}
 
-		if (component.definition.kind !== 'inline') {
+		if (component.definition.kind !== kind) {
 			errors.push(
-				`Markdown preview cannot render block content component "${name}" inline at ${location.line}:${location.column}`
+				`Markdown preview cannot render ${component.definition.kind} content component "${match.name}" as ${kind} at ${location.line}:${location.column}`
 			);
-			return raw;
+			transformed += match.raw;
+			continue;
 		}
 
 		try {
 			const instance = normalizeContentComponentInstance(component, {
-				markdownLabel: label,
-				attributes: parseDirectiveAttributes(attributeSource ?? '')
+				markdownLabel: match.markdownLabel,
+				attributes: match.attributes
 			});
-			return renderContentComponent(component, instance, 'preview').trim();
+			transformed += renderContentComponent(component, instance, 'preview').trim();
 		} catch (error) {
 			errors.push(
-				`Markdown preview failed for content component "${name}" at ${location.line}:${location.column}: ${
+				`Markdown preview failed for content component "${match.name}" at ${location.line}:${location.column}: ${
 					error instanceof Error ? error.message : 'Unknown preview rendering error'
 				}`
 			);
-			return raw;
+			transformed += match.raw;
 		}
-	});
+	}
+
+	transformed += markdown.slice(cursor);
+	return transformed;
+}
+
+export function applyPreviewContentComponentTransforms(
+	markdown: string,
+	registry: ContentComponentRegistry,
+	options: {
+		availableRegistry?: ContentComponentRegistry;
+	} = {}
+): ContentComponentPreviewTransformResult {
+	const errors = [...registry.errors];
+	let transformed = markdown;
+
+	transformed = applyDirectiveMatches(
+		transformed,
+		registry,
+		'block',
+		errors,
+		options.availableRegistry
+	);
+	transformed = applyDirectiveMatches(
+		transformed,
+		registry,
+		'inline',
+		errors,
+		options.availableRegistry
+	);
 
 	return {
 		markdown: transformed,

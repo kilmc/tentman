@@ -1,4 +1,5 @@
 ---
+_tentmanId: tent_01KTVA0B0VT000000000000004
 title: Rendering with content components
 slug: rendering-with-content-components
 date: '2026-05-03'

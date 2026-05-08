@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
 	parseJsonObject,
 	readOptionalString,
-	readOptionalStringArray,
 	readRequiredString
 } from './json.js';
 import {
@@ -57,8 +56,6 @@ export function parseRootConfig(source) {
 		configsDir: readOptionalString(input, 'configsDir', ROOT_CONFIG_PATH),
 		assetsDir: readOptionalString(input, 'assetsDir', ROOT_CONFIG_PATH),
 		componentsDir: readOptionalString(input, 'componentsDir', ROOT_CONFIG_PATH),
-		pluginsDir: readOptionalString(input, 'pluginsDir', ROOT_CONFIG_PATH),
-		plugins: readOptionalStringArray(input, 'plugins', ROOT_CONFIG_PATH) ?? [],
 		content:
 			input.content && typeof input.content === 'object' && !Array.isArray(input.content)
 				? input.content
@@ -224,9 +221,6 @@ export async function loadTentmanProject(projectRoot) {
 	const blocksDirPath = blocksDir ? resolveProjectPath(rootDir, blocksDir) : null;
 	const blocksDirExists = blocksDirPath ? await pathExists(blocksDirPath) : false;
 	const componentsDir = stripLeadingDotSlash(rootConfig.componentsDir ?? 'src/lib/content-components');
-	const pluginsDir = stripLeadingDotSlash(rootConfig.pluginsDir ?? 'tentman/plugins');
-	const pluginsDirPath = resolveProjectPath(rootDir, pluginsDir);
-	const pluginsDirExists = await pathExists(pluginsDirPath);
 	const configPaths = (await walkDirectory(rootDir, configsDirPath))
 		.filter((file) => file.endsWith('.tentman.json'))
 		.sort();
@@ -261,21 +255,6 @@ export async function loadTentmanProject(projectRoot) {
 		}
 	}
 
-	const plugins = [];
-	for (const pluginId of rootConfig.plugins) {
-		const jsPath = toPosixPath(path.join(pluginsDir, pluginId, 'plugin.js'));
-		const mjsPath = toPosixPath(path.join(pluginsDir, pluginId, 'plugin.mjs'));
-		const jsExists = await pathExists(resolveProjectPath(rootDir, jsPath));
-		const mjsExists = await pathExists(resolveProjectPath(rootDir, mjsPath));
-
-		plugins.push({
-			id: pluginId,
-			paths: [jsPath, mjsPath],
-			path: jsExists ? jsPath : mjsExists ? mjsPath : null,
-			exists: jsExists || mjsExists
-		});
-	}
-
 	const manifestPath = resolveProjectPath(rootDir, NAVIGATION_MANIFEST_PATH);
 	const manifestExists = await pathExists(manifestPath);
 	let manifest = null;
@@ -300,9 +279,6 @@ export async function loadTentmanProject(projectRoot) {
 		blocksDirExists,
 		blocks,
 		componentsDir: toPosixPath(componentsDir),
-		pluginsDir: toPosixPath(pluginsDir),
-		pluginsDirExists,
-		plugins,
 		navigationManifest: {
 			path: NAVIGATION_MANIFEST_PATH,
 			exists: manifestExists,

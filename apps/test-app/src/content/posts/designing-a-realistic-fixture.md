@@ -1,4 +1,5 @@
 ---
+_tentmanId: tent_01KTVA0B0VT000000000000005
 title: 'Designing a reliable fixture'
 slug: 'designing-a-reliable-fixture'
 date: '2026-04-11'

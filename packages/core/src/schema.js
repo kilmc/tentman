@@ -73,8 +73,8 @@ function summarizeField(block, blockDefinitions) {
 		summary.assetsDir = block.assetsDir;
 	}
 
-	if (Array.isArray(block.plugins) && block.plugins.length > 0) {
-		summary.plugins = [...block.plugins];
+	if (Array.isArray(block.components) && block.components.length > 0) {
+		summary.components = [...block.components];
 	}
 
 	if (typeof block.maxLength === 'number') {

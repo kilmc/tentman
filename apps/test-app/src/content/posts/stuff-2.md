@@ -1,4 +1,5 @@
 ---
+_tentmanId: tent_01KTVA0B0VT000000000000006
 title: FAQ as a nested content model
 slug: faq-as-a-nested-content-model
 date: '2026-04-25'

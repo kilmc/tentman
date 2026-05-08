@@ -3,7 +3,7 @@ import {
 	normalizeContentComponentInstance,
 	renderContentComponent
 } from '@tentman/core/content-components';
-import type { MarkdownToolbarItemContribution } from '$lib/plugins/types';
+import type { MarkdownToolbarItemContribution } from '$lib/features/markdown-editor/types';
 import {
 	getMarkdownLabelAttributeName,
 	parseDirectiveAttributes,
@@ -19,15 +19,26 @@ function toNodeName(componentName: string): string {
 		.join('')}`;
 }
 
-function toButtonLabel(componentName: string): string {
-	return componentName
-		.split('-')
-		.filter(Boolean)
-		.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-		.join(' ');
+function toButtonLabel(component: ContentComponentRegistry['components'][number]): string {
+	return (
+		component.definition.editor?.toolbarLabel ??
+		component.definition.name
+			.split('-')
+			.filter(Boolean)
+			.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+			.join(' ')
+	);
 }
 
-function toFieldLabel(attributeName: string): string {
+function toFieldLabel(
+	component: ContentComponentRegistry['components'][number],
+	attributeName: string
+): string {
+	const editorLabel = component.definition.attributes[attributeName]?.editor?.label;
+	if (editorLabel) {
+		return editorLabel;
+	}
+
 	if (attributeName === 'href' || attributeName === 'url') {
 		return 'URL';
 	}
@@ -39,11 +50,57 @@ function toFieldLabel(attributeName: string): string {
 		.join(' ');
 }
 
+function getFieldControl(
+	component: ContentComponentRegistry['components'][number],
+	attributeName: string
+): 'text' | 'url' | 'select' {
+	const definition = component.definition.attributes[attributeName];
+	const editorControl = definition?.editor?.control;
+	if (editorControl) {
+		return editorControl;
+	}
+
+	if (definition?.type === 'enum') {
+		return 'select';
+	}
+
+	if (attributeName === 'href' || attributeName === 'url') {
+		return 'url';
+	}
+
+	return 'text';
+}
+
+function escapeForRegExp(source: string): string {
+	return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getDirectiveMatch(
+	component: ContentComponentRegistry['components'][number],
+	source: string
+): RegExpMatchArray | null {
+	const prefix = component.definition.kind === 'block' ? '::' : ':';
+	const pattern = new RegExp(
+		`^${escapeForRegExp(prefix)}${escapeForRegExp(component.definition.name)}(?:\\[([^\\]]*)\\])?(?:\\{([^}]*)\\})?`
+	);
+
+	return source.match(pattern);
+}
+
+function getDialogFieldIds(component: ContentComponentRegistry['components'][number]): string[] {
+	return Object.entries(component.definition.attributes)
+		.filter(([, definition]) => definition.editor?.hidden !== true)
+		.map(([attributeName]) => attributeName);
+}
+
 function buildComponentNodeView(component: ContentComponentRegistry['components'][number]) {
-	return function createComponentNodeView(props: Parameters<NonNullable<ReturnType<typeof Node.create>['config']['addNodeView']>>[0]) {
-		const dom = document.createElement('span');
+	return function createComponentNodeView(
+		props: Parameters<NonNullable<ReturnType<typeof Node.create>['config']['addNodeView']>>[0]
+	) {
+		const dom = document.createElement(component.definition.kind === 'block' ? 'div' : 'span');
 		dom.contentEditable = 'false';
 		dom.dataset.tentmanContentComponentNode = component.definition.name;
+		dom.dataset.tentmanContentComponentKind = component.definition.kind;
 
 		dom.addEventListener(
 			'click',
@@ -66,19 +123,22 @@ function buildComponentNodeView(component: ContentComponentRegistry['components'
 		function renderPreview(attributes: Record<string, string>) {
 			dom.dataset.tentmanContentComponentHref = attributes.href ?? '';
 			dom.className =
-				'inline-flex max-w-full items-center rounded-xl border border-stone-300 bg-stone-50 px-2 py-1.5 text-sm text-stone-900 shadow-sm';
+				component.definition.kind === 'block'
+					? 'my-3 rounded-2xl border border-stone-300 bg-stone-50 p-3 text-sm text-stone-900 shadow-sm'
+					: 'inline-flex max-w-full items-center rounded-xl border border-stone-300 bg-stone-50 px-2 py-1.5 text-sm text-stone-900 shadow-sm';
 
 			try {
+				const labelAttributeName = getMarkdownLabelAttributeName(component);
 				const instance = normalizeContentComponentInstance(component, {
-					markdownLabel: getMarkdownLabelAttributeName(component)
-						? attributes[getMarkdownLabelAttributeName(component) ?? '']
-						: undefined,
+					markdownLabel: labelAttributeName ? attributes[labelAttributeName] : undefined,
 					attributes
 				});
 				dom.innerHTML = renderContentComponent(component, instance, 'preview').trim();
 			} catch (error) {
 				dom.className =
-					'inline-flex max-w-full items-center rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 shadow-sm';
+					component.definition.kind === 'block'
+						? 'my-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 shadow-sm'
+						: 'inline-flex max-w-full items-center rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 shadow-sm';
 				dom.textContent =
 					error instanceof Error
 						? `Content component preview failed: ${error.message}`
@@ -107,16 +167,21 @@ function buildComponentNodeView(component: ContentComponentRegistry['components'
 
 function createContentComponentExtension(component: ContentComponentRegistry['components'][number]) {
 	const nodeName = toNodeName(component.definition.name);
-	const directivePrefix = `:${component.definition.name}[`;
+	const directivePrefix =
+		component.definition.kind === 'block'
+			? `::${component.definition.name}`
+			: `:${component.definition.name}`;
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
+	const inline = component.definition.kind === 'inline';
 
 	return Node.create({
 		name: nodeName,
 		priority: 1100,
-		inline: true,
-		group: 'inline',
+		inline,
+		group: inline ? 'inline' : 'block',
 		atom: true,
 		selectable: true,
+		defining: !inline,
 
 		addAttributes() {
 			return Object.fromEntries(
@@ -131,25 +196,25 @@ function createContentComponentExtension(component: ContentComponentRegistry['co
 		},
 
 		parseHTML() {
-			return [{ tag: `span[data-tentman-content-component-node="${component.definition.name}"]` }];
+			return [
+				{
+					tag: `${inline ? 'span' : 'div'}[data-tentman-content-component-node="${component.definition.name}"]`
+				}
+			];
 		},
 
 		markdownTokenName: nodeName,
 
 		markdownTokenizer: {
 			name: nodeName,
-			level: 'inline',
+			level: inline ? 'inline' : 'block',
 			start: (source: string) => source.indexOf(directivePrefix),
 			tokenize(source: string) {
 				if (!source.startsWith(directivePrefix)) {
 					return undefined;
 				}
 
-				const match = source.match(
-					new RegExp(
-						`^:${component.definition.name.replaceAll('-', '\\-')}\\[([^\\]]*)\\](?:\\{([^}]*)\\})?`
-					)
-				);
+				const match = getDirectiveMatch(component, source);
 				if (!match) {
 					return undefined;
 				}
@@ -173,7 +238,7 @@ function createContentComponentExtension(component: ContentComponentRegistry['co
 		},
 
 		renderHTML({ HTMLAttributes }) {
-			return ['span', HTMLAttributes];
+			return [inline ? 'span' : 'div', HTMLAttributes];
 		},
 
 		renderMarkdown(node) {
@@ -193,8 +258,11 @@ function createToolbarItem(
 	component: ContentComponentRegistry['components'][number]
 ): MarkdownToolbarItemContribution {
 	const nodeName = toNodeName(component.definition.name);
-	const buttonLabel = toButtonLabel(component.definition.name);
+	const buttonLabel = toButtonLabel(component);
+	const dialogTitle = component.definition.editor?.dialogTitle ?? buttonLabel;
+	const submitLabel = component.definition.editor?.submitLabel ?? `Save ${buttonLabel.toLowerCase()}`;
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
+	const dialogFieldIds = getDialogFieldIds(component);
 
 	return {
 		id: component.definition.id,
@@ -204,34 +272,37 @@ function createToolbarItem(
 			return editor.isActive(nodeName);
 		},
 		dialog: {
-			title: buttonLabel,
-			submitLabel: `Save ${buttonLabel.toLowerCase()}`,
-			fields: Object.entries(component.definition.attributes).map(([attributeName, definition]) => ({
-				id: attributeName,
-				label: toFieldLabel(attributeName),
-				type:
-					definition.type === 'enum'
-						? 'select'
-						: attributeName === 'href' || attributeName === 'url'
-							? 'url'
-							: 'text',
-				required: Boolean(definition.required),
-				defaultValue: definition.default ?? '',
-				options:
-					definition.type === 'enum'
-						? (definition.options ?? []).map((option) => ({
-								label: toFieldLabel(option),
-								value: option
-							}))
-						: undefined
-			})),
+			title: dialogTitle,
+			submitLabel,
+			fields: dialogFieldIds.map((attributeName) => {
+				const definition = component.definition.attributes[attributeName];
+
+				return {
+					id: attributeName,
+					label: toFieldLabel(component, attributeName),
+					type: getFieldControl(component, attributeName),
+					required: Boolean(definition.required),
+					defaultValue: definition.default ?? '',
+					options:
+						definition.type === 'enum'
+							? (definition.options ?? []).map((option) => ({
+									label: toFieldLabel(component, option),
+									value: option
+								}))
+							: undefined
+				};
+			}),
 			getInitialValues(editor) {
 				const currentAttributes = editor.isActive(nodeName) ? editor.getAttributes(nodeName) : {};
 
 				return Object.fromEntries(
 					Object.keys(component.definition.attributes).map((attributeName) => [
 						attributeName,
-						String(currentAttributes[attributeName] ?? component.definition.attributes[attributeName]?.default ?? '')
+						String(
+							currentAttributes[attributeName] ??
+								component.definition.attributes[attributeName]?.default ??
+								''
+						)
 					])
 				);
 			},
@@ -284,10 +355,8 @@ export function createMarkdownContentComponentArtifacts(
 	extensions: Extensions;
 	toolbarItems: MarkdownToolbarItemContribution[];
 } {
-	const inlineComponents = registry.components.filter((component) => component.definition.kind === 'inline');
-
 	return {
-		extensions: inlineComponents.map((component) => createContentComponentExtension(component)),
-		toolbarItems: inlineComponents.map((component) => createToolbarItem(component))
+		extensions: registry.components.map((component) => createContentComponentExtension(component)),
+		toolbarItems: registry.components.map((component) => createToolbarItem(component))
 	};
 }

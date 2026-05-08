@@ -36,9 +36,9 @@ test('aggregates current non-writing checks for tentman ci', async () => {
 	});
 	assert.deepEqual(result.checks[3]?.summary, {
 		files: 7,
-		configs: 5,
+		configs: 6,
 		content: 1,
-		navigationManifests: 1
+		navigationManifests: 0
 	});
 });
 
@@ -46,7 +46,6 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	const projectRoot = await copyFixture();
 	const rootConfigPath = path.join(projectRoot, '.tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
-	const pluginPath = path.join(projectRoot, 'tentman/plugins/callout-chip/plugin.js');
 
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.assetsDir = './static/missing-images';
@@ -56,8 +55,6 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	blogConfig._tentmanId = 'legacy-blog';
 	await fs.writeFile(blogConfigPath, serializeJson(blogConfig));
 
-	await fs.unlink(pluginPath);
-
 	const project = await loadTentmanProject(projectRoot);
 	const result = await runTentmanCi(project);
 
@@ -65,8 +62,6 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.deepEqual(
 		new Set(result.checks[0]?.diagnostics.map((diagnostic) => diagnostic.code)),
 		new Set([
-			'plugin.missing',
-			'plugin.unresolved',
 			'assets.missing-root-directory',
 			'manifest.stale-config-reference',
 			'manifest.stale-collection-reference'
@@ -83,5 +78,5 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.deepEqual(new Set(result.summary.failedChecks), new Set(['doctor', 'nav', 'format', 'assets']));
 	assert.equal(result.summary.warnings, 1);
 	assert.equal(result.summary.checks, 5);
-	assert.ok(result.summary.errors >= 8);
+	assert.ok(result.summary.errors >= 6);
 });

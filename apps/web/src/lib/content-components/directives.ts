@@ -1,6 +1,15 @@
 import type { ContentComponentRegistry } from './registry';
 
 const ATTRIBUTE_PATTERN = /([A-Za-z0-9_-]+)\s*=\s*("([^"]*)"|'([^']*)')/g;
+const DIRECTIVE_NAME_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]*';
+
+export interface ParsedContentDirectiveMatch {
+	raw: string;
+	name: string;
+	markdownLabel?: string;
+	attributes: Record<string, string>;
+	offset: number;
+}
 
 export function parseDirectiveAttributes(source: string): Record<string, string> {
 	ATTRIBUTE_PATTERN.lastIndex = 0;
@@ -49,6 +58,43 @@ export function getMarkdownLabelAttributeName(
 	return null;
 }
 
+export function getDirectivePattern(kind: 'inline' | 'block'): RegExp {
+	return kind === 'inline'
+		? new RegExp(
+				`:(?<name>${DIRECTIVE_NAME_PATTERN})(?:\\[(?<label>[^\\]]*)\\])?(?:\\{(?<attributes>[^}]*)\\})?`,
+				'g'
+			)
+		: new RegExp(
+				`^::(?<name>${DIRECTIVE_NAME_PATTERN})(?:\\[(?<label>[^\\]]*)\\])?(?:\\{(?<attributes>[^}]*)\\})?$`,
+				'gm'
+			);
+}
+
+export function parseContentDirectiveMatches(
+	source: string,
+	kind: 'inline' | 'block'
+): ParsedContentDirectiveMatch[] {
+	const pattern = getDirectivePattern(kind);
+	const matches: ParsedContentDirectiveMatch[] = [];
+
+	for (const match of source.matchAll(pattern)) {
+		const groups = match.groups ?? {};
+		if (!groups.name) {
+			continue;
+		}
+
+		matches.push({
+			raw: match[0],
+			name: groups.name,
+			markdownLabel: groups.label,
+			attributes: parseDirectiveAttributes(groups.attributes ?? ''),
+			offset: match.index ?? 0
+		});
+	}
+
+	return matches;
+}
+
 export function serializeContentComponentDirective(
 	component: ContentComponentRegistry['components'][number],
 	attributes: Record<string, string>
@@ -68,5 +114,8 @@ export function serializeContentComponentDirective(
 					.join(' ')}}`
 			: '';
 
-	return `:${component.definition.name}[${label}]${serializedAttributes}`;
+	const directivePrefix = component.definition.kind === 'block' ? '::' : ':';
+	const serializedLabel = labelAttributeName ? `[${label}]` : '';
+
+	return `${directivePrefix}${component.definition.name}${serializedLabel}${serializedAttributes}`;
 }

@@ -32,6 +32,34 @@ export interface ContentComponentRegistry {
 	getByName(name: string): ContentComponentRegistry['components'][number] | undefined;
 }
 
+export function filterContentComponentRegistry(
+	registry: ContentComponentRegistry,
+	allowedComponentNames: string[] | undefined
+): ContentComponentRegistry {
+	if (!allowedComponentNames || allowedComponentNames.length === 0) {
+		return {
+			components: [],
+			errors: registry.errors,
+			getByName() {
+				return undefined;
+			}
+		};
+	}
+
+	const allowedNames = new Set(allowedComponentNames);
+	const components = registry.components.filter((component) =>
+		allowedNames.has(component.definition.name)
+	);
+
+	return {
+		components,
+		errors: registry.errors,
+		getByName(name: string) {
+			return components.find((component) => component.definition.name === name);
+		}
+	};
+}
+
 function normalizeDirectoryPath(path: string | undefined): string {
 	return path?.replace(/^\.\//, '').replace(/\/+$/, '') || DEFAULT_COMPONENTS_DIR;
 }

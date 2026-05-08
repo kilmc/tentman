@@ -2,22 +2,50 @@
 	"version": 1,
 	"content": {
 		"items": [
-			{ "id": "about", "label": "About", "slug": "about" },
-			{ "id": "faq", "label": "FAQ", "slug": "faq" },
-			{ "id": "blog", "label": "Blog", "slug": "blog" },
-			{ "id": "contact", "label": "Contact", "slug": "contact" }
+			{
+				"id": "tent_01KTVA0B0VT000000000000001",
+				"label": "About",
+				"slug": "about"
+			},
+			{
+				"id": "tent_01KTVA0B0VT000000000000003",
+				"label": "FAQ",
+				"slug": "faq"
+			},
+			{
+				"id": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
+				"label": "Blog",
+				"slug": "blog"
+			},
+			{
+				"id": "tent_01KTVA0B0VT000000000000002",
+				"label": "Contact",
+				"slug": "contact"
+			}
 		]
 	},
 	"collections": {
-		"blog": {
-			"id": "blog",
+		"tent_01KQD7Q12YAMHFJ3FWHBQ16Z07": {
+			"id": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
 			"label": "Blog",
 			"slug": "blog",
 			"items": [
-				{ "id": "rendering-with-content-components", "slug": "rendering-with-content-components" },
-				{ "id": "faq-as-a-nested-content-model", "slug": "faq-as-a-nested-content-model" },
-				{ "id": "why-this-test-app-is-so-plain", "slug": "why-this-test-app-is-so-plain" },
-				{ "id": "designing-a-reliable-fixture", "slug": "designing-a-reliable-fixture" }
+				{
+					"id": "tent_01KTVA0B0VT000000000000004",
+					"slug": "rendering-with-content-components"
+				},
+				{
+					"id": "tent_01KTVA0B0VT000000000000006",
+					"slug": "faq-as-a-nested-content-model"
+				},
+				{
+					"id": "tent_01KTVA0B0VT000000000000007",
+					"slug": "why-this-test-app-is-so-plain"
+				},
+				{
+					"id": "tent_01KTVA0B0VT000000000000005",
+					"slug": "designing-a-reliable-fixture"
+				}
 			],
 			"groups": [
 				{
@@ -25,8 +53,14 @@
 					"label": "Featured",
 					"value": "featured",
 					"items": [
-						{ "slug": "rendering-with-content-components" },
-						{ "slug": "faq-as-a-nested-content-model" }
+						{
+							"id": "tent_01KTVA0B0VT000000000000004",
+							"slug": "rendering-with-content-components"
+						},
+						{
+							"id": "tent_01KTVA0B0VT000000000000006",
+							"slug": "faq-as-a-nested-content-model"
+						}
 					]
 				}
 			]

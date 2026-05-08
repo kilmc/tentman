@@ -9,7 +9,7 @@ import {
 	loadNavigationManifestState,
 	type NavigationManifestState
 } from '$lib/features/content-management/navigation-manifest';
-import { clearPluginRegistryCache } from '$lib/plugins/browser';
+import { clearContentComponentRegistryCache } from '$lib/content-components/browser';
 import { localRepo } from '$lib/stores/local-repo';
 import { shouldUseLocalConfigCache, type RootConfig } from '$lib/config/root-config';
 import type { LocalDiscoverySignature } from '$lib/repository/local';
@@ -208,7 +208,7 @@ function createStore() {
 				!areDiscoverySignaturesEqual(currentState.discoverySignature, discoverySignature)
 			) {
 				backend.invalidateDiscoveryCache();
-				clearPluginRegistryCache();
+				clearContentComponentRegistryCache();
 				clearPersistedState(backend.cacheKey);
 			}
 
@@ -224,7 +224,7 @@ function createStore() {
 
 			if (options.force) {
 				backend.invalidateDiscoveryCache();
-				clearPluginRegistryCache();
+				clearContentComponentRegistryCache();
 				clearPersistedState(backend.cacheKey);
 			}
 
@@ -236,7 +236,7 @@ function createStore() {
 				currentState.backendKey !== null && currentState.backendKey !== backend.cacheKey;
 
 			if (shouldClearForRepoChange) {
-				clearPluginRegistryCache();
+				clearContentComponentRegistryCache();
 			}
 
 			update((state) => ({

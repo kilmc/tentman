@@ -1,6 +1,7 @@
 {
 	"type": "content",
 	"label": "FAQ",
+	"_tentmanId": "tent_01KTVA0B0VT000000000000003",
 	"id": "faq",
 	"content": {
 		"mode": "file",

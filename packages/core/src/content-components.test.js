@@ -41,6 +41,7 @@ test('loads and validates a content component from disk', async () => {
 			options: ['default', 'secondary']
 		}
 	});
+	assert.equal(component.definition.editor, undefined);
 	assert.match(component.renderTemplatePath, /render\.njk$/);
 	assert.match(component.previewTemplatePath, /preview\.njk$/);
 });

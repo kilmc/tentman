@@ -6,6 +6,7 @@ const RENDER_TEMPLATE_NAME = 'render.njk';
 const PREVIEW_TEMPLATE_NAME = 'preview.njk';
 const VALID_COMPONENT_KINDS = new Set(['inline', 'block']);
 const VALID_ATTRIBUTE_TYPES = new Set(['string', 'enum']);
+const VALID_EDITOR_CONTROLS = new Set(['text', 'url', 'select']);
 const renderEnvironment = new nunjucks.Environment(undefined, {
 	autoescape: true,
 	throwOnUndefined: false
@@ -67,6 +68,33 @@ function normalizeAttributeDefinition(attributeName, input, context) {
 			) === true
 	};
 
+	if (input.editor !== undefined) {
+		assertPlainObject(input.editor, `${context}.${attributeName}.editor must be an object`);
+		const label = readOptionalString(input.editor, 'label', `${context}.${attributeName}.editor`);
+		const control = readOptionalString(
+			input.editor,
+			'control',
+			`${context}.${attributeName}.editor`
+		);
+		const hidden = normalizeBooleanOption(
+			input.editor.hidden,
+			'hidden',
+			`${context}.${attributeName}.editor`
+		);
+
+		if (control !== undefined && !VALID_EDITOR_CONTROLS.has(control)) {
+			throw new Error(
+				`${context}.${attributeName}.editor.control must be "text", "url", or "select"`
+			);
+		}
+
+		normalized.editor = {
+			...(label !== undefined ? { label } : {}),
+			...(control !== undefined ? { control } : {}),
+			...(hidden !== undefined ? { hidden } : {})
+		};
+	}
+
 	const defaultValue = readOptionalString(input, 'default', `${context}.${attributeName}`);
 	if (defaultValue !== undefined) {
 		normalized.default = defaultValue.trim();
@@ -111,6 +139,7 @@ function normalizeDefinition(definition, componentJsonPath) {
 
 	const attributesInput = definition.attributes ?? {};
 	assertPlainObject(attributesInput, `${componentJsonPath}.attributes must be an object`);
+	const editorInput = definition.editor;
 
 	const attributes = {};
 	let markdownLabelAttributeCount = 0;
@@ -133,11 +162,38 @@ function normalizeDefinition(definition, componentJsonPath) {
 		throw new Error(`${componentJsonPath}.attributes may only declare one valueFromMarkdownLabel attribute`);
 	}
 
+	let editor;
+	if (editorInput !== undefined) {
+		assertPlainObject(editorInput, `${componentJsonPath}.editor must be an object`);
+		const toolbarLabel = readOptionalString(
+			editorInput,
+			'toolbarLabel',
+			`${componentJsonPath}.editor`
+		);
+		const dialogTitle = readOptionalString(
+			editorInput,
+			'dialogTitle',
+			`${componentJsonPath}.editor`
+		);
+		const submitLabel = readOptionalString(
+			editorInput,
+			'submitLabel',
+			`${componentJsonPath}.editor`
+		);
+
+		editor = {
+			...(toolbarLabel !== undefined ? { toolbarLabel } : {}),
+			...(dialogTitle !== undefined ? { dialogTitle } : {}),
+			...(submitLabel !== undefined ? { submitLabel } : {})
+		};
+	}
+
 	return {
 		id: readRequiredString(definition, 'id', componentJsonPath),
 		name: readRequiredString(definition, 'name', componentJsonPath),
 		kind,
-		attributes
+		attributes,
+		...(editor ? { editor } : {})
 	};
 }
 

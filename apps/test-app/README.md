@@ -14,8 +14,7 @@ If you want another repository to copy the Tentman config layout, this is the be
 - A reusable `imageGallery` block
 - A checked-in manual navigation manifest at [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json)
 - A small site-side loader that reads the same manifest to mirror Tentman ordering
-- A small repo-local markdown plugin at [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/plugins/callout-chip/plugin.js`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/plugins/callout-chip/plugin.js)
-- Server-side markdown rendering with mdsvex so plugin HTML markers render as HTML on the site
+- Server-side markdown rendering with mdsvex plus Tentman content components
 
 ## Folder Layout
 
@@ -26,7 +25,6 @@ test-app/
     blocks/
     configs/
     navigation-manifest.json
-    plugins/
     templates/
   src/content/
     pages/
@@ -41,7 +39,6 @@ test-app/
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/contact.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/contact.tentman.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks/image-gallery.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks/image-gallery.tentman.json)
-- [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/plugins/callout-chip/plugin.js`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/plugins/callout-chip/plugin.js)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content/markdown.ts`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content/markdown.ts)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/server/content.ts`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/server/content.ts)
@@ -62,22 +59,11 @@ The fixture now also demonstrates the manual navigation contract:
 - The blog collection uses `idField: "slug"` so Tentman can persist item order.
 - The site reads `tentman/navigation-manifest.json` on the server to mirror Tentman’s top-level and collection ordering.
 
-It also demonstrates the repo-local markdown plugin contract:
-
-- `.tentman.json` registers `callout-chip` in root `plugins`.
-- `tentman/configs/blog.tentman.json` enables `callout-chip` on the blog `body` markdown field.
-- The plugin stores stable inline HTML markers such as
-  `<span data-tentman-plugin="callout-chip" data-tone="info" data-label="Note">Note</span>`.
-- Tentman uses the plugin for rich editor atoms, toolbar dialogs, markdown serialization, and
-  Tentman preview transforms.
-- The Test App site renders markdown with mdsvex in `src/lib/content/markdown.ts`, because the
-  consumer site is responsible for rendering and styling stored plugin markers at runtime.
-
 For the newer content-components workflow:
 
 - The canonical setup docs live in the repo root [README.md](/Users/kilmc/code/tentman/tentman/README.md)
   and in Tentman’s in-app `/docs` page.
-- The Test App does not yet ship a checked-in content component fixture by default.
-- To try the feature here, add a `src/lib/content-components` directory in this app, wire
-  `@tentman/mdsvex` plus `remark-directive` into `svelte.config.js`, and then scaffold components
+- The Test App is ready for checked-in content components under
+  [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content-components`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content-components).
+- Wire `@tentman/mdsvex` plus `remark-directive` into `svelte.config.js`, then scaffold components
   with `tentman component create <name> apps/test-app`.

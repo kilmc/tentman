@@ -103,7 +103,7 @@ function parseDirectiveAttributes(source) {
 }
 
 function parseInlineDirectiveSegments(source) {
-	const directivePattern = /:([A-Za-z0-9][A-Za-z0-9-]*)\[([^\]]*)\](?:\{([^}]*)\})?/g;
+	const directivePattern = /:([A-Za-z0-9][A-Za-z0-9-]*)(?:\[([^\]]*)\])?(?:\{([^}]*)\})?/g;
 	const segments = [];
 	let lastIndex = 0;
 	let match = directivePattern.exec(source);
@@ -137,6 +137,24 @@ function parseInlineDirectiveSegments(source) {
 	}
 
 	return segments;
+}
+
+function parseBlockDirective(source) {
+	const trimmedSource = source.trim();
+	const match = trimmedSource.match(
+		/^::([A-Za-z0-9][A-Za-z0-9-]*)(?:\[([^\]]*)\])?(?:\{([^}]*)\})?$/
+	);
+
+	if (!match) {
+		return null;
+	}
+
+	return {
+		raw: match[0],
+		name: match[1],
+		markdownLabel: match[2],
+		attributes: parseDirectiveAttributes(match[3] ?? '')
+	};
 }
 
 function buildInlineChildrenFromSegments(segments, renderSegment) {
@@ -211,12 +229,82 @@ export function tentmanComponents(options = {}) {
 			const componentsByName = await componentsPromise;
 
 			walkTree(tree, (node) => {
+				const original = getOriginalSourceMarker(file, node);
+
+				if (
+					(node.type === 'leafDirective' ||
+						node.type === 'containerDirective' ||
+						node.type === 'paragraph') &&
+					original?.trim().startsWith('::')
+				) {
+					const directive = parseBlockDirective(original);
+					if (!directive) {
+						return;
+					}
+
+					try {
+						const component = componentsByName.get(directive.name);
+						if (!component) {
+							throw createAdapterError(
+								`Unknown content component name: ${directive.name}`,
+								file,
+								node,
+								directive.name
+							);
+						}
+
+						if (component.definition.kind !== 'block') {
+							throw createAdapterError(
+								`Component kind ${component.definition.kind} cannot be used as a block directive`,
+								file,
+								node,
+								component.definition.name
+							);
+						}
+
+						const instance = normalizeContentComponentInstance(component, {
+							markdownLabel: directive.markdownLabel,
+							attributes: directive.attributes
+						});
+
+						node.type = 'html';
+						node.value = renderContentComponent(component, instance, 'render');
+						delete node.children;
+					} catch (error) {
+						const enrichedError =
+							error instanceof Error && error.message.includes(getFileLabel(file))
+								? error
+								: createAdapterError(
+										error instanceof Error ? error.message : String(error),
+										file,
+										node,
+										directive.name
+									);
+
+						if (onError === 'warn') {
+							if (typeof file?.message === 'function') {
+								file.message(enrichedError.message, node);
+							} else {
+								console.warn(enrichedError.message);
+							}
+
+							node.type = 'html';
+							node.value = original;
+							delete node.children;
+							return;
+						}
+
+						throw enrichedError;
+					}
+
+					return;
+				}
+
 				if (node.type !== 'paragraph') {
 					return;
 				}
 
-				const original = getOriginalSourceMarker(file, node);
-				if (!original || !original.includes(':') || !original.includes('[')) {
+				if (!original || !original.includes(':')) {
 					return;
 				}
 

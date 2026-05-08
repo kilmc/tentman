@@ -46,7 +46,7 @@ Useful repo signals:
 - markdown or frontmatter parsers
 - JSON or YAML loaders
 - existing CMS, admin, or editorial config folders
-- existing `.tentman.json`, `*.tentman.json`, `tentman/blocks`, `tentman/plugins`, or navigation manifest files
+- existing `.tentman.json`, `*.tentman.json`, `tentman/blocks`, `src/lib/content-components`, or navigation manifest files
 
 If the repo already contains Tentman files, treat the task as an update or migration unless the user explicitly wants a redesign.
 
@@ -119,7 +119,7 @@ Common built-in block types:
 Other integration surfaces worth checking when relevant:
 
 - `tentman/navigation-manifest.json`
-- `tentman/plugins/*/plugin.js`
+- `src/lib/content-components/*/component.json`
 - template files referenced by directory-backed configs
 - custom adapter modules referenced by blocks
 

@@ -248,10 +248,6 @@ export interface LocalDiscoverySignature {
 	navigationManifestText: string | null;
 	contentConfigPaths: string[];
 	blockConfigPaths: string[];
-	pluginEntrypoints: Array<{
-		path: string;
-		exists: boolean;
-	}>;
 }
 
 export interface LocalRepositoryBackend extends RepositoryBackend {
@@ -307,20 +303,6 @@ export function createLocalRepositoryBackend(
 		}
 	}
 
-	function getPluginEntrypointPaths(rootConfig: RootConfig | null): string[] {
-		const pluginsDir =
-			rootConfig?.pluginsDir?.replace(/^\.\//, '').replace(/\/+$/, '') ?? 'tentman/plugins';
-		const pluginIds =
-			rootConfig?.plugins?.filter(
-				(pluginId, index, values) => values.indexOf(pluginId) === index
-			) ?? [];
-
-		return pluginIds.flatMap((pluginId) => [
-			`${pluginsDir}/${pluginId}/plugin.js`,
-			`${pluginsDir}/${pluginId}/plugin.mjs`
-		]);
-	}
-
 	async function getDiscoveryFilePaths(rootConfig: RootConfig | null): Promise<{
 		contentConfigPaths: string[];
 		blockConfigPaths: string[];
@@ -370,19 +352,11 @@ export function createLocalRepositoryBackend(
 			}
 		})();
 		const { contentConfigPaths, blockConfigPaths } = await getDiscoveryFilePaths(rootConfig);
-		const pluginEntrypoints = await Promise.all(
-			getPluginEntrypointPaths(rootConfig).map(async (path) => ({
-				path,
-				exists: await pathExists(rootHandle, path)
-			}))
-		);
-
 		return {
 			rootConfigText,
 			navigationManifestText,
 			contentConfigPaths,
-			blockConfigPaths,
-			pluginEntrypoints
+			blockConfigPaths
 		};
 	}
 

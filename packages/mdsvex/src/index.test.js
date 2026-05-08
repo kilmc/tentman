@@ -40,6 +40,22 @@ test('renders a valid inline directive through render.njk', async () => {
 	);
 });
 
+test('renders a label-less inline directive through render.njk', async () => {
+	const code = await renderMarkdown(':doc-link{href="/docs"}', {
+		componentsDir: path.join(coreFixturesRoot, 'valid-inline')
+	});
+
+	assert.match(code, /<a class="doc-link" href="\/docs">Read more<\/a>/);
+});
+
+test('renders a valid block directive through render.njk', async () => {
+	const code = await renderMarkdown('::callout-box{title="Latest update" tone="warning"}', {
+		componentsDir: path.join(coreFixturesRoot, 'valid-block')
+	});
+
+	assert.match(code, /Latest update/);
+});
+
 test('throws for a missing required directive attribute in strict mode', async () => {
 	await assert.rejects(
 		renderMarkdown(':buy-button[Buy tickets]', {

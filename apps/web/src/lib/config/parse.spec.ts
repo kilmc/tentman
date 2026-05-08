@@ -494,8 +494,6 @@ describe('parseRootConfig', () => {
 			"configsDir": "./tentman/configs",
 			"assetsDir": "./static/images",
 			"componentsDir": "./src/lib/components/content",
-			"pluginsDir": "./tentman/plugins",
-			"plugins": ["buy-button"],
 			"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"],
 			"debug": {
 				"cacheConfigs": false
@@ -508,8 +506,6 @@ describe('parseRootConfig', () => {
 			configsDir: './tentman/configs',
 			assetsDir: './static/images',
 			componentsDir: './src/lib/components/content',
-			pluginsDir: './tentman/plugins',
-			plugins: ['buy-button'],
 			blockPackages: ['@tentman/blocks-media', '@acme/tentman-blocks'],
 			debug: {
 				cacheConfigs: false
@@ -553,7 +549,7 @@ describe('parseRootConfig', () => {
 		});
 	});
 
-	it('parses markdown field plugin allowlists', () => {
+	it('parses markdown field content component allowlists', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",
 			"label": "Posts",
@@ -565,7 +561,7 @@ describe('parseRootConfig', () => {
 				{
 					"id": "body",
 					"type": "markdown",
-					"plugins": ["buy-button"]
+					"components": ["buy-button"]
 				}
 			]
 		}`);
@@ -578,12 +574,12 @@ describe('parseRootConfig', () => {
 			{
 				id: 'body',
 				type: 'markdown',
-				plugins: ['buy-button']
+				components: ['buy-button']
 			}
 		]);
 	});
 
-	it('rejects field-level plugins on non-markdown fields', () => {
+	it('rejects field-level components on non-markdown fields', () => {
 		expect(() =>
 			parseConfigFile(`{
 				"type": "content",
@@ -596,7 +592,7 @@ describe('parseRootConfig', () => {
 					{
 						"id": "title",
 						"type": "text",
-						"plugins": ["buy-button"]
+						"components": ["buy-button"]
 					}
 				]
 			}`)

@@ -48,7 +48,7 @@ export interface BaseBlockUsage {
 	collection?: boolean;
 	itemLabel?: string;
 	assetsDir?: string;
-	plugins?: string[];
+	components?: string[];
 	generated?: boolean;
 	show?: 'primary' | 'secondary';
 	minLength?: number;
@@ -179,8 +179,6 @@ export interface RootConfig {
 	configsDir?: string;
 	assetsDir?: string;
 	componentsDir?: string;
-	pluginsDir?: string;
-	plugins?: string[];
 	blockPackages?: string[];
 	debug?: {
 		cacheConfigs?: boolean;

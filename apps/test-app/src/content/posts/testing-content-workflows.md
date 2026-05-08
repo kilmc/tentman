@@ -1,4 +1,5 @@
 ---
+_tentmanId: tent_01KTVA0B0VT000000000000007
 title: Why this test app is so plain
 slug: why-this-test-app-is-so-plain
 date: '2026-04-17'

@@ -395,15 +395,15 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		const required = readOptionalBoolean(input, 'required', context);
 		const itemLabel = readOptionalString(input, 'itemLabel', context);
 		const assetsDir = readOptionalString(input, 'assetsDir', context);
-		const plugins = readOptionalStringArray(input, 'plugins', context);
+		const components = readOptionalStringArray(input, 'components', context);
 		const generated = readOptionalBoolean(input, 'generated', context);
 		const show = input.show;
 		const minLength = input.minLength;
 		const maxLength = input.maxLength;
 		const options = readTentmanGroupBlockOptions(input, context);
 
-		if (plugins) {
-			throw new Error(`${context}.plugins is not supported on tentmanGroup blocks`);
+		if (components) {
+			throw new Error(`${context}.components is not supported on tentmanGroup blocks`);
 		}
 
 		if (itemLabel) {
@@ -451,7 +451,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	const collection = readOptionalBoolean(input, 'collection', context);
 	const itemLabel = readOptionalString(input, 'itemLabel', context);
 	const assetsDir = readOptionalString(input, 'assetsDir', context);
-	const plugins = readOptionalStringArray(input, 'plugins', context);
+	const components = readOptionalStringArray(input, 'components', context);
 	const generated = readOptionalBoolean(input, 'generated', context);
 	const show = input.show;
 	const minLength = input.minLength;
@@ -477,6 +477,10 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			throw new Error(`${context}.content is not supported for inline block definitions`);
 		}
 
+		if (components) {
+			throw new Error(`${context}.components is only supported on markdown fields`);
+		}
+
 		return {
 			id,
 			type,
@@ -485,7 +489,6 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(collection !== undefined && { collection }),
 			...(itemLabel && { itemLabel }),
 			...(assetsDir && { assetsDir }),
-			...(plugins && { plugins }),
 			...(generated !== undefined && { generated }),
 			...(show && { show }),
 			...(minLength !== undefined && { minLength }),
@@ -494,8 +497,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		};
 	}
 
-	if (plugins && type !== 'markdown') {
-		throw new Error(`${context}.plugins is only supported on markdown fields in v1`);
+	if (components && type !== 'markdown') {
+		throw new Error(`${context}.components is only supported on markdown fields`);
 	}
 
 	if (type !== 'select' && 'options' in input && input.options !== undefined) {
@@ -510,7 +513,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		...(collection !== undefined && { collection }),
 		...(itemLabel && { itemLabel }),
 		...(assetsDir && { assetsDir }),
-		...(plugins && { plugins }),
+		...(components && { components }),
 		...(generated !== undefined && { generated }),
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
@@ -879,8 +882,6 @@ export function parseRootConfig(content: string): RootConfig {
 	const configsDir = readOptionalString(parsed, 'configsDir', 'root');
 	const assetsDir = readOptionalString(parsed, 'assetsDir', 'root');
 	const componentsDir = readOptionalString(parsed, 'componentsDir', 'root');
-	const pluginsDir = readOptionalString(parsed, 'pluginsDir', 'root');
-	const plugins = readOptionalStringArray(parsed, 'plugins', 'root');
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
 	const debugConfig = parsed.debug;
 	const contentConfig = parsed.content;
@@ -904,14 +905,6 @@ export function parseRootConfig(content: string): RootConfig {
 
 	if (componentsDir) {
 		rootConfig.componentsDir = componentsDir;
-	}
-
-	if (pluginsDir) {
-		rootConfig.pluginsDir = pluginsDir;
-	}
-
-	if (plugins) {
-		rootConfig.plugins = plugins;
 	}
 
 	if (blockPackages) {

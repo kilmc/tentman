@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { createMarkdownPluginExtensions } from '$lib/plugins/markdown';
 import type { ContentComponentRegistry } from '$lib/content-components/registry';
-import type { UnifiedLocalPlugin } from '$lib/plugins/types';
-import type { Editor } from '@tiptap/core';
 
 const draftAssetStoreMocks = vi.hoisted(() => ({
 	create: vi.fn(),
@@ -48,10 +45,6 @@ const localContentState = vi.hoisted(() =>
 	})
 );
 
-const pluginLoaderMocks = vi.hoisted(() => ({
-	loadMarkdownPluginsForMode: vi.fn()
-}));
-
 const contentComponentLoaderMocks = vi.hoisted(() => ({
 	loadContentComponentRegistryForMode: vi.fn()
 }));
@@ -95,10 +88,6 @@ vi.mock('$lib/stores/local-content', () => ({
 	}
 }));
 
-vi.mock('$lib/plugins/browser', () => ({
-	loadMarkdownPluginsForMode: pluginLoaderMocks.loadMarkdownPluginsForMode
-}));
-
 vi.mock('$lib/content-components/browser', () => ({
 	loadContentComponentRegistryForMode: contentComponentLoaderMocks.loadContentComponentRegistryForMode
 }));
@@ -108,153 +97,6 @@ import MarkdownField from './MarkdownField.svelte';
 const modifierClickOptions = {
 	modifiers: [navigator.platform.toLowerCase().includes('mac') ? 'Meta' : 'Control']
 } as const;
-
-function createBuyButtonPlugin() {
-	const plugin: UnifiedLocalPlugin = {
-		id: 'buy-button',
-		version: '0.1.0',
-		capabilities: ['markdown', 'preview'],
-		markdown: {
-			htmlInlineNodes: [
-				{
-					id: 'buy-button',
-					nodeName: 'buyButton',
-					selector: 'a[data-tentman-plugin="buy-button"]',
-					attributes: [
-						{
-							name: 'href',
-							default: '',
-							parse(element: HTMLElement) {
-								return element.getAttribute('href');
-							}
-						},
-						{
-							name: 'label',
-							default: 'Buy online',
-							parse(element: HTMLElement) {
-								return element.getAttribute('data-label') ?? element.textContent;
-							}
-						},
-						{
-							name: 'variant',
-							default: 'default',
-							parse(element: HTMLElement) {
-								return element.getAttribute('data-variant') ?? 'default';
-							}
-						}
-					],
-					renderHTML(attributes: Record<string, unknown>) {
-						const label = String(attributes.label ?? 'Buy online');
-						return {
-							tag: 'a',
-							attributes: {
-								'data-tentman-plugin': 'buy-button',
-								href: String(attributes.href ?? ''),
-								'data-label': label,
-								'data-variant': String(attributes.variant ?? 'default')
-							},
-							text: label
-						};
-					},
-					editorView: {
-						label(attributes: Record<string, unknown>) {
-							return `Buy button: ${String(attributes.label ?? 'Buy online')}`;
-						},
-						className(attributes: Record<string, unknown>) {
-							return String(attributes.variant ?? 'default') === 'secondary'
-								? 'border-stone-400 bg-white text-stone-800'
-								: 'border-emerald-600 bg-emerald-600 text-white';
-						}
-					},
-					toolbarItems: [
-						{
-							id: 'buy-button',
-							label: 'Buy Button',
-							buttonLabel: 'Buy Button',
-							isActive(editor: Editor) {
-								return editor.isActive('buyButton');
-							},
-							dialog: {
-								title: 'Buy button',
-								submitLabel: 'Save button',
-								fields: [
-									{
-										id: 'href',
-										label: 'URL',
-										type: 'url',
-										required: true
-									},
-									{
-										id: 'label',
-										label: 'Label',
-										type: 'text',
-										defaultValue: 'Buy online',
-										required: true
-									},
-									{
-										id: 'variant',
-										label: 'Variant',
-										type: 'select',
-										defaultValue: 'default',
-										options: [
-											{ label: 'Default', value: 'default' },
-											{ label: 'Secondary', value: 'secondary' }
-										]
-									}
-								],
-								getInitialValues(editor: Editor) {
-									const currentAttributes = editor.isActive('buyButton')
-										? editor.getAttributes('buyButton')
-										: {};
-
-									return {
-										href: String(currentAttributes.href ?? ''),
-										label: String(currentAttributes.label ?? 'Buy online'),
-										variant: String(currentAttributes.variant ?? 'default')
-									};
-								},
-								validate(values: Record<string, string>) {
-									return values.href.trim() ? null : 'A buy button needs a URL.';
-								},
-								submit(editor: Editor, values: Record<string, string>) {
-									const attrs = {
-										href: values.href.trim(),
-										label: values.label.trim() || 'Buy online',
-										variant: values.variant === 'secondary' ? 'secondary' : 'default'
-									};
-
-									if (editor.isActive('buyButton')) {
-										editor.chain().focus().updateAttributes('buyButton', attrs).run();
-										return;
-									}
-
-									editor
-										.chain()
-										.focus()
-										.insertContent({
-											type: 'buyButton',
-											attrs
-										})
-										.run();
-								}
-							}
-						}
-					]
-				}
-			]
-		}
-	};
-
-	return {
-		plugin,
-		result: {
-			plugins: [{ id: 'buy-button', path: 'tentman/plugins/buy-button/plugin.js', plugin }],
-			extensions: createMarkdownPluginExtensions([plugin]),
-			toolbarItems: plugin.markdown?.htmlInlineNodes?.[0]?.toolbarItems ?? [],
-			errors: []
-		}
-	};
-}
 
 function createDraftAssetResult(ref: string) {
 	return {
@@ -331,15 +173,8 @@ describe('components/form/MarkdownField.svelte', () => {
 		draftAssetStoreMocks.getMetadataForContent.mockReset();
 		draftAssetStoreMocks.collectFromContent.mockReset();
 		draftAssetStoreMocks.gc.mockReset();
-		pluginLoaderMocks.loadMarkdownPluginsForMode.mockReset();
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockReset();
 		draftAssetStoreMocks.delete.mockResolvedValue(undefined);
-		pluginLoaderMocks.loadMarkdownPluginsForMode.mockResolvedValue({
-			plugins: [],
-			extensions: [],
-			toolbarItems: [],
-			errors: []
-		});
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
 			components: [],
 			errors: [],
