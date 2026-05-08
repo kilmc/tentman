@@ -1,6 +1,6 @@
 import type { Writable } from 'svelte/store';
 import type { BlockRegistry } from '$lib/blocks/registry';
-import type { BlockUsage } from '$lib/config/types';
+import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 import type { ContentRecord } from '$lib/features/content-management/types';
 import type {
@@ -21,6 +21,7 @@ export interface FormSidePanelState {
 	listLabel: string;
 	title: string;
 	blocks: BlockUsage[];
+	editorLayout?: EditorLayoutConfig;
 	selectedItem: ContentRecord;
 	targetPath: ContentPath;
 	itemFieldPath?: string;

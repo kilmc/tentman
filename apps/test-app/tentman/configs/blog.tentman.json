@@ -12,17 +12,20 @@
 		"template": "../templates/post.md",
 		"filename": "{{slug}}"
 	},
+	"editorLayout": {
+		"aside": ["slug", "date", "author"],
+		"asideLabel": "Metadata"
+	},
 	"blocks": [
-		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "title", "type": "text", "label": "Title", "required": true },
 		{ "id": "slug", "type": "text", "label": "Slug", "required": true },
 		{
 			"id": "date",
 			"type": "date",
 			"label": "Publish date",
-			"required": true,
-			"show": "secondary"
+			"required": true
 		},
-		{ "id": "author", "type": "text", "label": "Author", "required": true, "show": "secondary" },
+		{ "id": "author", "type": "text", "label": "Author", "required": true },
 		{
 			"id": "coverImage",
 			"type": "image",

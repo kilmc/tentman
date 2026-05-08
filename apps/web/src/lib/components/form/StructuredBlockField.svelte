@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { BlockUsage } from '$lib/config/types';
+	import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import type { ContentRecord } from '$lib/features/content-management/types';
-	import FormField from './FormField.svelte';
+	import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
 	interface Props {
 		label: string;
@@ -14,6 +14,7 @@
 		required?: boolean;
 		onchange?: () => void;
 		imagePath?: string;
+		editorLayout?: EditorLayoutConfig;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
 		onaddselectoption?: (input: {
@@ -32,6 +33,7 @@
 		required = false,
 		onchange,
 		imagePath,
+		editorLayout,
 		blockRegistry,
 		navigationManifest,
 		onaddselectoption
@@ -50,18 +52,15 @@
 		{/if}
 	</legend>
 
-	<div class="space-y-3">
-		{#each blocks as block}
-			<FormField
-				{block}
-				bind:value={value[block.id]}
-				fieldPath={fieldPath ? `${fieldPath}.${block.id}` : block.id}
-				{imagePath}
-				{blockRegistry}
-				{navigationManifest}
-				{onaddselectoption}
-				onchange={() => onchange?.()}
-			/>
-		{/each}
-	</div>
+	<StructuredFieldsLayout
+		{blocks}
+		{value}
+		{fieldPath}
+		{imagePath}
+		{blockRegistry}
+		{navigationManifest}
+		{onaddselectoption}
+		{editorLayout}
+		onchange={() => onchange?.()}
+	/>
 </fieldset>

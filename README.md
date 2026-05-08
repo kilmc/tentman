@@ -27,6 +27,8 @@ apps/
 packages/
   core/      # Shared Tentman behavior, currently a placeholder
   cli/       # CLI package, currently a placeholder
+  mdsvex/    # mdsvex content component integration
+  vite/      # Vite helpers for Tentman-backed sites
 ```
 
 ## Development Setup
@@ -220,6 +222,31 @@ Register an optional custom components directory in the root config:
 }
 ```
 
+For SvelteKit + mdsvex sites, add the mdsvex transform in `svelte.config.js` and the Vite reload
+helper in `vite.config.ts` so changes to content component templates trigger a dev-server reload.
+
+Example `vite.config.ts`:
+
+```ts
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vitest/config';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { tentmanContentComponentReload } from '@tentman/vite';
+
+export default defineConfig({
+	plugins: [
+		tailwindcss(),
+		tentmanContentComponentReload({
+			componentsDir: './tentman/components'
+		}),
+		sveltekit()
+	]
+});
+```
+
+`componentsDir` remains configurable so sites can keep using `src/lib/content-components` today or
+move toward a root `tentman/components` folder later.
+
 If omitted, Tentman uses `src/lib/content-components`.
 
 Each component lives in its own folder:
@@ -382,15 +409,18 @@ Use this for blog posts, docs, or any one-file-per-item content.
 		"template": "../templates/post.md",
 		"filename": "{{slug}}"
 	},
+	"editorLayout": {
+		"aside": ["slug", "date"],
+		"asideLabel": "Metadata"
+	},
 	"blocks": [
-		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "title", "type": "text", "label": "Title", "required": true },
 		{ "id": "slug", "type": "text", "label": "Slug", "required": true },
 		{
 			"id": "date",
 			"type": "date",
 			"label": "Publish date",
-			"required": true,
-			"show": "secondary"
+			"required": true
 		},
 		{ "id": "body", "type": "markdown", "label": "Body", "required": true }
 	]
@@ -423,7 +453,7 @@ Use this for a single page or settings document stored in one JSON file.
 		"path": "../../src/content/pages/about.json"
 	},
 	"blocks": [
-		{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+		{ "id": "title", "type": "text", "label": "Title", "required": true },
 		{ "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
 		{ "id": "body", "type": "markdown", "label": "Body", "required": true }
 	]

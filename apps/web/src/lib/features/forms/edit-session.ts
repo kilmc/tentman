@@ -1,5 +1,5 @@
 import type { BlockRegistry } from '$lib/blocks/registry';
-import type { BlockUsage } from '$lib/config/types';
+import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 
@@ -15,6 +15,7 @@ interface BasePanelInput {
 	listLabel: string;
 	title: string;
 	blocks: BlockUsage[];
+	editorLayout?: EditorLayoutConfig;
 	selectedItem: ContentRecord;
 	targetPath: ContentPath;
 	itemFieldPath?: string;

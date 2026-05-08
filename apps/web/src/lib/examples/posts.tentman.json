@@ -10,6 +10,10 @@
 		"template": "./post.template.md",
 		"filename": "{{slug}}"
 	},
+	"editorLayout": {
+		"aside": ["slug", "date", "author"],
+		"asideLabel": "Metadata"
+	},
 	"blocks": [
 		{
 			"id": "title",
@@ -17,18 +21,16 @@
 			"type": "text",
 			"required": true,
 			"minLength": 5,
-			"maxLength": 100,
-			"show": "primary"
+			"maxLength": 100
 		},
 		{ "id": "slug", "label": "Slug", "type": "text", "required": true, "maxLength": 50 },
-		{ "id": "date", "label": "Date", "type": "date", "required": true, "show": "secondary" },
+		{ "id": "date", "label": "Date", "type": "date", "required": true },
 		{
 			"id": "author",
 			"label": "Author",
 			"type": "text",
 			"required": true,
-			"maxLength": 50,
-			"show": "secondary"
+			"maxLength": 50
 		},
 		{ "id": "coverImage", "label": "Cover Image", "type": "image" },
 		{

@@ -2,7 +2,7 @@
 	import { getContext, hasContext } from 'svelte';
 	import { writable } from 'svelte/store';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
-	import type { BlockUsage } from '$lib/config/types';
+	import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
@@ -21,6 +21,7 @@
 		fieldPath?: string;
 		required?: boolean;
 		imagePath?: string;
+		editorLayout?: EditorLayoutConfig;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
 		onaddselectoption?: (input: {
@@ -38,6 +39,7 @@
 		fieldPath,
 		required = false,
 		imagePath,
+		editorLayout,
 		blockRegistry,
 		navigationManifest,
 		onaddselectoption
@@ -79,6 +81,7 @@
 			listLabel: label,
 			title: label,
 			blocks,
+			...(editorLayout ? { editorLayout } : {}),
 			selectedItem: value as ContentRecord,
 			targetPath: parseFieldPath(fieldPath),
 			itemFieldPath: fieldPath,

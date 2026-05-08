@@ -7,7 +7,7 @@
 	import type { FormSidePanelState } from '$lib/features/forms/side-panel';
 	import { FORM_SIDE_PANEL, type FormSidePanelContext } from '$lib/features/forms/side-panel';
 	import type { ContentValue } from '$lib/features/content-management/types';
-	import SidePanelField from './SidePanelField.svelte';
+	import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
 	interface Props {
 		panel: FormSidePanelState;
@@ -126,16 +126,20 @@
 		</div>
 
 		<div class="min-h-0 overflow-y-auto overscroll-contain px-4 py-4">
-			<div class="grid gap-2">
-				{#each panel.blocks as block (block.id)}
-					<SidePanelField
-						{panel}
-						{block}
-						item={panel.selectedItem}
-						onfieldchange={handleFieldChange}
-					/>
-				{/each}
-			</div>
+			<StructuredFieldsLayout
+				blocks={panel.blocks}
+				value={panel.selectedItem}
+				fieldPath={panel.itemFieldPath}
+				imagePath={panel.imagePath}
+				blockRegistry={panel.blockRegistry}
+				navigationManifest={panel.navigationManifest}
+				onaddselectoption={panel.onaddselectoption}
+				editorLayout={panel.editorLayout}
+				onchange={(fieldName) => {
+					const blockId = fieldName.split('.').at(-1) ?? fieldName;
+					handleFieldChange(blockId, panel.selectedItem[blockId]);
+				}}
+			/>
 		</div>
 
 		{#if showFooter}

@@ -11,6 +11,7 @@
 		initialData?: ContentRecord;
 		blockRegistry?: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
+		width?: number;
 		onaddselectoption?: (input: {
 			collection: string;
 			id: string;
@@ -19,7 +20,14 @@
 		}) => Promise<void>;
 	}
 
-	let { config, initialData = {}, blockRegistry, navigationManifest, onaddselectoption }: Props =
+	let {
+		config,
+		initialData = {},
+		blockRegistry,
+		navigationManifest,
+		width,
+		onaddselectoption
+	}: Props =
 		$props();
 
 	let formGenerator = $state<FormGenerator | null>(null);
@@ -48,15 +56,17 @@
 	}
 </script>
 
-<FormGenerator
-	bind:this={formGenerator}
-	{config}
-	{initialData}
-	{blockRegistry}
-	{navigationManifest}
-	{onaddselectoption}
-	ondirtystatechange={handleDirtyStateChange}
-/>
+<div style={width ? `width: ${width}px;` : undefined}>
+	<FormGenerator
+		bind:this={formGenerator}
+		{config}
+		{initialData}
+		{blockRegistry}
+		{navigationManifest}
+		{onaddselectoption}
+		ondirtystatechange={handleDirtyStateChange}
+	/>
+</div>
 
 <button type="button" onclick={prepareSubmit}>Prepare submit</button>
 <p data-testid="form-dirty-state">{dirtyLabel}</p>

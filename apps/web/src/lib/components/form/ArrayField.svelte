@@ -6,7 +6,7 @@
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
 	import Plus from 'lucide-svelte/icons/plus';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
-	import type { BlockUsage } from '$lib/config/types';
+	import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
@@ -26,6 +26,7 @@
 		value: unknown[];
 		fieldPath?: string;
 		blocks?: BlockUsage[];
+		editorLayout?: EditorLayoutConfig;
 		itemLabel?: string;
 		required?: boolean;
 		onchange?: () => void;
@@ -52,6 +53,7 @@
 		value = $bindable([]),
 		fieldPath,
 		blocks = [],
+		editorLayout,
 		itemLabel,
 		required = false,
 		onchange,
@@ -194,6 +196,7 @@
 			listLabel: label,
 			title: getPanelTitle(index),
 			blocks,
+			...(editorLayout ? { editorLayout } : {}),
 			selectedIndex: index,
 			selectedItem: item as ContentRecord,
 			targetPath: [...parseFieldPath(fieldPath), index],
@@ -222,6 +225,7 @@
 			listLabel: label,
 			title: getCreatePanelTitle(),
 			blocks,
+			...(editorLayout ? { editorLayout } : {}),
 			selectedIndex: draftIndex,
 			selectedItem: draftItem,
 			targetPath: [...parseFieldPath(fieldPath), draftIndex],

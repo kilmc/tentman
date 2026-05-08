@@ -150,6 +150,7 @@
 		bind:value
 		{fieldPath}
 		blocks={structuredBlocks?.blocks ?? []}
+		editorLayout={structuredBlocks?.editorLayout}
 		itemLabel={block.itemLabel}
 		{required}
 		{onchange}
@@ -165,6 +166,7 @@
 			bind:value
 			{fieldPath}
 			blocks={structuredBlocks?.blocks ?? []}
+			editorLayout={structuredBlocks?.editorLayout}
 			{required}
 			{imagePath}
 			{blockRegistry}
@@ -177,6 +179,7 @@
 			bind:value
 			{fieldPath}
 			blocks={structuredBlocks?.blocks ?? []}
+			editorLayout={structuredBlocks?.editorLayout}
 			{required}
 			{onchange}
 			{imagePath}

@@ -116,6 +116,7 @@
 	const configStatesBySlug = $derived(isLocalMode ? localConfigStatesBySlug : githubConfigStatesBySlug);
 	const currentPageSlug = $derived(page.params.page ?? null);
 	const currentItemId = $derived(page.params.itemId ?? null);
+	const isEditorRoute = $derived(/\/(?:new|edit)$/.test(page.url.pathname));
 	const currentConfig = $derived(
 		configs.find((config: DiscoveredConfig) => config.slug === currentPageSlug) ?? null
 	);
@@ -871,7 +872,10 @@
 				class="min-h-0 min-w-0 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6"
 				data-testid="pages-main-panel"
 			>
-				<div class="mx-auto w-full max-w-[var(--workspace-content-max-width)]">
+				<div
+					class="mx-auto w-full max-w-[var(--workspace-content-max-width)]"
+					style={`--workspace-content-max-width: ${isEditorRoute ? '72rem' : '44rem'}`}
+				>
 					<RemountOnValue
 						value={isLocalMode
 							? `${page.url.pathname}${page.url.search}:${localRescanVersion}`

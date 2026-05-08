@@ -4,7 +4,6 @@
 	import { createBlockRegistry, type BlockRegistry } from '$lib/blocks/registry';
 	import type { DiscoveredBlockConfig } from '$lib/config/discovery';
 	import type { ParsedContentConfig } from '$lib/config/parse';
-	import { getBlockStorageKey } from '$lib/config/tentman-group';
 	import { buildFormData } from '$lib/features/forms/helpers';
 	import {
 		createFormEditSession,
@@ -19,8 +18,8 @@
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import type { ContentRecord } from '$lib/features/content-management/types';
-	import FormField from './FormField.svelte';
 	import SidePanelHost from './SidePanelHost.svelte';
+	import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
 	interface Props {
 		config: ParsedContentConfig;
@@ -247,34 +246,18 @@
 			{/if}
 		{/if}
 
-		{#each config.blocks as block, index}
-			<div>
-				<FormField
-					{block}
-					bind:value={formData[getBlockStorageKey(config.blocks[index]!)]}
-					fieldPath={getBlockStorageKey(config.blocks[index]!)}
-					imagePath={config.imagePath}
-					{blockRegistry}
-					{navigationManifest}
-					{onaddselectoption}
-					onchange={() => handleFieldChange(getBlockStorageKey(config.blocks[index]!))}
-				/>
-				{#if showErrors && getFieldError(getBlockStorageKey(config.blocks[index]!))}
-					<div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">
-						<svg class="mt-0.5 h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-							<path
-								fill-rule="evenodd"
-								d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-						<span class="font-medium"
-							>{getFieldError(getBlockStorageKey(config.blocks[index]!))}</span
-						>
-					</div>
-				{/if}
-			</div>
-		{/each}
+		<StructuredFieldsLayout
+			blocks={config.blocks}
+			value={formData}
+			imagePath={config.imagePath}
+			{blockRegistry}
+			{navigationManifest}
+			{onaddselectoption}
+			editorLayout={config.editorLayout}
+			showValidationErrors={showErrors}
+			getFieldError={getFieldError}
+			onchange={handleFieldChange}
+		/>
 	</div>
 
 	{#if ownsSidePanel && $activeSidePanel}

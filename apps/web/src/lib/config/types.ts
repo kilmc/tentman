@@ -56,6 +56,11 @@ export interface BaseBlockUsage {
 	options?: SelectBlockOptions;
 }
 
+export interface EditorLayoutConfig {
+	aside?: string[];
+	asideLabel?: string;
+}
+
 export interface PrimitiveBlockUsage extends BaseBlockUsage {
 	type: PrimitiveBlockType;
 	blocks?: never;
@@ -74,6 +79,7 @@ export interface TentmanGroupBlockUsage
 export interface InlineBlockUsage extends BaseBlockUsage {
 	type: 'block';
 	blocks: BlockUsage[];
+	editorLayout?: EditorLayoutConfig;
 	content?: never;
 }
 
@@ -158,6 +164,7 @@ export interface ContentConfig {
 	idField?: string;
 	content: FileContentMode | DirectoryContentMode;
 	blocks: BlockUsage[];
+	editorLayout?: EditorLayoutConfig;
 	state?: StateConfig;
 }
 
@@ -169,6 +176,7 @@ export interface BlockConfig {
 	collection?: boolean;
 	adapter?: string;
 	blocks: BlockUsage[];
+	editorLayout?: EditorLayoutConfig;
 }
 
 export type TentmanConfigFile = ContentConfig | BlockConfig;

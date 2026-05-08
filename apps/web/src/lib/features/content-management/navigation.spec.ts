@@ -27,8 +27,11 @@ const collectionConfig: ParsedContentConfig = {
 		path: './src/content/posts',
 		template: './templates/post.md'
 	},
+	editorLayout: {
+		aside: ['slug']
+	},
 	blocks: [
-		{ id: 'title', type: 'text', label: 'Title', show: 'primary' },
+		{ id: 'title', type: 'text', label: 'Title' },
 		{ id: 'slug', type: 'text', label: 'Slug' },
 		{ id: 'published', type: 'toggle', label: 'Published' }
 	]

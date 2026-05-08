@@ -160,6 +160,13 @@
 			notes: 'Keep the main authoring fields first.'
 		},
 		{
+			field: 'editorLayout',
+			required: 'No',
+			type: '{ aside?: string[]; asideLabel?: string }',
+			purpose: 'Places selected fields into an editor aside section.',
+			notes: 'Use ordered block ids in `aside`. This only affects Tentman editor layout.'
+		},
+		{
 			field: 'collection',
 			required: 'No',
 			type: 'boolean | { sorting?: "manual"; groups?: CollectionGroupConfig[]; state?: StateConfig }',
@@ -260,13 +267,6 @@
 			notes: 'Helpful when `collection: true`.'
 		},
 		{
-			field: 'show',
-			required: 'No',
-			type: '"primary" | "secondary"',
-			purpose: 'Helps the UI group fields by importance.',
-			notes: 'A good way to keep forms easier to scan.'
-		},
-		{
 			field: 'minLength / maxLength',
 			required: 'No',
 			type: 'number',
@@ -348,6 +348,13 @@
 			type: 'BlockUsage[]',
 			purpose: 'Nested fields that make up the structured block.',
 			notes: ''
+		},
+		{
+			field: 'editorLayout',
+			required: 'No',
+			type: '{ aside?: string[]; asideLabel?: string }',
+			purpose: 'Places selected block fields into an editor aside section.',
+			notes: 'Useful for reusable meta or settings blocks.'
 		},
 		{
 			field: 'collection',
@@ -519,12 +526,16 @@ tentman component validate`;
     "template": "./templates/post.md",
     "filename": "{{slug}}"
   },
+  "editorLayout": {
+    "aside": ["slug", "date", "published"],
+    "asideLabel": "Metadata"
+  },
  "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+    { "id": "title", "type": "text", "label": "Title", "required": true },
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
-    { "id": "date", "type": "date", "label": "Publish Date", "show": "secondary" },
+    { "id": "date", "type": "date", "label": "Publish Date" },
     { "id": "layout", "type": "select", "label": "Layout", "options": ["stack", "inline"] },
-    { "id": "published", "type": "toggle", "label": "Published", "show": "secondary" },
+    { "id": "published", "type": "toggle", "label": "Published" },
     {
       "type": "tentmanGroup",
       "label": "Group",
@@ -546,10 +557,13 @@ tentman component validate`;
     "path": "./src/content/team.json",
     "itemsPath": "$.members"
   },
+  "editorLayout": {
+    "aside": ["slug", "role"]
+  },
   "blocks": [
-    { "id": "name", "type": "text", "label": "Name", "required": true, "show": "primary" },
+    { "id": "name", "type": "text", "label": "Name", "required": true },
     { "id": "slug", "type": "text", "label": "Slug", "required": true },
-    { "id": "role", "type": "text", "label": "Role", "show": "secondary" }
+    { "id": "role", "type": "text", "label": "Role" }
   ]
 }`;
 
@@ -568,7 +582,7 @@ tentman component validate`;
     "path": "./src/content/pages/about.json"
   },
   "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+    { "id": "title", "type": "text", "label": "Title", "required": true },
     { "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
     { "id": "body", "type": "markdown", "label": "Body", "required": true }
   ]
@@ -606,7 +620,7 @@ tentman component validate`;
     "path": "./src/content/pages/about.json"
   },
   "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "show": "primary" },
+    { "id": "title", "type": "text", "label": "Title" },
     { "id": "published", "type": "toggle", "label": "Published" }
   ]
 }`;
@@ -627,7 +641,7 @@ tentman component validate`;
     "template": "./templates/post.md"
   },
   "blocks": [
-    { "id": "title", "type": "text", "label": "Title", "show": "primary" },
+    { "id": "title", "type": "text", "label": "Title" },
     { "id": "published", "type": "toggle", "label": "Published" }
   ]
 }`;

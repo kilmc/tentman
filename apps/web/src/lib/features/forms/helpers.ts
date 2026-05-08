@@ -5,6 +5,7 @@ import { getBlockStorageKey } from '$lib/config/tentman-group';
 import { toBlockAdapterUsageFromBlock } from '$lib/blocks/compat';
 import type { BlockRegistry } from '$lib/blocks/registry';
 import { DEFAULT_BLOCK_REGISTRY, resolveBlockAdapterForUsage } from '$lib/blocks/registry';
+import { resolveStructuredEditorSections } from '$lib/features/forms/editor-layout';
 import type { CardFields } from '$lib/features/content-management/item';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
@@ -38,12 +39,12 @@ export function buildFormData(
 }
 
 export function getCardFields(config: ParsedContentConfig): CardFields {
-	const hasShowConfig = config.blocks.some((block) => block.show !== undefined);
+	const sections = resolveStructuredEditorSections(config.blocks, config.editorLayout);
 
-	if (hasShowConfig) {
+	if (sections.hasAside) {
 		return {
-			primary: config.blocks.filter((block) => block.show === 'primary'),
-			secondary: config.blocks.filter((block) => block.show === 'secondary')
+			primary: sections.primaryBlocks,
+			secondary: sections.asideBlocks
 		};
 	}
 

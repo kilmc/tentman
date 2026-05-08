@@ -28,10 +28,14 @@ const config = parseContentConfigFixture(`{
 		"template": "./post.md",
 		"filename": "{{slug}}"
 	},
+	"editorLayout": {
+		"aside": ["published", "slug"],
+		"asideLabel": "Metadata"
+	},
 	"blocks": [
-		{ "id": "title", "label": "Title", "type": "text", "show": "primary", "required": true },
+		{ "id": "title", "label": "Title", "type": "text", "required": true },
 		{ "id": "slug", "label": "Slug", "type": "text", "required": true },
-		{ "id": "published", "label": "Published", "type": "toggle", "show": "secondary" },
+		{ "id": "published", "label": "Published", "type": "toggle" },
 		{
 			"id": "tags",
 			"label": "Tags",
@@ -74,14 +78,18 @@ describe('forms/helpers', () => {
 	it('normalizes array-based field configs', () => {
 		expect(normalizeFields(config.blocks)).toMatchObject({
 			title: { type: 'text', label: 'Title' },
-			published: { type: 'toggle', label: 'Published', show: 'secondary' }
+			published: { type: 'toggle', label: 'Published' }
 		});
 	});
 
-	it('derives card fields from show metadata', () => {
-		expect(getCardFields(config)).toEqual({
-			primary: [expect.objectContaining({ id: 'title', type: 'text' })],
-			secondary: [expect.objectContaining({ id: 'published', type: 'toggle' })]
-		});
+	it('derives card fields from editorLayout metadata', () => {
+		expect(getCardFields(config).primary).toEqual([
+			expect.objectContaining({ id: 'title', type: 'text' }),
+			expect.objectContaining({ id: 'tags', type: 'block' })
+		]);
+		expect(getCardFields(config).secondary).toEqual([
+			expect.objectContaining({ id: 'published', type: 'toggle' }),
+			expect.objectContaining({ id: 'slug', type: 'text' })
+		]);
 	});
 });

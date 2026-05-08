@@ -17,8 +17,12 @@ describe('parseConfigFile', () => {
 				"template": "./templates/post.md",
 				"filename": "{{slug}}"
 			},
+			"editorLayout": {
+				"aside": ["slug"],
+				"asideLabel": "Metadata"
+			},
 			"blocks": [
-				{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },
+				{ "id": "title", "type": "text", "label": "Title", "required": true },
 				{ "id": "slug", "type": "text", "label": "Slug", "required": true }
 			]
 		}`);
@@ -37,10 +41,129 @@ describe('parseConfigFile', () => {
 		expect(normalizeFields(parsed.blocks).title).toMatchObject({
 			type: 'text',
 			label: 'Title',
-			required: true,
-			show: 'primary'
+			required: true
+		});
+		expect(parsed.editorLayout).toEqual({
+			aside: ['slug'],
+			asideLabel: 'Metadata'
 		});
 		expect(parsed.collection).toEqual(true);
+	});
+
+	it('parses editorLayout and validates aside ordering', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"content": {
+				"mode": "file",
+				"path": "./posts.json"
+			},
+			"editorLayout": {
+				"aside": ["slug", "published"],
+				"asideLabel": "Metadata"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" },
+				{ "id": "slug", "type": "text", "label": "Slug" },
+				{ "id": "published", "type": "toggle", "label": "Published" }
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.editorLayout).toEqual({
+			aside: ['slug', 'published'],
+			asideLabel: 'Metadata'
+		});
+	});
+
+	it('normalizes legacy show metadata into editorLayout', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"content": {
+				"mode": "file",
+				"path": "./posts.json"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title", "show": "primary" },
+				{ "id": "slug", "type": "text", "label": "Slug", "show": "secondary" },
+				{ "id": "published", "type": "toggle", "label": "Published", "show": "secondary" }
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.editorLayout).toEqual({
+			aside: ['slug', 'published']
+		});
+		expect(parsed.blocks).toMatchObject([
+			{ id: 'title', type: 'text', label: 'Title' },
+			{ id: 'slug', type: 'text', label: 'Slug' },
+			{ id: 'published', type: 'toggle', label: 'Published' }
+		]);
+	});
+
+	it('rejects duplicate aside ids', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Posts",
+				"content": {
+					"mode": "file",
+					"path": "./posts.json"
+				},
+				"editorLayout": {
+					"aside": ["slug", "slug"]
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" },
+					{ "id": "slug", "type": "text", "label": "Slug" }
+				]
+			}`)
+		).toThrow('config.editorLayout.aside contains duplicate block id "slug"');
+	});
+
+	it('rejects unknown aside ids', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Posts",
+				"content": {
+					"mode": "file",
+					"path": "./posts.json"
+				},
+				"editorLayout": {
+					"aside": ["missing"]
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" }
+				]
+			}`)
+		).toThrow('config.editorLayout.aside references unknown block id "missing"');
+	});
+
+	it('rejects empty aside labels', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Posts",
+				"content": {
+					"mode": "file",
+					"path": "./posts.json"
+				},
+				"editorLayout": {
+					"asideLabel": ""
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" }
+				]
+			}`)
+		).toThrow('config.editorLayout.asideLabel must be a non-empty string');
 	});
 
 	it('parses manual collection behavior and config-backed groups', () => {
@@ -446,8 +569,7 @@ describe('parseConfigFile', () => {
 			"contentFile": "./social-links.json",
 			"fields": {
 				"title": {
-					"type": "text",
-					"show": "primary"
+					"type": "text"
 				},
 				"links": {
 					"type": "array",
@@ -471,7 +593,7 @@ describe('parseConfigFile', () => {
 		expect(parsed.collection).toBe(false);
 		expect(parsed.content.path).toBe('./social-links.json');
 		expect(parsed.blocks).toMatchObject([
-			{ id: 'title', type: 'text', show: 'primary' },
+			{ id: 'title', type: 'text' },
 			{
 				id: 'links',
 				type: 'block',

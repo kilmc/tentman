@@ -5,6 +5,7 @@ import type {
 	CollectionGroupConfig,
 	ContentConfig,
 	DirectoryContentMode,
+	EditorLayoutConfig,
 	FileContentMode,
 	PrimitiveBlockType,
 	RootConfig,
@@ -35,6 +36,7 @@ type LegacyFieldInput =
 			generated?: unknown;
 			show?: unknown;
 			fields?: unknown;
+			editorLayout?: unknown;
 			minLength?: unknown;
 			maxLength?: unknown;
 			itemLabel?: unknown;
@@ -49,6 +51,7 @@ type LegacyFieldArrayItem = {
 	generated?: unknown;
 	show?: unknown;
 	fields?: unknown;
+	editorLayout?: unknown;
 	minLength?: unknown;
 	maxLength?: unknown;
 	itemLabel?: unknown;
@@ -218,6 +221,73 @@ function readBlocks(value: Record<string, unknown>, context: string): BlockUsage
 	}
 
 	return blocks.map((block, index) => parseBlockUsage(block, `${context}.blocks[${index}]`));
+}
+
+function getLegacyAsideBlockIds(blocks: BlockUsage[]): string[] {
+	return blocks.flatMap((block) => (block.show === 'secondary' ? [block.id] : []));
+}
+
+function stripLegacyShowFromBlocks(blocks: BlockUsage[]): BlockUsage[] {
+	return blocks.map((block) => {
+		if (block.type === 'block' && block.blocks) {
+			const { show: _show, blocks: childBlocks, ...rest } = block;
+			return {
+				...rest,
+				blocks: stripLegacyShowFromBlocks(childBlocks)
+			};
+		}
+
+		const { show: _show, ...rest } = block;
+		return rest;
+	});
+}
+
+function parseEditorLayout(
+	input: Record<string, unknown>,
+	blocks: BlockUsage[],
+	context: string
+): EditorLayoutConfig | undefined {
+	const candidate = input.editorLayout;
+	const legacyAside = getLegacyAsideBlockIds(blocks);
+
+	if (candidate === undefined) {
+		if (legacyAside.length === 0) {
+			return undefined;
+		}
+
+		return {
+			aside: legacyAside
+		};
+	}
+
+	assertObject(candidate, `${context}.editorLayout must be an object`);
+
+	const aside = readOptionalStringArray(candidate, 'aside', `${context}.editorLayout`) ?? legacyAside;
+	const asideLabel = readOptionalString(candidate, 'asideLabel', `${context}.editorLayout`);
+
+	if ((aside?.length ?? 0) === 0 && !asideLabel) {
+		return undefined;
+	}
+
+	const knownIds = new Set(blocks.map((block) => block.id));
+	const seenIds = new Set<string>();
+
+	for (const id of aside ?? []) {
+		if (seenIds.has(id)) {
+			throw new Error(`${context}.editorLayout.aside contains duplicate block id "${id}"`);
+		}
+
+		if (!knownIds.has(id)) {
+			throw new Error(`${context}.editorLayout.aside references unknown block id "${id}"`);
+		}
+
+		seenIds.add(id);
+	}
+
+	return {
+		...(aside ? { aside } : {}),
+		...(asideLabel ? { asideLabel } : {})
+	};
 }
 
 function parseCollectionGroupConfig(input: unknown, context: string): CollectionGroupConfig {
@@ -472,6 +542,7 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 
 	if (type === 'block') {
 		const blocks = readBlocks(input, context);
+		const editorLayout = parseEditorLayout(input, blocks, context);
 
 		if ('content' in input && input.content !== undefined) {
 			throw new Error(`${context}.content is not supported for inline block definitions`);
@@ -493,7 +564,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(show && { show }),
 			...(minLength !== undefined && { minLength }),
 			...(maxLength !== undefined && { maxLength }),
-			blocks
+			blocks: stripLegacyShowFromBlocks(blocks),
+			...(editorLayout ? { editorLayout } : {})
 		};
 	}
 
@@ -555,6 +627,8 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 	const collection = parseCollectionBehaviorConfig(input.collection, 'config.collection');
 	const content = parseContentMode(input.content, 'config.content');
 	const state = input.state !== undefined ? parseStateConfig(input.state, 'config.state') : undefined;
+	const blocks = readBlocks(input, 'config');
+	const editorLayout = parseEditorLayout(input, blocks, 'config');
 
 	const config: ParsedContentConfig = {
 		type: 'content',
@@ -574,7 +648,8 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 		}),
 		...(state !== undefined ? { state } : {}),
 		content,
-		blocks: readBlocks(input, 'config')
+		blocks: stripLegacyShowFromBlocks(blocks),
+		...(editorLayout ? { editorLayout } : {})
 	};
 
 	if (config.collection && !config.itemLabel) {
@@ -597,6 +672,8 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 
 function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
 	const collection = readOptionalBoolean(input, 'collection', 'config');
+	const blocks = readBlocks(input, 'config');
+	const editorLayout = parseEditorLayout(input, blocks, 'config');
 	const config: BlockConfig = {
 		type: 'block',
 		id: readRequiredString(input, 'id', 'config'),
@@ -608,7 +685,8 @@ function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
 		...(readOptionalString(input, 'adapter', 'config') && {
 			adapter: readOptionalString(input, 'adapter', 'config')
 		}),
-		blocks: readBlocks(input, 'config')
+		blocks: stripLegacyShowFromBlocks(blocks),
+		...(editorLayout ? { editorLayout } : {})
 	};
 
 	if (config.collection && !config.itemLabel) {
@@ -685,6 +763,9 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	}
 
 	if (type === 'array') {
+		const nestedBlocks = parseLegacyFields(rawField.fields ?? {}, `${context}.fields`);
+		const editorLayout = parseEditorLayout({ editorLayout: rawField.editorLayout }, nestedBlocks, context);
+
 		return {
 			id,
 			type: 'block',
@@ -697,7 +778,8 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 			...(itemLabel && { itemLabel }),
 			...(assetsDir && { assetsDir }),
 			collection: true,
-			blocks: parseLegacyFields(rawField.fields ?? {}, `${context}.fields`)
+			blocks: stripLegacyShowFromBlocks(nestedBlocks),
+			...(editorLayout ? { editorLayout } : {})
 		};
 	}
 
@@ -755,6 +837,9 @@ function parseLegacyFieldObjectEntry(
 	}
 
 	if (type === 'array') {
+		const nestedBlocks = parseLegacyFields(input.fields ?? {}, `${context}.fields`);
+		const editorLayout = parseEditorLayout({ editorLayout: input.editorLayout }, nestedBlocks, context);
+
 		return {
 			id: normalizedId,
 			type: 'block',
@@ -767,7 +852,8 @@ function parseLegacyFieldObjectEntry(
 			...(itemLabel && { itemLabel }),
 			...(assetsDir && { assetsDir }),
 			collection: true,
-			blocks: parseLegacyFields(input.fields ?? {}, `${context}.fields`)
+			blocks: stripLegacyShowFromBlocks(nestedBlocks),
+			...(editorLayout ? { editorLayout } : {})
 		};
 	}
 
@@ -826,6 +912,7 @@ function parseLegacyContentConfig(input: Record<string, unknown>): ParsedContent
 	}
 
 	const blocks = parseLegacyFields(input.fields, 'config.fields');
+	const editorLayout = parseEditorLayout({ editorLayout: input.editorLayout }, blocks, 'config');
 	const filename = readOptionalString(input, 'filename', 'config');
 	const idField =
 		readOptionalString(input, 'idField', 'config') ??
@@ -860,7 +947,8 @@ function parseLegacyContentConfig(input: Record<string, unknown>): ParsedContent
 		...(collection !== undefined && { collection }),
 		...(idField && { idField }),
 		content,
-		blocks
+		blocks: stripLegacyShowFromBlocks(blocks),
+		...(editorLayout ? { editorLayout } : {})
 	};
 }
 
