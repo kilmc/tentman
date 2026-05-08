@@ -15,6 +15,17 @@ export interface ContactHour {
 	hours: string;
 }
 
+export interface FaqQuestion {
+	question: string;
+	answer: string;
+}
+
+export interface FaqSection {
+	title: string;
+	intro?: string;
+	questions: FaqQuestion[];
+}
+
 export interface AboutPageContent {
 	title: string;
 	intro: string;
@@ -27,12 +38,17 @@ export interface ContactPageContent {
 	title: string;
 	intro: string;
 	email: string;
-	phone?: string;
-	office?: string;
-	bookingUrl?: string;
+	location?: string;
+	responseTime?: string;
 	body: string;
 	hours: ContactHour[];
-	gallery: GalleryItem[];
+}
+
+export interface FaqPageContent {
+	title: string;
+	intro: string;
+	body: string;
+	sections: FaqSection[];
 }
 
 export interface BlogPostPreview {

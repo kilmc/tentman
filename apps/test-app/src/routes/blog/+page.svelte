@@ -7,24 +7,21 @@
 </script>
 
 <svelte:head>
-	<title>Blog | Tentman Fixture Site</title>
+	<title>Blog | Tentman Test App</title>
 </svelte:head>
 
 <section class="page-header">
 	<p class="eyebrow">Directory-backed collection</p>
 	<h1>Blog posts</h1>
 	<p class="lead">
-		These entries live in `src/content/posts` and are driven by `tentman/configs/blog.tentman.json`.
+		These entries live in `src/content/posts`, render from markdown, and are intentionally plain so
+		changes in Tentman are easy to notice.
 	</p>
 </section>
 
 <section class="post-list">
 	{#each data.posts as post (post.slug)}
 		<article class="post-card">
-			{#if post.coverImage}
-				<img class="post-cover" src={post.coverImage} alt="" />
-			{/if}
-
 			<div class="post-copy">
 				<p class="post-meta">
 					{dateFormatter.format(new Date(post.date))} · {post.author} · {post.readingTimeMinutes} min

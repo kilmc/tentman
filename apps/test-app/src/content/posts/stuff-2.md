@@ -1,12 +1,22 @@
 ---
-title: Stuff 2
-_tentmanId: 'tent_01KQD7Q12Z8C6K7C008CDDVCR4'
-slug: stuff-2
-date: '2026-03-23'
-author: Kilian
+title: FAQ as a nested content model
+slug: faq-as-a-nested-content-model
+date: '2026-04-25'
+author: Tentman Team
 coverImage: ''
-excerpt: Stufffff
+excerpt: A grouped FAQ is a compact way to prove nested collections without building an entire documentation system.
 published: true
 ---
 
-A whole lot of stuff helllllo
+## Why an FAQ works well here
+
+An FAQ page is ordinary enough to feel believable and structured enough to stress the editor in useful ways.
+
+- the page itself is a singleton
+- each section is a repeatable nested item
+- each question is another repeatable item inside the section
+- each answer can still use markdown
+
+## Why this is better than a synthetic demo
+
+It lets us check ordering, nested fields, and frontend rendering in one place without inventing a bigger site than the fixture really needs.

@@ -1,26 +1,27 @@
 ---
-title: 'Designing a realistic fixture app'
-_tentmanId: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98'
-slug: 'designing-a-realistic-fixture'
-date: '2026-03-18'
-author: 'Kilian McMichael'
-coverImage: '/images/posts/fixture-grid.svg'
-excerpt: 'A small test site becomes much more useful once it includes singleton pages, a directory-backed blog, and a reusable gallery block.'
+title: 'Designing a reliable fixture'
+slug: 'designing-a-reliable-fixture'
+date: '2026-04-11'
+author: 'Tentman Team'
+coverImage: ''
+excerpt: 'A useful fixture is quiet, repeatable, and varied enough that new features have somewhere real to land.'
 published: true
 ---
 
 ## Start with surfaces people actually use
 
-A convincing fixture app needs more than a homepage and a lorem ipsum paragraph. We want a mix of content shapes so the CMS has something meaningful to exercise.
+The best fixture is not the fanciest one. It is the one that makes regressions easy to spot and still reflects the kinds of pages people actually build.
 
-- singleton pages for stable marketing copy
-- a directory-backed blog for repeatable entries
-- a reusable gallery block for nested structured values
+- singleton pages for stable copy
+- a directory-backed blog collection
+- one nested collection surface
+- one reusable block
+- one content component example
 
-## Keep the frontend intentionally boring
+## Keep the frontend intentionally plain
 
-The public site should render the content clearly without hiding problems behind too much abstraction. If something breaks in the content model, we should notice it right away.
+If something breaks in the content model, the site should not be stylish enough to hide it. That is why this app stays monochrome and compact.
 
 ## What we learn from this
 
-Once a fixture app exists, every new Tentman change can be tested against content that feels close to a real small website instead of a synthetic parser example.
+Once this exists, a new Tentman feature can be checked against a small but believable site instead of a synthetic parser example.

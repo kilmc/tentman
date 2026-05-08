@@ -1,39 +1,39 @@
 {
-	"title": "A small test site for a much more flexible CMS",
-	"intro": "This page exists to exercise singleton JSON content, nested collections, markdown fields, and a reusable gallery block all in one place.",
-	"body": "## Why this fixture exists\n\nTentman just got a serious content-system refactor, so this site is here to give us something a little more realistic than placeholder data.\n\n- The about page is a JSON singleton.\n- The blog is a directory-backed collection.\n- The gallery below uses a reusable block definition.\n\n## What to try\n\nEdit the copy, swap images, add a highlight card, then make sure those changes show up here without any extra glue code.",
+	"title": "About this fixture",
+	"intro": "This page is here to make Tentman feel concrete: a real singleton with markdown, structured highlights, and one reusable image block.",
+	"body": "## Why this page exists\n\nThe test app is meant to show a small but believable content model. It should be plain enough that structural issues are obvious and varied enough that new Tentman features have somewhere honest to land.\n\n- The homepage works like an index.\n- The blog is a directory-backed collection.\n- The FAQ page demonstrates nested collections.\n- This page uses a shared image block.\n\n## Content components\n\nThe official name for the newer markdown feature is **content components**. In this fixture, markdown can link readers toward :doc-link[the FAQ page]{href=\"/faq\" variant=\"strong\"} or :doc-link[the blog index]{href=\"/blog\" variant=\"plain\"} using semantic source markers instead of stored final HTML.",
 	"highlights": [
 		{
-			"label": "Content modes",
-			"value": "2",
-			"detail": "Single-file JSON for pages and directory-backed entries for posts."
+			"label": "Singleton pages",
+			"value": "3",
+			"detail": "About, FAQ, and Contact each use file-backed content with different field shapes."
 		},
 		{
-			"label": "Reusable blocks",
-			"value": "1 gallery",
-			"detail": "The same image gallery block can be dropped into any page config."
+			"label": "Collections",
+			"value": "1 blog",
+			"detail": "Posts live as individual markdown files and the frontend mirrors Tentman ordering."
 		},
 		{
-			"label": "Docs coverage",
-			"value": "Current",
-			"detail": "The plans folder and in-app docs page describe the schema this fixture is using."
+			"label": "Nested content",
+			"value": "FAQ sections",
+			"detail": "The FAQ schema includes repeatable sections with repeatable question items inside each one."
 		}
 	],
 	"gallery": [
 		{
 			"image": "/images/gallery/paper-stack.svg",
 			"alt": "Pinned planning notes and sketches on a studio wall",
-			"caption": "Planning docs and prototypes from the recent refactor work."
+			"caption": "A reusable image block gives the fixture one clear place to exercise assets and captions."
 		},
 		{
 			"image": "/images/gallery/sunlit-desk.svg",
 			"alt": "A bright desk with a keyboard, coffee, and design comps",
-			"caption": "A calm editing surface makes it easier to test real authoring flows."
+			"caption": "The site stays deliberately restrained so content-model changes show up immediately."
 		},
 		{
 			"image": "/images/gallery/team-board.svg",
 			"alt": "A workshop board with cards arranged in lanes",
-			"caption": "This reusable gallery is a good stress test for nested structured values."
+			"caption": "This block is shared rather than page-specific, which makes it useful as a regression surface."
 		}
 	]
 }

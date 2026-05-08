@@ -5,7 +5,7 @@ date: '{{date}}'
 author: '{{author}}'
 coverImage: '{{coverImage}}'
 excerpt: '{{excerpt}}'
-published: { { published } }
+published: {{published}}
 ---
 
 {{body}}

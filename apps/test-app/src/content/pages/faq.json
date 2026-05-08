@@ -1,0 +1,35 @@
+{
+	"title": "FAQ",
+	"intro": "A nested content example built to feel normal on the frontend while still exercising richer structure in Tentman.",
+	"body": "## Why this page is here\n\nThe FAQ is the clearest small example of nested collections in a site that still feels believable. It keeps the frontend plain while making the data model richer than a basic singleton.\n\nYou can also use :doc-link[the About page]{href=\"/about\" variant=\"plain\"} or :doc-link[the blog posts]{href=\"/blog\" variant=\"strong\"} to cross-reference other parts of the fixture directly from markdown.",
+	"sections": [
+		{
+			"title": "Content model",
+			"intro": "The FAQ page is a singleton, but its sections and questions are nested repeatable blocks.",
+			"questions": [
+				{
+					"question": "Why use an FAQ instead of a generic docs section?",
+					"answer": "Because it stays small. This fixture only needs one nested example that feels real and gives Tentman enough structure to exercise."
+				},
+				{
+					"question": "What exactly is nested here?",
+					"answer": "Each **section** contains a repeatable list of **questions**, and each question still gets a markdown answer field."
+				}
+			]
+		},
+		{
+			"title": "Frontend rendering",
+			"intro": "The site does not over-design the FAQ. The structure itself is the point.",
+			"questions": [
+				{
+					"question": "How should this look?",
+					"answer": "Simple headers, short intros, and quiet dividers. If the content model breaks, the page should make that obvious."
+				},
+				{
+					"question": "Does the FAQ need animation or accordion chrome?",
+					"answer": "No. It can, but the fixture is more useful when it stays plain and easy to inspect."
+				}
+			]
+		}
+	]
+}

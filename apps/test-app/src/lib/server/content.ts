@@ -1,11 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { getConfigReferences, getItemReferences, orderByReferences } from './tentman-core';
 import type {
 	AboutPageContent,
 	BlogPost,
 	BlogPostPreview,
-	ContactPageContent
+	ContactPageContent,
+	FaqPageContent
 } from '$lib/content/types';
 
 type FrontmatterValue = boolean | string;
@@ -13,44 +13,39 @@ type NavigationItem = {
 	href: string;
 	label: string;
 };
-type DefaultNavigationItem = NavigationItem & {
-	configId: string;
-	configPath: string;
-};
+type ManifestReference =
+	| string
+	| {
+			id?: string;
+			slug?: string;
+			value?: string;
+	  };
 type NavigationManifest = {
 	version: 1;
 	content?: {
-		items: string[];
+		items?: ManifestReference[];
 	};
 	collections?: Record<
 		string,
 		{
-			items: string[];
+			items?: ManifestReference[];
+			groups?: Array<{
+				id?: string;
+				label?: string;
+				value?: string;
+				items?: ManifestReference[];
+			}>;
 		}
 	>;
 };
 
 const projectRoot = process.cwd();
 const defaultNavigation = [
-	{
-		href: '/about',
-		label: 'About',
-		configId: 'about',
-		configPath: 'tentman/configs/about.tentman.json'
-	},
-	{
-		href: '/contact',
-		label: 'Contact',
-		configId: 'contact',
-		configPath: 'tentman/configs/contact.tentman.json'
-	},
-	{
-		href: '/blog',
-		label: 'Blog',
-		configId: 'blog',
-		configPath: 'tentman/configs/blog.tentman.json'
-	}
-] as DefaultNavigationItem[];
+	{ href: '/about', label: 'About', configId: 'about' },
+	{ href: '/faq', label: 'FAQ', configId: 'faq' },
+	{ href: '/blog', label: 'Blog', configId: 'blog' },
+	{ href: '/contact', label: 'Contact', configId: 'contact' },
+] as Array<NavigationItem & { configId: string }>;
 
 function getAbsolutePath(relativePath: string): string {
 	return resolve(projectRoot, relativePath);
@@ -66,20 +61,6 @@ async function readNavigationManifest(): Promise<NavigationManifest | null> {
 		return await readJsonFile<NavigationManifest>('tentman/navigation-manifest.json');
 	} catch {
 		return null;
-	}
-}
-
-async function readConfigReferences(relativePath: string, fallbackId: string): Promise<string[]> {
-	try {
-		const config = await readJsonFile<{
-			_tentmanId?: string;
-			id?: string;
-			slug?: string;
-		}>(relativePath);
-
-		return getConfigReferences(config);
-	} catch {
-		return [fallbackId];
 	}
 }
 
@@ -236,23 +217,75 @@ function comparePostDates(left: BlogPostPreview, right: BlogPostPreview): number
 	return right.date.localeCompare(left.date);
 }
 
-export async function getPrimaryNavigation(): Promise<NavigationItem[]> {
-	const manifest = await readNavigationManifest();
-	const manifestIds = manifest?.content?.items;
-	const navigationEntries = await Promise.all(
-		defaultNavigation.map(async (item) => ({
-			...item,
-			references: await readConfigReferences(item.configPath, item.configId)
-		}))
-	);
-
-	if (!manifestIds?.length) {
-		return navigationEntries.map(({ href, label }) => ({ href, label }));
+function getManifestReferences(references: ManifestReference[] | undefined): string[] {
+	if (!references?.length) {
+		return [];
 	}
 
-	return orderByReferences(navigationEntries, manifestIds, (item) => item.references).map(
-		({ href, label }) => ({ href, label })
-	);
+	return references.flatMap((reference) => {
+		if (typeof reference === 'string') {
+			return [reference];
+		}
+
+		return [reference.id, reference.slug, reference.value].filter(
+			(value): value is string => typeof value === 'string' && value.length > 0
+		);
+	});
+}
+
+function orderByManifestIds<T extends { slug: string }>(
+	items: T[],
+	manifestIds: ManifestReference[] | undefined
+): T[] {
+	const orderedReferences = new Set(getManifestReferences(manifestIds));
+
+	if (orderedReferences.size === 0) {
+		return items;
+	}
+
+	const itemMap = new Map(items.map((item) => [item.slug, item]));
+	const orderedItems: T[] = [];
+	const usedIds = new Set<string>();
+
+	for (const itemId of orderedReferences) {
+		const item = itemMap.get(itemId);
+		if (!item) {
+			continue;
+		}
+
+		orderedItems.push(item);
+		usedIds.add(itemId);
+	}
+
+	for (const item of items) {
+		if (usedIds.has(item.slug)) {
+			continue;
+		}
+
+		orderedItems.push(item);
+	}
+
+	return orderedItems;
+}
+
+export async function getPrimaryNavigation(): Promise<NavigationItem[]> {
+	const manifest = await readNavigationManifest();
+	const orderedReferences = new Set(getManifestReferences(manifest?.content?.items));
+
+	if (orderedReferences.size === 0) {
+		return defaultNavigation.map(({ href, label }) => ({ href, label }));
+	}
+
+	const itemMap = new Map(defaultNavigation.map((item) => [item.configId, item]));
+	const orderedItems = [...orderedReferences].flatMap((configId) => {
+		const item = itemMap.get(configId);
+		return item ? [{ href: item.href, label: item.label }] : [];
+	});
+	const remainingItems = defaultNavigation
+		.filter((item) => !orderedReferences.has(item.configId))
+		.map(({ href, label }) => ({ href, label }));
+
+	return [...orderedItems, ...remainingItems];
 }
 
 export async function getAboutPage(): Promise<AboutPageContent> {
@@ -261,6 +294,10 @@ export async function getAboutPage(): Promise<AboutPageContent> {
 
 export async function getContactPage(): Promise<ContactPageContent> {
 	return readJsonFile<ContactPageContent>('src/content/pages/contact.json');
+}
+
+export async function getFaqPage(): Promise<FaqPageContent> {
+	return readJsonFile<FaqPageContent>('src/content/pages/faq.json');
 }
 
 export async function getAllPosts(): Promise<BlogPost[]> {
@@ -277,12 +314,26 @@ export async function getAllPosts(): Promise<BlogPost[]> {
 	const manifest = await readNavigationManifest();
 	const sortedPosts = posts.sort(comparePostDates);
 
-	return orderByReferences(sortedPosts, manifest?.collections?.blog?.items, getItemReferences);
+	return orderByManifestIds(sortedPosts, manifest?.collections?.blog?.items);
 }
 
 export async function getPublishedPosts(): Promise<BlogPostPreview[]> {
 	const posts = await getAllPosts();
-	return posts.filter((post) => post.published).sort(comparePostDates);
+	return posts.filter((post) => post.published);
+}
+
+export async function getFeaturedPosts(limit = 2): Promise<BlogPostPreview[]> {
+	const posts = await getPublishedPosts();
+	const manifest = await readNavigationManifest();
+	const groupReferences =
+		manifest?.collections?.blog?.groups?.find((group) => group.value === 'featured')?.items ?? [];
+	const orderedReferences = new Set(getManifestReferences(groupReferences));
+
+	if (orderedReferences.size === 0) {
+		return posts.slice(0, limit);
+	}
+
+	return posts.filter((post) => orderedReferences.has(post.slug)).slice(0, limit);
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | undefined> {

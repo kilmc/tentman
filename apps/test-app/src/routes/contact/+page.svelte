@@ -1,15 +1,13 @@
 <script lang="ts">
-	import GalleryGrid from '$lib/components/GalleryGrid.svelte';
-
 	let { data } = $props();
 </script>
 
 <svelte:head>
-	<title>Contact | Tentman Fixture Site</title>
+	<title>Contact | Tentman Test App</title>
 </svelte:head>
 
 <section class="page-header">
-	<p class="eyebrow">Singleton JSON page</p>
+	<p class="eyebrow">Singleton page</p>
 	<h1>{data.contact.title}</h1>
 	<p class="lead">{data.contact.intro}</p>
 </section>
@@ -21,19 +19,13 @@
 	</article>
 
 	<article class="info-item">
-		<p class="eyebrow">Phone</p>
-		<h2>{data.contact.phone}</h2>
+		<p class="eyebrow">Location</p>
+		<h2>{data.contact.location}</h2>
 	</article>
 
 	<article class="info-item">
-		<p class="eyebrow">Office</p>
-		<h2>{data.contact.office}</h2>
-	</article>
-
-	<article class="info-item">
-		<p class="eyebrow">Booking</p>
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-		<h2><a class="text-link" href={data.contact.bookingUrl}>Schedule a session</a></h2>
+		<p class="eyebrow">Response time</p>
+		<h2>{data.contact.responseTime}</h2>
 	</article>
 </section>
 
@@ -44,7 +36,7 @@
 	</div>
 
 	<div class="schedule-block">
-		<p class="eyebrow">Office hours</p>
+		<p class="eyebrow">Availability</p>
 		<ul class="schedule-list">
 			{#each data.contact.hours as slot (slot.day)}
 				<li>
@@ -55,9 +47,3 @@
 		</ul>
 	</div>
 </section>
-
-<GalleryGrid
-	items={data.contact.gallery}
-	title="Contact page gallery"
-	description="Another use of the same reusable gallery block, this time mixed with email, URL, and inline collection fields."
-/>

@@ -22,8 +22,8 @@
 	<header class="site-header">
 		<div class="site-header__inner">
 			<a class="brand" href={resolve('/')}>
-				<strong>Tentman Fixture</strong>
-				<span>A small content test site</span>
+				<strong>Tentman Test App</strong>
+				<span>Index-like fixture for pages, collections, and content components</span>
 			</a>
 
 			<nav class="nav-links" aria-label="Primary">
@@ -39,7 +39,7 @@
 	</main>
 
 	<footer class="site-footer">
-		<span>Simple fixture pages for checking Tentman content.</span>
-		<a class="text-link" href={resolve('/blog')}>Open the blog</a>
+		<span>Built to show real content structures, not a marketing site.</span>
+		<a class="text-link" href={resolve('/faq')}>Open the nested FAQ</a>
 	</footer>
 </div>

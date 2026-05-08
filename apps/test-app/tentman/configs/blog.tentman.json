@@ -1,7 +1,6 @@
 {
 	"type": "content",
 	"label": "Blog Posts",
-	"_tentmanId": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
 	"id": "blog",
 	"itemLabel": "Blog Post",
 	"collection": true,
@@ -34,9 +33,8 @@
 			"id": "body",
 			"type": "markdown",
 			"label": "Body",
-			"required": true,
-			"plugins": ["callout-chip"]
+			"required": true
 		},
-		{ "id": "published", "type": "boolean", "label": "Published" }
+		{ "id": "published", "type": "toggle", "label": "Published" }
 	]
 }

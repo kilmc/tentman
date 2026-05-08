@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.post.title} | Tentman Fixture Site</title>
+	<title>{data.post.title} | Tentman Test App</title>
 </svelte:head>
 
 <article class="article-layout">
@@ -21,10 +21,6 @@
 			min read
 		</p>
 	</header>
-
-	{#if data.post.coverImage}
-		<img class="article-cover" src={data.post.coverImage} alt="" />
-	{/if}
 
 	<div class="prose">
 		<!-- eslint-disable-next-line svelte/no-at-html-tags -->

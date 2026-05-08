@@ -1,18 +1,26 @@
 ---
-title: Testing the new content workflows
-_tentmanId: 'tent_01KQD7Q12ZHBTXG669982DV00K'
-slug: testing-content-workflows
-date: '2026-03-20'
-author: Kilian McMichael
-coverImage: /images/posts/field-notes.svg
+title: Why this test app is so plain
+slug: why-this-test-app-is-so-plain
+date: '2026-04-17'
+author: Tentman Team
+coverImage: ''
 excerpt: >-
-  The best validation for the refactor is editing realistic content, previewing
-  it locally, and making sure the rendered app stays in sync.
+  The point of the new fixture is to reveal capabilities clearly, not to make
+  the website itself the main event.
 published: true
 ---
-### Test what changed, not just what compiles
 
-The redesign touched discovery, block registries, content modes, and structured rendering. A fixture app gives those pieces a place to interact.
+## Less style, more signal
 
-<span data-tentman-plugin="callout-chip" data-tone="info" data-label="Note">Note</span>
+This site is deliberately black and white, with smallish typography and simple structure. That keeps attention on what Tentman can do:
 
+- singleton pages
+- collection pages
+- nested collections
+- content components
+- reusable blocks
+- manifest-driven ordering
+
+## What still makes it feel designed
+
+The layout uses editorial hierarchy, hard rules, mono labels, and careful spacing so it feels intentional rather than unfinished.

@@ -2,8 +2,8 @@
 	"siteName": "Test App",
 	"configsDir": "./tentman/configs",
 	"blocksDir": "./tentman/blocks",
+	"componentsDir": "./src/lib/content-components",
 	"assetsDir": "./static/images",
-	"plugins": ["callout-chip"],
 	"local": {
 		"previewUrl": "http://localhost:5173"
 	}

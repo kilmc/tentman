@@ -5,11 +5,11 @@
 </script>
 
 <svelte:head>
-	<title>About | Tentman Fixture Site</title>
+	<title>About | Tentman Test App</title>
 </svelte:head>
 
 <section class="page-header">
-	<p class="eyebrow">Singleton JSON page</p>
+	<p class="eyebrow">Singleton page</p>
 	<h1>{data.about.title}</h1>
 	<p class="lead">{data.about.intro}</p>
 </section>
@@ -33,6 +33,6 @@
 
 <GalleryGrid
 	items={data.about.gallery}
-	title="About page gallery"
-	description="This section uses the reusable `imageGallery` block, which makes it a handy test for nested repeated content."
+	title="Reusable image block"
+	description="This page uses the shared `imageGallery` block so the fixture still exercises imagery and repeated nested values."
 />
