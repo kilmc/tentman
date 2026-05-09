@@ -63,12 +63,21 @@ describe('content-management/item', () => {
 		expect(getItemRoute(collectionConfig, { _tentmanId: 'post-2' })).toBe('post-2');
 	});
 
+	it('falls back to the filename stem for directory content when no slug or Tentman id exists', () => {
+		expect(getItemRoute(collectionConfig, { _filename: 'news-item.md' })).toBe('news-item');
+	});
+
 	it('finds items by stable Tentman id as well as route slug', () => {
 		const item = { _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello World' };
 		const items = [item];
 
 		expect(findContentItemByRoute(items, collectionConfig, 'hello-world')).toBe(item);
 		expect(findContentItemByRoute(items, collectionConfig, 'post-1')).toBe(item);
+	});
+
+	it('finds directory items by filename stem when no other route field exists', () => {
+		const item = { _filename: 'latest-news.md', title: 'Latest News' };
+		expect(findContentItemByRoute([item], collectionConfig, 'latest-news')).toBe(item);
 	});
 
 	it('formats display values consistently', () => {

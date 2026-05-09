@@ -105,6 +105,57 @@ describe('GET /api/repo/collection-items', () => {
 		});
 	});
 
+	it('returns slug-based items when manual sorting is not enabled and Tentman ids are missing', async () => {
+		vi.mocked(getCachedConfigs).mockResolvedValue([
+			{
+				...collectionConfig,
+				config: {
+					...collectionConfig.config,
+					collection: true,
+					blocks: [
+						...collectionConfig.config.blocks,
+						{
+							id: 'date',
+							type: 'date'
+						}
+					]
+				}
+			}
+		] as never);
+		vi.mocked(getCachedContent).mockResolvedValue([
+			{
+				_filename: 'latest-news.md',
+				title: 'Latest news',
+				date: '2026-04-03'
+			}
+		]);
+
+		const response = await GET({
+			url: new URL('http://localhost/api/repo/collection-items?slug=posts'),
+			locals: {
+				isAuthenticated: true,
+				githubToken: 'secret-token',
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				}
+			},
+			cookies: createCookies()
+		} as never);
+
+		expect(await response.json()).toEqual({
+			items: [
+				{
+					itemId: 'latest-news',
+					title: 'Latest news',
+					sortDate: new Date('2026-04-03').getTime()
+				}
+			],
+			groups: []
+		});
+	});
+
 	it('clears the session and returns 401 when GitHub rejects the request', async () => {
 		vi.mocked(getCachedConfigs).mockResolvedValue([collectionConfig] as never);
 		vi.mocked(getCachedContent).mockRejectedValue({ status: 401 });

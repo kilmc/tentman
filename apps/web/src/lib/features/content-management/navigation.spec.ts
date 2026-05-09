@@ -80,6 +80,36 @@ describe('content navigation helpers', () => {
 		]);
 	});
 
+	it('falls back to route ids for non-manual collections when Tentman ids are missing', () => {
+		expect(
+			getCollectionNavigationItems(
+				{
+					...collectionConfig,
+					collection: true,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'date', type: 'date', label: 'Date' }
+					]
+				},
+				[
+					{ title: 'Latest News', _filename: 'latest-news.md', date: '2026-04-03' },
+					{ title: 'Earlier News', _filename: 'earlier-news.md', date: '2026-03-01' }
+				]
+			)
+		).toEqual([
+			{ itemId: 'latest-news', title: 'Latest News', sortDate: new Date('2026-04-03').getTime() },
+			{ itemId: 'earlier-news', title: 'Earlier News', sortDate: new Date('2026-03-01').getTime() }
+		]);
+	});
+
+	it('still requires Tentman ids when manual collection sorting is enabled', () => {
+		expect(
+			getCollectionNavigationItems(collectionConfig, [
+				{ title: 'Latest News', slug: 'latest-news' }
+			])
+		).toEqual([]);
+	});
+
 	it('includes matched collection state when collection items resolve a preset case', () => {
 		expect(
 			getCollectionNavigationItems(

@@ -2,6 +2,10 @@ import type { ParsedContentConfig } from '$lib/config/parse';
 import type { BlockUsage } from '$lib/config/types';
 import type { ContentRecord, ContentValue } from './types';
 
+function stripFileExtension(filename: string): string {
+	return filename.replace(/\.[^/.]+$/, '');
+}
+
 export function getItemId(item: ContentRecord): string | undefined {
 	return typeof item._tentmanId === 'string' && item._tentmanId.length > 0
 		? item._tentmanId
@@ -32,7 +36,8 @@ export function getItemRoute(
 	config: ParsedContentConfig,
 	item: ContentRecord
 ): string | undefined {
-	return getItemSlug(config, item) ?? getItemId(item);
+	const filename = getItemFilename(item);
+	return getItemSlug(config, item) ?? getItemId(item) ?? (filename ? stripFileExtension(filename) : undefined);
 }
 
 export function findContentItem(

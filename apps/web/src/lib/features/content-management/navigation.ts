@@ -2,7 +2,10 @@ import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { RootConfig } from '$lib/config/root-config';
 import { getCardFields } from '$lib/features/forms/helpers';
-import { getCollectionGroups } from '$lib/features/content-management/config';
+import {
+	getCollectionGroups,
+	isCollectionManualSortingEnabled
+} from '$lib/features/content-management/config';
 import { formatContentValue, getItemId, getItemRoute } from '$lib/features/content-management/item';
 import {
 	resolveCollectionItemState,
@@ -103,7 +106,7 @@ export function getCollectionNavigationItems(
 	const dateFieldId = config.blocks.find((block) => block.type === 'date')?.id;
 
 	return content.flatMap((item) => {
-		const itemId = getItemId(item);
+		const itemId = getCollectionNavigationItemId(config, item);
 
 		if (!itemId) {
 			return [];
@@ -120,6 +123,22 @@ export function getCollectionNavigationItems(
 			}
 		];
 	});
+}
+
+function getCollectionNavigationItemId(
+	config: ParsedContentConfig,
+	item: ContentRecord
+): string | undefined {
+	const stableId = getItemId(item);
+	if (stableId) {
+		return stableId;
+	}
+
+	if (isCollectionManualSortingEnabled(config)) {
+		return undefined;
+	}
+
+	return getItemRoute(config, item);
 }
 
 function getCollectionSortDate(item: ContentRecord, dateFieldId?: string): number | null {
@@ -314,7 +333,7 @@ export function getOrderedCollectionRecords(
 	}
 
 	const records = content.flatMap((item) => {
-		const itemId = getItemId(item);
+		const itemId = getCollectionNavigationItemId(config, item);
 		if (!itemId) {
 			return [];
 		}
