@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { compile } from 'mdsvex';
 import remarkDirective from 'remark-directive';
+import { collectContentComponentReferenceIndex } from '@tentman/core';
 import { tentmanComponents } from './index.js';
 
 const coreFixturesRoot = path.resolve(
@@ -94,4 +97,153 @@ test('warning mode preserves the original directive source for invalid instances
 	});
 
 	assert.match(code, /:buy-button\[Buy tickets\]\{variant="secondary"\}/);
+});
+
+test('renders mdsvex target components with imports when configured', async () => {
+	const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-mdsvex-'));
+	const componentDir = path.join(fixtureRoot, 'gallery-embed');
+
+	await fs.mkdir(componentDir, { recursive: true });
+	await Promise.all([
+		fs.writeFile(
+			path.join(componentDir, 'component.json'),
+			JSON.stringify(
+				{
+					id: 'gallery-embed',
+					name: 'gallery-embed',
+					kind: 'block',
+					attributes: {
+						title: {
+							type: 'string',
+							required: true
+						}
+					},
+					render: {
+						mdsvex: {
+							from: '$lib/components/GalleryEmbed.svelte',
+							component: 'GalleryEmbed',
+							props: {
+								title: 'attributes.title'
+							}
+						}
+					}
+				},
+				null,
+				'\t'
+			)
+		),
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<div>{{ title }}</div>\n'),
+		fs.writeFile(path.join(componentDir, 'preview.njk'), '<div>{{ title }}</div>\n')
+	]);
+
+	const code = await renderMarkdown('::gallery-embed{title="City sketches"}', {
+		componentsDir: fixtureRoot
+	});
+
+	assert.match(code, /import GalleryEmbed from '\$lib\/components\/GalleryEmbed\.svelte';/);
+	assert.match(code, /<GalleryEmbed title=\{"City sketches"\} \/>/);
+});
+
+test('resolves mdsvex target props from shared reference data when render context is provided', async () => {
+	const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-mdsvex-reference-'));
+	const componentDir = path.join(fixtureRoot, 'gallery-embed');
+
+	await fs.mkdir(componentDir, { recursive: true });
+	await Promise.all([
+		fs.writeFile(
+			path.join(componentDir, 'component.json'),
+			JSON.stringify(
+				{
+					id: 'gallery-embed',
+					name: 'gallery-embed',
+					kind: 'block',
+					attributes: {
+						galleryRef: {
+							type: 'string',
+							default: 'main',
+							reference: true,
+							referenceScope: {
+								preview: 'container',
+								render: 'full'
+							}
+						}
+					},
+					render: {
+						mdsvex: {
+							from: '$lib/components/GalleryEmbed.svelte',
+							component: 'GalleryEmbed',
+							props: {
+								gallery: 'data.gallery'
+							}
+						}
+					}
+				},
+				null,
+				'\t'
+			)
+		),
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<div>{{ data.gallery.title }}</div>\n'),
+		fs.writeFile(path.join(componentDir, 'preview.njk'), '<div>{{ data.title }}</div>\n')
+	]);
+
+	const contentItem = {
+		body: '::gallery-embed',
+		gallery: {
+			referenceToken: 'main',
+			title: 'Homepage gallery'
+		}
+	};
+	const { referenceIndex } = collectContentComponentReferenceIndex({
+		blocks: [
+			{
+				id: 'body',
+				type: 'markdown'
+			},
+			{
+				id: 'gallery',
+				type: 'block',
+				blocks: [
+					{
+						id: 'referenceToken',
+						type: 'text',
+						referenceFor: ['gallery-embed:galleryRef']
+					},
+					{
+						id: 'title',
+						type: 'text'
+					}
+				]
+			}
+		],
+		contentItem,
+		resolveStructuredBlocks(block) {
+			return block.blocks ?? null;
+		}
+	});
+
+	const rendered = await compile('::gallery-embed', {
+		filename: 'reference-mdsvex.svx',
+		remarkPlugins: [
+			remarkDirective,
+			tentmanComponents({
+				componentsDir: fixtureRoot,
+				resolveRenderOptions() {
+					return {
+						contentItem,
+						referenceIndex
+					};
+				}
+			})
+		]
+	});
+
+	if (typeof rendered?.code !== 'string') {
+		throw new Error('Failed to compile markdown');
+	}
+
+	assert.match(rendered.code, /import GalleryEmbed from '\$lib\/components\/GalleryEmbed\.svelte';/);
+	assert.match(
+		rendered.code,
+		/<GalleryEmbed gallery=\{\{"referenceToken":"main","title":"Homepage gallery"\}\} \/>/
+	);
 });

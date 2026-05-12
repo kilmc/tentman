@@ -20,10 +20,17 @@ export { inspectTentmanContent } from './content-inspect.js';
 export { listTentmanContent } from './content-list.js';
 export {
 	collectContentComponents,
+	collectContentComponentReferenceIndex,
 	discoverContentComponents,
+	getContentComponentReferenceAttribute,
+	getContentComponentReferenceScope,
+	getContentComponentRenderTarget,
 	loadContentComponent,
 	normalizeContentComponentInstance,
+	resolveContentComponentInstance,
+	resolveContentComponentRenderTarget,
 	renderContentComponent,
+	validateContentComponentInstance,
 	validateContentComponent
 } from './content-components.js';
 export { createContentComponentScaffold } from './content-component-create.js';

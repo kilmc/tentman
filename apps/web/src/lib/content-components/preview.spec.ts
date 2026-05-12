@@ -107,6 +107,16 @@ describe('applyPreviewContentComponentTransforms', () => {
 		expect(result.errors[0]).toContain('Markdown preview failed for content component "buy-button"');
 	});
 
+	it('preserves source and reports errors for malformed directive attributes', () => {
+		const result = applyPreviewContentComponentTransforms(
+			':buy-button[Buy tickets]{href=/tickets}',
+			createRegistry()
+		);
+
+		expect(result.markdown).toContain(':buy-button[Buy tickets]{href=/tickets}');
+		expect(result.errors[0]).toContain('Could not parse directive attributes');
+	});
+
 	it('preserves source and reports errors for unknown components', () => {
 		const result = applyPreviewContentComponentTransforms(
 			':missing-widget[Hello]{href="/x"}',
@@ -115,5 +125,69 @@ describe('applyPreviewContentComponentTransforms', () => {
 
 		expect(result.markdown).toContain(':missing-widget[Hello]{href="/x"}');
 		expect(result.errors[0]).toContain('Markdown preview unknown content component "missing-widget"');
+	});
+
+	it('resolves sibling-object references through defaulted reference attributes', () => {
+		const registry = createRegistry({
+			directory: 'src/lib/content-components/gallery-embed',
+			componentJsonPath: 'src/lib/content-components/gallery-embed/component.json',
+			renderTemplatePath: 'src/lib/content-components/gallery-embed/render.njk',
+			previewTemplatePath: 'src/lib/content-components/gallery-embed/preview.njk',
+			previewTemplateSource: '<div>Gallery embed: {{ data.title }}</div>',
+			definition: {
+				id: 'gallery-embed',
+				name: 'gallery-embed',
+				kind: 'block',
+				attributes: {
+					galleryRef: {
+						type: 'string',
+						default: 'main',
+						reference: true,
+						referenceScope: {
+							preview: 'container',
+							render: 'full'
+						}
+					}
+				}
+			}
+		});
+
+		const result = applyPreviewContentComponentTransforms('::gallery-embed', registry, {
+			contentItem: {
+				body: '::gallery-embed',
+				gallery: {
+					referenceToken: 'main',
+					title: 'Homepage gallery'
+				}
+			},
+			referenceIndex: new Map([
+				[
+					'gallery-embed:galleryRef',
+					new Map([
+						[
+							'main',
+							{
+								token: 'main',
+								self: 'main',
+								container: {
+									referenceToken: 'main',
+									title: 'Homepage gallery'
+								},
+								full: {
+									body: '::gallery-embed',
+									gallery: {
+										referenceToken: 'main',
+										title: 'Homepage gallery'
+									}
+								}
+							}
+						]
+					])
+				]
+			])
+		});
+
+		expect(result.markdown).toContain('Gallery embed: Homepage gallery');
+		expect(result.errors).toEqual([]);
 	});
 });

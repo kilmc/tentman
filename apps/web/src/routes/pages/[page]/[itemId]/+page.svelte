@@ -251,6 +251,8 @@
 									{block}
 									value={(item as ContentRecord)[block.id]}
 									{blockRegistry}
+									rootBlocks={config.blocks}
+									rootContentItem={item as ContentRecord}
 								/>
 							</dd>
 						</div>

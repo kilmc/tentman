@@ -1,8 +1,9 @@
 import {
 	normalizeContentComponentInstance,
-	renderContentComponent
+	renderContentComponent,
+	validateContentComponentInstance
 } from '@tentman/core/content-components';
-import { parseContentDirectiveMatches } from './directives';
+import { parseContentDirectiveMatchesSafe } from './directives';
 import type { ContentComponentRegistry } from './registry';
 
 export interface ContentComponentPreviewTransformResult {
@@ -24,10 +25,20 @@ function applyDirectiveMatches(
 	registry: ContentComponentRegistry,
 	kind: 'inline' | 'block',
 	errors: string[],
-	availableRegistry?: ContentComponentRegistry
+	availableRegistry?: ContentComponentRegistry,
+	options: {
+		contentItem?: object | null;
+		referenceIndex?: Map<string, Map<string, unknown>>;
+	} = {}
 ): string {
-	const matches = parseContentDirectiveMatches(markdown, kind);
+	const { matches, issues } = parseContentDirectiveMatchesSafe(markdown, kind);
 	if (matches.length === 0) {
+		for (const issue of issues) {
+			const location = getLineAndColumn(markdown, issue.offset);
+			errors.push(
+				`Markdown preview failed for content component "${issue.name}" at ${location.line}:${location.column}: ${issue.error}`
+			);
+		}
 		return markdown;
 	}
 
@@ -65,7 +76,17 @@ function applyDirectiveMatches(
 				markdownLabel: match.markdownLabel,
 				attributes: match.attributes
 			});
-			transformed += renderContentComponent(component, instance, 'preview').trim();
+			const validationErrors = validateContentComponentInstance(component, instance, {
+				referenceIndex: options.referenceIndex
+			});
+			if (validationErrors.length > 0) {
+				throw new Error(validationErrors.join(' '));
+			}
+
+			transformed += renderContentComponent(component, instance, 'preview', {
+				contentItem: options.contentItem,
+				referenceIndex: options.referenceIndex
+			}).trim();
 		} catch (error) {
 			errors.push(
 				`Markdown preview failed for content component "${match.name}" at ${location.line}:${location.column}: ${
@@ -74,6 +95,13 @@ function applyDirectiveMatches(
 			);
 			transformed += match.raw;
 		}
+	}
+
+	for (const issue of issues) {
+		const location = getLineAndColumn(markdown, issue.offset);
+		errors.push(
+			`Markdown preview failed for content component "${issue.name}" at ${location.line}:${location.column}: ${issue.error}`
+		);
 	}
 
 	transformed += markdown.slice(cursor);
@@ -85,6 +113,8 @@ export function applyPreviewContentComponentTransforms(
 	registry: ContentComponentRegistry,
 	options: {
 		availableRegistry?: ContentComponentRegistry;
+		contentItem?: object | null;
+		referenceIndex?: Map<string, Map<string, unknown>>;
 	} = {}
 ): ContentComponentPreviewTransformResult {
 	const errors = [...registry.errors];
@@ -95,14 +125,16 @@ export function applyPreviewContentComponentTransforms(
 		registry,
 		'block',
 		errors,
-		options.availableRegistry
+		options.availableRegistry,
+		options
 	);
 	transformed = applyDirectiveMatches(
 		transformed,
 		registry,
 		'inline',
 		errors,
-		options.availableRegistry
+		options.availableRegistry,
+		options
 	);
 
 	return {

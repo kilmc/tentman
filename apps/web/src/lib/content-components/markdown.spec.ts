@@ -255,6 +255,9 @@ describe('createMarkdownContentComponentArtifacts', () => {
 				payload: {
 					nodeName: 'contentComponentBuyButton',
 					attrs: {
+						__tentmanBroken: 'false',
+						__tentmanBrokenError: '',
+						__tentmanRaw: '',
 						href: 'https://example.com/new',
 						label: 'New label',
 						variant: 'secondary'
@@ -268,6 +271,9 @@ describe('createMarkdownContentComponentArtifacts', () => {
 				payload: {
 					type: 'contentComponentBuyButton',
 					attrs: {
+						__tentmanBroken: 'false',
+						__tentmanBrokenError: '',
+						__tentmanRaw: '',
 						href: 'https://example.com/new',
 						label: 'New label',
 						variant: 'secondary'

@@ -1,9 +1,34 @@
 import path from 'node:path';
 import {
 	discoverContentComponents,
+	resolveContentComponentRenderTarget,
 	normalizeContentComponentInstance,
 	renderContentComponent
 } from '@tentman/core';
+
+function serializeSveltePropValue(value) {
+	return JSON.stringify(value);
+}
+
+function renderMdsvexTarget(component, instance, renderOptions = {}) {
+	const renderTarget = resolveContentComponentRenderTarget(component, instance, 'mdsvex', renderOptions);
+	if (!renderTarget) {
+		return null;
+	}
+
+	const props = Object.entries(renderTarget.props)
+		.map(
+			([propName, propValue]) =>
+				`${propName}={${serializeSveltePropValue(propValue)}}`
+		)
+		.join(' ');
+
+	return {
+		importName: renderTarget.component,
+		importPath: renderTarget.from,
+		markup: `<${renderTarget.component}${props ? ` ${props}` : ''} />`
+	};
+}
 
 function formatNodeLocation(node) {
 	const line = node?.position?.start?.line;
@@ -184,6 +209,46 @@ function resolveComponentsDir(componentsDir) {
 	return path.resolve(process.cwd(), componentsDir ?? './src/lib/content-components');
 }
 
+function addMdsvexImport(file, importName, importPath) {
+	if (!file || typeof file !== 'object') {
+		return;
+	}
+
+	const existingImports = Array.isArray(file.data?.tentmanComponentImports)
+		? file.data.tentmanComponentImports
+		: [];
+	if (existingImports.some((entry) => entry.importName === importName && entry.importPath === importPath)) {
+		return;
+	}
+
+	file.data ??= {};
+	file.data.tentmanComponentImports = [
+		...existingImports,
+		{
+			importName,
+			importPath
+		}
+	];
+}
+
+function prependMdsvexImports(tree, file) {
+	const imports = Array.isArray(file?.data?.tentmanComponentImports)
+		? file.data.tentmanComponentImports
+		: [];
+	if (imports.length === 0 || !Array.isArray(tree.children)) {
+		return;
+	}
+
+	const importBlock = `<script>\n${imports
+		.map(({ importName, importPath }) => `import ${importName} from '${importPath}';`)
+		.join('\n')}\n</script>`;
+
+	tree.children.unshift({
+		type: 'html',
+		value: importBlock
+	});
+}
+
 function walkTree(node, visitor) {
 	if (!node || typeof node !== 'object') {
 		return;
@@ -227,6 +292,7 @@ export function tentmanComponents(options = {}) {
 	return function attacher() {
 		return async function transform(tree, file) {
 			const componentsByName = await componentsPromise;
+			const renderOptions = (await options.resolveRenderOptions?.(file)) ?? {};
 
 			walkTree(tree, (node) => {
 				const original = getOriginalSourceMarker(file, node);
@@ -266,9 +332,15 @@ export function tentmanComponents(options = {}) {
 							markdownLabel: directive.markdownLabel,
 							attributes: directive.attributes
 						});
+						const mdsvexTarget = renderMdsvexTarget(component, instance, renderOptions);
 
 						node.type = 'html';
-						node.value = renderContentComponent(component, instance, 'render');
+						node.value =
+							mdsvexTarget?.markup ??
+							renderContentComponent(component, instance, 'render', renderOptions);
+						if (mdsvexTarget) {
+							addMdsvexImport(file, mdsvexTarget.importName, mdsvexTarget.importPath);
+						}
 						delete node.children;
 					} catch (error) {
 						const enrichedError =
@@ -342,8 +414,15 @@ export function tentmanComponents(options = {}) {
 							markdownLabel: segment.markdownLabel,
 							attributes: segment.attributes
 						});
+						const mdsvexTarget = renderMdsvexTarget(component, instance, renderOptions);
+						if (mdsvexTarget) {
+							addMdsvexImport(file, mdsvexTarget.importName, mdsvexTarget.importPath);
+						}
 
-						return renderContentComponent(component, instance, 'render');
+						return (
+							mdsvexTarget?.markup ??
+							renderContentComponent(component, instance, 'render', renderOptions)
+						);
 					});
 				} catch (error) {
 					const firstDirectiveName = segments.find((segment) => segment.type === 'directive')?.name;
@@ -377,6 +456,8 @@ export function tentmanComponents(options = {}) {
 					throw enrichedError;
 				}
 			});
+
+			prependMdsvexImports(tree, file);
 		};
 	};
 }

@@ -6,8 +6,10 @@
 	import {
 		loadContentComponentRegistryForMode
 	} from '$lib/content-components/browser';
+	import { getUnknownEnabledContentComponentErrors } from '$lib/content-components/availability';
 	import { filterContentComponentRegistry } from '$lib/content-components/registry';
 	import { applyPreviewContentComponentTransforms } from '$lib/content-components/preview';
+	import { collectContentComponentReferenceState } from '$lib/content-components/references';
 	import { localContent } from '$lib/stores/local-content';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
@@ -20,9 +22,17 @@
 		block: BlockUsage;
 		value: ContentValue | undefined;
 		blockRegistry: BlockRegistry;
+		rootBlocks?: BlockUsage[];
+		rootContentItem?: ContentRecord | null;
 	}
 
-	let { block, value, blockRegistry }: Props = $props();
+	let {
+		block,
+		value,
+		blockRegistry,
+		rootBlocks = undefined,
+		rootContentItem = null
+	}: Props = $props();
 	let previewMarkdown = $state(typeof value === 'string' ? value : '');
 	let previewComponentError = $state<string | null>(null);
 
@@ -65,6 +75,28 @@
 		return getActiveRootConfig()?.componentsDir;
 	}
 
+	function getReferencePreviewOptions() {
+		if (!rootBlocks?.length || !rootContentItem) {
+			return {
+				contentItem: null,
+				referenceIndex: new Map<string, Map<string, unknown>>(),
+				errors: [] as string[]
+			};
+		}
+
+		const referenceState = collectContentComponentReferenceState({
+			blocks: rootBlocks,
+			contentItem: rootContentItem,
+			blockRegistry
+		});
+
+		return {
+			contentItem: rootContentItem,
+			referenceIndex: referenceState.referenceIndex as Map<string, Map<string, unknown>>,
+			errors: referenceState.errors
+		};
+	}
+
 	$effect(() => {
 		if (block.type !== 'markdown' || typeof value !== 'string') {
 			previewMarkdown = typeof value === 'string' ? value : '';
@@ -79,6 +111,7 @@
 			try {
 				const errors: string[] = [];
 				let nextMarkdown = markdownValue;
+				const referencePreviewOptions = getReferencePreviewOptions();
 
 				const componentRegistry = await loadContentComponentRegistryForMode(getComponentMode(), {
 					scopeKey: getComponentScopeKey(),
@@ -92,16 +125,20 @@
 					componentRegistry.components.map((component) => component.definition.name)
 				);
 				errors.push(
-					...((block.components ?? [])
-						.filter((name, index, values) => values.indexOf(name) === index)
-						.filter((name) => !discoveredNames.has(name))
-						.map((name) => `Markdown preview enables unknown content component "${name}"`))
+					...getUnknownEnabledContentComponentErrors(
+						block.components,
+						discoveredNames,
+						'Markdown preview enables'
+					)
 				);
+				errors.push(...referencePreviewOptions.errors);
 				const componentPreview = applyPreviewContentComponentTransforms(
 					nextMarkdown,
 					enabledComponentRegistry,
 					{
-						availableRegistry: componentRegistry
+						availableRegistry: componentRegistry,
+						contentItem: referencePreviewOptions.contentItem,
+						referenceIndex: referencePreviewOptions.referenceIndex
 					}
 				);
 				nextMarkdown = componentPreview.markdown;
@@ -155,6 +192,8 @@
 												block={childBlock}
 												value={(item as ContentRecord)[childBlock.id]}
 												{blockRegistry}
+												{rootBlocks}
+												{rootContentItem}
 											/>
 										</dd>
 									</div>
@@ -179,6 +218,8 @@
 							block={childBlock}
 							value={(value as ContentRecord)[childBlock.id]}
 							{blockRegistry}
+							{rootBlocks}
+							{rootContentItem}
 						/>
 					</dd>
 				</div>

@@ -113,7 +113,9 @@
 	const collectionItemsBySlug = $derived(
 		isLocalMode ? localCollectionItemsBySlug : githubCollectionItemsBySlug
 	);
-	const configStatesBySlug = $derived(isLocalMode ? localConfigStatesBySlug : githubConfigStatesBySlug);
+	const configStatesBySlug = $derived(
+		isLocalMode ? localConfigStatesBySlug : githubConfigStatesBySlug
+	);
 	const currentPageSlug = $derived(page.params.page ?? null);
 	const currentItemId = $derived(page.params.itemId ?? null);
 	const isEditorRoute = $derived(/\/(?:new|edit)$/.test(page.url.pathname));
@@ -458,12 +460,7 @@
 
 						return [
 							config.slug,
-							getOrderedCollectionNavigation(
-								config.config,
-								content,
-								navigationManifest,
-								rootConfig
-							)
+							getOrderedCollectionNavigation(config.config, content, navigationManifest, rootConfig)
 						] as const;
 					} catch (error) {
 						console.error(`Failed to load local collection items for ${config.slug}:`, error);
@@ -501,7 +498,10 @@
 						config.path
 					);
 
-					return [config.slug, resolveContentDocumentState(config.config, content, rootConfig)] as const;
+					return [
+						config.slug,
+						resolveContentDocumentState(config.config, content, rootConfig)
+					] as const;
 				} catch (error) {
 					console.error(`Failed to load config state for ${config.slug}:`, error);
 					return [config.slug, null] as const;
@@ -869,11 +869,11 @@
 			{/if}
 
 			<section
-				class="min-h-0 min-w-0 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6"
+				class="min-h-0 min-w-0 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6 relative"
 				data-testid="pages-main-panel"
 			>
 				<div
-					class="mx-auto w-full max-w-[var(--workspace-content-max-width)]"
+					class="mx-auto w-full max-w-(--workspace-content-max-width)"
 					style={`--workspace-content-max-width: ${isEditorRoute ? '72rem' : '44rem'}`}
 				>
 					<RemountOnValue

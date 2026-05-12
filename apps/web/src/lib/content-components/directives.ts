@@ -11,6 +11,15 @@ export interface ParsedContentDirectiveMatch {
 	offset: number;
 }
 
+export interface ParsedContentDirectiveIssue {
+	raw: string;
+	name: string;
+	markdownLabel?: string;
+	attributes: Record<string, string>;
+	offset: number;
+	error: string;
+}
+
 export function parseDirectiveAttributes(source: string): Record<string, string> {
 	ATTRIBUTE_PATTERN.lastIndex = 0;
 	const attributes: Record<string, string> = {};
@@ -61,7 +70,7 @@ export function getMarkdownLabelAttributeName(
 export function getDirectivePattern(kind: 'inline' | 'block'): RegExp {
 	return kind === 'inline'
 		? new RegExp(
-				`:(?<name>${DIRECTIVE_NAME_PATTERN})(?:\\[(?<label>[^\\]]*)\\])?(?:\\{(?<attributes>[^}]*)\\})?`,
+				`(?<!:):(?<name>${DIRECTIVE_NAME_PATTERN})(?:\\[(?<label>[^\\]]*)\\])?(?:\\{(?<attributes>[^}]*)\\})?`,
 				'g'
 			)
 		: new RegExp(
@@ -74,8 +83,19 @@ export function parseContentDirectiveMatches(
 	source: string,
 	kind: 'inline' | 'block'
 ): ParsedContentDirectiveMatch[] {
+	return parseContentDirectiveMatchesSafe(source, kind).matches;
+}
+
+export function parseContentDirectiveMatchesSafe(
+	source: string,
+	kind: 'inline' | 'block'
+): {
+	matches: ParsedContentDirectiveMatch[];
+	issues: ParsedContentDirectiveIssue[];
+} {
 	const pattern = getDirectivePattern(kind);
 	const matches: ParsedContentDirectiveMatch[] = [];
+	const issues: ParsedContentDirectiveIssue[] = [];
 
 	for (const match of source.matchAll(pattern)) {
 		const groups = match.groups ?? {};
@@ -83,16 +103,33 @@ export function parseContentDirectiveMatches(
 			continue;
 		}
 
-		matches.push({
-			raw: match[0],
-			name: groups.name,
-			markdownLabel: groups.label,
-			attributes: parseDirectiveAttributes(groups.attributes ?? ''),
-			offset: match.index ?? 0
-		});
+		try {
+			matches.push({
+				raw: match[0],
+				name: groups.name,
+				markdownLabel: groups.label,
+				attributes: parseDirectiveAttributes(groups.attributes ?? ''),
+				offset: match.index ?? 0
+			});
+		} catch (error) {
+			issues.push({
+				raw: match[0],
+				name: groups.name,
+				markdownLabel: groups.label,
+				attributes: {},
+				offset: match.index ?? 0,
+				error:
+					error instanceof Error
+						? error.message
+						: `Could not parse directive attributes: ${groups.attributes ?? ''}`
+			});
+		}
 	}
 
-	return matches;
+	return {
+		matches,
+		issues
+	};
 }
 
 export function serializeContentComponentDirective(

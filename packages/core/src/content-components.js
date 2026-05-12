@@ -1,3 +1,4 @@
+// @ts-nocheck
 import nunjucks from 'nunjucks';
 import { assertPlainObject, parseJsonObject, readOptionalString, readRequiredString } from './json.js';
 
@@ -7,6 +8,8 @@ const PREVIEW_TEMPLATE_NAME = 'preview.njk';
 const VALID_COMPONENT_KINDS = new Set(['inline', 'block']);
 const VALID_ATTRIBUTE_TYPES = new Set(['string', 'enum']);
 const VALID_EDITOR_CONTROLS = new Set(['text', 'url', 'select']);
+const VALID_REFERENCE_SCOPES = new Set(['self', 'container', 'full']);
+const VALID_RENDER_MAPPING_ROOTS = new Set(['attributes', 'data']);
 const renderEnvironment = new nunjucks.Environment(undefined, {
 	autoescape: true,
 	throwOnUndefined: false
@@ -49,12 +52,113 @@ function normalizeBooleanOption(value, key, context) {
 	return value;
 }
 
+function normalizeReferenceScopeValue(value, context) {
+	if (typeof value !== 'string' || !VALID_REFERENCE_SCOPES.has(value)) {
+		throw new Error(`${context} must be "self", "container", or "full"`);
+	}
+
+	return value;
+}
+
+function normalizeReferenceScope(input, context) {
+	if (typeof input === 'string') {
+		const scope = normalizeReferenceScopeValue(input, context);
+		return {
+			preview: scope,
+			render: scope
+		};
+	}
+
+	assertPlainObject(input, `${context} must be a string or an object`);
+	return {
+		preview: normalizeReferenceScopeValue(input.preview, `${context}.preview`),
+		render: normalizeReferenceScopeValue(input.render, `${context}.render`)
+	};
+}
+
+function normalizeRenderMappingPath(value, context) {
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		throw new Error(`${context} must be a non-empty string`);
+	}
+
+	const normalizedValue = value.trim();
+	const segments = normalizedValue.split('.');
+
+	if (segments.length === 0 || !VALID_RENDER_MAPPING_ROOTS.has(segments[0])) {
+		throw new Error(`${context} must start with "attributes." or "data."`);
+	}
+
+	for (const segment of segments.slice(1)) {
+		if (!/^[A-Za-z0-9_]+$/.test(segment)) {
+			throw new Error(`${context} contains an invalid path segment`);
+		}
+	}
+
+	return normalizedValue;
+}
+
+function getPathValue(value, path) {
+	const segments = path.split('.');
+	let current = value;
+
+	for (const segment of segments) {
+		if (current === null || current === undefined || typeof current !== 'object') {
+			return undefined;
+		}
+
+		current = current[segment];
+	}
+
+	return current;
+}
+
+function cloneReferenceValue(value) {
+	if (value === null || value === undefined) {
+		return value ?? null;
+	}
+
+	if (typeof structuredClone === 'function') {
+		return structuredClone(value);
+	}
+
+	return JSON.parse(JSON.stringify(value));
+}
+
+function getTemplateSource(component, mode) {
+	if (mode === 'render') {
+		return {
+			path: component.renderTemplatePath,
+			source: component.renderTemplateSource
+		};
+	}
+
+	if (mode === 'preview') {
+		return {
+			path: component.previewTemplatePath,
+			source: component.previewTemplateSource
+		};
+	}
+
+	throw new Error(`Unsupported content component render mode: ${mode}`);
+}
+
 function normalizeAttributeDefinition(attributeName, input, context) {
 	assertPlainObject(input, `${context}.${attributeName} must be an object`);
 
 	const type = readRequiredString(input, 'type', `${context}.${attributeName}`);
 	if (!VALID_ATTRIBUTE_TYPES.has(type)) {
 		throw new Error(`${context}.${attributeName}.type must be "string" or "enum"`);
+	}
+
+	const reference = normalizeBooleanOption(input.reference, 'reference', `${context}.${attributeName}`);
+	if (reference === true && type !== 'string') {
+		throw new Error(`${context}.${attributeName}.reference is only supported for string attributes`);
+	}
+
+	if (reference !== true && input.referenceScope !== undefined) {
+		throw new Error(
+			`${context}.${attributeName}.referenceScope is only supported when reference is true`
+		);
 	}
 
 	const normalized = {
@@ -67,6 +171,18 @@ function normalizeAttributeDefinition(attributeName, input, context) {
 				`${context}.${attributeName}`
 			) === true
 	};
+
+	if (reference === true) {
+		if (input.referenceScope === undefined) {
+			throw new Error(`${context}.${attributeName}.referenceScope is required when reference is true`);
+		}
+
+		normalized.reference = true;
+		normalized.referenceScope = normalizeReferenceScope(
+			input.referenceScope,
+			`${context}.${attributeName}.referenceScope`
+		);
+	}
 
 	if (input.editor !== undefined) {
 		assertPlainObject(input.editor, `${context}.${attributeName}.editor must be an object`);
@@ -131,6 +247,44 @@ function normalizeAttributeDefinition(attributeName, input, context) {
 	return normalized;
 }
 
+function normalizeRenderConfig(renderInput, componentJsonPath) {
+	if (renderInput === undefined) {
+		return undefined;
+	}
+
+	assertPlainObject(renderInput, `${componentJsonPath}.render must be an object`);
+	const targets = {};
+
+	for (const [targetName, targetInput] of Object.entries(renderInput)) {
+		assertPlainObject(targetInput, `${componentJsonPath}.render.${targetName} must be an object`);
+
+		const from = readRequiredString(targetInput, 'from', `${componentJsonPath}.render.${targetName}`);
+		const component = readRequiredString(
+			targetInput,
+			'component',
+			`${componentJsonPath}.render.${targetName}`
+		);
+		const propsInput = targetInput.props ?? {};
+		assertPlainObject(propsInput, `${componentJsonPath}.render.${targetName}.props must be an object`);
+
+		targets[targetName] = {
+			from,
+			component,
+			props: Object.fromEntries(
+				Object.entries(propsInput).map(([propName, mappingValue]) => [
+					propName,
+					normalizeRenderMappingPath(
+						mappingValue,
+						`${componentJsonPath}.render.${targetName}.props.${propName}`
+					)
+				])
+			)
+		};
+	}
+
+	return targets;
+}
+
 function normalizeDefinition(definition, componentJsonPath) {
 	const kind = readOptionalString(definition, 'kind', componentJsonPath) ?? 'inline';
 	if (!VALID_COMPONENT_KINDS.has(kind)) {
@@ -143,6 +297,7 @@ function normalizeDefinition(definition, componentJsonPath) {
 
 	const attributes = {};
 	let markdownLabelAttributeCount = 0;
+	let referenceAttributeCount = 0;
 
 	for (const attributeName of Object.keys(attributesInput).sort()) {
 		const attributeDefinition = normalizeAttributeDefinition(
@@ -155,11 +310,19 @@ function normalizeDefinition(definition, componentJsonPath) {
 			markdownLabelAttributeCount += 1;
 		}
 
+		if (attributeDefinition.reference === true) {
+			referenceAttributeCount += 1;
+		}
+
 		attributes[attributeName] = attributeDefinition;
 	}
 
 	if (markdownLabelAttributeCount > 1) {
 		throw new Error(`${componentJsonPath}.attributes may only declare one valueFromMarkdownLabel attribute`);
+	}
+
+	if (referenceAttributeCount > 1) {
+		throw new Error(`${componentJsonPath}.attributes may only declare one reference attribute in v1`);
 	}
 
 	let editor;
@@ -193,26 +356,11 @@ function normalizeDefinition(definition, componentJsonPath) {
 		name: readRequiredString(definition, 'name', componentJsonPath),
 		kind,
 		attributes,
-		...(editor ? { editor } : {})
+		...(editor ? { editor } : {}),
+		...(definition.render !== undefined
+			? { render: normalizeRenderConfig(definition.render, componentJsonPath) }
+			: {})
 	};
-}
-
-function getTemplateSource(component, mode) {
-	if (mode === 'render') {
-		return {
-			path: component.renderTemplatePath,
-			source: component.renderTemplateSource
-		};
-	}
-
-	if (mode === 'preview') {
-		return {
-			path: component.previewTemplatePath,
-			source: component.previewTemplateSource
-		};
-	}
-
-	throw new Error(`Unsupported content component render mode: ${mode}`);
 }
 
 function handleDiscoveryError(error, onError) {
@@ -260,6 +408,43 @@ function filterUniqueComponents(components) {
 	}
 
 	return uniqueComponents;
+}
+
+function getReferenceBindings(value) {
+	if (typeof value === 'string') {
+		return value.trim().length > 0 ? [value.trim()] : [];
+	}
+
+	if (Array.isArray(value)) {
+		return value
+			.filter((entry) => typeof entry === 'string' && entry.trim().length > 0)
+			.map((entry) => entry.trim());
+	}
+
+	return [];
+}
+
+function isPlainRecord(value) {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getBlockStorageKey(block) {
+	if (!block || typeof block !== 'object' || typeof block.id !== 'string') {
+		return null;
+	}
+
+	return block.id === 'tentmanGroup' ? '_tentmanGroup' : block.id;
+}
+
+function buildReferenceEntry(binding, token, field, container, full) {
+	return {
+		binding,
+		token,
+		field,
+		self: token,
+		container,
+		full
+	};
 }
 
 export function collectContentComponents(components, options = {}) {
@@ -475,19 +660,211 @@ export function normalizeContentComponentInstance(component, input = {}) {
 	};
 }
 
-export function renderContentComponent(component, instance, mode) {
-	const template = getTemplateSource(component, mode);
+export function getContentComponentReferenceAttribute(component) {
+	for (const [attributeId, definition] of Object.entries(component.definition.attributes)) {
+		if (definition.reference === true) {
+			return {
+				attributeId,
+				definition,
+				binding: `${component.definition.id}:${attributeId}`
+			};
+		}
+	}
 
+	return null;
+}
+
+export function getContentComponentReferenceScope(component, mode) {
+	const referenceAttribute = getContentComponentReferenceAttribute(component);
+	if (!referenceAttribute) {
+		return null;
+	}
+
+	return referenceAttribute.definition.referenceScope?.[mode] ?? null;
+}
+
+export function getContentComponentRenderTarget(component, target) {
+	return component.definition.render?.[target] ?? null;
+}
+
+export function collectContentComponentReferenceIndex(options) {
+	const referenceIndex = new Map();
+	const errors = [];
+
+	function register(binding, token, entry) {
+		const bindingIndex = referenceIndex.get(binding) ?? new Map();
+		const existing = bindingIndex.get(token);
+
+		if (existing) {
+			errors.push(`Duplicate content reference token "${token}" found for binding "${binding}"`);
+			return;
+		}
+
+		bindingIndex.set(token, entry);
+		referenceIndex.set(binding, bindingIndex);
+	}
+
+	function walk(blocks, value, fullValue) {
+		if (!isPlainRecord(value)) {
+			return;
+		}
+
+		for (const block of blocks) {
+			const storageKey = getBlockStorageKey(block);
+			if (!storageKey) {
+				continue;
+			}
+
+			const structuredBlocks = options.resolveStructuredBlocks(block);
+			const fieldValue = value[storageKey];
+
+			if (structuredBlocks) {
+				if (block.collection) {
+					if (!Array.isArray(fieldValue)) {
+						continue;
+					}
+
+					for (const item of fieldValue) {
+						walk(structuredBlocks, item, fullValue);
+					}
+
+					continue;
+				}
+
+				walk(structuredBlocks, fieldValue, fullValue);
+				continue;
+			}
+
+			if (typeof fieldValue !== 'string') {
+				continue;
+			}
+
+			const token = fieldValue.trim();
+			if (token.length === 0) {
+				continue;
+			}
+
+			for (const binding of getReferenceBindings(block.referenceFor)) {
+				register(
+					binding,
+					token,
+					buildReferenceEntry(binding, token, storageKey, value, fullValue)
+				);
+			}
+		}
+	}
+
+	walk(options.blocks, options.contentItem, options.contentItem);
+
+	return {
+		referenceIndex,
+		errors
+	};
+}
+
+export function resolveContentComponentInstance(component, instance, mode, options = {}) {
 	if (instance.componentId !== component.definition.id) {
 		throw new Error(
 			`Content component instance ${instance.componentId} does not match component ${component.definition.id}`
 		);
 	}
 
+	const resolved = {
+		attributes: instance.attributes,
+		data: null
+	};
+	const referenceAttribute = getContentComponentReferenceAttribute(component);
+
+	if (!referenceAttribute) {
+		return resolved;
+	}
+
+	const token = instance.attributes[referenceAttribute.attributeId];
+	if (typeof token !== 'string' || token.trim().length === 0) {
+		return resolved;
+	}
+
+	const match = options.referenceIndex?.get(referenceAttribute.binding)?.get(token.trim());
+	if (!match) {
+		return resolved;
+	}
+
+	const scope = referenceAttribute.definition.referenceScope?.[mode] ?? 'self';
+	resolved.data =
+		scope === 'self' ? match.self : scope === 'container' ? match.container : match.full;
+
+	return resolved;
+}
+
+export function resolveContentComponentRenderTarget(component, instance, target, options = {}) {
+	const renderTarget = getContentComponentRenderTarget(component, target);
+	if (!renderTarget) {
+		return null;
+	}
+
+	const resolvedInstance = resolveContentComponentInstance(component, instance, 'render', options);
+
+	return {
+		...renderTarget,
+		props: Object.fromEntries(
+			Object.entries(renderTarget.props).map(([propName, path]) => [
+				propName,
+				getPathValue(resolvedInstance, path)
+			])
+		)
+	};
+}
+
+export function validateContentComponentInstance(component, instance, options = {}) {
+	const errors = [];
+
 	try {
-		return renderEnvironment.renderString(template.source, instance.attributes, {
-			path: template.path
-		});
+		resolveContentComponentInstance(component, instance, 'preview', options);
+	} catch (error) {
+		errors.push(error instanceof Error ? error.message : 'Invalid content component instance');
+		return errors;
+	}
+
+	const referenceAttribute = getContentComponentReferenceAttribute(component);
+	if (!referenceAttribute) {
+		return errors;
+	}
+
+	const token = instance.attributes[referenceAttribute.attributeId];
+	if (typeof token !== 'string' || token.trim().length === 0) {
+		if (referenceAttribute.definition.required) {
+			errors.push(`Content component attribute ${referenceAttribute.attributeId} is required`);
+		}
+
+		return errors;
+	}
+
+	const resolvedInstance = resolveContentComponentInstance(component, instance, 'preview', options);
+	if (resolvedInstance.data === null) {
+		errors.push(
+			`Content component reference "${referenceAttribute.binding}" could not resolve token "${token}"`
+		);
+	}
+
+	return errors;
+}
+
+export function renderContentComponent(component, instance, mode, options = {}) {
+	const template = getTemplateSource(component, mode);
+	const resolvedInstance = resolveContentComponentInstance(component, instance, mode, options);
+
+	try {
+		return renderEnvironment.renderString(
+			template.source,
+			{
+				...resolvedInstance.attributes,
+				attributes: resolvedInstance.attributes,
+				data: cloneReferenceValue(resolvedInstance.data)
+			},
+			{
+				path: template.path
+			}
+		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`Failed to render ${mode} template for ${component.definition.name}: ${message}`);

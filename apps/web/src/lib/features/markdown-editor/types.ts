@@ -12,6 +12,8 @@ export interface MarkdownToolbarDialogField {
 	required?: boolean;
 	defaultValue?: string;
 	options?: MarkdownToolbarDialogFieldOption[];
+	getOptions?: (values: Record<string, string>) => MarkdownToolbarDialogFieldOption[];
+	referenceBinding?: string;
 }
 
 export interface MarkdownToolbarDialogContribution {

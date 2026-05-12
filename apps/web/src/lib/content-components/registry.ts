@@ -1,4 +1,7 @@
-import { collectContentComponents } from '@tentman/core/content-components';
+import {
+	collectContentComponents,
+	type CoreLoadedContentComponent
+} from '@tentman/core/content-components';
 import type { RepoEntry, RepositoryBackend } from '$lib/repository/types';
 
 const DEFAULT_COMPONENTS_DIR = 'src/lib/content-components';
@@ -14,20 +17,7 @@ interface LoadedContentComponentFileSet {
 }
 
 export interface ContentComponentRegistry {
-	components: Array<{
-		directory: string;
-		componentJsonPath: string;
-		renderTemplatePath: string;
-		previewTemplatePath: string;
-		renderTemplateSource: string;
-		previewTemplateSource: string;
-		definition: {
-			id: string;
-			name: string;
-			kind: 'inline' | 'block';
-			attributes: Record<string, unknown>;
-		};
-	}>;
+	components: CoreLoadedContentComponent[];
 	errors: string[];
 	getByName(name: string): ContentComponentRegistry['components'][number] | undefined;
 }
@@ -36,7 +26,11 @@ export function filterContentComponentRegistry(
 	registry: ContentComponentRegistry,
 	allowedComponentNames: string[] | undefined
 ): ContentComponentRegistry {
-	if (!allowedComponentNames || allowedComponentNames.length === 0) {
+	if (!allowedComponentNames) {
+		return registry;
+	}
+
+	if (allowedComponentNames.length === 0) {
 		return {
 			components: [],
 			errors: registry.errors,

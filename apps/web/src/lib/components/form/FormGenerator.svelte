@@ -10,16 +10,20 @@
 		type FormDirtyState,
 		type PrepareSubmitResult
 	} from '$lib/features/forms/edit-session';
-	import {
-		FORM_SIDE_PANEL,
-		type FormSidePanelContext,
-		type FormSidePanelState
-	} from '$lib/features/forms/side-panel';
-	import { validateFormData, type ValidationError } from '$lib/utils/validation';
-	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
-	import type { ContentRecord } from '$lib/features/content-management/types';
-	import SidePanelHost from './SidePanelHost.svelte';
-	import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
+import {
+	FORM_SIDE_PANEL,
+	type FormSidePanelContext,
+	type FormSidePanelState
+} from '$lib/features/forms/side-panel';
+import { validateFormData, type ValidationError } from '$lib/utils/validation';
+import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
+import type { ContentRecord } from '$lib/features/content-management/types';
+import {
+	FORM_CONTENT_CONTEXT,
+	type FormContentContext
+} from '$lib/components/form/form-content-context';
+import SidePanelHost from './SidePanelHost.svelte';
+import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
 	interface Props {
 		config: ParsedContentConfig;
@@ -99,19 +103,37 @@
 
 	let formData = $state<Record<string, any>>(editSession.getData());
 	let validationErrors = $state<ValidationError[]>([]);
+	let customFieldErrors = $state<Record<string, string[]>>({});
 	let showErrors = $state(false);
 	let touchedFields = $state<Set<string>>(new Set()); // Track which fields have been interacted with
 
+	setContext<FormContentContext>(FORM_CONTENT_CONTEXT, {
+		getRootBlocks() {
+			return config.blocks;
+		},
+		getRootData() {
+			return editSession.getData();
+		},
+		getBlockRegistry() {
+			return blockRegistry;
+		}
+	});
+
 	function validateData(data: ContentRecord): { data: ContentRecord; errors: ValidationError[] } {
-		const errors = validateFormData(
-			config,
-			data,
-			{
-				existingItems,
-				currentItemId
-			},
-			blockRegistry
-		);
+		const errors = [
+			...validateFormData(
+				config,
+				data,
+				{
+					existingItems,
+					currentItemId
+				},
+				blockRegistry
+			),
+			...Object.entries(customFieldErrors).flatMap(([field, messages]) =>
+				messages.map((message) => ({ field, message }))
+			)
+		];
 		validationErrors = errors;
 		showErrors = true;
 		onvalidate?.(data, errors);
@@ -169,15 +191,20 @@
 
 		if (realtimeValidation) {
 			// Run validation on change
-			const errors = validateFormData(
-				config,
-				formData,
-				{
-					existingItems,
-					currentItemId
-				},
-				blockRegistry
-			);
+			const errors = [
+				...validateFormData(
+					config,
+					formData,
+					{
+						existingItems,
+						currentItemId
+					},
+					blockRegistry
+				),
+				...Object.entries(customFieldErrors).flatMap(([field, messages]) =>
+					messages.map((message) => ({ field, message }))
+				)
+			];
 			validationErrors = errors;
 			// Only show errors for touched fields in real-time mode
 			showErrors = touchedFields.size > 0;
@@ -188,6 +215,32 @@
 					(err) => err.field !== fieldName && err.field !== '_panel'
 				);
 			}
+		}
+	}
+
+	function handleFieldValidationChange(fieldName: string, errors: string[]) {
+		customFieldErrors = {
+			...customFieldErrors,
+			[fieldName]: errors
+		};
+
+		if (realtimeValidation && touchedFields.has(fieldName)) {
+			validationErrors = [
+				...validateFormData(
+					config,
+					formData,
+					{
+						existingItems,
+						currentItemId
+					},
+					blockRegistry
+				),
+				...Object.entries({
+					...customFieldErrors,
+					[fieldName]: errors
+				}).flatMap(([field, messages]) => messages.map((message) => ({ field, message })))
+			];
+			showErrors = true;
 		}
 	}
 
@@ -257,6 +310,7 @@
 			showValidationErrors={showErrors}
 			getFieldError={getFieldError}
 			onchange={handleFieldChange}
+			onvalidationchange={handleFieldValidationChange}
 		/>
 	</div>
 

@@ -42,6 +42,8 @@ type LegacyFieldInput =
 			itemLabel?: unknown;
 			assetsDir?: unknown;
 			options?: unknown;
+			referenceFor?: unknown;
+			referenceLabel?: unknown;
 	  };
 type LegacyFieldArrayItem = {
 	property?: unknown;
@@ -57,6 +59,8 @@ type LegacyFieldArrayItem = {
 	itemLabel?: unknown;
 	assetsDir?: unknown;
 	options?: unknown;
+	referenceFor?: unknown;
+	referenceLabel?: unknown;
 };
 
 function assertObject(value: unknown, message: string): asserts value is Record<string, unknown> {
@@ -122,6 +126,39 @@ function readOptionalStringArray(
 		}
 
 		return item;
+	});
+}
+
+function readOptionalReferenceBindings(
+	value: Record<string, unknown>,
+	context: string
+): string | string[] | undefined {
+	const candidate = value.referenceFor;
+
+	if (candidate === undefined) {
+		return undefined;
+	}
+
+	if (typeof candidate === 'string') {
+		if (candidate.length === 0) {
+			throw new Error(`${context}.referenceFor must be a non-empty string or array of non-empty strings`);
+		}
+
+		return candidate;
+	}
+
+	if (!Array.isArray(candidate) || candidate.length === 0) {
+		throw new Error(`${context}.referenceFor must be a non-empty string or array of non-empty strings`);
+	}
+
+	return candidate.map((entry, index) => {
+		if (typeof entry !== 'string' || entry.length === 0) {
+			throw new Error(
+				`${context}.referenceFor[${index}] must be a non-empty string`
+			);
+		}
+
+		return entry;
 	});
 }
 
@@ -211,6 +248,10 @@ function getLabelFromOptionValue(value: string): string {
 		.replace(/\s+/g, ' ')
 		.trim()
 		.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function supportsPrimitiveReferenceMetadata(type: string): boolean {
+	return type === 'text' || type === 'textarea' || type === 'email' || type === 'url' || type === 'select';
 }
 
 function readBlocks(value: Record<string, unknown>, context: string): BlockUsage[] {
@@ -526,6 +567,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	const show = input.show;
 	const minLength = input.minLength;
 	const maxLength = input.maxLength;
+	const referenceFor = readOptionalReferenceBindings(input, context);
+	const referenceLabel = readOptionalBoolean(input, 'referenceLabel', context);
 	const options = type === 'select' ? readSelectOptions(input, context) : undefined;
 
 	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
@@ -552,6 +595,14 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			throw new Error(`${context}.components is only supported on markdown fields`);
 		}
 
+		if (referenceFor !== undefined) {
+			throw new Error(`${context}.referenceFor is not supported on inline block definitions`);
+		}
+
+		if (referenceLabel !== undefined) {
+			throw new Error(`${context}.referenceLabel is not supported on inline block definitions`);
+		}
+
 		return {
 			id,
 			type,
@@ -573,6 +624,20 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		throw new Error(`${context}.components is only supported on markdown fields`);
 	}
 
+	if (!supportsPrimitiveReferenceMetadata(type)) {
+		if (referenceFor !== undefined) {
+			throw new Error(
+				`${context}.referenceFor is only supported on primitive string-valued source fields`
+			);
+		}
+
+		if (referenceLabel !== undefined) {
+			throw new Error(
+				`${context}.referenceLabel is only supported on primitive string-valued source fields`
+			);
+		}
+	}
+
 	if (type !== 'select' && 'options' in input && input.options !== undefined) {
 		throw new Error(`${context}.options is only supported on select fields`);
 	}
@@ -590,6 +655,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),
+		...(referenceFor !== undefined && { referenceFor }),
+		...(referenceLabel !== undefined && { referenceLabel }),
 		...(options && { options })
 	};
 }
@@ -745,6 +812,12 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	const maxLength = rawField.maxLength;
 	const itemLabel = readOptionalString(rawField as Record<string, unknown>, 'itemLabel', context);
 	const assetsDir = readOptionalString(rawField as Record<string, unknown>, 'assetsDir', context);
+	const referenceFor = readOptionalReferenceBindings(rawField as Record<string, unknown>, context);
+	const referenceLabel = readOptionalBoolean(
+		rawField as Record<string, unknown>,
+		'referenceLabel',
+		context
+	);
 	const options =
 		type === 'select'
 			? readSelectOptions(rawField as Record<string, unknown>, context)
@@ -763,6 +836,14 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	}
 
 	if (type === 'array') {
+		if (referenceFor !== undefined) {
+			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
+		}
+
+		if (referenceLabel !== undefined) {
+			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
+		}
+
 		const nestedBlocks = parseLegacyFields(rawField.fields ?? {}, `${context}.fields`);
 		const editorLayout = parseEditorLayout({ editorLayout: rawField.editorLayout }, nestedBlocks, context);
 
@@ -783,6 +864,16 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 		};
 	}
 
+	if (!supportsPrimitiveReferenceMetadata(type)) {
+		if (referenceFor !== undefined) {
+			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
+		}
+
+		if (referenceLabel !== undefined) {
+			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
+		}
+	}
+
 	return {
 		id,
 		type,
@@ -793,6 +884,8 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),
 		...(assetsDir && { assetsDir }),
+		...(referenceFor !== undefined && { referenceFor }),
+		...(referenceLabel !== undefined && { referenceLabel }),
 		...(options && { options })
 	};
 }
@@ -822,6 +915,8 @@ function parseLegacyFieldObjectEntry(
 	const maxLength = input.maxLength;
 	const itemLabel = readOptionalString(input, 'itemLabel', context);
 	const assetsDir = readOptionalString(input, 'assetsDir', context);
+	const referenceFor = readOptionalReferenceBindings(input, context);
+	const referenceLabel = readOptionalBoolean(input, 'referenceLabel', context);
 	const options = type === 'select' ? readSelectOptions(input, context) : undefined;
 
 	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
@@ -837,6 +932,14 @@ function parseLegacyFieldObjectEntry(
 	}
 
 	if (type === 'array') {
+		if (referenceFor !== undefined) {
+			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
+		}
+
+		if (referenceLabel !== undefined) {
+			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
+		}
+
 		const nestedBlocks = parseLegacyFields(input.fields ?? {}, `${context}.fields`);
 		const editorLayout = parseEditorLayout({ editorLayout: input.editorLayout }, nestedBlocks, context);
 
@@ -857,6 +960,16 @@ function parseLegacyFieldObjectEntry(
 		};
 	}
 
+	if (!supportsPrimitiveReferenceMetadata(type)) {
+		if (referenceFor !== undefined) {
+			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
+		}
+
+		if (referenceLabel !== undefined) {
+			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
+		}
+	}
+
 	return {
 		id: normalizedId,
 		type,
@@ -867,6 +980,8 @@ function parseLegacyFieldObjectEntry(
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),
 		...(assetsDir && { assetsDir }),
+		...(referenceFor !== undefined && { referenceFor }),
+		...(referenceLabel !== undefined && { referenceLabel }),
 		...(options && { options })
 	};
 }

@@ -1,6 +1,10 @@
+// Legacy Vitest Browser Mode spec retained for reference only.
+// Stable browser coverage now lives in tests/playwright/markdown-field.spec.ts.
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import type { ContentComponentRegistry } from '$lib/content-components/registry';
+import FormGeneratorSubmitHarness from '$lib/test/fixtures/FormGeneratorSubmitHarness.svelte';
 
 const draftAssetStoreMocks = vi.hoisted(() => ({
 	create: vi.fn(),
@@ -89,7 +93,8 @@ vi.mock('$lib/stores/local-content', () => ({
 }));
 
 vi.mock('$lib/content-components/browser', () => ({
-	loadContentComponentRegistryForMode: contentComponentLoaderMocks.loadContentComponentRegistryForMode
+	loadContentComponentRegistryForMode:
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode
 }));
 
 import MarkdownField from './MarkdownField.svelte';
@@ -149,6 +154,42 @@ function createBuyButtonContentComponentRegistry(): ContentComponentRegistry {
 					type: 'enum' as const,
 					default: 'default',
 					options: ['default', 'secondary']
+				}
+			}
+		}
+	};
+
+	return {
+		components: [component],
+		errors: [],
+		getByName(name: string) {
+			return name === component.definition.name ? component : undefined;
+		}
+	};
+}
+
+function createProjectGalleryContentComponentRegistry(): ContentComponentRegistry {
+	const component = {
+		directory: 'src/lib/content-components/project-gallery',
+		componentJsonPath: 'src/lib/content-components/project-gallery/component.json',
+		renderTemplatePath: 'src/lib/content-components/project-gallery/render.njk',
+		previewTemplatePath: 'src/lib/content-components/project-gallery/preview.njk',
+		renderTemplateSource: '<div>Gallery</div>',
+		previewTemplateSource:
+			'<div class="tm-component-preview tm-component-preview--project-gallery">{% if data %}Project gallery: {{ data.title | escape }}{% else %}Missing gallery reference{% endif %}</div>',
+		definition: {
+			id: 'project-gallery',
+			name: 'project-gallery',
+			kind: 'block' as const,
+			attributes: {
+				galleryId: {
+					type: 'string' as const,
+					required: true,
+					reference: true,
+					referenceScope: 'container' as const,
+					editor: {
+						label: 'Gallery'
+					}
 				}
 			}
 		}
@@ -427,15 +468,13 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByRole('button', { name: 'Buy Button' }).click();
 		await expect.element(screen.getByText('URL is required.')).toBeVisible();
-		await expect
-			.element(screen.getByRole('button', { name: 'Save buy button' }))
-			.toBeDisabled();
+		await expect.element(screen.getByRole('button', { name: 'Save buy button' })).toBeDisabled();
 
 		await screen.getByLabelText('URL *').fill('https://example.com/buy');
-		await expect.poll(() => document.querySelector('[role="alert"]')?.textContent ?? null).toBeNull();
 		await expect
-			.element(screen.getByRole('button', { name: 'Save buy button' }))
-			.toBeEnabled();
+			.poll(() => document.querySelector('[role="alert"]')?.textContent ?? null)
+			.toBeNull();
+		await expect.element(screen.getByRole('button', { name: 'Save buy button' })).toBeEnabled();
 	});
 
 	it('focuses and dismisses content component dialogs from the keyboard', async () => {
@@ -491,6 +530,39 @@ describe('components/form/MarkdownField.svelte', () => {
 			.toHaveValue(':buy-button[New label]{href="https://example.com/new" variant="default"}');
 	});
 
+	it('keeps incomplete component markers visible and reopens them with recovered values', async () => {
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
+			createBuyButtonContentComponentRegistry()
+		);
+
+		const screen = render(MarkdownField, {
+			fieldId: 'body',
+			label: 'Body',
+			value: ':buy-button[Old label]{href="https://example.com/old"'
+		});
+
+		await expect.element(screen.getByText(/Could not parse directive attributes/i)).toBeVisible();
+
+		await screen.getByText(/Could not parse directive attributes/i).click();
+		await expect.element(screen.getByText('Edit Buy Button')).toBeVisible();
+		await expect.element(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
+		await expect.element(screen.getByLabelText('Label *')).toHaveValue('Old label');
+
+		const variantSelect = document.querySelector('select');
+		if (!(variantSelect instanceof HTMLSelectElement)) {
+			throw new Error('Expected buy button variant select');
+		}
+		variantSelect.value = 'secondary';
+		variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
+		await screen.getByRole('button', { name: 'Save buy button' }).click();
+
+		await expect.element(screen.getByText('Buy button: Old label')).toBeVisible();
+		await screen.getByRole('button', { name: 'Markdown' }).click();
+		await expect
+			.element(screen.getByLabelText('Body'))
+			.toHaveValue(':buy-button[Old label]{href="https://example.com/old" variant="secondary"}');
+	});
+
 	it('re-renders content component previews after edits and opens the editor from the popover', async () => {
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
 			createBuyButtonContentComponentRegistry()
@@ -528,5 +600,233 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByText('Buy button: Buy now').click(modifierClickOptions);
 		expect(openSpy).toHaveBeenCalledWith('https://example.com/shop', '_blank', 'noopener');
+	});
+
+	it('opens the edit dialog directly for non-link content components', async () => {
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
+			createProjectGalleryContentComponentRegistry()
+		);
+
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Projects',
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: [
+					{
+						id: 'body',
+						type: 'markdown',
+						label: 'Body',
+						components: ['project-gallery']
+					},
+					{
+						id: 'galleries',
+						type: 'block',
+						label: 'Galleries',
+						collection: true,
+						itemLabel: 'Gallery',
+						blocks: [
+							{
+								id: 'id',
+								type: 'text',
+								label: 'Gallery ID',
+								referenceFor: 'project-gallery:galleryId'
+							},
+							{
+								id: 'title',
+								type: 'text',
+								label: 'Title',
+								referenceLabel: true
+							}
+						]
+					}
+				]
+			},
+			initialData: {
+				body: '::project-gallery{galleryId="city-sketches"}',
+				galleries: [
+					{
+						id: 'city-sketches',
+						title: 'City sketches'
+					}
+				]
+			}
+		});
+
+		await screen.getByText('Project gallery: City sketches').click();
+		await expect.element(screen.getByText('Edit Project Gallery')).toBeVisible();
+	});
+
+	it('shows reference attribute options from the current content item', async () => {
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
+			createProjectGalleryContentComponentRegistry()
+		);
+
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Projects',
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: [
+					{
+						id: 'body',
+						type: 'markdown',
+						label: 'Body',
+						components: ['project-gallery']
+					},
+					{
+						id: 'galleries',
+						type: 'block',
+						label: 'Galleries',
+						collection: true,
+						itemLabel: 'Gallery',
+						blocks: [
+							{
+								id: 'id',
+								type: 'text',
+								label: 'Gallery ID',
+								referenceFor: 'project-gallery:galleryId'
+							},
+							{
+								id: 'title',
+								type: 'text',
+								label: 'Title',
+								referenceLabel: true
+							}
+						]
+					}
+				]
+			},
+			initialData: {
+				body: '',
+				galleries: [
+					{
+						id: 'city-sketches',
+						title: 'City sketches'
+					},
+					{
+						id: 'paper-notes',
+						title: 'Paper notes'
+					}
+				]
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Project Gallery' }).click();
+		const select = document.querySelector('select');
+		if (!(select instanceof HTMLSelectElement)) {
+			throw new Error('Expected gallery reference select');
+		}
+
+		const options = Array.from(select.options).map((option) => ({
+			label: option.label,
+			value: option.value
+		}));
+		expect(options).toEqual([
+			{ label: 'Select gallery', value: '' },
+			{ label: 'City sketches', value: 'city-sketches' },
+			{ label: 'Paper notes', value: 'paper-notes' }
+		]);
+	});
+
+	it('blocks submit while markdown contains an unresolved referenced component', async () => {
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
+			createProjectGalleryContentComponentRegistry()
+		);
+
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Projects',
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: [
+					{
+						id: 'body',
+						type: 'markdown',
+						label: 'Body',
+						components: ['project-gallery']
+					},
+					{
+						id: 'galleries',
+						type: 'block',
+						label: 'Galleries',
+						collection: true,
+						itemLabel: 'Gallery',
+						blocks: [
+							{
+								id: 'id',
+								type: 'text',
+								label: 'Gallery ID',
+								referenceFor: 'project-gallery:galleryId'
+							},
+							{
+								id: 'title',
+								type: 'text',
+								label: 'Title',
+								referenceLabel: true
+							}
+						]
+					}
+				]
+			},
+			initialData: {
+				body: '::project-gallery{galleryId="missing-gallery"}',
+				galleries: [
+					{
+						id: 'city-sketches',
+						title: 'City sketches'
+					}
+				]
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+		await expect
+			.element(screen.getByTestId('submit-error'))
+			.toHaveTextContent(/could not resolve token "missing-gallery"/);
+		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent('');
+	});
+
+	it('blocks submit while markdown contains an incomplete content component marker', async () => {
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
+			createBuyButtonContentComponentRegistry()
+		);
+
+		const screen = render(FormGeneratorSubmitHarness, {
+			config: {
+				type: 'content',
+				label: 'Body content',
+				content: {
+					mode: 'file',
+					path: 'src/content/body.json'
+				},
+				blocks: [
+					{
+						id: 'body',
+						type: 'markdown',
+						label: 'Body',
+						components: ['buy-button']
+					}
+				]
+			},
+			initialData: {
+				body: ':buy-button[Broken]{href="https://example.com/buy"'
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+		await expect
+			.element(screen.getByTestId('submit-error'))
+			.toHaveTextContent(/could not parse directive attributes/i);
+		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent('');
 	});
 });

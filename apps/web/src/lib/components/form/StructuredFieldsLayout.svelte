@@ -25,6 +25,7 @@
 			label: string;
 		}) => Promise<void>;
 		onchange?: (fieldName: string) => void;
+		onvalidationchange?: (fieldName: string, errors: string[]) => void;
 		getFieldError?: (fieldName: string) => string | undefined;
 		showValidationErrors?: boolean;
 		editorLayout?: EditorLayoutConfig;
@@ -39,6 +40,7 @@
 		navigationManifest,
 		onaddselectoption,
 		onchange,
+		onvalidationchange,
 		getFieldError,
 		showValidationErrors = false,
 		editorLayout
@@ -99,6 +101,7 @@
 						{navigationManifest}
 						{onaddselectoption}
 						onchange={() => onchange?.(getFieldPath(block))}
+						onvalidationchange={(errors) => onvalidationchange?.(getFieldPath(block), errors)}
 					/>
 					{#if showValidationErrors && getError(block)}
 						<div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">
@@ -163,6 +166,7 @@
 										{navigationManifest}
 										{onaddselectoption}
 										onchange={() => onchange?.(getFieldPath(block))}
+										onvalidationchange={(errors) => onvalidationchange?.(getFieldPath(block), errors)}
 									/>
 									{#if showValidationErrors && getError(block)}
 										<div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">

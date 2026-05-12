@@ -366,6 +366,75 @@ describe('parseConfigFile', () => {
 		});
 	});
 
+	it('preserves reference metadata on primitive string-valued source fields', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Homepage",
+			"content": {
+				"mode": "file",
+				"path": "./homepage.json"
+			},
+			"blocks": [
+				{
+					"id": "gallery",
+					"type": "block",
+					"label": "Gallery",
+					"blocks": [
+						{
+							"id": "referenceToken",
+							"type": "text",
+							"label": "Reference token",
+							"referenceFor": ["gallery-embed:galleryRef"]
+						},
+						{
+							"id": "title",
+							"type": "text",
+							"label": "Title",
+							"referenceLabel": true
+						}
+					]
+				}
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks[0]).toMatchObject({
+			id: 'gallery',
+			type: 'block',
+			blocks: [
+				{
+					id: 'referenceToken',
+					type: 'text',
+					referenceFor: ['gallery-embed:galleryRef']
+				},
+				{
+					id: 'title',
+					type: 'text',
+					referenceLabel: true
+				}
+			]
+		});
+	});
+
+	it('rejects reference metadata on unsupported source field types', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Gallery",
+				"content": {
+					"mode": "file",
+					"path": "./gallery.json"
+				},
+				"blocks": [
+					{ "id": "published", "type": "toggle", "referenceFor": "gallery-embed:galleryRef" }
+				]
+			}`)
+		).toThrow(/referenceFor is only supported on primitive string-valued source fields/);
+	});
+
 	it('parses toggle blocks as built-in primitive fields', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",
@@ -602,6 +671,58 @@ describe('parseConfigFile', () => {
 					{ id: 'label', type: 'text' },
 					{ id: 'url', type: 'url' },
 					{ id: 'note', type: 'text' }
+				]
+			}
+		]);
+	});
+
+	it('preserves reference metadata in legacy nested field configs', () => {
+		const parsed = parseConfigFile(`{
+			"label": "Homepage",
+			"contentFile": "./homepage.json",
+			"fields": {
+				"title": {
+					"type": "text"
+				},
+				"gallery": {
+					"type": "array",
+					"fields": [
+						{
+							"property": "referenceToken",
+							"type": "text",
+							"referenceFor": "gallery-embed:galleryRef"
+						},
+						{
+							"property": "title",
+							"type": "text",
+							"referenceLabel": true
+						}
+					]
+				}
+			}
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks).toMatchObject([
+			{ id: 'title', type: 'text' },
+			{
+				id: 'gallery',
+				type: 'block',
+				collection: true,
+				blocks: [
+					{
+						id: 'referenceToken',
+						type: 'text',
+						referenceFor: 'gallery-embed:galleryRef'
+					},
+					{
+						id: 'title',
+						type: 'text',
+						referenceLabel: true
+					}
 				]
 			}
 		]);

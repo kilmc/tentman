@@ -5,6 +5,16 @@ declare module '@tentman/core/content-components' {
 		default?: string;
 		options?: string[];
 		valueFromMarkdownLabel?: boolean;
+		reference?: boolean;
+		referenceScope?: {
+			preview: 'self' | 'container' | 'full';
+			render: 'self' | 'container' | 'full';
+		};
+		editor?: {
+			label?: string;
+			control?: 'text' | 'url' | 'select';
+			hidden?: boolean;
+		};
 	}
 
 	export interface CoreLoadedContentComponent {
@@ -19,6 +29,14 @@ declare module '@tentman/core/content-components' {
 			name: string;
 			kind: 'inline' | 'block';
 			attributes: Record<string, CoreContentComponentAttributeDefinition>;
+			render?: Record<
+				string,
+				{
+					from: string;
+					component: string;
+					props: Record<string, string>;
+				}
+			>;
 		};
 	}
 
@@ -27,6 +45,15 @@ declare module '@tentman/core/content-components' {
 		componentName: string;
 		kind: 'inline' | 'block';
 		attributes: Record<string, string>;
+	}
+
+	export interface CoreContentComponentReferenceEntry {
+		binding: string;
+		token: string;
+		field: string;
+		self: unknown;
+		container: unknown;
+		full: unknown;
 	}
 
 	export function collectContentComponents(
@@ -45,6 +72,79 @@ declare module '@tentman/core/content-components' {
 	export function renderContentComponent(
 		component: CoreLoadedContentComponent,
 		instance: CoreNormalizedContentComponentInstance,
-		mode: 'render' | 'preview'
+		mode: 'render' | 'preview',
+		options?: {
+			contentItem?: object | null;
+			referenceIndex?: Map<string, Map<string, unknown>>;
+		}
 	): string;
+
+	export function getContentComponentReferenceAttribute(component: CoreLoadedContentComponent): {
+		attributeId: string;
+		definition: CoreContentComponentAttributeDefinition;
+		binding: string;
+	} | null;
+
+	export function getContentComponentReferenceScope(
+		component: CoreLoadedContentComponent,
+		mode: 'preview' | 'render'
+	): 'self' | 'container' | 'full' | null;
+
+	export function getContentComponentRenderTarget(
+		component: CoreLoadedContentComponent,
+		target: string
+	): {
+		from: string;
+		component: string;
+		props: Record<string, string>;
+	} | null;
+
+	export function collectContentComponentReferenceIndex(options: {
+		blocks: Array<{
+			id?: string;
+			collection?: unknown;
+			referenceFor?: string | string[];
+		}>;
+		contentItem: object;
+		resolveStructuredBlocks: (block: unknown) => Array<Record<string, unknown>> | null;
+	}): {
+		referenceIndex: Map<string, Map<string, CoreContentComponentReferenceEntry>>;
+		errors: string[];
+	};
+
+	export function resolveContentComponentInstance(
+		component: CoreLoadedContentComponent,
+		instance: CoreNormalizedContentComponentInstance,
+		mode: 'preview' | 'render',
+		options?: {
+			contentItem?: object | null;
+			referenceIndex?: Map<string, Map<string, unknown>>;
+		}
+	): {
+		attributes: Record<string, string>;
+		data: unknown;
+	};
+
+	export function resolveContentComponentRenderTarget(
+		component: CoreLoadedContentComponent,
+		instance: CoreNormalizedContentComponentInstance,
+		target: string,
+		options?: {
+			contentItem?: object | null;
+			referenceIndex?: Map<string, Map<string, unknown>>;
+		}
+	): {
+		from: string;
+		component: string;
+		props: Record<string, unknown>;
+	} | null;
+
+	export function validateContentComponentInstance(
+		component: CoreLoadedContentComponent,
+		instance: CoreNormalizedContentComponentInstance,
+		options?: {
+			contentItem?: object | null;
+			referenceIndex?: Map<string, Map<string, unknown>>;
+		}
+	): string[];
 }

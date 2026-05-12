@@ -54,6 +54,8 @@ export interface BaseBlockUsage {
 	minLength?: number;
 	maxLength?: number;
 	options?: SelectBlockOptions;
+	referenceFor?: string | string[];
+	referenceLabel?: boolean;
 }
 
 export interface EditorLayoutConfig {

@@ -29,6 +29,7 @@
 		value: any;
 		fieldPath?: string;
 		onchange?: () => void;
+		onvalidationchange?: (errors: string[]) => void;
 		imagePath?: string; // Custom image storage path from config
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
@@ -45,6 +46,7 @@
 		value = $bindable(),
 		fieldPath,
 		onchange,
+		onvalidationchange,
 		imagePath,
 		blockRegistry,
 		navigationManifest,
@@ -104,6 +106,7 @@
 		{maxLength}
 		components={block.components}
 		{onchange}
+		{onvalidationchange}
 		storagePath={block.assetsDir ?? imagePath}
 		assetsDir={block.assetsDir}
 	/>
