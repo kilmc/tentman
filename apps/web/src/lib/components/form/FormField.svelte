@@ -92,97 +92,70 @@
 	);
 </script>
 
-{#if fieldType === 'text'}
-	<TextField {label} bind:value {required} {minLength} {maxLength} {onchange} />
-{:else if fieldType === 'textarea'}
-	<TextareaField {label} bind:value {required} {minLength} {maxLength} {onchange} />
-{:else if fieldType === 'markdown'}
-	<MarkdownField
-		fieldId={block.id}
-		{label}
-		bind:value
-		{required}
-		{minLength}
-		{maxLength}
-		components={block.components}
-		{onchange}
-		{onvalidationchange}
-		storagePath={block.assetsDir ?? imagePath}
-		assetsDir={block.assetsDir}
-	/>
-{:else if fieldType === 'email'}
-	<EmailField {label} bind:value {required} {onchange} />
-{:else if fieldType === 'url'}
-	<UrlField {label} bind:value {required} {onchange} />
-{:else if fieldType === 'select'}
-	<SelectField
-		{label}
-		bind:value
-		options={selectOptions}
-		{required}
-		{onchange}
-	/>
-{:else if fieldType === 'tentmanGroup'}
-	<SelectField
-		{label}
-		bind:value
-		options={tentmanGroupSelectOptions}
-		sourceOptions={tentmanGroupOptions}
-		{required}
-		{onchange}
-		onaddoption={onaddselectoption}
-	/>
-{:else if fieldType === 'number'}
-	<NumberField {label} bind:value {required} {onchange} />
-{:else if fieldType === 'date'}
-	<DateField {label} bind:value {required} {onchange} />
-{:else if fieldType === 'boolean' || fieldType === 'toggle'}
-	<BooleanField {label} bind:value {required} {onchange} />
-{:else if fieldType === 'image'}
-	<ImageField
-		{label}
-		bind:value
-		{required}
-		{onchange}
-		storagePath={block.assetsDir ?? imagePath}
-		assetsDir={block.assetsDir ?? imagePath}
-	/>
-{:else if fieldType === 'array'}
-	<ArrayField
-		{label}
-		bind:value
-		{fieldPath}
-		blocks={structuredBlocks?.blocks ?? []}
-		editorLayout={structuredBlocks?.editorLayout}
-		itemLabel={block.itemLabel}
-		{required}
-		{onchange}
-		{imagePath}
-		{blockRegistry}
-		{navigationManifest}
-		{onaddselectoption}
-	/>
-{:else if fieldType === 'object'}
-	{#if shouldUseObjectPanel}
-		<StructuredObjectPanelField
+<div data-block-id={block.id} data-field-path={fieldPath}>
+	{#if fieldType === 'text'}
+		<TextField {label} bind:value {required} {minLength} {maxLength} {onchange} />
+	{:else if fieldType === 'textarea'}
+		<TextareaField {label} bind:value {required} {minLength} {maxLength} {onchange} />
+	{:else if fieldType === 'markdown'}
+		<MarkdownField
+			fieldId={block.id}
 			{label}
 			bind:value
-			{fieldPath}
-			blocks={structuredBlocks?.blocks ?? []}
-			editorLayout={structuredBlocks?.editorLayout}
 			{required}
-			{imagePath}
-			{blockRegistry}
-			{navigationManifest}
-			{onaddselectoption}
+			{minLength}
+			{maxLength}
+			components={block.components}
+			{onchange}
+			{onvalidationchange}
+			storagePath={block.assetsDir ?? imagePath}
+			assetsDir={block.assetsDir}
 		/>
-	{:else}
-		<StructuredBlockField
+	{:else if fieldType === 'email'}
+		<EmailField {label} bind:value {required} {onchange} />
+	{:else if fieldType === 'url'}
+		<UrlField {label} bind:value {required} {onchange} />
+	{:else if fieldType === 'select'}
+		<SelectField
+			{label}
+			bind:value
+			options={selectOptions}
+			{required}
+			{onchange}
+		/>
+	{:else if fieldType === 'tentmanGroup'}
+		<SelectField
+			{label}
+			bind:value
+			options={tentmanGroupSelectOptions}
+			sourceOptions={tentmanGroupOptions}
+			{required}
+			{onchange}
+			onaddoption={onaddselectoption}
+		/>
+	{:else if fieldType === 'number'}
+		<NumberField {label} bind:value {required} {onchange} />
+	{:else if fieldType === 'date'}
+		<DateField {label} bind:value {required} {onchange} />
+	{:else if fieldType === 'boolean' || fieldType === 'toggle'}
+		<BooleanField {label} bind:value {required} {onchange} />
+	{:else if fieldType === 'image'}
+		<ImageField
+			{label}
+			bind:value
+			{required}
+			{onchange}
+			storagePath={block.assetsDir ?? imagePath}
+			assetsDir={block.assetsDir ?? imagePath}
+		/>
+	{:else if fieldType === 'array'}
+		<ArrayField
 			{label}
 			bind:value
 			{fieldPath}
 			blocks={structuredBlocks?.blocks ?? []}
 			editorLayout={structuredBlocks?.editorLayout}
+			itemLabel={block.itemLabel}
 			{required}
 			{onchange}
 			{imagePath}
@@ -190,9 +163,38 @@
 			{navigationManifest}
 			{onaddselectoption}
 		/>
+	{:else if fieldType === 'object'}
+		{#if shouldUseObjectPanel}
+			<StructuredObjectPanelField
+				{label}
+				bind:value
+				{fieldPath}
+				blocks={structuredBlocks?.blocks ?? []}
+				editorLayout={structuredBlocks?.editorLayout}
+				{required}
+				{imagePath}
+				{blockRegistry}
+				{navigationManifest}
+				{onaddselectoption}
+			/>
+		{:else}
+			<StructuredBlockField
+				{label}
+				bind:value
+				{fieldPath}
+				blocks={structuredBlocks?.blocks ?? []}
+				editorLayout={structuredBlocks?.editorLayout}
+				{required}
+				{onchange}
+				{imagePath}
+				{blockRegistry}
+				{navigationManifest}
+				{onaddselectoption}
+			/>
+		{/if}
+	{:else}
+		<div class="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+			Unsupported block type: {block.type}
+		</div>
 	{/if}
-{:else}
-	<div class="mb-4 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-		Unsupported block type: {block.type}
-	</div>
-{/if}
+</div>

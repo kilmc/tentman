@@ -190,6 +190,9 @@ export interface RootConfig {
 	assetsDir?: string;
 	componentsDir?: string;
 	blockPackages?: string[];
+	validation?: {
+		contentComponents?: 'permissive' | 'strict';
+	};
 	debug?: {
 		cacheConfigs?: boolean;
 	};

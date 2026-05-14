@@ -22,7 +22,9 @@ interface SetupMarkdownFieldRichEditorOptions {
 	getReferenceState: () => MarkdownFieldReferenceState | null;
 	resolveReferenceOptions: (binding: string) => Array<{ label: string; value: string }>;
 	stageImage: (file: File) => Promise<{ ref: string }>;
+	onContentComponentClick: (payload: { componentName: string }) => void;
 	onLinkClick: (payload: { href: string; rect: DOMRect }) => void;
+	onContentComponentActivate: () => void;
 	onMarkdownChange: (markdown: string) => void;
 	onUiChange: () => void;
 	onError: (message: string) => void;
@@ -49,6 +51,7 @@ export async function setupMarkdownFieldRichEditor(
 				referenceIndex: referenceState?.referenceIndex ?? new Map()
 			};
 		},
+		onComponentClick: options.onContentComponentClick,
 		resolveReferenceOptions({ binding }) {
 			return options.resolveReferenceOptions(binding);
 		}
@@ -60,8 +63,10 @@ export async function setupMarkdownFieldRichEditor(
 		assetsDir: options.assetsDir,
 		storagePath: options.storagePath,
 		extensions: [...contentComponentState.extensions],
+		contentComponentToolbarButtons: contentComponentState.componentToolbarButtons,
 		stageImage: options.stageImage,
 		onLinkClick: options.onLinkClick,
+		onContentComponentActivate: options.onContentComponentActivate,
 		onMarkdownChange: options.onMarkdownChange,
 		onUiChange: options.onUiChange,
 		onError: options.onError

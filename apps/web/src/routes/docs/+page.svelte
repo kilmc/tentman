@@ -1312,6 +1312,17 @@ tentman component validate`;
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">::callout-box&#123;title="Latest update"&#125;</code>.
 			</li>
 			<li>
+				Structured blocks can also act as marker-only component sources with
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">referenceFor</code>.
+				For example, a
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">gallery</code>
+				block can declare
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">"referenceFor": ["project-gallery-embed"]</code>
+				so authors can place
+				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">::project-gallery-embed</code>
+				without carrying a selector attribute in markdown.
+			</li>
+			<li>
 				The consumer site renders directives through component templates. Use
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">@tentman/mdsvex</code> with
 				<code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">remark-directive</code> in

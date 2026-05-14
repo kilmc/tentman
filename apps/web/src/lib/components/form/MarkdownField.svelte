@@ -9,10 +9,12 @@
 	import MarkdownFieldPlainTextarea from '$lib/components/form/MarkdownFieldPlainTextarea.svelte';
 	import MarkdownFieldRichEditorShell from '$lib/components/form/MarkdownFieldRichEditorShell.svelte';
 	import {
+		getMarkdownFieldActiveRootConfig,
 		getMarkdownFieldContentItem,
 		getNextMarkdownFieldValidationState,
 		getMarkdownFieldReferenceOptions,
 		collectMarkdownFieldReferenceState,
+		getMarkdownFieldValidationMode,
 		resolveMarkdownFieldComponentEnvironment,
 		type MarkdownFieldReferenceState
 	} from '$lib/components/form/markdown-field-context';
@@ -57,11 +59,16 @@
 	import {
 		normalizeMarkdownFieldHref,
 	} from '$lib/components/form/markdown-field-ui';
+	import { getMarkdownFieldContextualPopoverState } from '$lib/components/form/markdown-field-controller';
 	import {
 		closeMarkdownFieldPopoverIfNeeded,
 		createMarkdownFieldLinkPopoverState,
 		getMarkdownFieldEditorHostClickResult,
 	} from '$lib/components/form/markdown-field-popover';
+	import {
+		getMarkdownFieldContentComponentReferenceTarget,
+		getMarkdownFieldSelectedContentComponentState
+	} from '$lib/components/form/markdown-field-content-component-selection';
 	import {
 		getMarkdownFieldDialogViewModel,
 		getMarkdownFieldRichShellViewModel
@@ -161,6 +168,17 @@
 			})
 	);
 	const characterCount = $derived(value.length);
+	const activeRootConfig = $derived(
+		getMarkdownFieldActiveRootConfig({
+			testRootConfig: testAdapters?.rootConfig,
+			selectedBackendKind: page.data.selectedBackend?.kind,
+			localRootConfig: $localContent.rootConfig,
+			pageRootConfig: page.data.rootConfig ?? null
+		})
+	);
+	const contentComponentValidationMode = $derived(
+		getMarkdownFieldValidationMode(activeRootConfig)
+	);
 	const isOverLimit = $derived(maxLength !== undefined && characterCount > maxLength);
 	const isUnderMin = $derived(
 		minLength !== undefined && characterCount > 0 && characterCount < minLength
@@ -179,6 +197,14 @@
 	function getEditor(): Editor | null {
 		void editorUiVersion;
 		return richEditor?.editor ?? null;
+	}
+
+	function getSelectedContentComponentState() {
+		return getMarkdownFieldSelectedContentComponentState({
+			editor: getEditor(),
+			componentToolbarButtons,
+			formContentContext
+		});
 	}
 
 	function queueDraftCleanup(previousMarkdown: string, nextMarkdown: string) {
@@ -333,6 +359,93 @@
 		window.open(popoverState.popover.href, '_blank', 'noopener');
 	}
 
+	function getComponentReferenceTarget(item?: ContentComponentToolbarButton | null) {
+		return getMarkdownFieldContentComponentReferenceTarget({
+			editor: getEditor(),
+			item: item ?? getSelectedContentComponentState()?.item,
+			formContentContext
+		});
+	}
+
+	function getComponentJumpLabel(item?: ContentComponentToolbarButton | null): string | null {
+		const referenceTarget = getComponentReferenceTarget(item);
+		return referenceTarget ? `Jump to ${referenceTarget.fieldLabel}` : null;
+	}
+
+	function focusFieldPath(fieldPath: string): boolean {
+		if (typeof document === 'undefined') {
+			return false;
+		}
+
+		const escapedFieldPath =
+			typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+				? CSS.escape(fieldPath)
+				: fieldPath.replace(/["\\]/g, '\\$&');
+		const fieldRoot = document.querySelector<HTMLElement>(
+			`[data-field-path="${escapedFieldPath}"]`
+		);
+		if (!fieldRoot) {
+			return false;
+		}
+
+		fieldRoot.scrollIntoView({ block: 'center', inline: 'nearest' });
+		const panelOpener = fieldRoot.querySelector<HTMLElement>('[data-form-side-panel-opener="true"]');
+		if (panelOpener) {
+			panelOpener.click();
+			return true;
+		}
+
+		const directFocusable = fieldRoot.querySelector<HTMLElement>(
+			'.ProseMirror, input, textarea, select, [tabindex]:not([tabindex="-1"])'
+		);
+		if (directFocusable) {
+			directFocusable.focus();
+			if (
+				directFocusable instanceof HTMLInputElement ||
+				directFocusable instanceof HTMLTextAreaElement
+			) {
+				directFocusable.select();
+			}
+			return true;
+		}
+
+		return false;
+	}
+
+	function jumpToSelectedComponentReference(item?: ContentComponentToolbarButton | null): boolean {
+		const referenceTarget = getComponentReferenceTarget(item);
+		if (!referenceTarget) {
+			return false;
+		}
+
+		dismissContextualPopover();
+		closeComponentDialog({ restoreFocus: false });
+		return focusFieldPath(referenceTarget.fieldPath);
+	}
+
+	function openSelectedComponentPopover(): boolean {
+		const editor = getEditor();
+		if (!editor || destroyed) {
+			return false;
+		}
+
+		const nextPopover = getMarkdownFieldContextualPopoverState({
+			editor,
+			componentToolbarButtons
+		});
+		if (!nextPopover || nextPopover.kind !== 'component') {
+			return false;
+		}
+
+		popoverState = {
+			popover: nextPopover,
+			open: true,
+			linkMode: 'view',
+			linkValue: nextPopover.href
+		};
+		return true;
+	}
+
 	function editCurrentPopoverTarget() {
 		const popover = popoverState.popover;
 		if (!popover) {
@@ -363,8 +476,52 @@
 		dismissContextualPopover();
 	}
 
+	function activateSelectedContentComponentFromKeyboard() {
+		const selectedComponent = getSelectedContentComponentState();
+		if (!selectedComponent) {
+			return;
+		}
+
+		if (!selectedComponent.canEdit && selectedComponent.referenceTarget) {
+			void jumpToSelectedComponentReference();
+			return;
+		}
+
+		if (selectedComponent.referenceTarget && openSelectedComponentPopover()) {
+			return;
+		}
+
+		void openComponentDialog(selectedComponent.item, editorHost ?? undefined);
+	}
+
+	function handleContentComponentClick() {
+		const selectedComponent = getSelectedContentComponentState();
+		if (!selectedComponent) {
+			return;
+		}
+
+		if (!selectedComponent.canEdit && selectedComponent.referenceTarget) {
+			void jumpToSelectedComponentReference(selectedComponent.item);
+			return;
+		}
+
+		if (selectedComponent.referenceTarget) {
+			void openSelectedComponentPopover();
+			return;
+		}
+
+		void openComponentDialog(selectedComponent.item, editorHost ?? undefined);
+	}
+
 	function handleEditorHostClick(event: MouseEvent) {
-		queueMicrotask(() => {
+		if (
+			event.target instanceof Element &&
+			event.target.closest('[data-tentman-content-component-node]')
+		) {
+			return;
+		}
+
+		requestAnimationFrame(() => {
 			const result = getMarkdownFieldEditorHostClickResult({
 				event,
 				hasOpenDialog: Boolean(componentDialogState.item),
@@ -377,12 +534,38 @@
 				return;
 			}
 
-			if (result.kind === 'open-dialog') {
-				void openComponentDialog(result.item, editorHost ?? undefined);
+			const selectedComponent = getSelectedContentComponentState();
+			const componentEditItem =
+				result.state.popover?.kind === 'component' ? result.state.popover.editItem : null;
+			const componentJumpLabel = getComponentJumpLabel(componentEditItem);
+
+			if (
+				componentEditItem &&
+				componentEditItem.contentComponent?.hasEditableFields &&
+				!componentJumpLabel &&
+				result.state.popover?.kind === 'component' &&
+				(result.state.popover.broken || !result.state.popover.href)
+			) {
+				void openComponentDialog(componentEditItem, editorHost ?? undefined);
+				return;
+			}
+
+			if (
+				componentEditItem &&
+				!componentEditItem.contentComponent?.hasEditableFields &&
+				componentJumpLabel
+			) {
+				void jumpToSelectedComponentReference(componentEditItem);
+				return;
+			}
+
+			if (selectedComponent && !selectedComponent.canEdit && selectedComponent.referenceTarget) {
+				void jumpToSelectedComponentReference(selectedComponent.item);
 				return;
 			}
 
 			popoverState = result.state;
+			getEditor()?.view.dom.focus();
 		});
 	}
 
@@ -413,6 +596,13 @@
 	function openComponentDialog(item: ContentComponentToolbarButton, trigger?: HTMLElement) {
 		const editor = getEditor();
 		if (destroyed || !editor || !item.dialog) {
+			return;
+		}
+
+		if (item.dialog.fields.length === 0) {
+			handleToolbarAction((activeEditor) => {
+				item.dialog?.submit(activeEditor, item.dialog?.getInitialValues?.(editor) ?? {});
+			});
 			return;
 		}
 
@@ -571,10 +761,12 @@
 				getReferenceState,
 				resolveReferenceOptions: getReferenceOptions,
 				stageImage,
+				onContentComponentClick: handleContentComponentClick,
 				onLinkClick: ({ href, rect }) => openLinkPopoverFromEditorClick(href, rect),
+				onContentComponentActivate: activateSelectedContentComponentFromKeyboard,
 				onMarkdownChange: applyMarkdownChange,
-				onUiChange() {
-					editorUiVersion += 1;
+			onUiChange() {
+				editorUiVersion += 1;
 				},
 				onError(message) {
 					uploadError = message;
@@ -627,7 +819,8 @@
 			enabledComponentNames: components,
 			availableRegistry: availableComponentRegistry,
 			enabledRegistry: enabledComponentRegistry,
-			lastValidationErrorsKey
+			lastValidationErrorsKey,
+			validationMode: contentComponentValidationMode
 		});
 
 		componentLoadError = validationState.componentLoadError;
@@ -697,6 +890,7 @@
 			contextualPopoverAnchorStyle={richShellViewModel.contextualPopoverAnchorStyle}
 			linkMode={popoverState.linkMode}
 			linkValue={popoverState.linkValue}
+			componentJumpLabel={getComponentJumpLabel()}
 			componentDialog={componentDialogState.item?.dialog ?? null}
 			componentDialogTitle={dialogViewModel.title}
 			componentDialogSubmitLabel={dialogViewModel.submitLabel}
@@ -716,6 +910,7 @@
 			onsubmitlinkedit={submitLinkEditing}
 			oncancellinkedit={cancelLinkEditing}
 			onedittarget={editCurrentPopoverTarget}
+			onjumptarget={jumpToSelectedComponentReference}
 			onopencurrenthref={openCurrentPopoverHref}
 			onremovecurrentlink={removeCurrentLink}
 			onclosecomponentdialog={closeComponentDialog}

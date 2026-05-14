@@ -595,14 +595,6 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			throw new Error(`${context}.components is only supported on markdown fields`);
 		}
 
-		if (referenceFor !== undefined) {
-			throw new Error(`${context}.referenceFor is not supported on inline block definitions`);
-		}
-
-		if (referenceLabel !== undefined) {
-			throw new Error(`${context}.referenceLabel is not supported on inline block definitions`);
-		}
-
 		return {
 			id,
 			type,
@@ -615,6 +607,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(show && { show }),
 			...(minLength !== undefined && { minLength }),
 			...(maxLength !== undefined && { maxLength }),
+			...(referenceFor !== undefined && { referenceFor }),
+			...(referenceLabel !== undefined && { referenceLabel }),
 			blocks: stripLegacyShowFromBlocks(blocks),
 			...(editorLayout ? { editorLayout } : {})
 		};
@@ -622,20 +616,6 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 
 	if (components && type !== 'markdown') {
 		throw new Error(`${context}.components is only supported on markdown fields`);
-	}
-
-	if (!supportsPrimitiveReferenceMetadata(type)) {
-		if (referenceFor !== undefined) {
-			throw new Error(
-				`${context}.referenceFor is only supported on primitive string-valued source fields`
-			);
-		}
-
-		if (referenceLabel !== undefined) {
-			throw new Error(
-				`${context}.referenceLabel is only supported on primitive string-valued source fields`
-			);
-		}
 	}
 
 	if (type !== 'select' && 'options' in input && input.options !== undefined) {
@@ -836,14 +816,6 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	}
 
 	if (type === 'array') {
-		if (referenceFor !== undefined) {
-			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
-		}
-
-		if (referenceLabel !== undefined) {
-			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
-		}
-
 		const nestedBlocks = parseLegacyFields(rawField.fields ?? {}, `${context}.fields`);
 		const editorLayout = parseEditorLayout({ editorLayout: rawField.editorLayout }, nestedBlocks, context);
 
@@ -858,20 +830,12 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 			...(maxLength !== undefined && { maxLength }),
 			...(itemLabel && { itemLabel }),
 			...(assetsDir && { assetsDir }),
+			...(referenceFor !== undefined && { referenceFor }),
+			...(referenceLabel !== undefined && { referenceLabel }),
 			collection: true,
 			blocks: stripLegacyShowFromBlocks(nestedBlocks),
 			...(editorLayout ? { editorLayout } : {})
 		};
-	}
-
-	if (!supportsPrimitiveReferenceMetadata(type)) {
-		if (referenceFor !== undefined) {
-			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
-		}
-
-		if (referenceLabel !== undefined) {
-			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
-		}
 	}
 
 	return {
@@ -932,14 +896,6 @@ function parseLegacyFieldObjectEntry(
 	}
 
 	if (type === 'array') {
-		if (referenceFor !== undefined) {
-			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
-		}
-
-		if (referenceLabel !== undefined) {
-			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
-		}
-
 		const nestedBlocks = parseLegacyFields(input.fields ?? {}, `${context}.fields`);
 		const editorLayout = parseEditorLayout({ editorLayout: input.editorLayout }, nestedBlocks, context);
 
@@ -954,20 +910,12 @@ function parseLegacyFieldObjectEntry(
 			...(maxLength !== undefined && { maxLength }),
 			...(itemLabel && { itemLabel }),
 			...(assetsDir && { assetsDir }),
+			...(referenceFor !== undefined && { referenceFor }),
+			...(referenceLabel !== undefined && { referenceLabel }),
 			collection: true,
 			blocks: stripLegacyShowFromBlocks(nestedBlocks),
 			...(editorLayout ? { editorLayout } : {})
 		};
-	}
-
-	if (!supportsPrimitiveReferenceMetadata(type)) {
-		if (referenceFor !== undefined) {
-			throw new Error(`${context}.referenceFor is only supported on primitive string-valued source fields`);
-		}
-
-		if (referenceLabel !== undefined) {
-			throw new Error(`${context}.referenceLabel is only supported on primitive string-valued source fields`);
-		}
 	}
 
 	return {
@@ -1089,6 +1037,7 @@ export function parseRootConfig(content: string): RootConfig {
 	const debugConfig = parsed.debug;
 	const contentConfig = parsed.content;
 	const statePresets = parsed.statePresets;
+	const validationConfig = parsed.validation;
 
 	if (siteName) {
 		rootConfig.siteName = siteName;
@@ -1120,6 +1069,27 @@ export function parseRootConfig(content: string): RootConfig {
 		const cacheConfigs = readOptionalBoolean(debugConfig, 'cacheConfigs', 'root.debug');
 		rootConfig.debug = {
 			...(cacheConfigs !== undefined ? { cacheConfigs } : {})
+		};
+	}
+
+	if (validationConfig !== undefined) {
+		assertObject(validationConfig, 'root.validation must be an object');
+		const contentComponents = readOptionalString(
+			validationConfig,
+			'contentComponents',
+			'root.validation'
+		);
+
+		if (
+			contentComponents !== undefined &&
+			contentComponents !== 'permissive' &&
+			contentComponents !== 'strict'
+		) {
+			throw new Error('root.validation.contentComponents must be "permissive" or "strict"');
+		}
+
+		rootConfig.validation = {
+			...(contentComponents !== undefined ? { contentComponents } : {})
 		};
 	}
 

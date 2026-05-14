@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { discoverContentComponents } from './content-components.js';
+import { validateContentComponentReferenceBindings } from './content-component-reference-validation.js';
 import { describeTentmanId } from './ids.js';
 import { getNavigationReferenceId, getNavigationReferenceIds } from './manifest.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
@@ -14,6 +16,27 @@ const ROOT_CONFIG_PATH = '.tentman.json';
 
 function createDiagnostic(level, code, message, details = {}) {
 	return { level, code, message, ...details };
+}
+
+function getContentComponentValidationMode(project) {
+	return project.rootConfig?.raw?.validation?.contentComponents === 'strict'
+		? 'strict'
+		: 'permissive';
+}
+
+function applyContentComponentValidationMode(project, diagnostics) {
+	if (getContentComponentValidationMode(project) === 'strict') {
+		return diagnostics;
+	}
+
+	return diagnostics.map((diagnostic) =>
+		diagnostic.code?.startsWith('content-components.reference-binding.')
+			? {
+					...diagnostic,
+					level: 'warning'
+				}
+			: diagnostic
+	);
 }
 
 const BUILT_IN_BLOCK_TYPES = new Set([
@@ -439,6 +462,78 @@ function checkBlocks(project) {
 	return diagnostics;
 }
 
+export async function checkContentComponentReferenceBindings(project) {
+	const componentsDirPath = resolveProjectPath(project.rootDir, project.componentsDir);
+
+	if (!(await absolutePathExists(componentsDirPath))) {
+		return [];
+	}
+
+	let components;
+	try {
+		components = await discoverContentComponents({
+			componentsDir: componentsDirPath
+		});
+	} catch (error) {
+		return [
+			createDiagnostic(
+				'error',
+				'content-components.invalid',
+				error instanceof Error
+					? error.message
+					: 'Failed to discover content components for reference validation',
+				{
+					path: project.componentsDir
+				}
+			)
+		];
+	}
+
+	const reusableBlocksById = new Map(
+		project.blocks
+			.filter((block) => !block.error)
+			.map((block) => [block.id, block])
+	);
+	const resolveStructuredBlocks = (block) => {
+		if (Array.isArray(block?.blocks)) {
+			return block.blocks;
+		}
+
+		if (typeof block?.type !== 'string') {
+			return null;
+		}
+
+		return reusableBlocksById.get(block.type)?.raw.blocks ?? null;
+	};
+
+	return applyContentComponentValidationMode(
+		project,
+		validateContentComponentReferenceBindings({
+		components,
+		blockTrees: [
+			...project.configs.map((config) => {
+				const content = project.contentByConfigPath.get(config.path);
+				return {
+					path: config.path,
+					label: `${config.label} config`,
+					blocks: config.raw.blocks,
+					contentItems: content?.items ?? [],
+					contentPath: content?.path ?? config.content.path
+				};
+			}),
+			...project.blocks
+				.filter((block) => !block.error)
+				.map((block) => ({
+					path: block.path,
+					label: `${block.label} block`,
+					blocks: block.raw.blocks
+				}))
+		],
+		resolveStructuredBlocks
+	})
+	);
+}
+
 export async function checkAssetDirectories(project) {
 	const diagnostics = [];
 
@@ -511,7 +606,7 @@ export async function checkAssetDirectories(project) {
 	return diagnostics;
 }
 
-export async function doctorTentmanProject(project) {
+export async function doctorTentmanProject(project, options = {}) {
 	const diagnostics = [];
 
 	if (project.configs.length === 0) {
@@ -588,6 +683,10 @@ export async function doctorTentmanProject(project) {
 	diagnostics.push(...checkBlocks(project));
 	diagnostics.push(...(await checkAssetDirectories(project)));
 	diagnostics.push(...checkNavigationManifestReferences(project));
+
+	if (options.skipContentComponentReferenceValidation !== true) {
+		diagnostics.push(...(await checkContentComponentReferenceBindings(project)));
+	}
 
 	return diagnostics;
 }

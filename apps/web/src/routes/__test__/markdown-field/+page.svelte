@@ -843,6 +843,21 @@
 				}}
 				testAdapters={projectGalleryAdapters}
 			/>
+			<div
+				data-field-path="galleries[0].id"
+				data-testid="reference-edit-source"
+				class="rounded-lg border border-dashed border-stone-300 bg-white p-3"
+			>
+				<label class="grid gap-1 text-sm text-stone-700">
+					<span class="font-medium">Gallery ID source</span>
+					<input
+						readonly
+						value="city-sketches"
+						aria-label="Gallery ID source"
+						class="rounded border border-stone-300 px-3 py-2"
+					/>
+				</label>
+			</div>
 
 			<MarkdownFieldPlaywrightHarness
 				testId="unresolved-reference-field"
@@ -875,6 +890,21 @@
 				}}
 				testAdapters={galleryEmbedAdapters}
 			/>
+			<div
+				data-field-path="gallery"
+				data-testid="sibling-object-reference-source"
+				class="rounded-lg border border-dashed border-stone-300 bg-white p-3"
+			>
+				<label class="grid gap-1 text-sm text-stone-700">
+					<span class="font-medium">Gallery source field</span>
+					<input
+						readonly
+						value="Homepage gallery"
+						aria-label="Gallery source field"
+						class="rounded border border-stone-300 px-3 py-2"
+					/>
+				</label>
+			</div>
 
 			<MarkdownFieldPlaywrightHarness
 				testId="top-level-reference-field"

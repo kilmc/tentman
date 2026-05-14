@@ -15,12 +15,14 @@
 		popover: PopoverState;
 		linkMode: 'view' | 'edit';
 		linkValue: string;
+		componentJumpLabel?: string | null;
 		onopenchange: (open: boolean) => void;
 		onlinkvaluechange: (value: string) => void;
 		onstartlinkedit: () => void;
 		onsubmitlinkedit: () => void;
 		oncancellinkedit: () => void;
 		onedittarget: () => void;
+		onjumptarget: () => void;
 		onopencurrenthref: () => void;
 		onremovecurrentlink: () => void;
 	}
@@ -31,12 +33,14 @@
 		popover,
 		linkMode,
 		linkValue,
+		componentJumpLabel = null,
 		onopenchange,
 		onlinkvaluechange,
 		onstartlinkedit,
 		onsubmitlinkedit,
 		oncancellinkedit,
 		onedittarget,
+		onjumptarget,
 		onopencurrenthref,
 		onremovecurrentlink
 	}: Props = $props();
@@ -65,7 +69,7 @@
 			trapFocus={false}
 			onCloseAutoFocus={(event) => event.preventDefault()}
 			class="z-40 w-[min(24rem,calc(100vw-1rem))] rounded-lg border border-stone-200 bg-white p-3 shadow-xl focus:outline-none"
-			aria-label={popover.kind === 'link' ? 'Link actions' : 'Content component link actions'}
+			aria-label={popover.kind === 'link' ? 'Link actions' : 'Content component actions'}
 		>
 			{#if popover.kind === 'link' && linkMode === 'edit'}
 				<form
@@ -105,7 +109,9 @@
 				</form>
 			{:else}
 				<div class="flex flex-wrap gap-2">
-					<p class="min-w-full break-all text-sm text-stone-900">{popover.href}</p>
+					{#if popover.href}
+						<p class="min-w-full break-all text-sm text-stone-900">{popover.href}</p>
+					{/if}
 					<button
 						type="button"
 						class="rounded-md border border-stone-950 bg-stone-950 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
@@ -113,13 +119,24 @@
 					>
 						{popover.kind === 'link' ? 'Edit link' : `Edit ${popover.editLabel ?? 'item'}`}
 					</button>
-					<button
-						type="button"
-						class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
-						onclick={onopencurrenthref}
-					>
-						Open link
-					</button>
+					{#if popover.kind === 'component' && componentJumpLabel}
+						<button
+							type="button"
+							class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+							onclick={onjumptarget}
+						>
+							{componentJumpLabel}
+						</button>
+					{/if}
+					{#if popover.href}
+						<button
+							type="button"
+							class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+							onclick={onopencurrenthref}
+						>
+							Open link
+						</button>
+					{/if}
 					{#if popover.kind === 'link'}
 						<button
 							type="button"

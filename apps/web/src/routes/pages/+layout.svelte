@@ -210,6 +210,7 @@
 
 		return configStatesBySlug[currentPageSlug] ?? null;
 	});
+	const currentConfigIssues = $derived(currentConfig?.issues ?? []);
 
 	onMount(() => {
 		const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -876,6 +877,18 @@
 					class="mx-auto w-full max-w-(--workspace-content-max-width)"
 					style={`--workspace-content-max-width: ${isEditorRoute ? '72rem' : '44rem'}`}
 				>
+					{#if currentConfigIssues.length > 0}
+						<section class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+							<h2 class="text-sm font-semibold text-amber-950">
+								Compatibility warnings for {currentConfig?.config.label}
+							</h2>
+							<ul class="mt-2 space-y-1 text-sm text-amber-900">
+								{#each currentConfigIssues as issue (`${issue.code}:${issue.blockId ?? 'config'}:${issue.binding ?? issue.message}`)}
+									<li>{issue.message}</li>
+								{/each}
+							</ul>
+						</section>
+					{/if}
 					<RemountOnValue
 						value={isLocalMode
 							? `${page.url.pathname}${page.url.search}:${localRescanVersion}`

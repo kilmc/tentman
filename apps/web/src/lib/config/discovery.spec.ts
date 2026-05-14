@@ -90,6 +90,38 @@ describe('parseDiscoveredConfig', () => {
 			type: 'markdown'
 		});
 	});
+
+	it('surfaces compatibility issues without dropping discovered configs', () => {
+		const discovered = parseDiscoveredConfig(
+			'tentman/configs/projects.tentman.json',
+			`{
+				"type": "content",
+				"label": "Projects",
+				"content": {
+					"mode": "file",
+					"path": "./src/content/projects.json"
+				},
+				"blocks": [
+					{
+						"id": "gallery",
+						"type": "block",
+						"referenceFor": "gallery-embed:galleryRef",
+						"blocks": [{ "id": "title", "type": "text" }]
+					}
+				]
+			}`
+		);
+
+		expect(discovered.slug).toBe('projects');
+		expect(discovered.issues).toEqual([
+			expect.objectContaining({
+				code: 'content-components.reference-binding.selector-on-structured',
+				severity: 'warning',
+				category: 'compatibility',
+				blockId: 'gallery'
+			})
+		]);
+	});
 });
 
 describe('parseDiscoveredBlockConfig', () => {

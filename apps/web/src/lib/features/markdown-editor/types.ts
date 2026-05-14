@@ -5,6 +5,18 @@ export interface MarkdownToolbarDialogFieldOption {
 	value: string;
 }
 
+export interface MarkdownToolbarContentComponentReferenceMetadata {
+	attributeId: string | null;
+	binding: string;
+}
+
+export interface MarkdownToolbarContentComponentMetadata {
+	nodeName: string;
+	componentName: string;
+	hasEditableFields: boolean;
+	reference?: MarkdownToolbarContentComponentReferenceMetadata;
+}
+
 export interface MarkdownToolbarDialogField {
 	id: string;
 	label: string;
@@ -33,4 +45,5 @@ export interface MarkdownToolbarItemContribution {
 	run?(editor: Editor): void;
 	isActive?(editor: Editor): boolean;
 	dialog?: MarkdownToolbarDialogContribution;
+	contentComponent?: MarkdownToolbarContentComponentMetadata;
 }

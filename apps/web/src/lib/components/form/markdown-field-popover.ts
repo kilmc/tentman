@@ -37,7 +37,6 @@ export function createMarkdownFieldLinkPopoverState(options: {
 
 export type MarkdownFieldEditorHostClickResult =
 	| { kind: 'ignore' }
-	| { kind: 'open-dialog'; item: ContentComponentToolbarButton }
 	| { kind: 'open-popover'; state: MarkdownFieldPopoverState };
 
 export function getMarkdownFieldEditorHostClickResult(options: {
@@ -70,17 +69,6 @@ export function getMarkdownFieldEditorHostClickResult(options: {
 	});
 	if (!nextPopover) {
 		return { kind: 'ignore' };
-	}
-
-	if (
-		nextPopover.kind === 'component' &&
-		(nextPopover.broken || !nextPopover.href) &&
-		nextPopover.editItem
-	) {
-		return {
-			kind: 'open-dialog',
-			item: nextPopover.editItem
-		};
 	}
 
 	return {

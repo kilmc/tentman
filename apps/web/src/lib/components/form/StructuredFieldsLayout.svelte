@@ -33,7 +33,7 @@
 
 	let {
 		blocks,
-		value,
+		value = $bindable(),
 		fieldPath,
 		imagePath,
 		blockRegistry,

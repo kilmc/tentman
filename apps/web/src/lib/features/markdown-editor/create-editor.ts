@@ -5,6 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import FileHandler from '@tiptap/extension-file-handler';
 import { Markdown } from '@tiptap/markdown';
 import { createMarkdownImageNodeView } from './image-node-view';
+import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
 
 interface MarkdownImageNodeOptions extends ImageOptions {
 	assetsDir?: string;
@@ -21,6 +22,8 @@ interface CreateMarkdownEditorOptions {
 	onUiChange?: () => void;
 	onError?: (message: string) => void;
 	onLinkClick?: (payload: { href: string; rect: DOMRect }) => void;
+	onContentComponentActivate?: () => void;
+	contentComponentToolbarButtons?: ContentComponentToolbarButton[];
 	stageImage(file: File): Promise<{ ref: string }>;
 }
 
@@ -88,6 +91,22 @@ function openEditorHref(href: unknown): boolean {
 
 	window.open(normalizedHref, '_blank', 'noopener');
 	return true;
+}
+
+function getSelectedContentComponentButton(
+	editor: Editor,
+	componentToolbarButtons: ContentComponentToolbarButton[]
+): ContentComponentToolbarButton | null {
+	const selectedNode = 'node' in editor.state.selection ? editor.state.selection.node : null;
+	if (!selectedNode) {
+		return null;
+	}
+
+	return (
+		componentToolbarButtons.find(
+			(button) => button.contentComponent?.nodeName === selectedNode.type.name
+		) ?? null
+	);
 }
 
 export function createMarkdownEditor(
@@ -167,6 +186,43 @@ export function createMarkdownEditor(
 				}
 
 				return openEditorHref(node.attrs.href);
+			},
+			handleKeyDown(view, event) {
+				const selectedComponent = getSelectedContentComponentButton(
+					editor,
+					options.contentComponentToolbarButtons ?? []
+				);
+				if (!selectedComponent) {
+					return false;
+				}
+
+				if (event.key === 'Backspace' || event.key === 'Delete') {
+					event.preventDefault();
+					view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+					return true;
+				}
+
+				if (event.key === 'Enter') {
+					event.preventDefault();
+					options.onContentComponentActivate?.();
+					return true;
+				}
+
+				return false;
+			},
+			handleTextInput(view, _from, _to, text) {
+				const selectedComponent = getSelectedContentComponentButton(
+					editor,
+					options.contentComponentToolbarButtons ?? []
+				);
+				if (!selectedComponent) {
+					return false;
+				}
+
+				view.dispatch(
+					view.state.tr.insertText(text, view.state.selection.from, view.state.selection.to).scrollIntoView()
+				);
+				return true;
 			}
 		},
 		extensions: [

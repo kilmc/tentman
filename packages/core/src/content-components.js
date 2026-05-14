@@ -424,6 +424,31 @@ function getReferenceBindings(value) {
 	return [];
 }
 
+export function parseContentComponentReferenceBinding(binding) {
+	if (typeof binding !== 'string') {
+		throw new Error('Content component reference binding must be a string');
+	}
+
+	const normalizedBinding = binding.trim();
+	const separatorIndex = normalizedBinding.indexOf(':');
+
+	if (separatorIndex === -1) {
+		return {
+			binding: normalizedBinding,
+			componentId: normalizedBinding,
+			attributeId: null,
+			kind: 'marker'
+		};
+	}
+
+	return {
+		binding: normalizedBinding,
+		componentId: normalizedBinding.slice(0, separatorIndex),
+		attributeId: normalizedBinding.slice(separatorIndex + 1),
+		kind: 'selector'
+	};
+}
+
 function isPlainRecord(value) {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -436,12 +461,12 @@ function getBlockStorageKey(block) {
 	return block.id === 'tentmanGroup' ? '_tentmanGroup' : block.id;
 }
 
-function buildReferenceEntry(binding, token, field, container, full) {
+function buildReferenceEntry({ binding, token, field, self, container, full }) {
 	return {
 		binding,
 		token,
 		field,
-		self: token,
+		self,
 		container,
 		full
 	};
@@ -691,8 +716,14 @@ export function collectContentComponentReferenceIndex(options) {
 	const referenceIndex = new Map();
 	const errors = [];
 
-	function register(binding, token, entry) {
+	function ensureBinding(binding) {
 		const bindingIndex = referenceIndex.get(binding) ?? new Map();
+		referenceIndex.set(binding, bindingIndex);
+		return bindingIndex;
+	}
+
+	function register(binding, token, entry) {
+		const bindingIndex = ensureBinding(binding);
 		const existing = bindingIndex.get(token);
 
 		if (existing) {
@@ -719,16 +750,50 @@ export function collectContentComponentReferenceIndex(options) {
 			const fieldValue = value[storageKey];
 
 			if (structuredBlocks) {
+				const markerBindings = getReferenceBindings(block.referenceFor)
+					.map(parseContentComponentReferenceBinding)
+					.filter((binding) => binding.kind === 'marker');
+
+				for (const binding of markerBindings) {
+					ensureBinding(binding.binding);
+				}
+
 				if (block.collection) {
 					if (!Array.isArray(fieldValue)) {
 						continue;
 					}
 
-					for (const item of fieldValue) {
+					for (const [index, item] of fieldValue.entries()) {
+						if (isPlainRecord(item)) {
+							for (const binding of markerBindings) {
+								register(binding.binding, `${storageKey}[${index}]`, {
+									binding: binding.binding,
+									token: `${storageKey}[${index}]`,
+									field: storageKey,
+									self: item,
+									container: item,
+									full: fullValue
+								});
+							}
+						}
+
 						walk(structuredBlocks, item, fullValue);
 					}
 
 					continue;
+				}
+
+				if (isPlainRecord(fieldValue)) {
+					for (const binding of markerBindings) {
+						register(binding.binding, storageKey, {
+							binding: binding.binding,
+							token: storageKey,
+							field: storageKey,
+							self: fieldValue,
+							container: fieldValue,
+							full: fullValue
+						});
+					}
 				}
 
 				walk(structuredBlocks, fieldValue, fullValue);
@@ -744,12 +809,22 @@ export function collectContentComponentReferenceIndex(options) {
 				continue;
 			}
 
-			for (const binding of getReferenceBindings(block.referenceFor)) {
-				register(
-					binding,
+			for (const binding of getReferenceBindings(block.referenceFor).map(
+				parseContentComponentReferenceBinding
+			)) {
+				ensureBinding(binding.binding);
+				if (binding.kind !== 'selector') {
+					continue;
+				}
+
+				register(binding.binding, token, buildReferenceEntry({
+					binding: binding.binding,
 					token,
-					buildReferenceEntry(binding, token, storageKey, value, fullValue)
-				);
+					field: storageKey,
+					self: token,
+					container: value,
+					full: fullValue
+				}));
 			}
 		}
 	}
@@ -776,6 +851,21 @@ export function resolveContentComponentInstance(component, instance, mode, optio
 	const referenceAttribute = getContentComponentReferenceAttribute(component);
 
 	if (!referenceAttribute) {
+		const markerBindingIndex = options.referenceIndex?.get(component.definition.id);
+		if (!markerBindingIndex) {
+			return resolved;
+		}
+
+		if (markerBindingIndex.size > 1) {
+			throw new Error(
+				`Content component reference "${component.definition.id}" is ambiguous because this entry has ${markerBindingIndex.size} bound sources`
+			);
+		}
+
+		if (markerBindingIndex.size === 1) {
+			resolved.data = Array.from(markerBindingIndex.values())[0]?.self ?? null;
+		}
+
 		return resolved;
 	}
 
@@ -827,6 +917,17 @@ export function validateContentComponentInstance(component, instance, options = 
 
 	const referenceAttribute = getContentComponentReferenceAttribute(component);
 	if (!referenceAttribute) {
+		const markerBindingIndex = options.referenceIndex?.get(component.definition.id);
+		if (!markerBindingIndex) {
+			return errors;
+		}
+
+		if (markerBindingIndex.size === 0) {
+			errors.push(
+				`Content component reference "${component.definition.id}" could not resolve a bound source in this entry`
+			);
+		}
+
 		return errors;
 	}
 

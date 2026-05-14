@@ -1,5 +1,10 @@
 import { checkTentmanAssets } from './assets-check.js';
-import { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from './diagnostics.js';
+import {
+	checkContentComponentReferenceBindings,
+	checkNavigationManifest,
+	checkTentmanIds,
+	doctorTentmanProject
+} from './diagnostics.js';
 import { checkTentmanFormat, summarizeFormatCheck } from './format-check.js';
 
 function countDiagnostics(diagnostics) {
@@ -10,7 +15,11 @@ function countDiagnostics(diagnostics) {
 }
 
 export async function runTentmanCi(project) {
-	const doctorDiagnostics = await doctorTentmanProject(project);
+	const referenceBindingDiagnostics = await checkContentComponentReferenceBindings(project);
+	const doctorDiagnostics = await doctorTentmanProject(project, {
+		skipContentComponentReferenceValidation: true
+	});
+	doctorDiagnostics.push(...referenceBindingDiagnostics);
 	const idDiagnostics = checkTentmanIds(project);
 	const navigationDiagnostics = checkNavigationManifest(project);
 	const rewrites = await checkTentmanFormat(project);

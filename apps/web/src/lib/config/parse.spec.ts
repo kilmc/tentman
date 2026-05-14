@@ -419,20 +419,37 @@ describe('parseConfigFile', () => {
 		});
 	});
 
-	it('rejects reference metadata on unsupported source field types', () => {
-		expect(() =>
-			parseConfigFile(`{
-				"type": "content",
-				"label": "Gallery",
-				"content": {
-					"mode": "file",
-					"path": "./gallery.json"
-				},
-				"blocks": [
-					{ "id": "published", "type": "toggle", "referenceFor": "gallery-embed:galleryRef" }
-				]
-			}`)
-		).toThrow(/referenceFor is only supported on primitive string-valued source fields/);
+	it('preserves reference metadata on non-primitive and structured fields for downstream compatibility diagnostics', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Gallery",
+			"content": {
+				"mode": "file",
+				"path": "./gallery.json"
+			},
+			"blocks": [
+				{ "id": "published", "type": "toggle", "referenceFor": "gallery-embed" },
+				{
+					"id": "gallery",
+					"type": "block",
+					"referenceFor": "gallery-embed:galleryRef",
+					"blocks": [{ "id": "title", "type": "text" }]
+				}
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks[0]).toMatchObject({
+			id: 'published',
+			referenceFor: 'gallery-embed'
+		});
+		expect(parsed.blocks[1]).toMatchObject({
+			id: 'gallery',
+			referenceFor: 'gallery-embed:galleryRef'
+		});
 	});
 
 	it('parses toggle blocks as built-in primitive fields', () => {

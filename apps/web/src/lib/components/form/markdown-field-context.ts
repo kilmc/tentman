@@ -63,6 +63,12 @@ export function getMarkdownFieldComponentsDir(rootConfig: RootConfig | null | un
 	return rootConfig?.componentsDir;
 }
 
+export function getMarkdownFieldValidationMode(
+	rootConfig: RootConfig | null | undefined
+): 'permissive' | 'strict' {
+	return rootConfig?.validation?.contentComponents === 'strict' ? 'strict' : 'permissive';
+}
+
 export function getMarkdownFieldContentItem(
 	formContentContext: FormContentContext | null
 ): object | null {
@@ -118,10 +124,10 @@ export function getMarkdownFieldValidationResult(options: {
 	enabledComponentNames?: string[];
 	availableRegistry: ContentComponentRegistry;
 	enabledRegistry: ContentComponentRegistry;
+	validationMode?: 'permissive' | 'strict';
 }) {
 	const referenceState = collectMarkdownFieldReferenceState(options.formContentContext);
-
-	return getMarkdownFieldValidationState({
+	const errors = getMarkdownFieldValidationState({
 		markdown: options.markdown,
 		enabledComponentNames: options.enabledComponentNames,
 		availableRegistry: options.availableRegistry,
@@ -129,6 +135,13 @@ export function getMarkdownFieldValidationResult(options: {
 		referenceIndex: referenceState?.referenceIndex,
 		referenceErrors: referenceState?.errors
 	});
+	const validationMode = options.validationMode ?? 'permissive';
+
+	return {
+		allErrors: errors.errors,
+		blockingErrors: validationMode === 'strict' ? errors.errors : [],
+		message: errors.message
+	};
 }
 
 export function getNextMarkdownFieldValidationState(options: {
@@ -138,6 +151,7 @@ export function getNextMarkdownFieldValidationState(options: {
 	availableRegistry: ContentComponentRegistry | null;
 	enabledRegistry: ContentComponentRegistry | null;
 	lastValidationErrorsKey: string;
+	validationMode?: 'permissive' | 'strict';
 }): {
 	componentLoadError: string | null;
 	lastValidationErrorsKey: string;
@@ -157,13 +171,17 @@ export function getNextMarkdownFieldValidationState(options: {
 		markdown: options.markdown,
 		enabledComponentNames: options.enabledComponentNames,
 		availableRegistry: options.availableRegistry,
-		enabledRegistry: options.enabledRegistry
+		enabledRegistry: options.enabledRegistry,
+		validationMode: options.validationMode
 	});
+	const nextValidationErrorsKey = validationState.blockingErrors.join('\u0000');
 
 	return {
 		componentLoadError: validationState.message,
-		lastValidationErrorsKey: validationState.key,
+		lastValidationErrorsKey: nextValidationErrorsKey,
 		validationErrorsToEmit:
-			validationState.key !== options.lastValidationErrorsKey ? validationState.errors : null
+			nextValidationErrorsKey !== options.lastValidationErrorsKey
+				? validationState.blockingErrors
+				: null
 	};
 }

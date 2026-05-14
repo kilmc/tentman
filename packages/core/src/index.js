@@ -11,7 +11,12 @@ export {
 	serializeNavigationManifest
 } from './manifest.js';
 export { ROOT_CONFIG_PATH, loadTentmanProject, parseRootConfig } from './project.js';
-export { checkNavigationManifest, checkTentmanIds, doctorTentmanProject } from './diagnostics.js';
+export {
+	checkContentComponentReferenceBindings,
+	checkNavigationManifest,
+	checkTentmanIds,
+	doctorTentmanProject
+} from './diagnostics.js';
 export { checkTentmanFormat, summarizeFormatCheck, writeTentmanFormat } from './format-check.js';
 export { runTentmanCi } from './ci.js';
 export { checkTentmanAssets } from './assets-check.js';
@@ -33,6 +38,7 @@ export {
 	validateContentComponentInstance,
 	validateContentComponent
 } from './content-components.js';
+export { validateContentComponentReferenceBindings } from './content-component-reference-validation.js';
 export { createContentComponentScaffold } from './content-component-create.js';
 export { inspectTentmanContentComponent } from './content-component-inspect.js';
 export { listTentmanContentComponents } from './content-component-list.js';

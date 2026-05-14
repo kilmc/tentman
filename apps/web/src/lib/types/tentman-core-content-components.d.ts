@@ -29,6 +29,11 @@ declare module '@tentman/core/content-components' {
 			name: string;
 			kind: 'inline' | 'block';
 			attributes: Record<string, CoreContentComponentAttributeDefinition>;
+			editor?: {
+				toolbarLabel?: string;
+				dialogTitle?: string;
+				submitLabel?: string;
+			};
 			render?: Record<
 				string,
 				{
@@ -106,7 +111,7 @@ declare module '@tentman/core/content-components' {
 			referenceFor?: string | string[];
 		}>;
 		contentItem: object;
-		resolveStructuredBlocks: (block: unknown) => Array<Record<string, unknown>> | null;
+		resolveStructuredBlocks: (block: unknown) => unknown[] | null;
 	}): {
 		referenceIndex: Map<string, Map<string, CoreContentComponentReferenceEntry>>;
 		errors: string[];

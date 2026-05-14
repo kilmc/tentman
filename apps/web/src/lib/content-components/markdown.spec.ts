@@ -55,6 +55,31 @@ function createRegistry(): ContentComponentRegistry {
 	};
 }
 
+function createMarkerOnlyRegistry(): ContentComponentRegistry {
+	const component = {
+		directory: 'src/lib/content-components/project-gallery-embed',
+		componentJsonPath: 'src/lib/content-components/project-gallery-embed/component.json',
+		renderTemplatePath: 'src/lib/content-components/project-gallery-embed/render.njk',
+		previewTemplatePath: 'src/lib/content-components/project-gallery-embed/preview.njk',
+		renderTemplateSource: '<div>{{ data.layout }}</div>',
+		previewTemplateSource: '<div>{{ data.layout }}</div>',
+		definition: {
+			id: 'project-gallery-embed',
+			name: 'project-gallery-embed',
+			kind: 'block' as const,
+			attributes: {}
+		}
+	};
+
+	return {
+		components: [component],
+		errors: [],
+		getByName(name: string) {
+			return name === component.definition.name ? component : undefined;
+		}
+	};
+}
+
 function createEditorDouble(active = false, attributes: Record<string, string> = {}) {
 	const commands: Array<{ type: 'update' | 'insert'; payload: unknown }> = [];
 	const chainApi = {
@@ -277,6 +302,31 @@ describe('createMarkdownContentComponentArtifacts', () => {
 						href: 'https://example.com/new',
 						label: 'New label',
 						variant: 'secondary'
+					}
+				}
+			}
+		]);
+	});
+
+	it('supports marker-only components with no dialog fields', () => {
+		const artifacts = createMarkdownContentComponentArtifacts(createMarkerOnlyRegistry());
+		const toolbarItem = artifacts.toolbarItems[0];
+		const inserted = createEditorDouble(false);
+
+		expect(toolbarItem.dialog?.fields).toEqual([]);
+		expect(toolbarItem.dialog?.serialize?.({})).toBe('::project-gallery-embed');
+
+		toolbarItem.dialog?.submit(inserted.editor as never, {});
+
+		expect(inserted.commands).toEqual([
+			{
+				type: 'insert',
+				payload: {
+					type: 'contentComponentProjectGalleryEmbed',
+					attrs: {
+						__tentmanBroken: 'false',
+						__tentmanBrokenError: '',
+						__tentmanRaw: ''
 					}
 				}
 			}

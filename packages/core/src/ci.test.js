@@ -14,6 +14,31 @@ async function copyFixture() {
 	return projectRoot;
 }
 
+async function writeReferenceComponent(projectRoot) {
+	const componentDir = path.join(projectRoot, 'src/lib/content-components/project-gallery');
+	await fs.mkdir(componentDir, { recursive: true });
+	await Promise.all([
+		fs.writeFile(
+			path.join(componentDir, 'component.json'),
+			serializeJson({
+				id: 'project-gallery',
+				name: 'project-gallery',
+				kind: 'block',
+				attributes: {
+					galleryRef: {
+						type: 'string',
+						required: true,
+						reference: true,
+						referenceScope: 'container'
+					}
+				}
+			})
+		),
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<section>{{ data.title }}</section>\n'),
+		fs.writeFile(path.join(componentDir, 'preview.njk'), '<section>{{ data.title }}</section>\n')
+	]);
+}
+
 test('aggregates current non-writing checks for tentman ci', async () => {
 	const project = await loadTentmanProject(testAppRoot);
 	const result = await runTentmanCi(project);
@@ -79,4 +104,45 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.equal(result.summary.warnings, 1);
 	assert.equal(result.summary.checks, 5);
 	assert.ok(result.summary.errors >= 6);
+});
+
+test('tentman ci fails doctor on invalid reference bindings', async () => {
+	const projectRoot = await copyFixture();
+	const projectsConfigPath = path.join(projectRoot, 'tentman/configs/projects.tentman.json');
+	const projectsContentPath = path.join(projectRoot, 'src/content/pages/projects.json');
+	const projectsConfig = JSON.parse(await fs.readFile(projectsConfigPath, 'utf8'));
+	const projectsContent = JSON.parse(await fs.readFile(projectsContentPath, 'utf8'));
+	await writeReferenceComponent(projectRoot);
+
+	projectsConfig.blocks.push({
+		id: 'galleries',
+		type: 'block',
+		label: 'Galleries',
+		collection: true,
+		blocks: [
+			{
+				id: 'referenceToken',
+				type: 'text',
+				label: 'Reference token',
+				referenceFor: 'project-gallery:galleryRef'
+			}
+		]
+	});
+	projectsContent.galleries = [{ referenceToken: 'duplicate-token' }, { referenceToken: 'duplicate-token' }];
+
+	await fs.writeFile(projectsConfigPath, serializeJson(projectsConfig));
+	await fs.writeFile(projectsContentPath, serializeJson(projectsContent));
+
+	const project = await loadTentmanProject(projectRoot);
+	const result = await runTentmanCi(project);
+	const doctorCheck = result.checks.find((check) => check.id === 'doctor');
+
+	assert.ok(doctorCheck);
+	assert.ok(
+		doctorCheck?.diagnostics.some(
+			(diagnostic) =>
+				diagnostic.code === 'content-components.reference-binding.duplicate-token'
+		)
+	);
+	assert.ok(result.summary.failedChecks.includes('doctor'));
 });

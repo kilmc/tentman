@@ -44,6 +44,7 @@
 		contextualPopoverAnchorStyle?: string;
 		linkMode: 'view' | 'edit';
 		linkValue: string;
+		componentJumpLabel?: string | null;
 		componentDialog?: MarkdownToolbarDialogContribution | null;
 		componentDialogTitle?: string;
 		componentDialogSubmitLabel?: string;
@@ -68,6 +69,7 @@
 		onsubmitlinkedit: () => void;
 		oncancellinkedit: () => void;
 		onedittarget: () => void;
+		onjumptarget: () => void;
 		onopencurrenthref: () => void;
 		onremovecurrentlink: () => void;
 		onclosecomponentdialog: () => void;
@@ -98,6 +100,7 @@
 		contextualPopoverAnchorStyle = '',
 		linkMode,
 		linkValue,
+		componentJumpLabel = null,
 		componentDialog = null,
 		componentDialogTitle = '',
 		componentDialogSubmitLabel = 'Insert',
@@ -117,6 +120,7 @@
 		onsubmitlinkedit,
 		oncancellinkedit,
 		onedittarget,
+		onjumptarget,
 		onopencurrenthref,
 		onremovecurrentlink,
 		onclosecomponentdialog,
@@ -192,12 +196,14 @@
 		popover={contextualPopover}
 		linkMode={linkMode}
 		linkValue={linkValue}
+		{componentJumpLabel}
 		onopenchange={oncontextualpopoveropenchange}
 		onlinkvaluechange={onlinkvaluechange}
 		onstartlinkedit={onstartlinkedit}
 		onsubmitlinkedit={onsubmitlinkedit}
 		oncancellinkedit={oncancellinkedit}
 		onedittarget={onedittarget}
+		onjumptarget={onjumptarget}
 		onopencurrenthref={onopencurrenthref}
 		onremovecurrentlink={onremovecurrentlink}
 	/>

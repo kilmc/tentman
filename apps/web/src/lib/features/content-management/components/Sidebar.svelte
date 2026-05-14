@@ -83,7 +83,11 @@
 		const state = configStatesBySlug[config.slug];
 		const stateLabel =
 			state && state.visibility.navigation !== false ? `, ${state.label}` : '';
-		return `${config.config.label}${stateLabel}`;
+		const issueLabel =
+			(config.issues?.length ?? 0) > 0
+				? `, ${config.issues?.length} compatibility warning${config.issues?.length === 1 ? '' : 's'}`
+				: '';
+		return `${config.config.label}${stateLabel}${issueLabel}`;
 	}
 </script>
 
@@ -254,6 +258,13 @@
 								class={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${getStateBadgeClassName(configStatesBySlug[config.slug]?.variant ?? null)}`}
 							>
 								{configStatesBySlug[config.slug]?.label}
+							</span>
+						{/if}
+						{#if (config.issues?.length ?? 0) > 0}
+							<span
+								class="inline-flex items-center rounded-sm border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-amber-800"
+							>
+								Warn
 							</span>
 						{/if}
 						<span

@@ -9,18 +9,104 @@ import {
 import { normalizeRuntimeDiscoveredConfigIdentity } from '$lib/features/content-management/stable-identity';
 import { parseRootConfig } from '$lib/config/root-config';
 import type { RootConfig } from '$lib/config/root-config';
+import type { BlockUsage } from '$lib/config/types';
 import { slugify } from '$lib/utils';
+
+export interface DiscoveryIssue {
+	code: string;
+	message: string;
+	severity: 'warning' | 'error';
+	category: 'compatibility' | 'structural' | 'runtime' | 'ambiguity';
+	path?: string;
+	blockId?: string;
+	binding?: string;
+}
 
 export interface DiscoveredConfig {
 	path: string;
 	slug: string;
 	config: ParsedContentConfig;
+	issues?: DiscoveryIssue[];
 }
 
 export interface DiscoveredBlockConfig {
 	path: string;
 	id: string;
 	config: ParsedBlockConfig;
+	issues?: DiscoveryIssue[];
+}
+
+function getReferenceBindings(value: unknown): string[] {
+	if (typeof value === 'string') {
+		const normalized = value.trim();
+		return normalized.length > 0 ? [normalized] : [];
+	}
+
+	if (Array.isArray(value)) {
+		return value.flatMap((entry) => {
+			if (typeof entry !== 'string') {
+				return [];
+			}
+
+			const normalized = entry.trim();
+			return normalized.length > 0 ? [normalized] : [];
+		});
+	}
+
+	return [];
+}
+
+function isQualifiedReferenceBinding(binding: string): boolean {
+	return binding.includes(':');
+}
+
+function walkBlocks(blocks: BlockUsage[], visit: (block: BlockUsage, structured: boolean) => void): void {
+	for (const block of blocks) {
+		const structured = Array.isArray((block as { blocks?: BlockUsage[] }).blocks);
+		visit(block, structured);
+
+		if (structured) {
+			walkBlocks((block as { blocks: BlockUsage[] }).blocks, visit);
+		}
+	}
+}
+
+function collectConfigCompatibilityIssues(
+	path: string,
+	blocks: BlockUsage[]
+): DiscoveryIssue[] {
+	const issues: DiscoveryIssue[] = [];
+
+	walkBlocks(blocks, (block, structured) => {
+		for (const binding of getReferenceBindings(block.referenceFor)) {
+			if (structured && isQualifiedReferenceBinding(binding)) {
+				issues.push({
+					code: 'content-components.reference-binding.selector-on-structured',
+					message: `Block "${block.id}" uses selector referenceFor "${binding}" on a structured source. Use an unqualified marker-only binding like "${binding.split(':', 1)[0]}" instead.`,
+					severity: 'warning',
+					category: 'compatibility',
+					path,
+					blockId: block.id,
+					binding
+				});
+				continue;
+			}
+
+			if (!structured && !isQualifiedReferenceBinding(binding)) {
+				issues.push({
+					code: 'content-components.reference-binding.marker-on-primitive',
+					message: `Block "${block.id}" uses marker-only referenceFor "${binding}" on a primitive field. Marker-only bindings require a structured block source.`,
+					severity: 'warning',
+					category: 'compatibility',
+					path,
+					blockId: block.id,
+					binding
+				});
+			}
+		}
+	});
+
+	return issues;
 }
 
 function normalizeDir(dir: string | undefined): string | undefined {
@@ -104,7 +190,8 @@ export function parseDiscoveredConfig(path: string, content: string): Discovered
 	return {
 		path,
 		slug: slugify(parsed.label),
-		config: parsed
+		config: parsed,
+		issues: collectConfigCompatibilityIssues(path, parsed.blocks)
 	};
 }
 
@@ -118,7 +205,8 @@ export function parseDiscoveredBlockConfig(path: string, content: string): Disco
 	return {
 		path,
 		id: parsed.id,
-		config: parsed
+		config: parsed,
+		issues: collectConfigCompatibilityIssues(path, parsed.blocks)
 	};
 }
 

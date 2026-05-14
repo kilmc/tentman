@@ -14,6 +14,31 @@ async function copyFixture() {
 	return projectRoot;
 }
 
+async function writeReferenceComponent(projectRoot) {
+	const componentDir = path.join(projectRoot, 'src/lib/content-components/project-gallery');
+	await fs.mkdir(componentDir, { recursive: true });
+	await Promise.all([
+		fs.writeFile(
+			path.join(componentDir, 'component.json'),
+			serializeJson({
+				id: 'project-gallery',
+				name: 'project-gallery',
+				kind: 'block',
+				attributes: {
+					galleryRef: {
+						type: 'string',
+						required: true,
+						reference: true,
+						referenceScope: 'full'
+					}
+				}
+			})
+		),
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<section>{{ data.gallery.title }}</section>\n'),
+		fs.writeFile(path.join(componentDir, 'preview.njk'), '<section>{{ data.gallery.title }}</section>\n')
+	]);
+}
+
 test('loads the monorepo fixture app as a Tentman project', async () => {
 	const project = await loadTentmanProject(testAppRoot);
 
@@ -135,5 +160,43 @@ test('doctors missing reusable blocks and missing asset directories', async () =
 				diagnostic.path === 'tentman/blocks/image-gallery.tentman.json'
 		)?.message ?? '',
 		/missing assets directory: static\/images\/missing-gallery/
+	);
+});
+
+test('doctor reports invalid content component reference bindings as hard errors', async () => {
+	const projectRoot = await copyFixture();
+	const projectsConfigPath = path.join(projectRoot, 'tentman/configs/projects.tentman.json');
+	const projectsConfig = JSON.parse(await fs.readFile(projectsConfigPath, 'utf8'));
+	await writeReferenceComponent(projectRoot);
+
+	projectsConfig.blocks.push({
+		id: 'gallery',
+		type: 'block',
+		label: 'Gallery',
+		blocks: [
+			{
+				id: 'referenceToken',
+				type: 'text',
+				label: 'Reference token',
+				referenceFor: 'project-gallery:missingRef'
+			}
+		]
+	});
+	await fs.writeFile(projectsConfigPath, serializeJson(projectsConfig));
+
+	const project = await loadTentmanProject(projectRoot);
+	const diagnostics = await doctorTentmanProject(project);
+
+	assert.deepEqual(
+		diagnostics
+			.filter((diagnostic) => diagnostic.code.startsWith('content-components.reference-binding'))
+			.map((diagnostic) => diagnostic.code),
+		['content-components.reference-binding.missing-attribute']
+	);
+	assert.match(
+		diagnostics.find((diagnostic) =>
+			diagnostic.code === 'content-components.reference-binding.missing-attribute'
+		)?.message ?? '',
+		/content component "project-gallery" has no "missingRef" attribute/
 	);
 });

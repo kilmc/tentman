@@ -291,6 +291,7 @@ function buildComponentNodeView(
 			contentItem?: object | null;
 			referenceIndex?: Map<string, Map<string, unknown>>;
 		};
+		onComponentClick?: (payload: { componentName: string }) => void;
 	} = {}
 ) {
 	return function createComponentNodeView(
@@ -305,6 +306,32 @@ function buildComponentNodeView(
 			'click',
 			(event) => {
 				if (!event.metaKey && !event.ctrlKey) {
+					requestAnimationFrame(() => {
+						if (typeof props.getPos !== 'function') {
+							return;
+						}
+
+						const position = props.getPos();
+						if (typeof position !== 'number') {
+							return;
+						}
+
+						const selection = props.editor.state.selection as {
+							from: number;
+							to: number;
+							node?: { type?: { name?: string } } | null;
+						};
+						const alreadySelected =
+							selection.from === position &&
+							selection.to === position + props.node.nodeSize &&
+							selection.node?.type?.name === props.node.type.name;
+
+						props.editor.commands.setNodeSelection(position);
+						props.editor.view.focus();
+						if (alreadySelected) {
+							options.onComponentClick?.({ componentName: component.definition.name });
+						}
+					});
 					return;
 				}
 
@@ -393,6 +420,7 @@ function createContentComponentExtension(
 			contentItem?: object | null;
 			referenceIndex?: Map<string, Map<string, unknown>>;
 		};
+		onComponentClick?: (payload: { componentName: string }) => void;
 	} = {}
 ) {
 	const nodeName = toNodeName(component.definition.name);
@@ -542,11 +570,21 @@ function createToolbarItem(
 	const submitLabel = component.definition.editor?.submitLabel ?? `Save ${buttonLabel.toLowerCase()}`;
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
 	const dialogFieldIds = getDialogFieldIds(component);
+	const referenceAttribute = getContentComponentReferenceAttribute(component);
 
 	return {
 		id: component.definition.id,
 		label: buttonLabel,
 		buttonLabel,
+		contentComponent: {
+			nodeName,
+			componentName: component.definition.name,
+			hasEditableFields: dialogFieldIds.length > 0,
+			reference: {
+				attributeId: referenceAttribute?.attributeId ?? null,
+				binding: referenceAttribute?.binding ?? component.definition.id
+			}
+		},
 		isActive(editor) {
 			return editor.isActive(nodeName);
 		},
@@ -660,6 +698,7 @@ export function createMarkdownContentComponentArtifacts(
 			attributeName: string;
 			binding: string;
 		}) => Array<{ label: string; value: string }>;
+		onComponentClick?: (payload: { componentName: string }) => void;
 	} = {}
 ): {
 	extensions: Extensions;
