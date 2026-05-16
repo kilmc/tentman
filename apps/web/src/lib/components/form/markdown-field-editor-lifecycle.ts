@@ -1,4 +1,5 @@
 import { createMarkdownEditor, type MarkdownEditorController } from '$lib/features/markdown-editor/create-editor';
+import type { MarkdownEditorContentComponentActivationRequest } from '$lib/features/markdown-editor/content-component-interactions';
 import { loadMarkdownFieldContentComponentState } from '$lib/components/form/markdown-field-content-components';
 import type { ContentComponentRegistry } from '$lib/content-components/registry';
 import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
@@ -22,9 +23,8 @@ interface SetupMarkdownFieldRichEditorOptions {
 	getReferenceState: () => MarkdownFieldReferenceState | null;
 	resolveReferenceOptions: (binding: string) => Array<{ label: string; value: string }>;
 	stageImage: (file: File) => Promise<{ ref: string }>;
-	onContentComponentClick: (payload: { componentName: string }) => void;
 	onLinkClick: (payload: { href: string; rect: DOMRect }) => void;
-	onContentComponentActivate: () => void;
+	onContentComponentActivate: (payload: MarkdownEditorContentComponentActivationRequest) => void;
 	onMarkdownChange: (markdown: string) => void;
 	onUiChange: () => void;
 	onError: (message: string) => void;
@@ -51,7 +51,6 @@ export async function setupMarkdownFieldRichEditor(
 				referenceIndex: referenceState?.referenceIndex ?? new Map()
 			};
 		},
-		onComponentClick: options.onContentComponentClick,
 		resolveReferenceOptions({ binding }) {
 			return options.resolveReferenceOptions(binding);
 		}

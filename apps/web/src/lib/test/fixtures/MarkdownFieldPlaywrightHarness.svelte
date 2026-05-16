@@ -7,6 +7,9 @@
 	} from '$lib/components/form/form-content-context';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
+	import type { RootConfig } from '$lib/config/root-config';
+	import type { ContentComponentRegistry } from '$lib/content-components/registry';
+	import type { DraftAssetStore } from '$lib/features/draft-assets/types';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 
 	interface Props {
@@ -25,7 +28,16 @@
 		rootBlocks?: BlockUsage[];
 		rootData?: ContentRecord;
 		blockRegistry?: BlockRegistry;
-		testAdapters?: unknown;
+		testAdapters?: {
+			repoKey?: string | null;
+			componentMode?: 'local' | 'github';
+			rootConfig?: RootConfig | null;
+			draftAssetStore?: DraftAssetStore;
+			loadContentComponentRegistryForMode?: (
+				mode: 'local' | 'github',
+				options?: { scopeKey?: string; componentsDir?: string }
+			) => Promise<ContentComponentRegistry>;
+		};
 	}
 
 	const emptyBlockRegistry: BlockRegistry = {

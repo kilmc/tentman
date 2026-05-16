@@ -62,7 +62,11 @@ declare module '@tentman/core/content-components' {
 	}
 
 	export function collectContentComponents(
-		components: CoreLoadedContentComponent[],
+		components: Array<
+			Omit<CoreLoadedContentComponent, 'definition'> & {
+				definition: unknown;
+			}
+		>,
 		options?: { onError?: 'throw' | 'warn' }
 	): CoreLoadedContentComponent[];
 
@@ -104,14 +108,14 @@ declare module '@tentman/core/content-components' {
 		props: Record<string, string>;
 	} | null;
 
-	export function collectContentComponentReferenceIndex(options: {
-		blocks: Array<{
-			id?: string;
-			collection?: unknown;
-			referenceFor?: string | string[];
-		}>;
+	export function collectContentComponentReferenceIndex<TBlock extends {
+		id?: string;
+		collection?: unknown;
+		referenceFor?: string | string[];
+	}>(options: {
+		blocks: TBlock[];
 		contentItem: object;
-		resolveStructuredBlocks: (block: unknown) => unknown[] | null;
+		resolveStructuredBlocks: (block: TBlock) => TBlock[] | null;
 	}): {
 		referenceIndex: Map<string, Map<string, CoreContentComponentReferenceEntry>>;
 		errors: string[];

@@ -202,10 +202,11 @@
 	const contentModeRows = [
 		{
 			mode: 'file',
-			use: 'One JSON file, optionally containing a list under a nested path.',
+			use: 'One file, with JSON inferred from `.json` and markdown-frontmatter inferred from `.md` or `.markdown`.',
 			requiredFields: '`path`',
 			optionalFields: '`itemsPath`',
-			notes: 'Use `itemsPath` when the array is nested inside a larger JSON object.'
+			notes:
+				'Use `itemsPath` when a JSON array is nested inside a larger object. Markdown file singletons map `body` to the document body and other fields to frontmatter.'
 		},
 		{
 			mode: 'directory',

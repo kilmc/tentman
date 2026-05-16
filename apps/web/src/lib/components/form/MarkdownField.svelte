@@ -61,18 +61,18 @@
 	} from '$lib/components/form/markdown-field-ui';
 	import { getMarkdownFieldContextualPopoverState } from '$lib/components/form/markdown-field-controller';
 	import {
-		closeMarkdownFieldPopoverIfNeeded,
 		createMarkdownFieldLinkPopoverState,
 		getMarkdownFieldEditorHostClickResult,
 	} from '$lib/components/form/markdown-field-popover';
 	import {
-		getMarkdownFieldContentComponentReferenceTarget,
+		getMarkdownFieldContentComponentState,
 		getMarkdownFieldSelectedContentComponentState
 	} from '$lib/components/form/markdown-field-content-component-selection';
 	import {
 		getMarkdownFieldDialogViewModel,
 		getMarkdownFieldRichShellViewModel
 	} from '$lib/components/form/markdown-field-view-model';
+	import type { MarkdownEditorContentComponentActivationRequest } from '$lib/features/markdown-editor/content-component-interactions';
 	import type {
 		ActionToolbarButton,
 		ContentComponentToolbarButton,
@@ -158,7 +158,8 @@
 	const formContentContext = hasContext(FORM_CONTENT_CONTEXT)
 		? getContext<FormContentContext>(FORM_CONTENT_CONTEXT)
 		: null;
-	const textareaId = fieldId ?? `markdown-field-${Math.random().toString(36).substring(2, 9)}`;
+	const generatedTextareaId = `markdown-field-${Math.random().toString(36).substring(2, 9)}`;
+	const textareaId = $derived(fieldId ?? generatedTextareaId);
 
 	const repoKey = $derived(
 		testAdapters?.repoKey ??
@@ -359,17 +360,31 @@
 		window.open(popoverState.popover.href, '_blank', 'noopener');
 	}
 
-	function getComponentReferenceTarget(item?: ContentComponentToolbarButton | null) {
-		return getMarkdownFieldContentComponentReferenceTarget({
-			editor: getEditor(),
-			item: item ?? getSelectedContentComponentState()?.item,
+	function getContentComponentStateForActivation(
+		request?: MarkdownEditorContentComponentActivationRequest | null
+	) {
+		if (!request) {
+			return getSelectedContentComponentState();
+		}
+
+		return getMarkdownFieldContentComponentState({
+			node: {
+				nodeTypeName: request.nodeTypeName,
+				nodeAttributes: request.nodeAttributes
+			},
+			href: request.href,
+			broken: request.broken,
+			componentToolbarButtons,
 			formContentContext
 		});
 	}
 
-	function getComponentJumpLabel(item?: ContentComponentToolbarButton | null): string | null {
-		const referenceTarget = getComponentReferenceTarget(item);
-		return referenceTarget ? `Jump to ${referenceTarget.fieldLabel}` : null;
+	function getComponentJumpLabel(
+		contentComponent = getSelectedContentComponentState()
+	): string | null {
+		return contentComponent?.referenceTarget
+			? `Jump to ${contentComponent.referenceTarget.fieldLabel}`
+			: null;
 	}
 
 	function focusFieldPath(fieldPath: string): boolean {
@@ -392,28 +407,37 @@
 		const panelOpener = fieldRoot.querySelector<HTMLElement>('[data-form-side-panel-opener="true"]');
 		if (panelOpener) {
 			panelOpener.click();
-			return true;
 		}
 
 		const directFocusable = fieldRoot.querySelector<HTMLElement>(
 			'.ProseMirror, input, textarea, select, [tabindex]:not([tabindex="-1"])'
 		);
 		if (directFocusable) {
-			directFocusable.focus();
-			if (
-				directFocusable instanceof HTMLInputElement ||
-				directFocusable instanceof HTMLTextAreaElement
-			) {
-				directFocusable.select();
-			}
+			const focusTarget = () => {
+				directFocusable.focus();
+				if (
+					directFocusable instanceof HTMLInputElement ||
+					directFocusable instanceof HTMLTextAreaElement
+				) {
+					directFocusable.select();
+				}
+			};
+
+			focusTarget();
+			queueMicrotask(focusTarget);
+			requestAnimationFrame(focusTarget);
+			setTimeout(focusTarget, 0);
+			setTimeout(focusTarget, 50);
 			return true;
 		}
 
 		return false;
 	}
 
-	function jumpToSelectedComponentReference(item?: ContentComponentToolbarButton | null): boolean {
-		const referenceTarget = getComponentReferenceTarget(item);
+	function jumpToSelectedComponentReference(
+		contentComponent = getSelectedContentComponentState()
+	): boolean {
+		const referenceTarget = contentComponent?.referenceTarget;
 		if (!referenceTarget) {
 			return false;
 		}
@@ -423,15 +447,53 @@
 		return focusFieldPath(referenceTarget.fieldPath);
 	}
 
-	function openSelectedComponentPopover(): boolean {
+	function openContentComponentHref(href: string): boolean {
+		if (!href.trim()) {
+			return false;
+		}
+
+		window.open(href, '_blank', 'noopener');
+		return true;
+	}
+
+	function openContentComponentPopoverFromActivation(options: {
+		contentComponent: NonNullable<ReturnType<typeof getContentComponentStateForActivation>>;
+		request: MarkdownEditorContentComponentActivationRequest;
+	}): boolean {
+		if (!options.request.rect || destroyed) {
+			return openSelectedComponentPopover(options.contentComponent);
+		}
+
+		popoverState = openMarkdownFieldPopoverFromRect({
+			kind: 'component',
+			href: options.request.href,
+			rect: options.request.rect,
+			editItem: options.contentComponent.item,
+			referenceTarget: options.contentComponent.referenceTarget,
+			broken: options.request.broken
+		});
+		return true;
+	}
+
+	function queueComponentReferenceJump(
+		contentComponent = getSelectedContentComponentState()
+	) {
+		requestAnimationFrame(() => {
+			void jumpToSelectedComponentReference(contentComponent);
+		});
+	}
+
+	function openSelectedComponentPopover(
+		contentComponent = getSelectedContentComponentState()
+	): boolean {
 		const editor = getEditor();
-		if (!editor || destroyed) {
+		if (!editor || destroyed || !contentComponent) {
 			return false;
 		}
 
 		const nextPopover = getMarkdownFieldContextualPopoverState({
 			editor,
-			componentToolbarButtons
+			selectedContentComponentState: contentComponent
 		});
 		if (!nextPopover || nextPopover.kind !== 'component') {
 			return false;
@@ -441,9 +503,46 @@
 			popover: nextPopover,
 			open: true,
 			linkMode: 'view',
-			linkValue: nextPopover.href
+			linkValue: nextPopover.href,
+			componentEditItem: nextPopover.editItem,
+			componentReferenceTarget: contentComponent.referenceTarget
 		};
 		return true;
+	}
+
+	function activateContentComponent(request?: MarkdownEditorContentComponentActivationRequest) {
+		const contentComponent = getContentComponentStateForActivation(request);
+		if (!contentComponent) {
+			return;
+		}
+
+		switch (contentComponent.primaryAction) {
+			case 'edit':
+				void openComponentDialog(contentComponent.item, editorHost ?? undefined);
+				return;
+			case 'jump':
+				queueComponentReferenceJump(contentComponent);
+				return;
+			case 'openHref':
+				void openContentComponentHref(request?.href ?? contentComponent.href);
+				return;
+			case 'openActions':
+				if (
+					request
+						? openContentComponentPopoverFromActivation({
+								contentComponent,
+								request
+							})
+						: openSelectedComponentPopover(contentComponent)
+				) {
+					return;
+				}
+
+				void openComponentDialog(contentComponent.item, editorHost ?? undefined);
+				return;
+			case 'none':
+				return;
+		}
 	}
 
 	function editCurrentPopoverTarget() {
@@ -457,9 +556,9 @@
 			return;
 		}
 
-		if (popover.editItem) {
+		if (popoverState.componentEditItem) {
 			void openComponentDialog(
-				popover.editItem,
+				popoverState.componentEditItem,
 				contextualPopoverAnchor ?? editorHost ?? undefined
 			);
 		}
@@ -476,43 +575,6 @@
 		dismissContextualPopover();
 	}
 
-	function activateSelectedContentComponentFromKeyboard() {
-		const selectedComponent = getSelectedContentComponentState();
-		if (!selectedComponent) {
-			return;
-		}
-
-		if (!selectedComponent.canEdit && selectedComponent.referenceTarget) {
-			void jumpToSelectedComponentReference();
-			return;
-		}
-
-		if (selectedComponent.referenceTarget && openSelectedComponentPopover()) {
-			return;
-		}
-
-		void openComponentDialog(selectedComponent.item, editorHost ?? undefined);
-	}
-
-	function handleContentComponentClick() {
-		const selectedComponent = getSelectedContentComponentState();
-		if (!selectedComponent) {
-			return;
-		}
-
-		if (!selectedComponent.canEdit && selectedComponent.referenceTarget) {
-			void jumpToSelectedComponentReference(selectedComponent.item);
-			return;
-		}
-
-		if (selectedComponent.referenceTarget) {
-			void openSelectedComponentPopover();
-			return;
-		}
-
-		void openComponentDialog(selectedComponent.item, editorHost ?? undefined);
-	}
-
 	function handleEditorHostClick(event: MouseEvent) {
 		if (
 			event.target instanceof Element &&
@@ -527,40 +589,10 @@
 				hasOpenDialog: Boolean(componentDialogState.item),
 				destroyed,
 				editor: getEditor(),
-				componentToolbarButtons
+				selectedContentComponentState: getSelectedContentComponentState()
 			});
 
 			if (result.kind === 'ignore') {
-				return;
-			}
-
-			const selectedComponent = getSelectedContentComponentState();
-			const componentEditItem =
-				result.state.popover?.kind === 'component' ? result.state.popover.editItem : null;
-			const componentJumpLabel = getComponentJumpLabel(componentEditItem);
-
-			if (
-				componentEditItem &&
-				componentEditItem.contentComponent?.hasEditableFields &&
-				!componentJumpLabel &&
-				result.state.popover?.kind === 'component' &&
-				(result.state.popover.broken || !result.state.popover.href)
-			) {
-				void openComponentDialog(componentEditItem, editorHost ?? undefined);
-				return;
-			}
-
-			if (
-				componentEditItem &&
-				!componentEditItem.contentComponent?.hasEditableFields &&
-				componentJumpLabel
-			) {
-				void jumpToSelectedComponentReference(componentEditItem);
-				return;
-			}
-
-			if (selectedComponent && !selectedComponent.canEdit && selectedComponent.referenceTarget) {
-				void jumpToSelectedComponentReference(selectedComponent.item);
 				return;
 			}
 
@@ -570,9 +602,8 @@
 	}
 
 	function handleContextualPopoverOpenChange(nextOpen: boolean) {
-		const nextPopoverState = closeMarkdownFieldPopoverIfNeeded(nextOpen);
-		if (nextPopoverState) {
-			popoverState = nextPopoverState;
+		if (!nextOpen) {
+			popoverState = closeMarkdownFieldPopover();
 		}
 	}
 
@@ -587,7 +618,7 @@
 		activateMarkdownFieldToolbarItem({
 			item,
 			trigger,
-			onselect: (nextTrigger) => item.select?.(nextTrigger),
+			onselect: (nextTrigger) => ('select' in item ? item.select?.(nextTrigger) : undefined),
 			onopendialog: (nextItem, nextTrigger) => void openComponentDialog(nextItem, nextTrigger),
 			onrun: handleToolbarAction
 		});
@@ -625,12 +656,10 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key !== 'Escape' || !componentDialogState.item) {
-			return;
+		if (event.key === 'Escape' && componentDialogState.item) {
+			event.preventDefault();
+			closeComponentDialog();
 		}
-
-		event.preventDefault();
-		closeComponentDialog();
 	}
 
 	function setComponentDialogValue(fieldId: string, nextValue: string) {
@@ -761,12 +790,11 @@
 				getReferenceState,
 				resolveReferenceOptions: getReferenceOptions,
 				stageImage,
-				onContentComponentClick: handleContentComponentClick,
 				onLinkClick: ({ href, rect }) => openLinkPopoverFromEditorClick(href, rect),
-				onContentComponentActivate: activateSelectedContentComponentFromKeyboard,
+				onContentComponentActivate: activateContentComponent,
 				onMarkdownChange: applyMarkdownChange,
-			onUiChange() {
-				editorUiVersion += 1;
+				onUiChange() {
+					editorUiVersion += 1;
 				},
 				onError(message) {
 					uploadError = message;
@@ -866,7 +894,7 @@
 
 	<MarkdownFieldAlerts {uploadError} {componentLoadError} />
 
-	{#if activeTab === 'rich'}
+	<div class:hidden={activeTab !== 'rich'}>
 		<MarkdownFieldRichEditorShell
 			bind:editorHost
 			bind:fileInput
@@ -890,7 +918,11 @@
 			contextualPopoverAnchorStyle={richShellViewModel.contextualPopoverAnchorStyle}
 			linkMode={popoverState.linkMode}
 			linkValue={popoverState.linkValue}
-			componentJumpLabel={getComponentJumpLabel()}
+			componentJumpLabel={
+				popoverState.componentReferenceTarget
+					? `Jump to ${popoverState.componentReferenceTarget.fieldLabel}`
+					: getComponentJumpLabel()
+			}
 			componentDialog={componentDialogState.item?.dialog ?? null}
 			componentDialogTitle={dialogViewModel.title}
 			componentDialogSubmitLabel={dialogViewModel.submitLabel}
@@ -917,7 +949,9 @@
 			onsubmitcomponentdialog={submitComponentDialog}
 			oncomponentdialogvaluechange={setComponentDialogValue}
 		/>
-	{:else}
+	</div>
+
+	<div class:hidden={activeTab !== 'markdown'}>
 		<MarkdownFieldPlainTextarea
 			{textareaId}
 			{value}
@@ -927,5 +961,5 @@
 			isInvalid={isOverLimit || isUnderMin}
 			oninputchange={handleMarkdownInput}
 		/>
-	{/if}
+	</div>
 </div>

@@ -4,6 +4,7 @@ import { generateCommitMessage } from '$lib/github/commit';
 import {
 	buildCollectionFilePath,
 	getCollectionFilenameBase,
+	isMarkdownContentPath,
 	parseCollectionItem,
 	processTemplate,
 	serializeCollectionItem,
@@ -58,7 +59,7 @@ function getDirectoryInfo(context: ContentOperationContext): DirectoryInfo {
 		resolvedTemplatePath,
 		templateExt,
 		templateFilename,
-		isMarkdown: templateExt === '.md' || templateExt === '.markdown'
+		isMarkdown: isMarkdownContentPath(resolvedTemplatePath)
 	};
 }
 

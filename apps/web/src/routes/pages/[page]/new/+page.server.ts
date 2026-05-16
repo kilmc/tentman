@@ -16,6 +16,7 @@ export const actions: Actions = {
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string);
 			const branch = (formData.get('branch') as string | null) || undefined;
+			const newFilename = (formData.get('newFilename') as string | null) || undefined;
 
 			// Generate an itemId for the URL (use idField if available, or "new")
 			const itemId =
@@ -33,6 +34,7 @@ export const actions: Actions = {
 				buildPathWithQuery(`/pages/${params.page}/${itemId}/preview-changes`, {
 					data: encodedData,
 					new: 'true',
+					newFilename,
 					branch
 				})
 			);

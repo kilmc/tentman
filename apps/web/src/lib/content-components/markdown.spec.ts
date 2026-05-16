@@ -44,7 +44,7 @@ function createRegistry(): ContentComponentRegistry {
 				}
 			}
 		}
-	};
+	} as ContentComponentRegistry['components'][number];
 
 	return {
 		components: [component],
@@ -69,7 +69,7 @@ function createMarkerOnlyRegistry(): ContentComponentRegistry {
 			kind: 'block' as const,
 			attributes: {}
 		}
-	};
+	} as ContentComponentRegistry['components'][number];
 
 	return {
 		components: [component],

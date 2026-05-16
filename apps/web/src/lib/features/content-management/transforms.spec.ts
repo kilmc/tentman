@@ -6,9 +6,12 @@ import {
 } from '$lib/config/parse';
 import {
 	getTemplateInfo,
+	isMarkdownContentPath,
 	parseCollectionItem,
+	parseMarkdownContentRecord,
 	processTemplate,
 	serializeCollectionItem,
+	serializeMarkdownContentRecord,
 	stringifyMarkdownCollectionItem,
 	toJsonFileContent
 } from './transforms';
@@ -135,12 +138,34 @@ describe('content-management/transforms', () => {
 		expect(parsed.body).toBe('---\n\n*public art commission, City of Berlin*\n\n---\n\nBody copy');
 	});
 
+	it('parses and serializes markdown singleton records without filename metadata', () => {
+		const serialized = serializeMarkdownContentRecord({
+			title: 'About',
+			published: true,
+			body: 'Body copy',
+			_filename: 'ignored.md'
+		});
+
+		expect(serialized).toBe('---\ntitle: About\npublished: true\n---\nBody copy');
+		expect(parseMarkdownContentRecord(serialized)).toEqual({
+			title: 'About',
+			published: true,
+			body: 'Body copy'
+		});
+	});
+
 	it('renders template placeholders from item data', () => {
 		expect(processTemplate('Title: {{title}}', { title: 'Hello' })).toBe('Title: Hello');
 	});
 
 	it('writes stable json content', () => {
 		expect(toJsonFileContent({ title: 'Hello' })).toBe('{\n  "title": "Hello"\n}\n');
+	});
+
+	it('detects supported markdown content paths', () => {
+		expect(isMarkdownContentPath('content/about.md')).toBe(true);
+		expect(isMarkdownContentPath('content/about.markdown')).toBe(true);
+		expect(isMarkdownContentPath('content/about.mdx')).toBe(false);
 	});
 
 	it('resolves template info from directory content config state', () => {

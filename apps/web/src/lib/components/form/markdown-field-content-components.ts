@@ -16,7 +16,6 @@ export async function loadMarkdownFieldContentComponentState(options: {
 		contentItem?: object | null;
 		referenceIndex?: Map<string, Map<string, unknown>>;
 	};
-	onComponentClick?: (payload: { componentName: string }) => void;
 	resolveReferenceOptions: (input: {
 		component: ContentComponentRegistry['components'][number];
 		attributeName: string;
@@ -38,7 +37,6 @@ export async function loadMarkdownFieldContentComponentState(options: {
 	);
 	const contentComponentArtifacts = createMarkdownContentComponentArtifacts(enabledRegistry, {
 		getPreviewRenderOptions: options.getPreviewRenderOptions,
-		onComponentClick: options.onComponentClick,
 		resolveReferenceOptions: options.resolveReferenceOptions
 	});
 

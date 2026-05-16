@@ -1,11 +1,12 @@
 import { buildContentComponentDialogValues } from '$lib/content-components/dialog';
-import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
 import {
 	createMarkdownFieldPopoverStateFromRect,
 	getMarkdownFieldSelectionRect,
 	normalizeMarkdownFieldHref,
 	type MarkdownFieldContextualPopoverState
 } from '$lib/components/form/markdown-field-ui';
+import type { MarkdownFieldSelectedContentComponentState } from '$lib/components/form/markdown-field-content-component-selection';
+import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
 import type { Editor } from '@tiptap/core';
 
 export function getMarkdownFieldSerializedDialogValue(options: {
@@ -39,16 +40,9 @@ export function createMarkdownFieldDialogState(options: {
 	};
 }
 
-export function getMarkdownFieldActiveContentComponentToolbarButton(
-	editor: Editor,
-	componentToolbarButtons: ContentComponentToolbarButton[]
-): ContentComponentToolbarButton | null {
-	return componentToolbarButtons.find((item) => item.dialog && item.isActive?.(editor)) ?? null;
-}
-
 export function getMarkdownFieldContextualPopoverState(options: {
 	editor: Editor;
-	componentToolbarButtons: ContentComponentToolbarButton[];
+	selectedContentComponentState: MarkdownFieldSelectedContentComponentState | null;
 }): MarkdownFieldContextualPopoverState | null {
 	const selection = options.editor.state.selection as {
 		from: number;
@@ -65,20 +59,17 @@ export function getMarkdownFieldContextualPopoverState(options: {
 			return null;
 		}
 
-		const editItem = getMarkdownFieldActiveContentComponentToolbarButton(
-			options.editor,
-			options.componentToolbarButtons
-		);
-		if (editItem) {
+		if (options.selectedContentComponentState?.primaryAction === 'openActions') {
 			const broken =
 				nodeDom instanceof HTMLElement
 					? nodeDom.dataset.tentmanContentComponentBroken === 'true'
 					: false;
+
 			return createMarkdownFieldPopoverStateFromRect({
 				kind: 'component',
 				href: nodeHref,
 				rect,
-				editItem,
+				editItem: options.selectedContentComponentState.item,
 				broken
 			});
 		}

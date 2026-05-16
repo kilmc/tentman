@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { devices, expect, test } from '@playwright/test';
 
 test.describe('MarkdownField harness', () => {
 	test('renders the rich editor with the initial markdown content', async ({ page }) => {
@@ -45,6 +45,32 @@ test.describe('MarkdownField harness', () => {
 		);
 	});
 
+	test('double-clicking editable-only components opens the edit dialog', async ({ page }) => {
+		await page.goto('/__test__/markdown-field?scenario=component-edit');
+		const field = page.getByTestId('component-field');
+
+		await expect(field.getByTestId('component-markdown-value')).toContainText(
+			':buy-button[Buy now]{href="https://example.com/shop" variant="default"}'
+		);
+		await field.locator('[data-tentman-content-component-node="buy-button"]').dblclick();
+		await expect(field.getByText('Edit Buy Button')).toBeVisible();
+		await expect(field.getByLabel('URL *')).toHaveValue('https://example.com/shop');
+		await expect(field.getByLabel('Label *')).toHaveValue('Buy now');
+	});
+
+	test('modifier-click opens href-bearing content components directly', async ({ page }) => {
+		await page.goto('/__test__/markdown-field?scenario=component-edit');
+		const field = page.getByTestId('component-field');
+		const component = field.locator('[data-tentman-content-component-node="buy-button"]');
+
+		const popupPromise = page.waitForEvent('popup');
+		await component.click({ modifiers: ['Meta'] });
+		const popup = await popupPromise;
+		await popup.waitForLoadState('domcontentloaded');
+		await expect(popup).toHaveURL('https://example.com/shop');
+		await popup.close();
+	});
+
 	test('keeps incomplete component markers visible and repairs them with recovered values', async ({
 		page
 	}) => {
@@ -56,8 +82,7 @@ test.describe('MarkdownField harness', () => {
 			'save-allowed'
 		);
 
-		await field.getByText(/Could not parse directive attributes/i).click();
-		await field.getByText(/Could not parse directive attributes/i).click();
+		await field.getByText(/Could not parse directive attributes/i).dblclick();
 		await expect(field.getByText('Edit Buy Button')).toBeVisible();
 		await expect(field.getByLabel('URL *')).toHaveValue('https://example.com/old');
 		await expect(field.getByLabel('Label *')).toHaveValue('Old label');
@@ -110,8 +135,7 @@ test.describe('MarkdownField harness', () => {
 		await page.goto('/__test__/markdown-field');
 		const field = page.getByTestId('reference-edit-field');
 
-		await field.getByText('Project gallery: City sketches').click();
-		await field.getByText('Project gallery: City sketches').click();
+		await field.getByText('Project gallery: City sketches').dblclick();
 		await expect(page.getByRole('button', { name: 'Edit project gallery' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Jump to Gallery ID' })).toBeVisible();
 		await page.getByRole('button', { name: 'Edit project gallery' }).click();
@@ -132,9 +156,23 @@ test.describe('MarkdownField harness', () => {
 		await page.goto('/__test__/markdown-field');
 		const field = page.getByTestId('reference-edit-field');
 		const editor = field.getByTestId('markdown-rich-editor');
+		const editorSurface = editor.locator('.ProseMirror');
 
 		await field.getByText('Project gallery: City sketches').click();
+		await expect(editorSurface).toHaveAttribute(
+			'data-tentman-selection-kind',
+			/NodeSelection$/
+		);
+		await expect(editorSurface).toHaveAttribute(
+			'data-tentman-selected-node-type',
+			'contentComponentProjectGallery'
+		);
 		await page.keyboard.press('Backspace');
+		await expect(field.getByTestId('reference-edit-field-markdown-value')).toHaveText('');
+
+		await page.getByTestId('reset-reference-edit').click();
+		await field.getByText('Project gallery: City sketches').click();
+		await page.keyboard.press('Delete');
 		await expect(field.getByTestId('reference-edit-field-markdown-value')).toHaveText('');
 
 		await page.getByTestId('reset-reference-edit').click();
@@ -161,10 +199,7 @@ test.describe('MarkdownField harness', () => {
 			'save-allowed'
 		);
 
-		await editor.getByText(/Could not resolve token "missing-gallery"/i).click();
-		await editor.getByText(/Could not resolve token "missing-gallery"/i).click();
-		await expect(page.getByRole('button', { name: 'Edit project gallery' })).toBeVisible();
-		await page.getByRole('button', { name: 'Edit project gallery' }).click();
+		await editor.getByText(/Could not resolve token "missing-gallery"/i).dblclick();
 		await expect(field.getByText('Edit Project Gallery')).toBeVisible();
 		await field.getByRole('combobox').selectOption('city-sketches');
 		await field.getByRole('button', { name: 'Save project gallery' }).click();
@@ -191,13 +226,124 @@ test.describe('MarkdownField harness', () => {
 		);
 	});
 
-	test('jumps marker-only reference components to their source field on click', async ({ page }) => {
+	test('undo restores marker-only reference components after deletion without preview errors', async ({
+		page
+	}) => {
+		await page.goto('/__test__/markdown-field');
+		const field = page.getByTestId('sibling-object-reference-field');
+		const editor = field.getByTestId('markdown-rich-editor');
+
+		await field.getByText('Gallery embed: Homepage gallery').click();
+		await page.keyboard.press('Backspace');
+		await expect(field.getByTestId('sibling-object-reference-field-markdown-value')).toHaveText('');
+
+		await page.keyboard.press('Meta+z');
+		await expect(field.getByText('Gallery embed: Homepage gallery')).toBeVisible();
+		await expect(field.getByTestId('sibling-object-reference-field-markdown-value')).toContainText(
+			'::gallery-embed'
+		);
+		await expect(editor.getByText(/Invalid gallery-embed/i)).toHaveCount(0);
+	});
+
+	test('keeps rich editor content visible when switching to markdown and back', async ({ page }) => {
+		await page.goto('/__test__/markdown-field');
+		const field = page.getByTestId('sibling-object-reference-field');
+
+		await expect(field.getByText('Gallery embed: Homepage gallery')).toBeVisible();
+
+		await field.getByRole('button', { name: 'Markdown' }).click();
+		await expect(field.getByLabel('Sibling object reference body')).toHaveValue('::gallery-embed');
+
+		await field.getByRole('button', { name: 'Rich' }).click();
+		await expect(field.getByText('Gallery embed: Homepage gallery')).toBeVisible();
+	});
+
+	test('cmd-enter activates marker-only reference components like double click', async ({ page }) => {
 		await page.goto('/__test__/markdown-field');
 		const field = page.getByTestId('sibling-object-reference-field');
 
 		await field.getByText('Gallery embed: Homepage gallery').click();
-		await field.getByText('Gallery embed: Homepage gallery').click();
+		await page.keyboard.press('Meta+Enter');
 		await expect(page.getByLabel('Gallery source field')).toBeFocused();
+	});
+
+	test('jumps marker-only reference components to their source field on click', async ({ page }) => {
+		await page.goto('/__test__/markdown-field');
+		const field = page.getByTestId('sibling-object-reference-field');
+		await field.getByText('Gallery embed: Homepage gallery').dblclick();
+		await expect(page.getByLabel('Gallery source field')).toBeFocused();
+	});
+
+	test('cmd-enter opens the action popover for mixed-capability components like double click', async ({
+		page
+	}) => {
+		await page.goto('/__test__/markdown-field');
+		const field = page.getByTestId('reference-edit-field');
+
+		await field.getByText('Project gallery: City sketches').click();
+		await page.keyboard.press('Meta+Enter');
+		await expect(page.getByRole('button', { name: 'Edit project gallery' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Jump to Gallery ID' })).toBeVisible();
+	});
+
+	test('double-clicking no-action marker components leaves them selected without opening UI', async ({
+		page
+	}) => {
+		await page.goto('/__test__/markdown-field');
+		const field = page.getByTestId('static-marker-field');
+		const editorSurface = field.locator('.ProseMirror');
+		const marker = field.locator('[data-tentman-content-component-node="static-marker"]');
+
+		await page.getByTestId('reset-static-marker').click();
+		await marker.dblclick();
+
+		await expect(editorSurface).toHaveAttribute(
+			'data-tentman-selection-kind',
+			/NodeSelection$/
+		);
+		await expect(editorSurface).toHaveAttribute(
+			'data-tentman-selected-node-type',
+			'contentComponentStaticMarker'
+		);
+		await expect(field.getByText('Static marker preview')).toBeVisible();
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(field.getByTestId('static-marker-field-markdown-value')).toHaveText(
+			'::static-marker'
+		);
+	});
+
+	test('touch tap keeps mixed-capability components selection-first on mobile', async ({
+		browser
+	}) => {
+		const context = await browser.newContext({
+			...devices['iPhone 13']
+		});
+		const page = await context.newPage();
+
+		try {
+			await page.goto('/__test__/markdown-field');
+			const field = page.getByTestId('reference-edit-field');
+			const editorSurface = field.locator('.ProseMirror');
+
+			await field
+				.locator('[data-tentman-content-component-node="project-gallery"]')
+				.tap();
+
+			await expect(editorSurface).toHaveAttribute(
+				'data-tentman-selection-kind',
+				/NodeSelection$/
+			);
+			await expect(editorSurface).toHaveAttribute(
+				'data-tentman-selected-node-type',
+				'contentComponentProjectGallery'
+			);
+			await expect(page.getByRole('button', { name: 'Edit project gallery' })).toHaveCount(0);
+			await expect(page.getByRole('button', { name: 'Jump to Gallery ID' })).toHaveCount(0);
+			await expect(page.getByText('Edit Project Gallery')).toHaveCount(0);
+			await expect(page.getByLabel('Gallery ID source')).not.toBeFocused();
+		} finally {
+			await context.close();
+		}
 	});
 
 	test('inserts top-level primitive references as first-class component bindings', async ({

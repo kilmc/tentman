@@ -441,7 +441,9 @@ date: '{{date}}'
 
 ### File-Backed Singleton Example
 
-Use this for a single page or settings document stored in one JSON file.
+Use this for a single page or settings document stored in one file. `*.json` paths are stored as
+JSON. `*.md` and `*.markdown` paths are stored as markdown with frontmatter, with the `body`
+field mapped to the markdown body and all other fields mapped to frontmatter.
 
 ```json
 {
@@ -589,7 +591,7 @@ Top-level config files must use one of these shapes:
 
 Supported content storage modes:
 
-- `content.mode: "file"` for a single JSON file, optionally with `itemsPath` for nested arrays
+- `content.mode: "file"` for a single file, optionally with `itemsPath` for nested JSON arrays
 - `content.mode: "directory"` for one file per item with a template
 
 Built-in block types:

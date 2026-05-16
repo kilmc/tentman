@@ -7,7 +7,13 @@ import {
 	ensureTentmanItemId,
 	normalizeRuntimeCollectionItemIds
 } from '$lib/features/content-management/stable-identity';
-import { detectJsonIndent, toJsonFileContent } from '$lib/features/content-management/transforms';
+import {
+	detectJsonIndent,
+	isMarkdownContentPath,
+	parseMarkdownContentRecord,
+	serializeMarkdownContentRecord,
+	toJsonFileContent
+} from '$lib/features/content-management/transforms';
 import { getUtf8ByteLength } from '$lib/utils/text';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { resolveConfigPath } from '$lib/utils/validation';
@@ -51,6 +57,34 @@ function getResolvedFilePath(context: ContentOperationContext): string {
 
 function getWriteOptions(branch: string | undefined, message: string) {
 	return { ref: branch, message };
+}
+
+function isMarkdownSingletonConfig(config: FileBackedConfig): boolean {
+	return !isFileCollectionConfig(config) && isMarkdownContentPath(config.content.path);
+}
+
+async function fileExists(
+	context: ContentOperationContext,
+	filePath: string,
+	branch?: string
+): Promise<boolean> {
+	return context.backend.fileExists(filePath, { ref: branch });
+}
+
+async function readOptionalTextFile(
+	context: ContentOperationContext,
+	filePath: string,
+	branch?: string
+): Promise<string | undefined> {
+	try {
+		return await context.backend.readTextFile(filePath, { ref: branch });
+	} catch (error) {
+		if (await fileExists(context, filePath, branch)) {
+			throw error;
+		}
+
+		return undefined;
+	}
 }
 
 async function readJsonFile(
@@ -125,25 +159,16 @@ async function previewFileContent(
 	if (!isFileCollectionConfig(config)) {
 		let oldContent: string | undefined;
 		let type: 'create' | 'update' = 'update';
-		let indent: string | number = 2;
+		const oldExistingContent = await readOptionalTextFile(context, filePath, options?.branch);
+		oldContent = oldExistingContent;
 
-		try {
-			oldContent = await context.backend.readTextFile(filePath, { ref: options?.branch });
-			indent = detectJsonIndent(oldContent);
-		} catch (error) {
-			if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
-				type = 'create';
-			} else {
-				type = (await context.backend.fileExists(filePath, { ref: options?.branch }))
-					? 'update'
-					: 'create';
-				if (type === 'update') {
-					throw error;
-				}
-			}
+		if (oldExistingContent === undefined) {
+			type = 'create';
 		}
 
-		const newContent = toJsonFileContent(data, indent);
+		const newContent = isMarkdownSingletonConfig(config)
+			? serializeMarkdownContentRecord(data)
+			: toJsonFileContent(data, oldExistingContent ? detectJsonIndent(oldExistingContent) : 2);
 
 		return {
 			files: [
@@ -207,12 +232,24 @@ async function fetchFileContent(
 ): Promise<ContentDocument> {
 	const config = asFileBackedConfig(context);
 	const filePath = getResolvedFilePath(context);
-	const raw = await context.backend.readTextFile(filePath, { ref: options?.branch });
 
 	if (!isFileCollectionConfig(config)) {
-		return JSON.parse(raw) as ContentRecord;
+		const raw = await readOptionalTextFile(context, filePath, options?.branch);
+
+		if (raw === undefined) {
+			if (isMarkdownSingletonConfig(config)) {
+				return {};
+			}
+
+			throw new Error(`File not found: ${filePath}`);
+		}
+
+		return isMarkdownSingletonConfig(config)
+			? parseMarkdownContentRecord(raw)
+			: (JSON.parse(raw) as ContentRecord);
 	}
 
+	const raw = await context.backend.readTextFile(filePath, { ref: options?.branch });
 	const json = JSON.parse(raw);
 	const items = getArrayItems(json as JsonContainer, config);
 	return normalizeRuntimeCollectionItemIds(config, items);
@@ -227,13 +264,16 @@ async function saveFileContent(
 
 	if (!isFileCollectionConfig(config)) {
 		const filePath = getResolvedFilePath(context);
-		const existingContent = await context.backend.readTextFile(filePath, { ref: options?.branch });
-		const indent = detectJsonIndent(existingContent);
-		const message = generateCommitMessage('update', config.label);
+		const existingContent = await readOptionalTextFile(context, filePath, options?.branch);
+		const isCreate = existingContent === undefined;
+		const message = generateCommitMessage(isCreate ? 'create' : 'update', config.label);
+		const nextContent = isMarkdownSingletonConfig(config)
+			? serializeMarkdownContentRecord(data)
+			: toJsonFileContent(data, existingContent ? detectJsonIndent(existingContent) : 2);
 
 		await context.backend.writeTextFile(
 			filePath,
-			toJsonFileContent(data, indent),
+			nextContent,
 			getWriteOptions(options?.branch, message)
 		);
 		return;

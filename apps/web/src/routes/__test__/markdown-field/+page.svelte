@@ -217,6 +217,32 @@
 		};
 	}
 
+	function createStaticMarkerRegistry(): ContentComponentRegistry {
+		const component = {
+			directory: 'src/lib/content-components/static-marker',
+			componentJsonPath: 'src/lib/content-components/static-marker/component.json',
+			renderTemplatePath: 'src/lib/content-components/static-marker/render.njk',
+			previewTemplatePath: 'src/lib/content-components/static-marker/preview.njk',
+			renderTemplateSource: '<div>Static marker</div>',
+			previewTemplateSource:
+				'<div class="tm-component-preview tm-component-preview--static-marker">Static marker preview</div>',
+			definition: {
+				id: 'static-marker',
+				name: 'static-marker',
+				kind: 'block' as const,
+				attributes: {}
+			}
+		};
+
+		return {
+			components: [component],
+			errors: [],
+			getByName(name: string) {
+				return name === component.definition.name ? component : undefined;
+			}
+		};
+	}
+
 	const scenario = $derived(page.url.searchParams.get('scenario') ?? 'basic');
 	const initialBasicValue = $derived.by(() => {
 		if (scenario === 'upload') {
@@ -255,6 +281,8 @@
 	let topLevelReferenceErrors = $state<string[]>([]);
 	let nestedObjectReferenceValue = $state('');
 	let nestedObjectReferenceErrors = $state<string[]>([]);
+	let staticMarkerValue = $state('::static-marker');
+	let staticMarkerErrors = $state<string[]>([]);
 	let deleteCalls = $state<string[]>([]);
 	let createCalls = $state<Array<{ name: string; repoKey: string; storagePath?: string }>>([]);
 
@@ -268,6 +296,7 @@
 	const galleryEmbedRegistry = createGalleryEmbedRegistry();
 	const heroEmbedRegistry = createHeroEmbedRegistry();
 	const socialCardEmbedRegistry = createSocialCardEmbedRegistry();
+	const staticMarkerRegistry = createStaticMarkerRegistry();
 	const referenceBlocks: BlockUsage[] = [
 		{
 			id: 'body',
@@ -572,6 +601,11 @@
 		nestedObjectReferenceErrors = [];
 	}
 
+	function resetStaticMarkerState() {
+		staticMarkerValue = '::static-marker';
+		staticMarkerErrors = [];
+	}
+
 	onMount(() => {
 		basicValue = initialBasicValue;
 		componentValue = initialComponentValue;
@@ -790,6 +824,14 @@
 				>
 					Reset nested object reference
 				</button>
+				<button
+					type="button"
+					data-testid="reset-static-marker"
+					class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
+					onclick={resetStaticMarkerState}
+				>
+					Reset static marker
+				</button>
 			</div>
 
 			<MarkdownFieldPlaywrightHarness
@@ -942,6 +984,17 @@
 					}
 				}}
 				testAdapters={socialCardEmbedAdapters}
+			/>
+
+			<MarkdownFieldPlaywrightHarness
+				testId="static-marker-field"
+				label="Static marker body"
+				bind:value={staticMarkerValue}
+				bind:validationErrors={staticMarkerErrors}
+				components={['static-marker']}
+				testAdapters={{
+					loadContentComponentRegistryForMode: async () => staticMarkerRegistry
+				}}
 			/>
 		</section>
 	</div>

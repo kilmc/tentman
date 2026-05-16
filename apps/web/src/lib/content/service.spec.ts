@@ -120,6 +120,22 @@ const singletonConfig = parseContentConfigFixture(
 	})
 );
 
+const markdownSingletonConfig = parseContentConfigFixture(
+	JSON.stringify({
+		type: 'content',
+		label: 'About Page',
+		content: {
+			mode: 'file',
+			path: './about.md'
+		},
+		blocks: [
+			{ id: 'title', type: 'text', label: 'Title' },
+			{ id: 'published', type: 'toggle', label: 'Published' },
+			{ id: 'body', type: 'markdown', label: 'Body' }
+		]
+	})
+);
+
 const arrayConfig = parseContentConfigFixture(
 	JSON.stringify({
 		type: 'content',
@@ -200,6 +216,108 @@ describe('content/service', () => {
 
 		expect(backend.files.get('content/site.json')).toBe('{\n  "title": "After"\n}\n');
 		expect(backend.writes.at(-1)?.options?.ref).toBe('draft/content');
+	});
+
+	it('fetches and saves markdown file-mode singleton content through the service', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/about.md':
+				'---\ntitle: Before\npublished: false\n---\n## Hello\n\nBefore body'
+		});
+
+		const fetched = await fetchContentDocument(
+			backend,
+			markdownSingletonConfig,
+			'content/about.tentman.json'
+		);
+		expect(fetched).toEqual({
+			title: 'Before',
+			published: false,
+			body: '## Hello\n\nBefore body'
+		});
+
+		await saveContentDocument(
+			backend,
+			markdownSingletonConfig,
+			'content/about.tentman.json',
+			{
+				title: 'After',
+				published: true,
+				body: '## Updated\n\nAfter body'
+			},
+			{ branch: 'draft/content' }
+		);
+
+		expect(backend.files.get('content/about.md')).toBe(
+			'---\ntitle: After\npublished: true\n---\n## Updated\n\nAfter body'
+		);
+		expect(backend.writes.at(-1)?.options?.ref).toBe('draft/content');
+		expect(backend.writes.at(-1)?.options?.message).toBe('Update About Page via Tentman CMS');
+	});
+
+	it('returns an empty record and creates missing markdown file-mode singleton files on save', async () => {
+		const backend = new MemoryRepositoryBackend({});
+
+		const fetched = await fetchContentDocument(
+			backend,
+			markdownSingletonConfig,
+			'content/about.tentman.json'
+		);
+		expect(fetched).toEqual({});
+
+		const changes = await previewContentChanges(
+			backend,
+			markdownSingletonConfig,
+			'content/about.tentman.json',
+			{
+				title: 'First draft',
+				published: false,
+				body: 'Hello world'
+			}
+		);
+
+		expect(changes.totalChanges).toBe(1);
+		expect(changes.files[0]).toMatchObject({
+			path: 'content/about.md',
+			type: 'create'
+		});
+		expect(changes.files[0].newContent).toBe(
+			'---\ntitle: First draft\npublished: false\n---\nHello world'
+		);
+
+		await saveContentDocument(
+			backend,
+			markdownSingletonConfig,
+			'content/about.tentman.json',
+			{
+				title: 'First draft',
+				published: false,
+				body: 'Hello world'
+			}
+		);
+
+		expect(backend.files.get('content/about.md')).toBe(
+			'---\ntitle: First draft\npublished: false\n---\nHello world'
+		);
+		expect(backend.writes.at(-1)?.options?.message).toBe('Create About Page via Tentman CMS');
+	});
+
+	it('recovers malformed markdown singleton frontmatter the same way as markdown collections', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/about.md':
+				'---\ntitle: Broken Draft\npublished: true\n*Recovered intro*\n\nRecovered body'
+		});
+
+		const fetched = await fetchContentDocument(
+			backend,
+			markdownSingletonConfig,
+			'content/about.tentman.json'
+		);
+
+		expect(fetched).toEqual({
+			title: 'Broken Draft',
+			published: true,
+			body: '*Recovered intro*\n\nRecovered body'
+		});
 	});
 
 	it('updates file-mode collections via itemsPath', async () => {

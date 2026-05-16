@@ -6,10 +6,22 @@ import FileHandler from '@tiptap/extension-file-handler';
 import { Markdown } from '@tiptap/markdown';
 import { createMarkdownImageNodeView } from './image-node-view';
 import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
+import {
+	createMarkdownEditorContentComponentActivationRequest,
+	isMarkdownEditorContentComponentNode,
+	type MarkdownEditorContentComponentActivationRequest
+} from '$lib/features/markdown-editor/content-component-interactions';
 
 interface MarkdownImageNodeOptions extends ImageOptions {
 	assetsDir?: string;
 	storagePath?: string;
+}
+
+interface ContentComponentLikeNode {
+	type: {
+		name: string;
+	};
+	attrs?: Record<string, unknown>;
 }
 
 interface CreateMarkdownEditorOptions {
@@ -22,7 +34,7 @@ interface CreateMarkdownEditorOptions {
 	onUiChange?: () => void;
 	onError?: (message: string) => void;
 	onLinkClick?: (payload: { href: string; rect: DOMRect }) => void;
-	onContentComponentActivate?: () => void;
+	onContentComponentActivate?: (payload: MarkdownEditorContentComponentActivationRequest) => void;
 	contentComponentToolbarButtons?: ContentComponentToolbarButton[];
 	stageImage(file: File): Promise<{ ref: string }>;
 }
@@ -79,6 +91,61 @@ function isContentComponentTarget(target: Element): boolean {
 	return Boolean(target.closest('[data-tentman-content-component-node]'));
 }
 
+function getContentComponentActivationRequestFromTarget(options: {
+	view: Editor['view'];
+	target: EventTarget | null;
+	componentToolbarButtons: ContentComponentToolbarButton[];
+}): MarkdownEditorContentComponentActivationRequest | null {
+	if (!(options.target instanceof Element)) {
+		return null;
+	}
+
+	const contentComponentDom = options.target.closest('[data-tentman-content-component-node]');
+	if (!(contentComponentDom instanceof Element) || !options.view.dom.contains(contentComponentDom)) {
+		return null;
+	}
+
+	try {
+		const nodePos = options.view.posAtDOM(contentComponentDom, 0);
+		const node = options.view.state.doc.nodeAt(nodePos);
+		if (!node || !isMarkdownEditorContentComponentNode(node, options.componentToolbarButtons)) {
+			return null;
+		}
+
+		return createMarkdownEditorContentComponentActivationRequest({
+			node,
+			nodePos,
+			viewNodeDom: contentComponentDom
+		});
+	} catch {
+		return null;
+	}
+}
+
+function getContentComponentActivationRequestFromSelection(options: {
+	view: Editor['view'];
+	componentToolbarButtons: ContentComponentToolbarButton[];
+}): MarkdownEditorContentComponentActivationRequest | null {
+	const selection = options.view.state.selection as {
+		from: number;
+		node?: ContentComponentLikeNode | null;
+	};
+	const selectedNode = selection.node ?? null;
+	if (!selectedNode || !isMarkdownEditorContentComponentNode(selectedNode, options.componentToolbarButtons)) {
+		return null;
+	}
+
+	try {
+		return createMarkdownEditorContentComponentActivationRequest({
+			node: selectedNode,
+			nodePos: selection.from,
+			viewNodeDom: options.view.nodeDOM(selection.from)
+		});
+	} catch {
+		return null;
+	}
+}
+
 function openEditorHref(href: unknown): boolean {
 	if (typeof href !== 'string') {
 		return false;
@@ -91,22 +158,6 @@ function openEditorHref(href: unknown): boolean {
 
 	window.open(normalizedHref, '_blank', 'noopener');
 	return true;
-}
-
-function getSelectedContentComponentButton(
-	editor: Editor,
-	componentToolbarButtons: ContentComponentToolbarButton[]
-): ContentComponentToolbarButton | null {
-	const selectedNode = 'node' in editor.state.selection ? editor.state.selection.node : null;
-	if (!selectedNode) {
-		return null;
-	}
-
-	return (
-		componentToolbarButtons.find(
-			(button) => button.contentComponent?.nodeName === selectedNode.type.name
-		) ?? null
-	);
 }
 
 export function createMarkdownEditor(
@@ -136,6 +187,22 @@ export function createMarkdownEditor(
 		});
 	}
 
+	function syncSelectionDataAttributes() {
+		const selection = editor.state.selection as {
+			node?: { type?: { name?: string } } | null;
+			constructor?: { name?: string };
+		};
+		const selectionDom = editor.view.dom as HTMLElement;
+
+		selectionDom.dataset.tentmanSelectionKind = selection.constructor?.name ?? 'UnknownSelection';
+		if (selection.node?.type?.name) {
+			selectionDom.dataset.tentmanSelectedNodeType = selection.node.type.name;
+			return;
+		}
+
+		delete selectionDom.dataset.tentmanSelectedNodeType;
+	}
+
 	const editor = new Editor({
 		content: options.markdown,
 		contentType: 'markdown',
@@ -144,6 +211,56 @@ export function createMarkdownEditor(
 			attributes: {
 				class:
 					'ProseMirror markdown-editor-content prose prose-sm max-w-none focus:outline-none prose-headings:font-semibold prose-code:rounded prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:text-stone-800 prose-pre:font-mono prose-pre:shadow-none'
+			},
+			handleDOMEvents: {
+				keydown(view, event) {
+					if (!(event instanceof KeyboardEvent) || event.key !== 'Enter' || !isModifierClick(event)) {
+						return false;
+					}
+
+					const componentToolbarButtons = options.contentComponentToolbarButtons ?? [];
+					const activationRequest = getContentComponentActivationRequestFromSelection({
+						view,
+						componentToolbarButtons
+					});
+					if (!activationRequest) {
+						return false;
+					}
+
+					event.preventDefault();
+					(editor.view.dom as HTMLElement).dataset.tentmanLastActivationSource = 'keyboard-mod-enter';
+					queueMicrotask(() => {
+						runIfActive(() => {
+							options.onContentComponentActivate?.(activationRequest);
+						});
+					});
+					return true;
+				},
+				dblclick(view, event) {
+					if (!(event instanceof MouseEvent) || isModifierClick(event)) {
+						return false;
+					}
+
+					const componentToolbarButtons = options.contentComponentToolbarButtons ?? [];
+					const activationRequest = getContentComponentActivationRequestFromTarget({
+						view,
+						target: event.target,
+						componentToolbarButtons
+					});
+					if (!activationRequest) {
+						return false;
+					}
+
+					editor.commands.setNodeSelection(activationRequest.nodePos);
+					editor.view.focus();
+					(editor.view.dom as HTMLElement).dataset.tentmanLastActivationSource = 'dom-double-click';
+					queueMicrotask(() => {
+						runIfActive(() => {
+							options.onContentComponentActivate?.(activationRequest);
+						});
+					});
+					return true;
+				}
 			},
 			handleClick(view, _pos, event) {
 				const target = event.target;
@@ -180,49 +297,21 @@ export function createMarkdownEditor(
 
 				return false;
 			},
-			handleClickOn(_view, _pos, node, _nodePos, event) {
+			handleClickOn(view, _pos, node, nodePos, event) {
+				const componentToolbarButtons = options.contentComponentToolbarButtons ?? [];
+				(editor.view.dom as HTMLElement).dataset.tentmanLastClickDetail = String(event.detail);
+
+				if (isMarkdownEditorContentComponentNode(node, componentToolbarButtons) && !isModifierClick(event)) {
+					editor.commands.setNodeSelection(nodePos);
+					editor.view.focus();
+					return true;
+				}
+
 				if (!isModifierClick(event)) {
 					return false;
 				}
 
 				return openEditorHref(node.attrs.href);
-			},
-			handleKeyDown(view, event) {
-				const selectedComponent = getSelectedContentComponentButton(
-					editor,
-					options.contentComponentToolbarButtons ?? []
-				);
-				if (!selectedComponent) {
-					return false;
-				}
-
-				if (event.key === 'Backspace' || event.key === 'Delete') {
-					event.preventDefault();
-					view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
-					return true;
-				}
-
-				if (event.key === 'Enter') {
-					event.preventDefault();
-					options.onContentComponentActivate?.();
-					return true;
-				}
-
-				return false;
-			},
-			handleTextInput(view, _from, _to, text) {
-				const selectedComponent = getSelectedContentComponentButton(
-					editor,
-					options.contentComponentToolbarButtons ?? []
-				);
-				if (!selectedComponent) {
-					return false;
-				}
-
-				view.dispatch(
-					view.state.tr.insertText(text, view.state.selection.from, view.state.selection.to).scrollIntoView()
-				);
-				return true;
 			}
 		},
 		extensions: [
@@ -255,9 +344,11 @@ export function createMarkdownEditor(
 			...(options.extensions ?? [])
 		],
 		onCreate: () => {
+			syncSelectionDataAttributes();
 			reportUiChange();
 		},
 		onTransaction: () => {
+			syncSelectionDataAttributes();
 			reportUiChange();
 		},
 		onUpdate: ({ editor: activeEditor }) => {

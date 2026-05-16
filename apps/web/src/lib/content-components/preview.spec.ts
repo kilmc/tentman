@@ -29,7 +29,7 @@ function createRegistry(overrides: Partial<ContentComponentRegistry['components'
 			}
 		},
 		...overrides
-	};
+	} as ContentComponentRegistry['components'][number];
 
 	return {
 		components: [component],

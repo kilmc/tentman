@@ -7,7 +7,7 @@
 import type { Octokit } from 'octokit';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { fetchContentDocument } from '$lib/content/service';
-import { getItemId } from '$lib/features/content-management/item';
+import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 
@@ -244,14 +244,14 @@ function compareItemCollections(
 	const draftMap = new Map<string, ContentRecord>();
 
 	for (const item of mainContent) {
-		const itemId = getItemId(item);
+		const itemId = getItemId(item) ?? getItemRoute(config, item);
 		if (itemId) {
 			mainMap.set(itemId, item);
 		}
 	}
 
 	for (const item of draftContent) {
-		const itemId = getItemId(item);
+		const itemId = getItemId(item) ?? getItemRoute(config, item);
 		if (itemId) {
 			draftMap.set(itemId, item);
 		}

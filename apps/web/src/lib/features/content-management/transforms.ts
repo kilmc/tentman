@@ -27,6 +27,10 @@ export function toJsonFileContent(data: ContentValue, indent: string | number = 
 	return `${JSON.stringify(data, null, indent)}\n`;
 }
 
+export function isMarkdownContentPath(path: string): boolean {
+	return path.endsWith('.md') || path.endsWith('.markdown');
+}
+
 export function decodeBase64Content(content: string): string {
 	return decodeBase64ToUtf8(content);
 }
@@ -43,7 +47,7 @@ export function getTemplateInfo(configPath: string, config: DirectoryBackedConfi
 		templateDir,
 		templateExt,
 		templateFilename,
-		isMarkdown: templateExt === '.md' || templateExt === '.markdown'
+		isMarkdown: isMarkdownContentPath(resolvedTemplatePath)
 	};
 }
 
@@ -80,6 +84,12 @@ export function parseCollectionItem(
 		...data,
 		_filename: filename
 	};
+}
+
+export function parseMarkdownContentRecord(content: string): ContentRecord {
+	const parsed = parseCollectionItem(content, true, '');
+	delete parsed._filename;
+	return parsed;
 }
 
 function recoverMalformedMarkdownFrontmatter(content: string): {
@@ -154,6 +164,12 @@ export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean
 	const jsonData = { ...item };
 	delete jsonData._filename;
 	return toJsonFileContent(jsonData);
+}
+
+export function serializeMarkdownContentRecord(item: ContentRecord): string {
+	const normalizedItem = { ...item };
+	delete normalizedItem._filename;
+	return serializeCollectionItem(normalizedItem, true);
 }
 
 export function stringifyMarkdownCollectionItem(

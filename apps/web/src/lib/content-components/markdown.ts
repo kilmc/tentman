@@ -1,4 +1,4 @@
-import { Node, type Extensions } from '@tiptap/core';
+import { Node, type Extensions, type NodeViewRendererProps } from '@tiptap/core';
 import {
 	getContentComponentReferenceAttribute,
 	normalizeContentComponentInstance,
@@ -291,60 +291,13 @@ function buildComponentNodeView(
 			contentItem?: object | null;
 			referenceIndex?: Map<string, Map<string, unknown>>;
 		};
-		onComponentClick?: (payload: { componentName: string }) => void;
 	} = {}
 ) {
-	return function createComponentNodeView(
-		props: Parameters<NonNullable<ReturnType<typeof Node.create>['config']['addNodeView']>>[0]
-	) {
+	return function createComponentNodeView(props: NodeViewRendererProps) {
 		const dom = document.createElement(component.definition.kind === 'block' ? 'div' : 'span');
 		dom.contentEditable = 'false';
 		dom.dataset.tentmanContentComponentNode = component.definition.name;
 		dom.dataset.tentmanContentComponentKind = component.definition.kind;
-
-		dom.addEventListener(
-			'click',
-			(event) => {
-				if (!event.metaKey && !event.ctrlKey) {
-					requestAnimationFrame(() => {
-						if (typeof props.getPos !== 'function') {
-							return;
-						}
-
-						const position = props.getPos();
-						if (typeof position !== 'number') {
-							return;
-						}
-
-						const selection = props.editor.state.selection as {
-							from: number;
-							to: number;
-							node?: { type?: { name?: string } } | null;
-						};
-						const alreadySelected =
-							selection.from === position &&
-							selection.to === position + props.node.nodeSize &&
-							selection.node?.type?.name === props.node.type.name;
-
-						props.editor.commands.setNodeSelection(position);
-						props.editor.view.focus();
-						if (alreadySelected) {
-							options.onComponentClick?.({ componentName: component.definition.name });
-						}
-					});
-					return;
-				}
-
-				const href = dom.dataset.tentmanContentComponentHref?.trim();
-				if (!href) {
-					return;
-				}
-
-				event.preventDefault();
-				window.open(href, '_blank', 'noopener');
-			},
-			{ capture: true }
-		);
 
 		function renderPreview(attributes: Record<string, string>) {
 			const brokenState = getBrokenDirectiveState(attributes);
@@ -420,7 +373,6 @@ function createContentComponentExtension(
 			contentItem?: object | null;
 			referenceIndex?: Map<string, Map<string, unknown>>;
 		};
-		onComponentClick?: (payload: { componentName: string }) => void;
 	} = {}
 ) {
 	const nodeName = toNodeName(component.definition.name);
@@ -428,16 +380,14 @@ function createContentComponentExtension(
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
 	const inline = component.definition.kind === 'inline';
 
-	return Node.create({
-		name: nodeName,
-		priority: 1100,
-		inline,
-		group: inline ? 'inline' : 'block',
-		atom: true,
-		selectable: true,
-		defining: !inline,
+		return Node.create({
+			name: nodeName,
+			inline,
+			group: inline ? 'inline' : 'block',
+			atom: true,
+			selectable: true,
 
-		addAttributes() {
+			addAttributes() {
 			return {
 				...Object.fromEntries(
 					Object.entries(component.definition.attributes).map(([attributeName, definition]) => [
@@ -698,7 +648,6 @@ export function createMarkdownContentComponentArtifacts(
 			attributeName: string;
 			binding: string;
 		}) => Array<{ label: string; value: string }>;
-		onComponentClick?: (payload: { componentName: string }) => void;
 	} = {}
 ): {
 	extensions: Extensions;

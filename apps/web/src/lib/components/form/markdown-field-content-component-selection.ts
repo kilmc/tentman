@@ -4,12 +4,23 @@ import type { BlockUsage } from '$lib/config/types';
 import type { ContentRecord } from '$lib/features/content-management/types';
 import type { FormContentContext } from '$lib/components/form/form-content-context';
 import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
+import type { CoreContentComponentReferenceEntry } from '@tentman/core/content-components';
 import type { Editor } from '@tiptap/core';
-import type { CoreContentComponentReferenceEntry } from '$lib/types/tentman-core-content-components';
 import { collectMarkdownFieldReferenceState } from '$lib/components/form/markdown-field-context';
+import {
+	getMarkdownEditorContentComponentAvailableActions,
+	getMarkdownEditorContentComponentCapabilities,
+	getMarkdownEditorContentComponentPrimaryAction,
+	type MarkdownEditorContentComponentCapabilities,
+	type MarkdownEditorContentComponentDirectIntent,
+	type MarkdownEditorContentComponentIntent
+} from '$lib/features/markdown-editor/content-component-interactions';
 
-interface SelectedContentComponentState {
-	item: ContentComponentToolbarButton;
+const BROKEN_ATTRIBUTE_NAME = '__tentmanBroken';
+
+export interface MarkdownFieldContentComponentNodeSnapshot {
+	nodeTypeName: string;
+	nodeAttributes: Record<string, unknown>;
 }
 
 export interface MarkdownFieldContentComponentReferenceTarget {
@@ -19,8 +30,13 @@ export interface MarkdownFieldContentComponentReferenceTarget {
 
 export interface MarkdownFieldSelectedContentComponentState {
 	item: ContentComponentToolbarButton;
+	href: string;
+	broken: boolean;
 	canEdit: boolean;
 	referenceTarget: MarkdownFieldContentComponentReferenceTarget | null;
+	capabilities: MarkdownEditorContentComponentCapabilities;
+	availableActions: MarkdownEditorContentComponentDirectIntent[];
+	primaryAction: MarkdownEditorContentComponentIntent;
 }
 
 function toFieldLabel(block: BlockUsage): string {
@@ -39,19 +55,24 @@ function isContentRecord(value: unknown): value is ContentRecord {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function getSelectedContentComponentState(
-	editor: Editor,
-	componentToolbarButtons: ContentComponentToolbarButton[]
-): SelectedContentComponentState | null {
-	const selectedNode = 'node' in editor.state.selection ? editor.state.selection.node : null;
+function getSelectedContentComponentNodeSnapshot(
+	editor: Editor
+): MarkdownFieldContentComponentNodeSnapshot | null {
+	const selection = editor.state.selection as {
+		node?: {
+			type: { name: string };
+			attrs?: Record<string, unknown>;
+		} | null;
+	};
+	const selectedNode = selection.node ?? null;
 	if (!selectedNode) {
 		return null;
 	}
 
-	const item = componentToolbarButtons.find(
-		(button) => button.contentComponent?.nodeName === selectedNode.type.name
-	);
-	return item ? { item } : null;
+	return {
+		nodeTypeName: selectedNode.type.name,
+		nodeAttributes: { ...(selectedNode.attrs ?? {}) }
+	};
 }
 
 function findReferenceTargetPath(options: {
@@ -107,6 +128,13 @@ function findReferenceTargetPath(options: {
 			continue;
 		}
 
+		if (fieldValue === options.entry.container || fieldValue === options.entry.self) {
+			return {
+				fieldPath: nextPath,
+				fieldLabel: toFieldLabel(block)
+			};
+		}
+
 		const match = findReferenceTargetPath({
 			...options,
 			blocks: structuredBlocks,
@@ -122,11 +150,11 @@ function findReferenceTargetPath(options: {
 }
 
 export function getMarkdownFieldContentComponentReferenceTarget(options: {
-	editor: Editor | null;
 	item: ContentComponentToolbarButton | null | undefined;
+	nodeAttributes: Record<string, unknown> | null | undefined;
 	formContentContext: FormContentContext | null;
 }): MarkdownFieldContentComponentReferenceTarget | null {
-	if (!options.editor || !options.item?.contentComponent?.reference) {
+	if (!options.item?.contentComponent?.reference || !options.nodeAttributes) {
 		return null;
 	}
 
@@ -140,14 +168,9 @@ export function getMarkdownFieldContentComponentReferenceTarget(options: {
 		return null;
 	}
 
-	const selectedNode = 'node' in options.editor.state.selection ? options.editor.state.selection.node : null;
-	if (!selectedNode) {
-		return null;
-	}
-
 	let entry: CoreContentComponentReferenceEntry | undefined;
 	if (options.item.contentComponent.reference.attributeId) {
-		const rawToken = selectedNode.attrs?.[options.item.contentComponent.reference.attributeId];
+		const rawToken = options.nodeAttributes[options.item.contentComponent.reference.attributeId];
 		const token = typeof rawToken === 'string' ? rawToken.trim() : '';
 		if (!token) {
 			return null;
@@ -170,16 +193,53 @@ export function getMarkdownFieldContentComponentReferenceTarget(options: {
 	});
 }
 
-function getSelectedReferenceTarget(
-	editor: Editor,
-	item: ContentComponentToolbarButton,
-	formContentContext: FormContentContext | null
-): MarkdownFieldContentComponentReferenceTarget | null {
-	return getMarkdownFieldContentComponentReferenceTarget({
-		editor,
+export function getMarkdownFieldContentComponentState(options: {
+	node: MarkdownFieldContentComponentNodeSnapshot | null;
+	href?: string | null;
+	broken?: boolean;
+	componentToolbarButtons: ContentComponentToolbarButton[];
+	formContentContext: FormContentContext | null;
+}): MarkdownFieldSelectedContentComponentState | null {
+	if (!options.node) {
+		return null;
+	}
+
+	const item = options.componentToolbarButtons.find(
+		(button) => button.contentComponent?.nodeName === options.node?.nodeTypeName
+	);
+	if (!item) {
+		return null;
+	}
+
+	const href =
+		options.href ??
+		(typeof options.node.nodeAttributes.href === 'string' ? options.node.nodeAttributes.href : '');
+	const broken =
+		options.broken ??
+		String(options.node.nodeAttributes[BROKEN_ATTRIBUTE_NAME] ?? '') === 'true';
+	const canEdit = Boolean(item.contentComponent?.hasEditableFields);
+	const referenceTarget = getMarkdownFieldContentComponentReferenceTarget({
 		item,
-		formContentContext
+		nodeAttributes: options.node.nodeAttributes,
+		formContentContext: options.formContentContext
 	});
+	const capabilities = getMarkdownEditorContentComponentCapabilities({
+		canEdit,
+		canJump: Boolean(referenceTarget),
+		href,
+		broken
+	});
+
+	return {
+		item,
+		href,
+		broken,
+		canEdit,
+		referenceTarget,
+		capabilities,
+		availableActions: getMarkdownEditorContentComponentAvailableActions(capabilities),
+		primaryAction: getMarkdownEditorContentComponentPrimaryAction(capabilities)
+	};
 }
 
 export function getMarkdownFieldSelectedContentComponentState(options: {
@@ -191,18 +251,9 @@ export function getMarkdownFieldSelectedContentComponentState(options: {
 		return null;
 	}
 
-	const selected = getSelectedContentComponentState(options.editor, options.componentToolbarButtons);
-	if (!selected) {
-		return null;
-	}
-
-	return {
-		item: selected.item,
-		canEdit: Boolean(selected.item.contentComponent?.hasEditableFields),
-		referenceTarget: getSelectedReferenceTarget(
-			options.editor,
-			selected.item,
-			options.formContentContext
-		)
-	};
+	return getMarkdownFieldContentComponentState({
+		node: getSelectedContentComponentNodeSnapshot(options.editor),
+		componentToolbarButtons: options.componentToolbarButtons,
+		formContentContext: options.formContentContext
+	});
 }

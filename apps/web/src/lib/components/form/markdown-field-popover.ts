@@ -9,7 +9,7 @@ import {
 	getMarkdownFieldPopoverAnchorStyle,
 	getMarkdownFieldSelectionRect
 } from '$lib/components/form/markdown-field-ui';
-import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
+import type { MarkdownFieldSelectedContentComponentState } from '$lib/components/form/markdown-field-content-component-selection';
 import type { Editor } from '@tiptap/core';
 
 export function createMarkdownFieldLinkPopoverState(options: {
@@ -39,12 +39,44 @@ export type MarkdownFieldEditorHostClickResult =
 	| { kind: 'ignore' }
 	| { kind: 'open-popover'; state: MarkdownFieldPopoverState };
 
+function createMarkdownFieldPopoverStateFromContext(options: {
+	popover: NonNullable<MarkdownFieldPopoverState['popover']>;
+	destroyed: boolean;
+	selectedContentComponentState: MarkdownFieldSelectedContentComponentState | null;
+}): MarkdownFieldPopoverState {
+	if (options.popover.kind === 'link') {
+		return startMarkdownFieldLinkEditing(
+			{
+				popover: options.popover,
+				open: true,
+				linkMode: 'view',
+				linkValue: options.popover.href,
+				componentEditItem: null,
+				componentReferenceTarget: null
+			},
+			options.destroyed
+		);
+	}
+
+	return {
+		popover: options.popover,
+		open: true,
+		linkMode: 'view',
+		linkValue: options.popover.href,
+		componentEditItem: options.popover.editItem,
+		componentReferenceTarget:
+			options.selectedContentComponentState?.primaryAction === 'openActions'
+				? options.selectedContentComponentState.referenceTarget
+				: null
+	};
+}
+
 export function getMarkdownFieldEditorHostClickResult(options: {
 	event: MouseEvent;
 	hasOpenDialog: boolean;
 	destroyed: boolean;
 	editor: Editor | null;
-	componentToolbarButtons: ContentComponentToolbarButton[];
+	selectedContentComponentState: MarkdownFieldSelectedContentComponentState | null;
 }): MarkdownFieldEditorHostClickResult {
 	if (options.event.metaKey || options.event.ctrlKey || options.hasOpenDialog) {
 		return { kind: 'ignore' };
@@ -65,7 +97,7 @@ export function getMarkdownFieldEditorHostClickResult(options: {
 
 	const nextPopover = getMarkdownFieldContextualPopoverState({
 		editor: options.editor,
-		componentToolbarButtons: options.componentToolbarButtons
+		selectedContentComponentState: options.selectedContentComponentState
 	});
 	if (!nextPopover) {
 		return { kind: 'ignore' };
@@ -73,23 +105,11 @@ export function getMarkdownFieldEditorHostClickResult(options: {
 
 	return {
 		kind: 'open-popover',
-		state:
-			nextPopover.kind === 'link'
-				? startMarkdownFieldLinkEditing(
-						{
-							popover: nextPopover,
-							open: true,
-							linkMode: 'view',
-							linkValue: nextPopover.href
-						},
-						options.destroyed
-					)
-				: {
-						popover: nextPopover,
-						open: true,
-						linkMode: 'view',
-						linkValue: nextPopover.href
-					}
+		state: createMarkdownFieldPopoverStateFromContext({
+			popover: nextPopover,
+			destroyed: options.destroyed,
+			selectedContentComponentState: options.selectedContentComponentState
+		})
 	};
 }
 
@@ -109,7 +129,10 @@ export function getMarkdownFieldRichShellPopover(
 		kind: popoverState.popover.kind,
 		href: popoverState.popover.href,
 		placement: popoverState.popover.placement,
-		editLabel: popoverState.popover.editItem?.buttonLabel?.toLowerCase() ?? 'item'
+		editLabel:
+			popoverState.componentEditItem?.buttonLabel?.toLowerCase() ??
+			popoverState.componentEditItem?.label?.toLowerCase() ??
+			'item'
 	};
 }
 
@@ -117,8 +140,4 @@ export function getMarkdownFieldRichShellPopoverAnchorStyle(
 	popoverState: MarkdownFieldPopoverState
 ): string {
 	return popoverState.popover ? getMarkdownFieldPopoverAnchorStyle(popoverState.popover) : '';
-}
-
-export function closeMarkdownFieldPopoverIfNeeded(nextOpen: boolean): MarkdownFieldPopoverState | null {
-	return nextOpen ? null : closeMarkdownFieldPopover();
 }

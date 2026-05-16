@@ -250,7 +250,14 @@ describe('navigation manifest helpers', () => {
 					path: 'src/content/projects.json',
 					itemsPath: '$'
 				},
-				blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+						blocks: [
+							{
+								id: 'tentmanGroup',
+								type: 'tentmanGroup',
+								label: 'Group',
+								collection: 'projects'
+							}
+						]
 			})
 		});
 
@@ -279,7 +286,14 @@ describe('navigation manifest helpers', () => {
 						path: 'src/content/projects.json',
 						itemsPath: '$'
 					},
-					blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+					blocks: [
+						{
+							id: 'tentmanGroup',
+							type: 'tentmanGroup',
+							label: 'Group',
+							collection: 'projects'
+						}
+					]
 				}
 			},
 			{
@@ -329,7 +343,7 @@ describe('navigation manifest helpers', () => {
 					path: 'src/content/projects.json',
 					itemsPath: '$'
 				},
-				blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+						blocks: [{ id: 'group', type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
 			})
 		});
 
@@ -353,7 +367,14 @@ describe('navigation manifest helpers', () => {
 						path: 'src/content/projects.json',
 						itemsPath: '$'
 					},
-					blocks: [{ type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+						blocks: [
+							{
+								id: 'tentmanGroup',
+								type: 'tentmanGroup',
+								label: 'Group',
+								collection: 'projects'
+							}
+						]
 				}
 			},
 			{

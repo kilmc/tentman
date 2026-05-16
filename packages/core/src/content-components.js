@@ -1,5 +1,5 @@
 // @ts-nocheck
-import nunjucks from 'nunjucks';
+import * as nunjucksModule from 'nunjucks';
 import { assertPlainObject, parseJsonObject, readOptionalString, readRequiredString } from './json.js';
 
 const COMPONENT_CONFIG_NAME = 'component.json';
@@ -10,7 +10,14 @@ const VALID_ATTRIBUTE_TYPES = new Set(['string', 'enum']);
 const VALID_EDITOR_CONTROLS = new Set(['text', 'url', 'select']);
 const VALID_REFERENCE_SCOPES = new Set(['self', 'container', 'full']);
 const VALID_RENDER_MAPPING_ROOTS = new Set(['attributes', 'data']);
-const renderEnvironment = new nunjucks.Environment(undefined, {
+const nunjucksRuntime =
+	nunjucksModule.Environment
+		? nunjucksModule
+		: nunjucksModule.default
+			? nunjucksModule.default
+			: globalThis.nunjucks;
+const { Environment } = nunjucksRuntime;
+const renderEnvironment = new Environment(undefined, {
 	autoescape: true,
 	throwOnUndefined: false
 });
@@ -118,7 +125,12 @@ function cloneReferenceValue(value) {
 	}
 
 	if (typeof structuredClone === 'function') {
-		return structuredClone(value);
+		try {
+			return structuredClone(value);
+		} catch {
+			// Browser-side preview data can arrive as reactive proxies that fail structuredClone.
+			// Our content data is JSON-shaped, so falling back to JSON cloning keeps previews stable.
+		}
 	}
 
 	return JSON.parse(JSON.stringify(value));

@@ -13,6 +13,7 @@
 		StructureValue
 	} from '$lib/components/form/markdown-field-toolbar';
 	import type { MarkdownToolbarDialogContribution } from '$lib/features/markdown-editor/types';
+	import type { Editor } from '@tiptap/core';
 
 	interface ContextualPopoverViewModel {
 		kind: 'link' | 'component';
@@ -52,7 +53,7 @@
 		componentDialogSerializedValue?: string | null;
 		componentDialogValidationError?: string | null;
 		istoolbaritemactive: (item: {
-			isActive?: ((...args: never[]) => boolean) | undefined;
+			isActive?: ((editor: Editor) => boolean) | undefined;
 		}) => boolean;
 		onapplystructurevalue: (value: StructureValue) => void;
 		onapplylistvalue: (value: ListValue) => void;

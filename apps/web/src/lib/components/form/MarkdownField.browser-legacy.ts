@@ -186,7 +186,10 @@ function createProjectGalleryContentComponentRegistry(): ContentComponentRegistr
 					type: 'string' as const,
 					required: true,
 					reference: true,
-					referenceScope: 'container' as const,
+					referenceScope: {
+						preview: 'container' as const,
+						render: 'container' as const
+					},
 					editor: {
 						label: 'Gallery'
 					}

@@ -3,6 +3,7 @@ import {
 	createMarkdownFieldDialogState,
 	getMarkdownFieldSerializedDialogValue
 } from '$lib/components/form/markdown-field-controller';
+import type { MarkdownFieldContentComponentReferenceTarget } from '$lib/components/form/markdown-field-content-component-selection';
 import {
 	createMarkdownFieldPopoverStateFromRect,
 	getMarkdownFieldDialogSubmitLabel,
@@ -25,6 +26,8 @@ export interface MarkdownFieldPopoverState {
 	open: boolean;
 	linkMode: 'view' | 'edit';
 	linkValue: string;
+	componentEditItem: ContentComponentToolbarButton | null;
+	componentReferenceTarget: MarkdownFieldContentComponentReferenceTarget | null;
 }
 
 export function createInitialMarkdownFieldComponentDialogState(): MarkdownFieldComponentDialogState {
@@ -42,7 +45,9 @@ export function createInitialMarkdownFieldPopoverState(): MarkdownFieldPopoverSt
 		popover: null,
 		open: false,
 		linkMode: 'view',
-		linkValue: ''
+		linkValue: '',
+		componentEditItem: null,
+		componentReferenceTarget: null
 	};
 }
 
@@ -78,6 +83,7 @@ export function openMarkdownFieldPopoverFromRect(options: {
 	href: string;
 	rect: DOMRect;
 	editItem?: ContentComponentToolbarButton | null;
+	referenceTarget?: MarkdownFieldContentComponentReferenceTarget | null;
 	broken?: boolean;
 	startInEditMode?: boolean;
 }): MarkdownFieldPopoverState {
@@ -91,7 +97,9 @@ export function openMarkdownFieldPopoverFromRect(options: {
 		}),
 		open: true,
 		linkMode: options.kind === 'link' && options.startInEditMode ? 'edit' : 'view',
-		linkValue: options.href
+		linkValue: options.href,
+		componentEditItem: options.editItem ?? null,
+		componentReferenceTarget: options.referenceTarget ?? null
 	};
 }
 

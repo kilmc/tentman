@@ -695,7 +695,7 @@ function getCollectionGroupFieldIds(blocks: BlockUsage[], collectionIds: Set<str
 	return matches;
 }
 
-export function detectCollectionGroupField(config: DiscoveredConfig): string | null {
+export function detectCollectionGroupField(config: DiscoveredConfig): string {
 	const collectionIds = new Set(
 		[config.slug, config.config._tentmanId, config.config.id].filter(
 			(value): value is string => typeof value === 'string' && value.length > 0
@@ -1460,18 +1460,20 @@ export async function syncCollectionItemGroupSelection(
 		return existingManifest ?? null;
 	}
 
+	const groupFieldValue = item[groupFieldId];
 	const selectedGroupId =
-		typeof item[groupFieldId] === 'string' && item[groupFieldId]!.length > 0
-			? (item[groupFieldId] as string)
-			: null;
+		typeof groupFieldValue === 'string' && groupFieldValue.length > 0 ? groupFieldValue : null;
 	const manifestState =
 		existingManifest === undefined ? await loadNavigationManifestState(backend, options) : null;
 	const baseManifest = existingManifest ?? manifestState?.manifest ?? null;
-	const manifestCollection = cloneManifestCollection(
+	const manifestCollection =
+		cloneManifestCollection(
 		getConfigManifestCollection(baseManifest, config) ?? {
 			items: []
 		}
-	);
+	) ?? {
+			items: []
+		};
 	const nextItems = manifestCollection.items.includes(itemId)
 		? [...manifestCollection.items]
 		: [...manifestCollection.items, itemId];
