@@ -1,7 +1,9 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getCommitsSince, listPreviewBranches } from '$lib/github/branch';
+import { getCommitsSince } from '$lib/github/branch';
+import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
@@ -12,13 +14,12 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 
 	try {
 		const { octokit, owner, name, backend } = requireGitHubRepository(requestContext, '/publish');
-		const branches = await listPreviewBranches(octokit, owner, name);
-
-		if (branches.length === 0) {
+		const draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+		if (!draftBranch) {
 			throw error(404, 'No draft branch found');
 		}
 
-		const draftBranch = branches[0];
+		await ensureDraftPullRequest(octokit, owner, name, draftBranch);
 		const configs = await getCachedConfigs(backend);
 		const configsWithChanges = [];
 
@@ -29,7 +30,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 				name,
 				config.config,
 				config.path,
-				draftBranch.name
+				draftBranch
 			);
 
 			if (
@@ -44,17 +45,24 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			}
 		}
 
-		const commits = await getCommitsSince(octokit, owner, name, 'main', draftBranch.name);
+		const commits = await getCommitsSince(octokit, owner, name, 'main', draftBranch);
 
 		return json({
-			draftBranch,
+			draftBranch: {
+				name: draftBranch
+			},
 			configsWithChanges,
 			commits
 		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
 
-		if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
+		if (
+			err &&
+			typeof err === 'object' &&
+			'status' in err &&
+			(err.status === 404 || err.status === 409)
+		) {
 			throw err;
 		}
 

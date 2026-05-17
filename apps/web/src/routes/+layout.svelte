@@ -7,6 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { getNetlifyPreviewUrl } from '$lib/netlify/preview';
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localPreviewUrl } from '$lib/stores/local-preview-url';
@@ -39,9 +40,15 @@
 
 		return null;
 	});
-	const previewUrl = $derived(
-		isLocalMode ? ($localContent.rootConfig?.local?.previewUrl ?? null) : null
-	);
+	const previewUrl = $derived.by(() => {
+		if (isLocalMode) {
+			return $localContent.rootConfig?.local?.previewUrl ?? null;
+		}
+
+		const netlifySiteName = data.rootConfig?.netlify?.siteName;
+		const branchName = $draftBranch.branchName;
+		return netlifySiteName && branchName ? getNetlifyPreviewUrl(branchName, netlifySiteName) : null;
+	});
 	const currentRoutePath = $derived(`${page.url.pathname}${page.url.search}`);
 
 	$effect(() => {

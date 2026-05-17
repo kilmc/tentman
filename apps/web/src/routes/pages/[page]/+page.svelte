@@ -35,6 +35,7 @@
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
 	let draftBranch = $state<string | null>(null);
 	let draftChanges = $state<DraftComparison | null>(null);
+	let draftStatusError = $state<string | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const navigationManifest = $derived(
@@ -117,6 +118,7 @@
 	function resetDraftStatus() {
 		draftBranch = null;
 		draftChanges = null;
+		draftStatusError = null;
 	}
 
 	function getFlashMessageKey() {
@@ -202,6 +204,12 @@
 					source: 'page-view.draft-status-401'
 				});
 				window.location.assign(redirectTarget);
+				return;
+			}
+
+			if (response.status === 409) {
+				draftStatusError =
+					'Tentman found conflicting draft branches. Merge or delete them before continuing.';
 				return;
 			}
 
@@ -334,6 +342,13 @@
 	</div>
 {:else}
 	<div>
+		{#if draftStatusError}
+			<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-3">
+				<p class="text-sm font-medium text-red-800">Draft state needs attention</p>
+				<p class="mt-1 text-sm text-red-700">{draftStatusError}</p>
+			</div>
+		{/if}
+
 		{#if !isLocalMode && draftBranch && draftChanges}
 			{@const hasChanges =
 				draftChanges.modified.length > 0 ||
@@ -342,10 +357,7 @@
 			{#if hasChanges}
 				<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 					<p class="text-sm font-medium text-stone-900">Draft changes</p>
-					<p class="mt-1 text-sm text-stone-600">
-						You have unpublished changes on
-						<code class="rounded bg-white px-1 text-xs">{draftBranch}</code>
-					</p>
+					<p class="mt-1 text-sm text-stone-600">You have unpublished changes for this content.</p>
 				</div>
 			{/if}
 		{/if}

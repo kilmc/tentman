@@ -5,8 +5,15 @@ vi.mock('$lib/server/page-context', () => ({
 }));
 
 vi.mock('$lib/github/branch', () => ({
-	listPreviewBranches: vi.fn(),
 	getCommitsSince: vi.fn()
+}));
+
+vi.mock('$lib/features/draft-publishing/service', () => ({
+	getLatestPreviewBranchName: vi.fn()
+}));
+
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn()
 }));
 
 vi.mock('$lib/stores/config-cache', () => ({
@@ -18,7 +25,8 @@ vi.mock('$lib/utils/draft-comparison', () => ({
 }));
 
 import { GET } from '../../routes/api/repo/publish-view/+server';
-import { getCommitsSince, listPreviewBranches } from '$lib/github/branch';
+import { getCommitsSince } from '$lib/github/branch';
+import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { requireGitHubRepository } from '$lib/server/page-context';
@@ -47,15 +55,7 @@ describe('GET /api/repo/publish-view', () => {
 			name: 'docs',
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
-		vi.mocked(listPreviewBranches).mockResolvedValue([
-			{
-				name: 'preview-2026-04-05',
-				date: '2026-04-05',
-				sequence: 1,
-				lastCommitDate: '2026-04-05T12:00:00.000Z',
-				lastCommitSha: 'abc123'
-			}
-		]);
+		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('tentman-preview');
 		vi.mocked(getCachedConfigs).mockResolvedValue([
 			{
 				slug: 'posts',
@@ -113,7 +113,7 @@ describe('GET /api/repo/publish-view', () => {
 
 		expect(await response.json()).toMatchObject({
 			draftBranch: {
-				name: 'preview-2026-04-05'
+				name: 'tentman-preview'
 			},
 			configsWithChanges: [
 				{
@@ -137,7 +137,7 @@ describe('GET /api/repo/publish-view', () => {
 			name: 'docs',
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
-		vi.mocked(listPreviewBranches).mockRejectedValue({ status: 401 });
+		vi.mocked(getLatestPreviewBranchName).mockRejectedValue({ status: 401 });
 
 		const cookies = createCookies();
 

@@ -75,14 +75,6 @@
 						{data.summary.totalChanges === 1 ? 'change' : 'changes'} waiting
 					</h2>
 				</div>
-				{#if data.summary.draftBranch}
-					<p class="text-sm text-stone-500">
-						Draft branch
-						<code class="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-xs">
-							{data.summary.draftBranch}
-						</code>
-					</p>
-				{/if}
 			</div>
 
 			<div class="mt-4 grid gap-3">

@@ -6,12 +6,35 @@ vi.mock('$lib/server/page-context', () => ({
 }));
 
 vi.mock('$lib/content/service', () => ({
-	deleteContentDocument: vi.fn()
+	deleteContentDocument: vi.fn(),
+	saveContentDocument: vi.fn()
 }));
 
 vi.mock('$lib/stores/content-cache', () => ({
 	getCachedContent: vi.fn()
 }));
+
+vi.mock('$lib/features/draft-assets/server', () => ({
+	materializeDraftAssetsFromFormData: vi.fn(async ({ content }) => ({ content }))
+}));
+
+vi.mock('$lib/features/draft-publishing/service', () => ({
+	ensureDraftBranch: vi.fn(async () => ({ branchName: 'tentman-preview', created: false }))
+}));
+
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn()
+}));
+
+vi.mock('$lib/features/content-management/navigation-manifest', async () => {
+	const actual = await vi.importActual<object>(
+		'$lib/features/content-management/navigation-manifest'
+	);
+	return {
+		...actual,
+		syncCollectionItemGroupSelection: vi.fn()
+	};
+});
 
 import { actions } from './+page.server';
 import { deleteContentDocument } from '$lib/content/service';
@@ -50,6 +73,10 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 
 	it('preserves the explicit branch when redirecting to item preview changes', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
 			discoveredConfig: collectionConfig
 		} as never);
 
@@ -71,8 +98,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
-			location:
-				'/pages/posts/hello-world/preview-changes?data=eyJ0aXRsZSI6IkhlbGxvIHdvcmxkIn0&filename=hello-world.md&branch=preview-2026-04-06'
+			location: '/pages/posts/hello-world/edit?saved=true&branch=tentman-preview'
 		});
 	});
 

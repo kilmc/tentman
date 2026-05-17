@@ -7,6 +7,7 @@
 
 import { writable, get } from 'svelte/store';
 import type { Octokit } from 'octokit';
+import { TENTMAN_DRAFT_BRANCH } from '$lib/features/draft-publishing/service';
 
 const DRAFT_BRANCH_KEY = 'tentman_draft_branch';
 
@@ -37,7 +38,10 @@ function createDraftBranchStore() {
 					const state = JSON.parse(stored) as DraftBranchState;
 
 					// Only use if it's for the current repo
-					if (state.repoFullName === repoFullName && state.branchName) {
+					if (
+						state.repoFullName === repoFullName &&
+						state.branchName === TENTMAN_DRAFT_BRANCH
+					) {
 						// Verify branch still exists on GitHub
 						const { branchExists } = await import('$lib/github/branch');
 						const exists = await branchExists(octokit, owner, repo, state.branchName);
@@ -55,14 +59,14 @@ function createDraftBranchStore() {
 				}
 			}
 
-			// No valid stored branch, check GitHub for any preview-* branches
+			// No valid stored branch, ask the draft service for the managed Tentman branch.
 			try {
-				const { listPreviewBranches } = await import('$lib/github/branch');
-				const branches = await listPreviewBranches(octokit, owner, repo);
+				const { getLatestPreviewBranchName } = await import(
+					'$lib/features/draft-publishing/service'
+				);
+				const branchName = await getLatestPreviewBranchName(octokit, owner, repo);
 
-				if (branches.length > 0) {
-					// Use the most recent one
-					const branchName = branches[0].name;
+				if (branchName) {
 					this.setBranch(branchName, repoFullName);
 					console.log(`✅ Draft branch discovered on GitHub: ${branchName}`);
 					return branchName;
@@ -96,16 +100,10 @@ function createDraftBranchStore() {
 		},
 
 		/**
-		 * Create new draft branch name with today's date
-		 * Format: preview-{yyyy-mm-dd}
-		 * If branch exists, append -2, -3, etc.
+		 * Get the managed Tentman draft branch name.
 		 */
 		createBranchName(): string {
-			const today = new Date();
-			const yyyy = today.getFullYear();
-			const mm = String(today.getMonth() + 1).padStart(2, '0');
-			const dd = String(today.getDate()).padStart(2, '0');
-			return `preview-${yyyy}-${mm}-${dd}`;
+			return TENTMAN_DRAFT_BRANCH;
 		},
 
 		/**

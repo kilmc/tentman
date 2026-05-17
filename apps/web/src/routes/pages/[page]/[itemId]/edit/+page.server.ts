@@ -1,11 +1,17 @@
 // SERVER_JUSTIFICATION: privileged_mutation
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { deleteContentDocument } from '$lib/content/service';
+import { deleteContentDocument, saveContentDocument } from '$lib/content/service';
+import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { findContentItemByRoute } from '$lib/features/content-management/item';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { getExistingItemMutationOptions } from '$lib/server/preview';
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
 	delete: async ({ locals, params, cookies, request, url }) => {
@@ -80,37 +86,58 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { discoveredConfig } = await requireDiscoveredConfig(requestContext, params.page);
-
-			// Parse form data
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+				requestContext,
+				params.page
+			);
 			const formData = await request.formData();
-			const contentData = JSON.parse(formData.get('data') as string);
-			const branch = (formData.get('branch') as string | null) || undefined;
-
-			// Encode the data to pass via URL
-			const encodedData = Buffer.from(JSON.stringify(contentData)).toString('base64url');
-
-			// Directory-backed collections need filename information
+			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
+			const requestedBranchName = (formData.get('branch') as string | null) || undefined;
 			const filename =
 				discoveredConfig.config.content.mode === 'directory'
-					? (formData.get('filename') as string)
+					? ((formData.get('filename') as string | null) ?? undefined)
 					: undefined;
-
-			if (discoveredConfig.config.content.mode === 'directory') {
-				if (!filename) {
-					return fail(400, {
-						error: 'Filename is required for collection items. Please try reloading the page.'
-					});
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend,
+				writeOptions: {
+					ref: branchName
 				}
+			});
+			const saveOptions = getExistingItemMutationOptions(
+				discoveredConfig.config.content.mode,
+				params.itemId,
+				filename
+			);
+
+			if (!saveOptions) {
+				return fail(400, {
+					error: 'Filename is required for collection items. Please try reloading the page.'
+				});
 			}
 
-			// Redirect to preview-changes page
+			await saveContentDocument(
+				backend,
+				discoveredConfig.config,
+				discoveredConfig.path,
+				materialized.content,
+				{
+					branch: branchName,
+					...saveOptions
+				}
+			);
+			await syncCollectionItemGroupSelection(backend, discoveredConfig, materialized.content, undefined, {
+				ref: branchName
+			});
+			await ensureDraftPullRequest(octokit, owner, name, branchName);
+
 			throw redirect(
 				303,
-				buildPathWithQuery(`/pages/${params.page}/${params.itemId}/preview-changes`, {
-					data: encodedData,
-					filename,
-					branch
+				buildPathWithQuery(`/pages/${params.page}/${params.itemId}/edit`, {
+					saved: 'true',
+					branch: branchName
 				})
 			);
 		} catch (err) {

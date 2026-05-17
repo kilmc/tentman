@@ -1,41 +1,60 @@
 // SERVER_JUSTIFICATION: privileged_mutation
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
+import { createContentDocument } from '$lib/content/service';
+import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
 	createToPreview: async ({ locals, params, request, cookies, url }) => {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { discoveredConfig } = await requireDiscoveredConfig(requestContext, params.page);
-
-			// Parse form data
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+				requestContext,
+				params.page
+			);
 			const formData = await request.formData();
-			const contentData = JSON.parse(formData.get('data') as string);
-			const branch = (formData.get('branch') as string | null) || undefined;
+			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
+			const requestedBranchName = (formData.get('branch') as string | null) || undefined;
 			const newFilename = (formData.get('newFilename') as string | null) || undefined;
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend,
+				writeOptions: {
+					ref: branchName
+				}
+			});
 
-			// Generate an itemId for the URL (use idField if available, or "new")
+			await createContentDocument(
+				backend,
+				discoveredConfig.config,
+				discoveredConfig.path,
+				materialized.content,
+				{
+					filename: newFilename,
+					branch: branchName
+				}
+			);
+			await ensureDraftPullRequest(octokit, owner, name, branchName);
+
 			const itemId =
 				discoveredConfig.config.idField && contentData[discoveredConfig.config.idField]
 					? contentData[discoveredConfig.config.idField]
 					: 'new';
 
-			// Encode the data to pass via URL
-			const encodedData = Buffer.from(JSON.stringify(contentData)).toString('base64url');
-
-			// Directory-backed collections need an explicit filename
-			// Redirect to preview-changes page
 			throw redirect(
 				303,
-				buildPathWithQuery(`/pages/${params.page}/${itemId}/preview-changes`, {
-					data: encodedData,
-					new: 'true',
-					newFilename,
-					branch
+				buildPathWithQuery(`/pages/${params.page}/${itemId}/edit`, {
+					saved: 'true',
+					branch: branchName
 				})
 			);
 		} catch (err) {

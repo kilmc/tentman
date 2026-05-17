@@ -56,9 +56,13 @@
 
 <div class="mx-auto max-w-4xl">
 	<div class="mb-6">
-		<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Preview Changes</h1>
+		<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Review Changes</h1>
 		<p class="text-stone-600">
-			Review the changes that will be made to <strong>{data.discoveredConfig.config.label}</strong>
+			Review the saved changes for <strong>{data.discoveredConfig.config.label}</strong>
+		</p>
+		<p class="mt-2 text-sm text-stone-500">
+			This screen only covers this page. Use <strong>Publish Changes</strong> to review the
+			current draft across the whole site before publishing.
 		</p>
 	</div>
 
@@ -190,7 +194,7 @@
 						}
 
 						await update();
-						// Update draft branch in store from redirect URL
+						// Keep the active draft pointer aligned with the saved redirect target.
 						if (result.type === 'redirect' && result.location) {
 							const url = new URL(result.location, window.location.origin);
 							const branch = url.searchParams.get('branch');
@@ -216,9 +220,9 @@
 					class="w-full rounded-md bg-stone-950 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
-						Saving to Draft...
+						Saving Changes...
 					{:else}
-						Save to Draft
+						Save Changes
 					{/if}
 				</button>
 			</form>
@@ -265,9 +269,9 @@
 					class="w-full rounded-md border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
-						Publishing...
+						Saving and opening publish review...
 					{:else}
-						Publish Now
+						Publish Changes
 					{/if}
 				</button>
 			</form>
@@ -284,11 +288,11 @@
 			<h3 class="mb-2 font-semibold text-stone-950">What happens next?</h3>
 			<ul class="list-inside list-disc space-y-1 text-sm text-stone-700">
 				<li>
-					<strong>Save to Draft:</strong> Saves your changes to a draft, then shows you the Netlify preview
-					URL (builds in 2-3 minutes)
+					<strong>Save Changes:</strong> Updates the current Tentman draft so the separate Preview and
+					Publish actions use the latest saved content.
 				</li>
 				<li>
-					<strong>Publish Now:</strong> Commits directly to the main branch (may fail if branch is protected)
+					<strong>Publish Changes:</strong> Saves first if needed, then takes you to the publish review step.
 				</li>
 			</ul>
 		</div>
