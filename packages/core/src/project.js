@@ -5,6 +5,7 @@ import {
 	readOptionalString,
 	readRequiredString
 } from './json.js';
+import { isMarkdownContentPath, parseMarkdownContentRecord } from './content-files.js';
 import {
 	getPathRelativeToRoot,
 	resolveConfigRelativePath,
@@ -150,7 +151,16 @@ async function readContentItems(rootDir, config) {
 	}
 
 	if (config.content.mode === 'file') {
-		const parsed = JSON.parse(await fs.readFile(contentPath, 'utf8'));
+		const source = await fs.readFile(contentPath, 'utf8');
+		if (isMarkdownContentPath(contentPath)) {
+			return {
+				exists,
+				path: getPathRelativeToRoot(rootDir, contentPath),
+				items: [parseMarkdownContentRecord(source)]
+			};
+		}
+
+		const parsed = JSON.parse(source);
 		const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [parsed];
 		return {
 			exists,
@@ -167,7 +177,7 @@ async function readContentItems(rootDir, config) {
 	for (const file of files.filter((entry) => /\.(json|md|markdown)$/.test(entry))) {
 		const absolutePath = path.resolve(rootDir, file);
 		const source = await fs.readFile(absolutePath, 'utf8');
-		const item = file.endsWith('.json') ? JSON.parse(source) : parseMarkdownFrontmatter(source);
+		const item = file.endsWith('.json') ? JSON.parse(source) : parseMarkdownContentRecord(source);
 
 		if (item && typeof item === 'object' && !Array.isArray(item)) {
 			items.push({ ...item, filename: path.basename(file), __tentmanSourcePath: file });
@@ -179,35 +189,6 @@ async function readContentItems(rootDir, config) {
 		path: getPathRelativeToRoot(rootDir, contentPath),
 		items
 	};
-}
-
-function parseMarkdownFrontmatter(source) {
-	if (!source.startsWith('---')) {
-		return {};
-	}
-
-	const endIndex = source.indexOf('\n---', 3);
-	if (endIndex === -1) {
-		return {};
-	}
-
-	const frontmatter = source.slice(3, endIndex).trim();
-	const output = {};
-
-	for (const line of frontmatter.split('\n')) {
-		const separatorIndex = line.indexOf(':');
-		if (separatorIndex === -1) {
-			continue;
-		}
-
-		const key = line.slice(0, separatorIndex).trim();
-		const value = line.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
-		if (key) {
-			output[key] = value;
-		}
-	}
-
-	return output;
 }
 
 export async function loadTentmanProject(projectRoot) {

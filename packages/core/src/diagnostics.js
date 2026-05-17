@@ -3,6 +3,7 @@ import path from 'node:path';
 import { discoverContentComponents } from './content-components.js';
 import { validateContentComponentReferenceBindings } from './content-component-reference-validation.js';
 import { describeTentmanId } from './ids.js';
+import { createTentmanStructuredBlockResolver } from './markdown-render-context.js';
 import { getNavigationReferenceId, getNavigationReferenceIds } from './manifest.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 import { NAVIGATION_MANIFEST_PATH } from './manifest.js';
@@ -489,22 +490,7 @@ export async function checkContentComponentReferenceBindings(project) {
 		];
 	}
 
-	const reusableBlocksById = new Map(
-		project.blocks
-			.filter((block) => !block.error)
-			.map((block) => [block.id, block])
-	);
-	const resolveStructuredBlocks = (block) => {
-		if (Array.isArray(block?.blocks)) {
-			return block.blocks;
-		}
-
-		if (typeof block?.type !== 'string') {
-			return null;
-		}
-
-		return reusableBlocksById.get(block.type)?.raw.blocks ?? null;
-	};
+	const resolveStructuredBlocks = createTentmanStructuredBlockResolver(project);
 
 	return applyContentComponentValidationMode(
 		project,

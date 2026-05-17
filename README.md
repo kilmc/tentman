@@ -37,7 +37,20 @@ packages/
 
 ```sh
 nvm use
-corepack pnpm install
+./scripts/bootstrap-install.sh
+```
+
+If you want to sanity-check the local toolchain first, run:
+
+```sh
+./scripts/pnpm-doctor.sh
+```
+
+Tentman pins pnpm in [`package.json`](/Users/kilmc/code/tentman/tentman/package.json:6). If plain
+`pnpm` ever reports the wrong version, re-enable the Corepack shim with:
+
+```sh
+corepack enable pnpm
 ```
 
 2. Copy the web app example env file:
@@ -62,7 +75,7 @@ SESSION_SECRET=your_random_session_secret_here
 5. Start the app:
 
 ```sh
-pnpm run dev
+corepack pnpm run dev
 ```
 
 If you only want to test local-repo mode, GitHub auth is optional.
@@ -175,7 +188,7 @@ Example singleton page state:
 	},
 	"content": {
 		"mode": "file",
-		"path": "../../src/content/pages/about.json"
+		"path": "../../src/routes/about/+page.md"
 	},
 	"blocks": [
 		{ "id": "title", "type": "text", "label": "Title" },
@@ -211,8 +224,12 @@ Example collection item state:
 
 ### Repo-Local Content Components
 
-Content components are the only repo-local markdown extension model. Markdown fields opt into them
-with a per-field `components` allowlist.
+Real markdown files are the first-class rich-content path in Tentman. Use `.md` or `.markdown`
+files when content has a markdown body, rich text, Tentman content components, or structured
+reference-aware embeds. Use JSON for structured content and settings.
+
+JSON-backed markdown fields still work where they already worked, but they are compatibility
+behavior rather than the recommended rich-content architecture.
 
 Register an optional custom components directory in the root config:
 
@@ -224,6 +241,8 @@ Register an optional custom components directory in the root config:
 
 For SvelteKit + mdsvex sites, add the mdsvex transform in `svelte.config.js` and the Vite reload
 helper in `vite.config.ts` so changes to content component templates trigger a dev-server reload.
+With `resolveTentmanContext: 'auto'`, Tentman-managed markdown files get `contentItem`,
+reference-index, and reusable-block-aware structured context automatically.
 
 Example `vite.config.ts`:
 
@@ -348,7 +367,13 @@ const config = {
 	preprocess: [
 		mdsvex({
 			extensions: ['.svx', '.md'],
-			remarkPlugins: [remarkDirective, tentmanComponents()]
+			remarkPlugins: [
+				remarkDirective,
+				tentmanComponents({
+					projectRoot: process.cwd(),
+					resolveTentmanContext: 'auto'
+				})
+			]
 		})
 	],
 	extensions: ['.svelte', '.svx', '.md']
@@ -361,6 +386,13 @@ Use inline components in markdown with semantic directive markers:
 
 ```md
 :buy-button[Buy tickets]{href="/tickets" variant="secondary"}
+```
+
+Marker-only block components can resolve structured page data automatically inside managed
+markdown files:
+
+```md
+::gallery-embed
 ```
 
 Current authoring rules:
@@ -441,9 +473,9 @@ date: '{{date}}'
 
 ### File-Backed Singleton Example
 
-Use this for a single page or settings document stored in one file. `*.json` paths are stored as
-JSON. `*.md` and `*.markdown` paths are stored as markdown with frontmatter, with the `body`
-field mapped to the markdown body and all other fields mapped to frontmatter.
+Use this for a single page or settings document stored in one file. `*.md` and `*.markdown` are
+the recommended format when the entry has rich markdown content. The `body` field maps to the
+markdown body and all other fields map to frontmatter.
 
 ```json
 {
@@ -452,12 +484,23 @@ field mapped to the markdown body and all other fields mapped to frontmatter.
 	"id": "about",
 	"content": {
 		"mode": "file",
-		"path": "../../src/content/pages/about.json"
+		"path": "../../src/routes/about/+page.md"
 	},
 	"blocks": [
 		{ "id": "title", "type": "text", "label": "Title", "required": true },
 		{ "id": "intro", "type": "textarea", "label": "Intro", "required": true, "maxLength": 220 },
-		{ "id": "body", "type": "markdown", "label": "Body", "required": true }
+		{ "id": "body", "type": "markdown", "label": "Body", "required": true },
+		{
+			"id": "gallery",
+			"type": "block",
+			"label": "Gallery",
+			"referenceFor": ["gallery-embed"],
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title", "required": true },
+				{ "id": "description", "type": "textarea", "label": "Description" },
+				{ "id": "items", "type": "imageGallery", "label": "Items" }
+			]
+		}
 	]
 }
 ```

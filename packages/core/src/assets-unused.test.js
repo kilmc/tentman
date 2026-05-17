@@ -68,7 +68,7 @@ test('scopes unused asset results to one config when requested', async () => {
 	const project = await loadTentmanProject(projectRoot);
 	const unused = await findUnusedTentmanAssets(project, 'about');
 
-	assert.equal(unused.config.label, 'About Page');
+	assert.equal(unused.config.label, 'About');
 	assert.deepEqual(
 		unused.directories.map((entry) => [entry.path, entry.unusedFiles]),
 		[['static/images/gallery', ['static/images/gallery/orphan.svg']]]

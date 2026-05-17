@@ -10,6 +10,15 @@ export {
 	parseNavigationManifest,
 	serializeNavigationManifest
 } from './manifest.js';
+export {
+	detectJsonIndent,
+	isMarkdownContentPath,
+	parseContentRecordFile,
+	parseMarkdownContentRecord,
+	serializeContentRecordFile,
+	serializeMarkdownContentRecord,
+	updateContentRecordFileSource
+} from './content-files.js';
 export { ROOT_CONFIG_PATH, loadTentmanProject, parseRootConfig } from './project.js';
 export {
 	checkContentComponentReferenceBindings,
@@ -38,6 +47,7 @@ export {
 	validateContentComponentInstance,
 	validateContentComponent
 } from './content-components.js';
+export { resolveTentmanMarkdownFileRenderContext } from './markdown-render-context.js';
 export { validateContentComponentReferenceBindings } from './content-component-reference-validation.js';
 export { createContentComponentScaffold } from './content-component-create.js';
 export { inspectTentmanContentComponent } from './content-component-inspect.js';

@@ -1,7 +1,7 @@
 import matter from 'gray-matter';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { getItemId, getItemSlug } from '$lib/features/content-management/item';
-import { decodeBase64ToUtf8, ensureBufferGlobal } from '$lib/utils/text';
+import { decodeBase64ToUtf8 } from '$lib/utils/text';
 import { resolveConfigPath } from '$lib/utils/validation';
 import type { ContentRecord, TemplateInfo, ContentValue } from './types';
 
@@ -57,26 +57,10 @@ export function parseCollectionItem(
 	filename: string
 ): ContentRecord {
 	if (isMarkdown) {
-		ensureBufferGlobal();
-		try {
-			const { data, content: body } = matter(content);
-			return {
-				...(data as Record<string, ContentValue>),
-				body,
-				_filename: filename
-			};
-		} catch (error) {
-			const recovered = recoverMalformedMarkdownFrontmatter(content);
-			if (!recovered) {
-				throw error;
-			}
-
-			return {
-				...recovered.data,
-				body: recovered.body,
-				_filename: filename
-			};
-		}
+		return {
+			...(parseMarkdownContentRecord(content) as Record<string, ContentValue>),
+			_filename: filename
+		};
 	}
 
 	const data = JSON.parse(content) as Record<string, ContentValue>;
@@ -87,52 +71,38 @@ export function parseCollectionItem(
 }
 
 export function parseMarkdownContentRecord(content: string): ContentRecord {
-	const parsed = parseCollectionItem(content, true, '');
-	delete parsed._filename;
-	return parsed;
-}
+	ensureBufferGlobal();
 
-function recoverMalformedMarkdownFrontmatter(content: string): {
-	data: Record<string, ContentValue>;
-	body: string;
-} | null {
-	if (!content.startsWith('---\n') && !content.startsWith('---\r\n')) {
-		return null;
-	}
+	try {
+		const parsed = matter(content);
+		const frontmatterData =
+			parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)
+				? { ...parsed.data }
+				: {};
+		const frontmatterBody =
+			typeof frontmatterData.body === 'string' ? frontmatterData.body : undefined;
+		delete frontmatterData.body;
 
-	if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(content)) {
-		return null;
-	}
+		return {
+			...frontmatterData,
+			body: parsed.content.length > 0 ? parsed.content : (frontmatterBody ?? '')
+		} as ContentRecord;
+	} catch (error) {
+		const recovered = recoverMalformedMarkdownFrontmatter(content);
+		if (recovered) {
+			const frontmatterData = { ...recovered.data };
+			const frontmatterBody =
+				typeof frontmatterData.body === 'string' ? frontmatterData.body : undefined;
+			delete frontmatterData.body;
 
-	const lines = content.split(/\r?\n/);
-	let lastValid: { endLine: number; data: Record<string, ContentValue> } | null = null;
-
-	for (let index = 1; index < lines.length; index += 1) {
-		const candidate = lines.slice(1, index + 1).join('\n');
-
-		try {
-			const parsed = matter(`---\n${candidate}\n---\n`);
-			if (!parsed.data || typeof parsed.data !== 'object' || Array.isArray(parsed.data)) {
-				break;
-			}
-
-			lastValid = {
-				endLine: index,
-				data: parsed.data as Record<string, ContentValue>
-			};
-		} catch {
-			break;
+			return {
+				...frontmatterData,
+				body: recovered.body.length > 0 ? recovered.body : (frontmatterBody ?? '')
+			} as ContentRecord;
 		}
-	}
 
-	if (!lastValid) {
-		return null;
+		throw error;
 	}
-
-	return {
-		data: lastValid.data,
-		body: lines.slice(lastValid.endLine + 1).join('\n').replace(/^\n/, '')
-	};
 }
 
 function assertSerializableContentRecord(item: ContentRecord): void {
@@ -152,13 +122,9 @@ export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean
 	assertSerializableContentRecord(item);
 
 	if (isMarkdown) {
-		ensureBufferGlobal();
-		const { body, ...frontmatterData } = item;
-		delete frontmatterData._filename;
-		return stringifyMarkdownCollectionItem(
-			typeof body === 'string' ? body : '',
-			frontmatterData as Record<string, unknown>
-		);
+		const normalizedItem = { ...item };
+		delete normalizedItem._filename;
+		return serializeMarkdownContentRecord(normalizedItem);
 	}
 
 	const jsonData = { ...item };
@@ -167,25 +133,83 @@ export function serializeCollectionItem(item: ContentRecord, isMarkdown: boolean
 }
 
 export function serializeMarkdownContentRecord(item: ContentRecord): string {
+	ensureBufferGlobal();
+	assertSerializableContentRecord(item);
+
 	const normalizedItem = { ...item };
 	delete normalizedItem._filename;
-	return serializeCollectionItem(normalizedItem, true);
+	const { body, ...frontmatterData } = normalizedItem;
+	const frontmatterOnly = matter.stringify('', frontmatterData);
+	const normalizedFrontmatter = frontmatterOnly.endsWith('\n\n')
+		? frontmatterOnly.slice(0, -1)
+		: frontmatterOnly;
+	const normalizedBody = typeof body === 'string' ? body : '';
+
+	if (normalizedBody.length === 0) {
+		return normalizedFrontmatter;
+	}
+
+	return `${normalizedFrontmatter}${normalizedBody}`;
 }
 
 export function stringifyMarkdownCollectionItem(
 	body: string,
 	frontmatterData: Record<string, unknown>
 ): string {
-	const frontmatterOnly = matter.stringify('', frontmatterData);
-	const normalizedFrontmatter = frontmatterOnly.endsWith('\n\n')
-		? frontmatterOnly.slice(0, -1)
-		: frontmatterOnly;
+	return serializeMarkdownContentRecord({
+		...frontmatterData,
+		body
+	} as ContentRecord);
+}
 
-	if (body.length === 0) {
-		return normalizedFrontmatter;
+function recoverMalformedMarkdownFrontmatter(source: string) {
+	if (!source.startsWith('---\n') && !source.startsWith('---\r\n')) {
+		return null;
 	}
 
-	return `${normalizedFrontmatter}${body}`;
+	if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(source)) {
+		return null;
+	}
+
+	const lines = source.split(/\r?\n/);
+	let lastValid: { endLine: number; data: Record<string, unknown> } | null = null;
+
+	for (let index = 1; index < lines.length; index += 1) {
+		const candidate = lines.slice(1, index + 1).join('\n');
+
+		try {
+			const parsed = matter(`---\n${candidate}\n---\n`);
+			if (!parsed.data || typeof parsed.data !== 'object' || Array.isArray(parsed.data)) {
+				break;
+			}
+
+			lastValid = {
+				endLine: index,
+				data: parsed.data as Record<string, unknown>
+			};
+		} catch {
+			break;
+		}
+	}
+
+	if (!lastValid) {
+		return null;
+	}
+
+	return {
+		data: lastValid.data,
+		body: lines.slice(lastValid.endLine + 1).join('\n').replace(/^\n/, '')
+	};
+}
+
+function ensureBufferGlobal(): void {
+	if (typeof globalThis.Buffer === 'undefined') {
+		globalThis.Buffer = {
+			from(input: string) {
+				return input;
+			}
+		} as typeof globalThis.Buffer;
+	}
 }
 
 export function processTemplate(template: string, data: ContentRecord): string {

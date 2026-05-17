@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { isMarkdownContentPath, parseMarkdownContentRecord, serializeMarkdownContentRecord } from './content-files.js';
 import { serializeJson } from './json.js';
 import { NAVIGATION_MANIFEST_PATH, parseNavigationManifest, serializeNavigationManifest } from './manifest.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
@@ -32,6 +33,22 @@ async function collectJsonRewrite(rewrites, absolutePath, relativePath, details 
 	}
 }
 
+async function collectMarkdownRewrite(rewrites, absolutePath, relativePath, details = {}) {
+	const source = await fs.readFile(absolutePath, 'utf8');
+	const nextSource = serializeMarkdownContentRecord(parseMarkdownContentRecord(source));
+
+	if (nextSource !== source) {
+		pushRewrite(rewrites, {
+			absolutePath,
+			path: relativePath,
+			formatter: 'markdown',
+			source,
+			nextSource,
+			...details
+		});
+	}
+}
+
 async function collectTentmanFormatRewrites(project) {
 	const rewrites = [];
 
@@ -40,16 +57,26 @@ async function collectTentmanFormatRewrites(project) {
 			kind: 'config'
 		});
 
-		if (config.content.mode !== 'file' || !config.content.path.endsWith('.json')) {
+		if (config.content.mode !== 'file') {
 			continue;
 		}
 
 		const contentPath = resolveConfigRelativePath(project.rootDir, config.path, config.content.path);
 		const relativePath = project.contentByConfigPath.get(config.path)?.path ?? config.content.path;
-		await collectJsonRewrite(rewrites, contentPath, relativePath, {
-			kind: 'content',
-			configPath: config.path
-		});
+		if (config.content.path.endsWith('.json')) {
+			await collectJsonRewrite(rewrites, contentPath, relativePath, {
+				kind: 'content',
+				configPath: config.path
+			});
+			continue;
+		}
+
+		if (isMarkdownContentPath(config.content.path)) {
+			await collectMarkdownRewrite(rewrites, contentPath, relativePath, {
+				kind: 'content',
+				configPath: config.path
+			});
+		}
 	}
 
 	if (project.navigationManifest.exists && project.navigationManifest.manifest && !project.navigationManifest.error) {

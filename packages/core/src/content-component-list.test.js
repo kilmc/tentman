@@ -16,6 +16,7 @@ async function copyFixture() {
 
 test('lists no content components when the project components directory does not exist yet', async () => {
 	const projectRoot = await copyFixture();
+	await fs.rm(path.join(projectRoot, 'src/lib/content-components'), { recursive: true, force: true });
 	const project = await loadTentmanProject(projectRoot);
 
 	assert.deepEqual(await listTentmanContentComponents(project), []);
@@ -44,6 +45,20 @@ test('lists scaffolded content components from the default components directory'
 				kind: 'inline',
 				attributeCount: 1,
 				attributes: ['label']
+			},
+			{
+				id: 'doc-link',
+				name: 'doc-link',
+				kind: 'inline',
+				attributeCount: 3,
+				attributes: ['href', 'label', 'variant']
+			},
+			{
+				id: 'gallery-embed',
+				name: 'gallery-embed',
+				kind: 'block',
+				attributeCount: 0,
+				attributes: []
 			},
 			{
 				id: 'image-gallery',

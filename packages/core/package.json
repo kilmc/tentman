@@ -11,6 +11,7 @@
 		"./content-components": "./src/content-components.js"
 	},
 	"dependencies": {
+		"gray-matter": "^4.0.3",
 		"nunjucks": "^3.2.4"
 	}
 }

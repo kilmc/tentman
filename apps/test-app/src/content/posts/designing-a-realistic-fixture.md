@@ -4,7 +4,7 @@ title: 'Designing a reliable fixture'
 slug: 'designing-a-reliable-fixture'
 date: '2026-04-11'
 author: 'Tentman Team'
-coverImage: ''
+coverImage: '/images/posts/fixture-grid.svg'
 excerpt: 'A useful fixture is quiet, repeatable, and varied enough that new features have somewhere real to land.'
 published: true
 ---

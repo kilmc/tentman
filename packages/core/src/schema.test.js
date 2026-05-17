@@ -34,22 +34,24 @@ test('expands effective fields for a selected config schema', async () => {
 		type: 'text',
 		label: 'Title',
 		required: true,
-		show: 'primary',
 		schemaKind: 'field'
 	});
 	assert.equal(schema.fields[3]?.schemaKind, 'inline-block');
 	assert.equal(schema.fields[3]?.collection, true);
 	assert.equal(schema.fields[3]?.fields.length, 3);
-	assert.equal(schema.fields[4]?.schemaKind, 'reusable-block');
-	assert.deepEqual(schema.fields[4]?.reusableBlock, {
+	assert.equal(schema.fields[4]?.schemaKind, 'inline-block');
+	assert.equal(schema.fields[4]?.collection, undefined);
+	assert.equal(schema.fields[4]?.fields.length, 3);
+	assert.equal(schema.fields[4]?.fields[2]?.schemaKind, 'reusable-block');
+	assert.deepEqual(schema.fields[4]?.fields[2]?.reusableBlock, {
 		id: 'imageGallery',
 		label: 'Image Gallery',
 		path: 'tentman/blocks/image-gallery.tentman.json',
 		collection: true,
 		itemLabel: 'Image'
 	});
-	assert.equal(schema.fields[4]?.fields[0]?.type, 'image');
-	assert.equal(schema.fields[4]?.fields[0]?.assetsDir, '../../static/images/gallery');
+	assert.equal(schema.fields[4]?.fields[2]?.fields[0]?.type, 'image');
+	assert.equal(schema.fields[4]?.fields[2]?.fields[0]?.assetsDir, '../../static/images/gallery');
 });
 
 test('includes collection metadata in selected config schema', async () => {

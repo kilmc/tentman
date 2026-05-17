@@ -24,6 +24,7 @@ async function stripFixtureIds(projectRoot) {
 		'tentman/configs/about.tentman.json',
 		'tentman/configs/blog.tentman.json',
 		'tentman/configs/contact.tentman.json',
+		'tentman/configs/faq.tentman.json',
 		'tentman/configs/news.tentman.json',
 		'tentman/configs/projects.tentman.json',
 		'src/content/posts/blooop.md',
@@ -57,11 +58,11 @@ test('writes missing config and collection item ids', async () => {
 	const summary = summarizeIdWriteChanges(changes);
 
 	assert.deepEqual(summary, {
-		configs: 5,
+		configs: 6,
 		groups: 0,
 		items: 4,
 		itemGroups: 0,
-		files: 9
+		files: 10
 	});
 
 	const nextProject = await loadTentmanProject(projectRoot);
@@ -77,14 +78,15 @@ test('writes missing config and collection item ids', async () => {
 	assert.match(aboutConfig, /"_tentmanId": "tent_01KQD800000000000000000001"/);
 	assert.match(
 		aboutConfig,
-		/\{ "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" \}/
+		/\{ "id": "title", "type": "text", "label": "Title", "required": true \}/
 	);
 
 	const post = await fs.readFile(
 		path.join(projectRoot, 'src/content/posts/designing-a-realistic-fixture.md'),
 		'utf8'
 	);
-	assert.match(post, /title: 'Designing a realistic fixture app'\n_tentmanId: 'tent_/);
+	assert.match(post, /title: (?:'Designing a reliable fixture'|Designing a reliable fixture)/);
+	assert.match(post, /_tentmanId: ?(?:'tent_|tent_)/);
 });
 
 test('writes missing collection group ids', async () => {
@@ -108,11 +110,11 @@ test('writes missing collection group ids', async () => {
 	const summary = summarizeIdWriteChanges(changes);
 
 	assert.deepEqual(summary, {
-		configs: 5,
+		configs: 6,
 		groups: 1,
 		items: 4,
 		itemGroups: 0,
-		files: 9
+		files: 10
 	});
 
 	const nextProject = await loadTentmanProject(projectRoot);
@@ -158,8 +160,8 @@ test('replaces legacy and malformed ids', async () => {
 	await fs.writeFile(
 		postPath,
 		postSource.replace(
-			/^title: 'Designing a realistic fixture app'$/m,
-			"title: 'Designing a realistic fixture app'\n_tentmanId: 'designing-a-realistic-fixture'"
+			/^title: 'Designing a reliable fixture'$/m,
+			"title: 'Designing a reliable fixture'\n_tentmanId: 'designing-a-reliable-fixture'"
 		)
 	);
 
@@ -170,11 +172,11 @@ test('replaces legacy and malformed ids', async () => {
 	const summary = summarizeIdWriteChanges(changes);
 
 	assert.deepEqual(summary, {
-		configs: 5,
+		configs: 6,
 		groups: 1,
 		items: 4,
 		itemGroups: 0,
-		files: 9
+		files: 10
 	});
 
 	const nextProject = await loadTentmanProject(projectRoot);
@@ -197,11 +199,9 @@ test('replaces legacy and malformed ids', async () => {
 	);
 
 	const nextPostSource = await fs.readFile(postPath, 'utf8');
-	assert.match(
-		nextPostSource,
-		/title: 'Designing a realistic fixture app'\n_tentmanId: 'tent_01KQD800000000000000000005'/
-	);
-	assert.doesNotMatch(nextPostSource, /_tentmanId: 'designing-a-realistic-fixture'/);
+	assert.match(nextPostSource, /title: (?:'Designing a reliable fixture'|Designing a reliable fixture)/);
+	assert.match(nextPostSource, /_tentmanId: ?(?:'tent_01KQD800000000000000000005'|tent_01KQD800000000000000000005)/);
+	assert.doesNotMatch(nextPostSource, /_tentmanId: ?(?:'designing-a-reliable-fixture'|designing-a-reliable-fixture)/);
 });
 
 test('backfills _tentmanGroupId from legacy group values without rewriting group', async () => {
@@ -223,13 +223,13 @@ test('backfills _tentmanGroupId from legacy group values without rewriting group
 	});
 	await fs.writeFile(blogConfigPath, `${JSON.stringify(blogConfig, null, '\t')}\n`);
 
-	const postPath = path.join(projectRoot, 'src/content/posts/testing-content-workflows.md');
+	const postPath = path.join(projectRoot, 'src/content/posts/blooop.md');
 	const postSource = await fs.readFile(postPath, 'utf8');
 	await fs.writeFile(
 		postPath,
 		postSource.replace(
-			"slug: testing-content-workflows\n",
-			"slug: testing-content-workflows\ngroup: featured\n"
+			"slug: rendering-with-content-components\n",
+			"slug: rendering-with-content-components\ngroup: featured\n"
 		)
 	);
 
@@ -240,16 +240,19 @@ test('backfills _tentmanGroupId from legacy group values without rewriting group
 	const summary = summarizeIdWriteChanges(changes);
 
 	assert.deepEqual(summary, {
-		configs: 5,
+		configs: 6,
 		groups: 1,
 		items: 4,
 		itemGroups: 1,
-		files: 9
+		files: 10
 	});
 
 	const nextPostSource = await fs.readFile(postPath, 'utf8');
 	assert.match(nextPostSource, /group: featured/);
-	assert.match(nextPostSource, /_tentmanGroupId: 'tent_01KQD800000000000000000003'/);
+	assert.match(
+		nextPostSource,
+		/_tentmanGroupId: ?(?:'tent_01KQD800000000000000000003'|tent_01KQD800000000000000000003)/
+	);
 });
 
 test('does not overwrite an existing _tentmanGroupId during backfill', async () => {
@@ -271,13 +274,13 @@ test('does not overwrite an existing _tentmanGroupId during backfill', async () 
 	});
 	await fs.writeFile(blogConfigPath, `${JSON.stringify(blogConfig, null, '\t')}\n`);
 
-	const postPath = path.join(projectRoot, 'src/content/posts/testing-content-workflows.md');
+	const postPath = path.join(projectRoot, 'src/content/posts/blooop.md');
 	const postSource = await fs.readFile(postPath, 'utf8');
 	await fs.writeFile(
 		postPath,
 		postSource.replace(
-			"slug: testing-content-workflows\n",
-			"slug: testing-content-workflows\n_tentmanGroupId: 'tent_existing_group'\ngroup: featured\n"
+			"slug: rendering-with-content-components\n",
+			"slug: rendering-with-content-components\n_tentmanGroupId: 'tent_existing_group'\ngroup: featured\n"
 		)
 	);
 
@@ -288,14 +291,14 @@ test('does not overwrite an existing _tentmanGroupId during backfill', async () 
 	const summary = summarizeIdWriteChanges(changes);
 
 	assert.deepEqual(summary, {
-		configs: 5,
+		configs: 6,
 		groups: 1,
 		items: 4,
 		itemGroups: 0,
-		files: 9
+		files: 10
 	});
 
 	const nextPostSource = await fs.readFile(postPath, 'utf8');
-	assert.match(nextPostSource, /_tentmanGroupId: 'tent_existing_group'/);
+	assert.match(nextPostSource, /_tentmanGroupId: ?(?:'tent_existing_group'|tent_existing_group)/);
 	assert.match(nextPostSource, /group: featured/);
 });

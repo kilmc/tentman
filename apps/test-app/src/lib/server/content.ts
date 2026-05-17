@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { parseMarkdownContentRecord } from '@tentman/core';
 import type {
 	AboutPageContent,
 	BlogPost,
@@ -189,7 +190,7 @@ async function readBlogPost(relativePath: string): Promise<BlogPost> {
 	const raw = await readFile(getAbsolutePath(relativePath), 'utf8');
 	const { body, data } = parseMarkdownDocument(raw);
 
-	const post: Partial<BlogPost> = {
+	const post: Partial<BlogPost> & { __tentmanSourcePath?: string } = {
 		title: typeof data.title === 'string' ? data.title : undefined,
 		slug: typeof data.slug === 'string' ? data.slug : undefined,
 		date: typeof data.date === 'string' ? data.date : undefined,
@@ -198,7 +199,8 @@ async function readBlogPost(relativePath: string): Promise<BlogPost> {
 		excerpt: typeof data.excerpt === 'string' ? data.excerpt : undefined,
 		published: data.published === true,
 		body,
-		readingTimeMinutes: getReadingTimeMinutes(body)
+		readingTimeMinutes: getReadingTimeMinutes(body),
+		__tentmanSourcePath: relativePath
 	};
 
 	if (
@@ -289,7 +291,8 @@ export async function getPrimaryNavigation(): Promise<NavigationItem[]> {
 }
 
 export async function getAboutPage(): Promise<AboutPageContent> {
-	return readJsonFile<AboutPageContent>('src/content/pages/about.json');
+	const source = await readFile(getAbsolutePath('src/routes/about/+page.md'), 'utf8');
+	return parseMarkdownContentRecord(source) as AboutPageContent;
 }
 
 export async function getContactPage(): Promise<ContactPageContent> {

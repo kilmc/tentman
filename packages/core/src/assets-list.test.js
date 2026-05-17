@@ -10,9 +10,10 @@ test('lists config asset counts across the fixture project', async () => {
 	assert.deepEqual(
 		assets.map((entry) => [entry.label, entry.kind, entry.assetCount]),
 		[
-			['About Page', 'singleton', 3],
+			['About', 'singleton', 5],
 			['Blog Posts', 'collection', 3],
-			['Contact Page', 'singleton', 2],
+			['Contact', 'singleton', 0],
+			['FAQ', 'singleton', 0],
 			['News', 'singleton', 0],
 			['Projects', 'singleton', 0]
 		]
@@ -30,7 +31,7 @@ test('lists known assets for a selected config by item and field', async () => {
 	assert.equal(assets.items.length, 4);
 	assert.equal(assets.items[0]?.assets.length, 1);
 	assert.equal(assets.items[0]?.assets[0]?.fieldPath, 'coverImage');
-	assert.equal(assets.items[0]?.assets[0]?.value, '/images/posts/untitled-project-moss-night-8x-a9cb1d53.png');
+	assert.equal(assets.items[0]?.assets[0]?.value, '/images/posts/field-notes.svg');
 	assert.equal(assets.items[0]?.assets[0]?.expectedPrefix, '/images/posts');
 	assert.equal(assets.items[0]?.assets[0]?.exists, true);
 	assert.equal(assets.items[0]?.path, 'src/content/posts/blooop.md');

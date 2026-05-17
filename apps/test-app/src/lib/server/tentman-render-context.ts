@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { getTentmanContentComponentApi } from './tentman-content-components.js';
 
 type ContentRecord = Record<string, unknown>;
@@ -23,8 +24,19 @@ async function getProject() {
 
 export async function getMarkdownRenderContext(configId: string, contentItem: ContentRecord) {
 	const project = await getProject();
-	const config = project.configs.find((entry) => entry.id === configId || entry.slug === configId);
+	const sourcePath =
+		typeof contentItem.__tentmanSourcePath === 'string' ? contentItem.__tentmanSourcePath : null;
 
+	if (sourcePath) {
+		const { resolveTentmanMarkdownFileRenderContext } = await getTentmanContentComponentApi();
+		const resolvedContext = resolveTentmanMarkdownFileRenderContext(project, resolve(process.cwd(), sourcePath));
+
+		if (resolvedContext) {
+			return resolvedContext;
+		}
+	}
+
+	const config = project.configs.find((entry) => entry.id === configId || entry.slug === configId);
 	if (!config) {
 		throw new Error(`Unknown Tentman config: ${configId}`);
 	}

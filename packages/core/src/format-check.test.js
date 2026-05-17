@@ -29,6 +29,12 @@ test('reports current fixture files Tentman would rewrite conservatively', async
 			formatter: 'json'
 		},
 		{
+			path: 'src/routes/about/+page.md',
+			kind: 'content',
+			configPath: 'tentman/configs/about.tentman.json',
+			formatter: 'markdown'
+		},
+		{
 			path: 'tentman/configs/blog.tentman.json',
 			kind: 'config',
 			formatter: 'json'
@@ -45,6 +51,11 @@ test('reports current fixture files Tentman would rewrite conservatively', async
 			formatter: 'json'
 		},
 		{
+			path: 'tentman/configs/faq.tentman.json',
+			kind: 'config',
+			formatter: 'json'
+		},
+		{
 			path: 'tentman/configs/news.tentman.json',
 			kind: 'config',
 			formatter: 'json'
@@ -54,17 +65,12 @@ test('reports current fixture files Tentman would rewrite conservatively', async
 			kind: 'config',
 			formatter: 'json'
 		},
-		{
-			path: 'tentman/navigation-manifest.json',
-			kind: 'navigation-manifest',
-			formatter: 'navigation-manifest'
-		}
 	]);
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 7,
-		configs: 5,
-		content: 1,
-		navigationManifests: 1
+		files: 8,
+		configs: 6,
+		content: 2,
+		navigationManifests: 0
 	});
 });
 
@@ -76,7 +82,7 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 
 	await fs.writeFile(
 		configPath,
-		'{\n  "type": "content",\n  "label": "About",\n  "_tentmanId": "tent_01KQD7Q12XGD83Y8S1TAHW40G3",\n  "id": "about",\n  "content": {\n    "mode": "file",\n    "path": "../../src/content/pages/about.json"\n  },\n  "blocks": [\n    { "id": "title", "type": "text", "label": "Title", "required": true, "show": "primary" },\n    { "id": "body", "type": "markdown", "label": "Body", "required": true }\n  ]\n}'
+		'{\n  "type": "content",\n  "label": "About",\n  "_tentmanId": "tent_01KQD7Q12XGD83Y8S1TAHW40G3",\n  "id": "about",\n  "content": {\n    "mode": "file",\n    "path": "../../src/routes/about/+page.md"\n  },\n  "blocks": [\n    { "id": "title", "type": "text", "label": "Title", "required": true },\n    { "id": "body", "type": "markdown", "label": "Body", "required": true }\n  ]\n}'
 	);
 	await fs.writeFile(contentPath, '{\n  "title": "News",\n  "intro": "Write a short introduction for News.",\n  "body": "## News\\n\\nStart writing here."\n}');
 	await fs.writeFile(
@@ -94,6 +100,12 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 			formatter: 'json'
 		},
 		{
+			path: 'src/routes/about/+page.md',
+			kind: 'content',
+			configPath: 'tentman/configs/about.tentman.json',
+			formatter: 'markdown'
+		},
+		{
 			path: 'tentman/configs/blog.tentman.json',
 			kind: 'config',
 			formatter: 'json'
@@ -107,6 +119,11 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 			path: 'src/content/pages/contact.json',
 			kind: 'content',
 			configPath: 'tentman/configs/contact.tentman.json',
+			formatter: 'json'
+		},
+		{
+			path: 'tentman/configs/faq.tentman.json',
+			kind: 'config',
 			formatter: 'json'
 		},
 		{
@@ -129,12 +146,12 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 			path: 'tentman/navigation-manifest.json',
 			kind: 'navigation-manifest',
 			formatter: 'navigation-manifest'
-		}
+		},
 	]);
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 8,
-		configs: 5,
-		content: 2,
+		files: 10,
+		configs: 6,
+		content: 3,
 		navigationManifests: 1
 	});
 });
@@ -145,10 +162,10 @@ test('writes Tentman-owned formatting rewrites and becomes clean on recheck', as
 	const rewrites = await writeTentmanFormat(project);
 
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 7,
-		configs: 5,
-		content: 1,
-		navigationManifests: 1
+		files: 8,
+		configs: 6,
+		content: 2,
+		navigationManifests: 0
 	});
 
 	const nextProject = await loadTentmanProject(projectRoot);
@@ -166,5 +183,50 @@ test('writes Tentman-owned formatting rewrites and becomes clean on recheck', as
 		'utf8'
 	);
 	assert.ok(contactContent.endsWith('\n'));
-	assert.match(contactContent, /^\{\n\t"title": "Contact the test team",/);
+	assert.match(contactContent, /^\{\n\t"title": "Contact",/);
+});
+
+test('formats markdown-backed file singletons through core helpers', async () => {
+	const projectRoot = await copyFixture();
+	const configPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
+	const contentPath = path.join(projectRoot, 'src/content/pages/about.md');
+	const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+
+	config.content.path = '../../src/content/pages/about.md';
+	await fs.writeFile(configPath, `${JSON.stringify(config, null, '\t')}\n`);
+	await fs.writeFile(
+		contentPath,
+		[
+			'---',
+			'title: Core formatting',
+			'published: true',
+			'body: should-move-into-markdown-body',
+			'---',
+			''
+		].join('\n')
+	);
+
+	const project = await loadTentmanProject(projectRoot);
+	const rewrites = await checkTentmanFormat(project);
+	const markdownRewrite = rewrites.find((rewrite) => rewrite.path === 'src/content/pages/about.md');
+
+	assert.deepEqual(markdownRewrite, {
+		path: 'src/content/pages/about.md',
+		kind: 'content',
+		configPath: 'tentman/configs/about.tentman.json',
+		formatter: 'markdown'
+	});
+
+	await writeTentmanFormat(project);
+
+	const formattedContent = await fs.readFile(contentPath, 'utf8');
+	assert.equal(
+		formattedContent,
+		['---', 'title: Core formatting', 'published: true', '---', 'should-move-into-markdown-body'].join(
+			'\n'
+		)
+	);
+
+	const nextProject = await loadTentmanProject(projectRoot);
+	assert.deepEqual(await checkTentmanFormat(nextProject), []);
 });

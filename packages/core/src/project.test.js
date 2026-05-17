@@ -65,6 +65,40 @@ test('loads configured content components directory from root config', async () 
 	assert.equal(project.componentsDir, 'src/lib/components/content');
 });
 
+test('loads markdown-backed file singletons with frontmatter and body', async () => {
+	const projectRoot = await copyFixture();
+	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
+	const aboutMarkdownPath = path.join(projectRoot, 'src/content/pages/about.md');
+	const aboutConfig = JSON.parse(await fs.readFile(aboutConfigPath, 'utf8'));
+
+	aboutConfig.content.path = '../../src/content/pages/about.md';
+	await fs.writeFile(aboutConfigPath, serializeJson(aboutConfig));
+	await fs.writeFile(
+		aboutMarkdownPath,
+		[
+			'---',
+			"title: 'Markdown About'",
+			'published: true',
+			'gallery:',
+			"  - image: '/images/posts/fixture-grid.svg'",
+			"    alt: 'Fixture grid'",
+			'---',
+			'## Body copy',
+			'',
+			'Markdown singleton body'
+		].join('\n')
+	);
+
+	const project = await loadTentmanProject(projectRoot);
+	const aboutContent = project.contentByConfigPath.get('tentman/configs/about.tentman.json');
+
+	assert.equal(aboutContent?.items.length, 1);
+	assert.equal(aboutContent?.items[0]?.title, 'Markdown About');
+	assert.equal(aboutContent?.items[0]?.published, true);
+	assert.equal(aboutContent?.items[0]?.gallery?.[0]?.image, '/images/posts/fixture-grid.svg');
+	assert.equal(aboutContent?.items[0]?.body, '## Body copy\n\nMarkdown singleton body');
+});
+
 test('doctors the fixture without manifest or path errors', async () => {
 	const project = await loadTentmanProject(testAppRoot);
 	const diagnostics = await doctorTentmanProject(project);

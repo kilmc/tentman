@@ -58,6 +58,7 @@ test('inspects a scaffolded content component by id from a configured directory'
 
 test('throws when inspecting an unknown content component', async () => {
 	const projectRoot = await copyFixture();
+	await fs.rm(path.join(projectRoot, 'src/lib/content-components'), { recursive: true, force: true });
 	const project = await loadTentmanProject(projectRoot);
 
 	await assert.rejects(

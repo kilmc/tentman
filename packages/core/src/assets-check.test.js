@@ -24,7 +24,7 @@ test('checks current fixture assets conservatively', async () => {
 test('reports missing asset files, path mismatches, and missing asset directories', async () => {
 	const projectRoot = await copyFixture();
 	const blogPostPath = path.join(projectRoot, 'src/content/posts/designing-a-realistic-fixture.md');
-	const aboutContentPath = path.join(projectRoot, 'src/content/pages/about.json');
+	const aboutContentPath = path.join(projectRoot, 'src/routes/about/+page.md');
 	const blockConfigPath = path.join(projectRoot, 'tentman/blocks/image-gallery.tentman.json');
 
 	const blogPost = await fs.readFile(blogPostPath, 'utf8');
@@ -33,9 +33,11 @@ test('reports missing asset files, path mismatches, and missing asset directorie
 		blogPost.replace("/images/posts/fixture-grid.svg", "/images/posts/missing-cover.svg")
 	);
 
-	const aboutContent = JSON.parse(await fs.readFile(aboutContentPath, 'utf8'));
-	aboutContent.gallery[0].image = '/images/posts/fixture-grid.svg';
-	await fs.writeFile(aboutContentPath, serializeJson(aboutContent));
+	const aboutContent = await fs.readFile(aboutContentPath, 'utf8');
+	await fs.writeFile(
+		aboutContentPath,
+		aboutContent.replace('/images/gallery/paper-stack.svg', '/images/posts/fixture-grid.svg')
+	);
 
 	const blockConfig = JSON.parse(await fs.readFile(blockConfigPath, 'utf8'));
 	blockConfig.blocks[0].assetsDir = '../../static/images/missing-gallery';
@@ -59,7 +61,7 @@ test('reports missing asset files, path mismatches, and missing asset directorie
 	);
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.path-mismatch')?.message ?? '',
-		/field gallery\[0\]\.image uses \/images\/posts\/fixture-grid\.svg, but expected a path under \/images\/missing-gallery/
+		/field gallery\.items\[0\]\.image uses \/images\/posts\/fixture-grid\.svg, but expected a path under \/images\/missing-gallery/
 	);
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.missing-directory')?.message ?? '',

@@ -10,6 +10,12 @@ export interface Highlight {
 	detail?: string;
 }
 
+export interface AboutGallery {
+	title: string;
+	description?: string;
+	items: GalleryItem[];
+}
+
 export interface ContactHour {
 	day: string;
 	hours: string;
@@ -31,7 +37,7 @@ export interface AboutPageContent {
 	intro: string;
 	body: string;
 	highlights: Highlight[];
-	gallery: GalleryItem[];
+	gallery: AboutGallery;
 }
 
 export interface ContactPageContent {

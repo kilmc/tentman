@@ -9,7 +9,7 @@ test('prints top-level navigation in effective manifest order', async () => {
 
 	assert.deepEqual(
 		navigation.content.map((entry) => entry.label),
-		['Contact Page', 'About Page', 'Blog Posts', 'News', 'Projects']
+		['About', 'Blog Posts', 'Contact', 'FAQ', 'News', 'Projects']
 	);
 	assert.deepEqual(
 		navigation.collections,
@@ -32,26 +32,13 @@ test('prints effective collection navigation including manifest groups', async (
 	assert.deepEqual(
 		navigation.items.map((item) => item.label),
 		[
-			'Testing the new content workflows',
-			'Designing a realistic fixture app',
-			'Another Page',
-			'Stuff 2'
+			'Rendering with content components',
+			'Designing a reliable fixture',
+			'FAQ as a nested content model',
+			'Why this test app is so plain'
 		]
 	);
-	assert.deepEqual(
-		navigation.groups.map((group) => ({
-			id: group.id,
-			label: group.label,
-			items: group.items.map((item) => item.label)
-		})),
-		[
-			{
-				id: 'featured',
-				label: 'Featured posts',
-				items: ['Testing the new content workflows', 'Designing a realistic fixture app']
-			}
-		]
-	);
+	assert.deepEqual(navigation.groups, []);
 });
 
 test('throws when printing collection navigation for a singleton config', async () => {
@@ -59,6 +46,6 @@ test('throws when printing collection navigation for a singleton config', async 
 
 	assert.throws(
 		() => printTentmanNavigation(project, 'about'),
-		/About Page is not a collection config/
+		/About is not a collection config/
 	);
 });

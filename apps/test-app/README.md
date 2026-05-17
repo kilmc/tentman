@@ -10,11 +10,12 @@ If you want another repository to copy the Tentman config layout, this is the be
 - Content configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs)
 - Reusable block configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks)
 - A directory-backed collection for blog posts
-- File-backed singleton pages for `about` and `contact`
+- A route-backed markdown singleton for `about` plus file-backed singleton pages like `contact`
 - A reusable `imageGallery` block
 - A checked-in manual navigation manifest at [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json)
 - A small site-side loader that reads the same manifest to mirror Tentman ordering
-- Server-side markdown rendering with mdsvex plus Tentman content components
+- Auto Tentman mdsvex context for the canonical markdown-backed singleton example
+- Server-side markdown rendering with mdsvex plus Tentman content components for manual compatibility paths
 
 ## Folder Layout
 
@@ -29,6 +30,8 @@ test-app/
   src/content/
     pages/
     posts/
+  src/routes/
+    about/
 ```
 
 ## Key Files
@@ -40,6 +43,7 @@ test-app/
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/navigation-manifest.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks/image-gallery.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks/image-gallery.tentman.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md)
+- [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/routes/about/+page.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/routes/about/+page.md)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content/markdown.ts`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content/markdown.ts)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/server/content.ts`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/server/content.ts)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/routes/+layout.server.ts`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/routes/+layout.server.ts)
@@ -63,7 +67,11 @@ For the newer content-components workflow:
 
 - The canonical setup docs live in the repo root [README.md](/Users/kilmc/code/tentman/tentman/README.md)
   and in Tentman’s in-app `/docs` page.
+- The canonical singleton example is the route-backed markdown file
+  [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/routes/about/+page.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/routes/about/+page.md).
 - The Test App is ready for checked-in content components under
   [`/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content-components`](/Users/kilmc/code/tentman/tentman/apps/test-app/src/lib/content-components).
-- Wire `@tentman/mdsvex` plus `remark-directive` into `svelte.config.js`, then scaffold components
-  with `tentman component create <name> apps/test-app`.
+- `svelte.config.js` already wires `@tentman/mdsvex` plus `remark-directive` with
+  `resolveTentmanContext: 'auto'`.
+- The blog route still uses manual markdown rendering so the app covers both the new markdown-first
+  path and the existing compatibility path.

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { detectJsonIndent, updateContentRecordFileSource } from './content-files.js';
 import { createTentmanId, describeTentmanId } from './ids.js';
 import { parseJsonObject, serializeJson } from './json.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
@@ -86,62 +87,6 @@ function addTentmanIdToJsonObjectSource(source, id, context) {
 	return replaceOrInsertJsonStringProperty(source, '_tentmanId', id, 'label');
 }
 
-function addTentmanIdToMarkdownFrontmatter(source, id) {
-	if (!source.startsWith('---')) {
-		throw new Error('Markdown file is missing frontmatter');
-	}
-
-	const endIndex = source.indexOf('\n---', 3);
-	if (endIndex === -1) {
-		throw new Error('Markdown file has unterminated frontmatter');
-	}
-
-	const frontmatter = source.slice(4, endIndex);
-	const rest = source.slice(endIndex);
-	const lines = frontmatter.split('\n');
-
-	if (lines.some((line) => /^_tentmanId\s*:/.test(line))) {
-		return source.replace(/^_tentmanId\s*:.*$/m, `_tentmanId: '${id}'`);
-	}
-
-	const titleIndex = lines.findIndex((line) => /^title\s*:/.test(line));
-	const insertIndex = titleIndex === -1 ? 0 : titleIndex + 1;
-	const nextLines = [...lines];
-	nextLines.splice(insertIndex, 0, `_tentmanId: '${id}'`);
-
-	return `---\n${nextLines.join('\n')}${rest}`;
-}
-
-function addMarkdownFrontmatterStringProperty(source, propertyKey, propertyValue) {
-	if (!source.startsWith('---')) {
-		throw new Error('Markdown file is missing frontmatter');
-	}
-
-	const endIndex = source.indexOf('\n---', 3);
-	if (endIndex === -1) {
-		throw new Error('Markdown file has unterminated frontmatter');
-	}
-
-	const frontmatter = source.slice(4, endIndex);
-	const rest = source.slice(endIndex);
-	const lines = frontmatter.split('\n');
-
-	if (lines.some((line) => new RegExp(`^${propertyKey}\\s*:`).test(line))) {
-		return source.replace(new RegExp(`^${propertyKey}\\s*:.*$`, 'm'), `${propertyKey}: '${propertyValue}'`);
-	}
-
-	const anchorIndex =
-		lines.findIndex((line) => /^_tentmanId\s*:/.test(line)) !== -1
-			? lines.findIndex((line) => /^_tentmanId\s*:/.test(line)) + 1
-			: lines.findIndex((line) => /^title\s*:/.test(line)) !== -1
-				? lines.findIndex((line) => /^title\s*:/.test(line)) + 1
-				: 0;
-	const nextLines = [...lines];
-	nextLines.splice(anchorIndex, 0, `${propertyKey}: '${propertyValue}'`);
-
-	return `---\n${nextLines.join('\n')}${rest}`;
-}
-
 async function writeConfigId(project, config, id) {
 	const absolutePath = resolveProjectPath(project.rootDir, config.path);
 	const source = await fs.readFile(absolutePath, 'utf8');
@@ -193,9 +138,9 @@ async function writeDirectoryItemId(project, item, id) {
 
 	const absolutePath = resolveProjectPath(project.rootDir, relativePath);
 	const source = await fs.readFile(absolutePath, 'utf8');
-	const nextSource = relativePath.endsWith('.json')
-		? addTentmanIdToJsonObjectSource(source, id, relativePath)
-		: addTentmanIdToMarkdownFrontmatter(source, id);
+	const nextSource = updateContentRecordFileSource(source, relativePath, (record) =>
+		insertObjectPropertyAfterKey(record, 'title', '_tentmanId', id)
+	);
 
 	if (nextSource !== source) {
 		await fs.writeFile(absolutePath, nextSource);
@@ -210,9 +155,9 @@ async function writeDirectoryItemStringField(project, item, propertyKey, propert
 
 	const absolutePath = resolveProjectPath(project.rootDir, relativePath);
 	const source = await fs.readFile(absolutePath, 'utf8');
-	const nextSource = relativePath.endsWith('.json')
-		? replaceOrInsertJsonStringProperty(source, propertyKey, propertyValue, '_tentmanId')
-		: addMarkdownFrontmatterStringProperty(source, propertyKey, propertyValue);
+	const nextSource = updateContentRecordFileSource(source, relativePath, (record) =>
+		insertObjectPropertyAfterKey(record, '_tentmanId', propertyKey, propertyValue)
+	);
 
 	if (nextSource !== source) {
 		await fs.writeFile(absolutePath, nextSource);
@@ -227,6 +172,7 @@ async function writeFileContentItemIds(project, config, itemIdsByIndex) {
 	const contentPath = resolveConfigRelativePath(project.rootDir, config.path, config.content.path);
 	const source = await fs.readFile(contentPath, 'utf8');
 	const parsed = JSON.parse(source);
+	const indent = detectJsonIndent(source);
 
 	if (Array.isArray(parsed)) {
 		const nextItems = parsed.map((item, index) =>
@@ -234,7 +180,7 @@ async function writeFileContentItemIds(project, config, itemIdsByIndex) {
 				? insertObjectPropertyAfterKey(item, 'title', '_tentmanId', itemIdsByIndex.get(index))
 				: item
 		);
-		await fs.writeFile(contentPath, serializeJson(nextItems));
+		await fs.writeFile(contentPath, `${JSON.stringify(nextItems, null, indent)}\n`);
 		return;
 	}
 
@@ -247,7 +193,7 @@ async function writeFileContentItemIds(project, config, itemIdsByIndex) {
 					: item
 			)
 		};
-		await fs.writeFile(contentPath, serializeJson(nextContent));
+		await fs.writeFile(contentPath, `${JSON.stringify(nextContent, null, indent)}\n`);
 	}
 }
 
@@ -259,6 +205,7 @@ async function writeFileContentItemStringFields(project, config, fieldWritesByIn
 	const contentPath = resolveConfigRelativePath(project.rootDir, config.path, config.content.path);
 	const source = await fs.readFile(contentPath, 'utf8');
 	const parsed = JSON.parse(source);
+	const indent = detectJsonIndent(source);
 
 	function applyFields(item, index) {
 		const fieldWrites = fieldWritesByIndex.get(index);
@@ -272,17 +219,17 @@ async function writeFileContentItemStringFields(project, config, fieldWritesByIn
 	}
 
 	if (Array.isArray(parsed)) {
-		await fs.writeFile(contentPath, serializeJson(parsed.map(applyFields)));
+		await fs.writeFile(contentPath, `${JSON.stringify(parsed.map(applyFields), null, indent)}\n`);
 		return;
 	}
 
 	if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
 		await fs.writeFile(
 			contentPath,
-			serializeJson({
+			`${JSON.stringify({
 				...parsed,
 				items: parsed.items.map(applyFields)
-			})
+			}, null, indent)}\n`
 		);
 	}
 }

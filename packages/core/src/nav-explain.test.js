@@ -9,41 +9,37 @@ test('explains top-level config navigation position', async () => {
 
 	assert.deepEqual(explanation, {
 		config: {
-			label: 'Contact Page',
-			reference: 'tent_01KQD7Q1301SNN4W42XV2XYA17',
+			label: 'Contact',
+			reference: 'tent_01KTVA0B0VT000000000000002',
 			path: 'tentman/configs/contact.tentman.json',
-			topLevelIndex: 0,
+			topLevelIndex: 2,
 			topLevelSource: 'manifest',
-			topLevelMatchedReference: 'tent_01KQD7Q1301SNN4W42XV2XYA17'
+			topLevelMatchedReference: 'tent_01KTVA0B0VT000000000000002'
 		}
 	});
 });
 
 test('explains collection item navigation position and manifest group membership', async () => {
 	const project = await loadTentmanProject(testAppRoot);
-	const explanation = explainTentmanNavigation(project, 'blog', 'testing-content-workflows');
+	const explanation = explainTentmanNavigation(project, 'blog', 'why-this-test-app-is-so-plain');
 
 	assert.deepEqual(explanation, {
 		config: {
 			label: 'Blog Posts',
 			reference: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07',
 			path: 'tentman/configs/blog.tentman.json',
-			topLevelIndex: 2,
+			topLevelIndex: 1,
 			topLevelSource: 'manifest',
 			topLevelMatchedReference: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07'
 		},
 		item: {
-			label: 'Testing the new content workflows',
-			reference: 'tent_01KQD7Q12ZHBTXG669982DV00K',
+			label: 'Why this test app is so plain',
+			reference: 'tent_01KTVA0B0VT000000000000007',
 			path: 'src/content/posts/testing-content-workflows.md',
-			index: 0,
+			index: 3,
 			orderSource: 'manifest',
-			matchedReference: 'tent_01KQD7Q12ZHBTXG669982DV00K',
-			group: {
-				id: 'featured',
-				label: 'Featured posts',
-				index: 0
-			}
+			matchedReference: 'tent_01KTVA0B0VT000000000000007',
+			group: null
 		}
 	});
 });

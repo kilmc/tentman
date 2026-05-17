@@ -1,5 +1,7 @@
 import { mdsvex } from 'mdsvex';
 import adapter from '@sveltejs/adapter-auto';
+import remarkDirective from 'remark-directive';
+import { tentmanComponents } from '@tentman/mdsvex';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -13,8 +15,19 @@ const config = {
 		dynamicCompileOptions: ({ filename }) =>
 			filename.includes('node_modules') ? undefined : { runes: true }
 	},
-	preprocess: [mdsvex()],
-	extensions: ['.svelte', '.svx']
+	preprocess: [
+		mdsvex({
+			extensions: ['.svx', '.md'],
+			remarkPlugins: [
+				remarkDirective,
+				tentmanComponents({
+					projectRoot: process.cwd(),
+					resolveTentmanContext: 'auto'
+				})
+			]
+		})
+	],
+	extensions: ['.svelte', '.svx', '.md']
 };
 
 export default config;

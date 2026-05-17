@@ -27,9 +27,10 @@ async function writeLegacyNavigationManifest(projectRoot) {
 	"version": 1,
 	"content": {
 		"items": [
-			"contact",
 			"about",
 			"blog",
+			"contact",
+			"faq",
 			"news",
 			"projects"
 		]
@@ -37,20 +38,10 @@ async function writeLegacyNavigationManifest(projectRoot) {
 	"collections": {
 		"blog": {
 			"items": [
-				"testing-content-workflows",
-				"designing-a-realistic-fixture",
-				"blooop",
-				"stuff-2"
-			],
-			"groups": [
-				{
-					"id": "featured",
-					"label": "Featured posts",
-					"items": [
-						"testing-content-workflows",
-						"designing-a-realistic-fixture"
-					]
-				}
+				"rendering-with-content-components",
+				"designing-a-reliable-fixture",
+				"faq-as-a-nested-content-model",
+				"why-this-test-app-is-so-plain"
 			]
 		}
 	}
@@ -67,7 +58,7 @@ test('refreshes navigation manifest references to stable ids', async () => {
 	assert.equal(beforeDiagnostics.filter((diagnostic) => diagnostic.level === 'error').length, 0);
 	assert.equal(
 		beforeDiagnostics.filter((diagnostic) => diagnostic.code === 'manifest.legacy-reference').length,
-		10
+		11
 	);
 
 	const result = await refreshNavigationManifest(project);
@@ -75,10 +66,10 @@ test('refreshes navigation manifest references to stable ids', async () => {
 
 	assert.equal(result.changed, true);
 	assert.deepEqual(summary, {
-		configs: 5,
+		configs: 6,
 		collections: 1,
 		groups: 0,
-		items: 6
+		items: 4
 	});
 
 	const nextProject = await loadTentmanProject(projectRoot);
@@ -97,25 +88,20 @@ test('refreshes navigation manifest references to stable ids', async () => {
 	const manifest = parseNavigationManifest(manifestSource);
 
 	assert.deepEqual(manifest.content.items, [
-		{ id: 'tent_01KQD7Q1301SNN4W42XV2XYA17' },
-		{ id: 'tent_01KQD7Q12XGD83Y8S1TAHW40G3' },
+		{ id: 'tent_01KTVA0B0VT000000000000001' },
 		{ id: 'tent_01KQD7Q12YAMHFJ3FWHBQ16Z07' },
+		{ id: 'tent_01KTVA0B0VT000000000000002' },
+		{ id: 'tent_01KTVA0B0VT000000000000003' },
 		{ id: 'tent_01KQD7Q130YKZ4XV6JRZ8B9BH8' },
 		{ id: 'tent_01KQD7Q130M4G8TR170P1H4FKX' }
 	]);
 
 	const blogCollection = manifest.collections.tent_01KQD7Q12YAMHFJ3FWHBQ16Z07;
 	assert.deepEqual(blogCollection.items, [
-		{ id: 'tent_01KQD7Q12ZHBTXG669982DV00K' },
-		{ id: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98' },
-		{ id: 'tent_01KQD7Q12Y6C3T8QD4JHQ1SWPD' },
-		{ id: 'tent_01KQD7Q12Z8C6K7C008CDDVCR4' }
+		{ id: 'tent_01KTVA0B0VT000000000000004' },
+		{ id: 'tent_01KTVA0B0VT000000000000005' },
+		{ id: 'tent_01KTVA0B0VT000000000000006' },
+		{ id: 'tent_01KTVA0B0VT000000000000007' }
 	]);
-	assert.deepEqual(blogCollection.groups, [
-		{
-			id: 'featured',
-			label: 'Featured posts',
-			items: [{ id: 'tent_01KQD7Q12ZHBTXG669982DV00K' }, { id: 'tent_01KQD7Q12ZH61M4XHDTEQ5MV98' }]
-		}
-	]);
+	assert.equal(blogCollection.groups, undefined);
 });

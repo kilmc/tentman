@@ -4,7 +4,7 @@ title: Rendering with content components
 slug: rendering-with-content-components
 date: '2026-05-03'
 author: Tentman Team
-coverImage: ''
+coverImage: '/images/posts/field-notes.svg'
 excerpt: The new fixture uses Tentman content components in normal prose so the feature is visible without hijacking the entire site.
 published: true
 ---

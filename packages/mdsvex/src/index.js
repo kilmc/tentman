@@ -1,7 +1,9 @@
 import path from 'node:path';
 import {
 	discoverContentComponents,
+	loadTentmanProject,
 	resolveContentComponentRenderTarget,
+	resolveTentmanMarkdownFileRenderContext,
 	normalizeContentComponentInstance,
 	renderContentComponent
 } from '@tentman/core';
@@ -205,8 +207,25 @@ function buildInlineChildrenFromSegments(segments, renderSegment) {
 	return children;
 }
 
-function resolveComponentsDir(componentsDir) {
-	return path.resolve(process.cwd(), componentsDir ?? './src/lib/content-components');
+function resolveComponentsDir(projectRoot, componentsDir) {
+	return path.resolve(projectRoot, componentsDir ?? './src/lib/content-components');
+}
+
+function resolveTentmanFilePath(projectRoot, file) {
+	const candidate =
+		typeof file?.path === 'string' && file.path.length > 0
+			? file.path
+			: typeof file?.filename === 'string' && file.filename.length > 0
+				? file.filename
+				: typeof file?.history?.[0] === 'string' && file.history[0].length > 0
+					? file.history[0]
+					: null;
+
+	if (!candidate) {
+		return null;
+	}
+
+	return path.isAbsolute(candidate) ? candidate : path.resolve(projectRoot, candidate);
 }
 
 function addMdsvexImport(file, importName, importPath) {
@@ -276,8 +295,15 @@ export function tentmanComponents(options = {}) {
 		throw new Error('tentmanComponents templateEngine must be "nunjucks"');
 	}
 
+	const resolveTentmanContext = options.resolveTentmanContext ?? 'off';
+	if (resolveTentmanContext !== 'off' && resolveTentmanContext !== 'auto') {
+		throw new Error('tentmanComponents resolveTentmanContext must be "off" or "auto"');
+	}
+
+	const projectRoot = path.resolve(options.projectRoot ?? process.cwd());
+
 	const componentsPromise = discoverContentComponents({
-		componentsDir: resolveComponentsDir(options.componentsDir),
+		componentsDir: resolveComponentsDir(projectRoot, options.componentsDir),
 		onError
 	}).then((components) => {
 		const byName = new Map();
@@ -288,11 +314,31 @@ export function tentmanComponents(options = {}) {
 
 		return byName;
 	});
+	const projectPromise =
+		resolveTentmanContext === 'auto' ? loadTentmanProject(projectRoot) : Promise.resolve(null);
 
 	return function attacher() {
 		return async function transform(tree, file) {
 			const componentsByName = await componentsPromise;
-			const renderOptions = (await options.resolveRenderOptions?.(file)) ?? {};
+			const autoRenderOptions =
+				resolveTentmanContext === 'auto'
+					? (() => {
+							const absoluteFilePath = resolveTentmanFilePath(projectRoot, file);
+							if (!absoluteFilePath) {
+								return null;
+							}
+
+							return projectPromise.then((project) =>
+								project
+									? resolveTentmanMarkdownFileRenderContext(project, absoluteFilePath)
+									: null
+							);
+						})()
+					: null;
+			const renderOptions = {
+				...((await autoRenderOptions) ?? {}),
+				...((await options.resolveRenderOptions?.(file)) ?? {})
+			};
 
 			walkTree(tree, (node) => {
 				const original = getOriginalSourceMarker(file, node);

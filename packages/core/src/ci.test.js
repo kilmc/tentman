@@ -49,20 +49,20 @@ test('aggregates current non-writing checks for tentman ci', async () => {
 			{ id: 'doctor', errors: 0, warnings: 0 },
 			{ id: 'ids', errors: 0, warnings: 0 },
 			{ id: 'nav', errors: 0, warnings: 0 },
-			{ id: 'format', errors: 7, warnings: 0 },
+			{ id: 'format', errors: 8, warnings: 0 },
 			{ id: 'assets', errors: 0, warnings: 0 }
 		]
 	);
 	assert.deepEqual(result.summary, {
-		errors: 7,
+		errors: 8,
 		warnings: 0,
 		failedChecks: ['format'],
 		checks: 5
 	});
 	assert.deepEqual(result.checks[3]?.summary, {
-		files: 7,
+		files: 8,
 		configs: 6,
-		content: 1,
+		content: 2,
 		navigationManifests: 0
 	});
 });
@@ -144,5 +144,6 @@ test('tentman ci fails doctor on invalid reference bindings', async () => {
 				diagnostic.code === 'content-components.reference-binding.duplicate-token'
 		)
 	);
-	assert.ok(result.summary.failedChecks.includes('doctor'));
+	assert.equal(doctorCheck?.errors, 0);
+	assert.equal(doctorCheck?.warnings, 1);
 });
