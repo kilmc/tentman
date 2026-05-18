@@ -283,7 +283,15 @@ export interface LocalDiscoverySignature {
 	rootConfigText: string | null;
 	navigationManifestText: string | null;
 	contentConfigPaths: string[];
+	contentConfigFiles: Array<{
+		path: string;
+		content: string;
+	}>;
 	blockConfigPaths: string[];
+	blockConfigFiles: Array<{
+		path: string;
+		content: string;
+	}>;
 	contentComponentFiles: Array<{
 		path: string;
 		content: string;
@@ -399,7 +407,19 @@ export function createLocalRepositoryBackend(
 			rootConfigText,
 			navigationManifestText,
 			contentConfigPaths,
+			contentConfigFiles: await Promise.all(
+				contentConfigPaths.map(async (path) => ({
+					path,
+					content: await readFileText(rootHandle, path)
+				}))
+			),
 			blockConfigPaths,
+			blockConfigFiles: await Promise.all(
+				blockConfigPaths.map(async (path) => ({
+					path,
+					content: await readFileText(rootHandle, path)
+				}))
+			),
 			contentComponentFiles: await collectContentComponentFiles(rootHandle, componentsDir)
 		};
 	}

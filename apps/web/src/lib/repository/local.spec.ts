@@ -370,7 +370,7 @@ describe('createLocalRepositoryBackend', () => {
 		});
 	});
 
-	it('keeps the local discovery signature stable when existing config content changes', async () => {
+	it('invalidates the local discovery signature when existing config content changes', async () => {
 		let configContent = `{
 			"type": "content",
 			"label": "Posts",
@@ -398,7 +398,15 @@ describe('createLocalRepositoryBackend', () => {
 			"blocks": []
 		}`;
 
-		await expect(backend.getDiscoverySignature()).resolves.toEqual(signature);
+		await expect(backend.getDiscoverySignature()).resolves.not.toEqual(signature);
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			contentConfigFiles: [
+				{
+					path: 'tentman/configs/posts.tentman.json',
+					content: configContent
+				}
+			]
+		});
 	});
 
 	it('invalidates the local discovery signature when content component templates change', async () => {
@@ -495,6 +503,52 @@ describe('createLocalRepositoryBackend', () => {
 
 		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
 			navigationManifestText: navigationManifest
+		});
+	});
+
+	it('invalidates the local discovery signature when a discovered content config changes', async () => {
+		let postsConfig = `{
+			"type": "content",
+			"label": "Posts",
+			"content": { "mode": "file", "path": "./src/content/posts.json" },
+			"blocks": []
+		}`;
+		const rootHandle = createDirectoryHandle({
+			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			tentman: createDirectoryHandle({
+				configs: createDirectoryHandle({
+					'posts.tentman.json': createFileHandle(() => postsConfig)
+				})
+			})
+		});
+		const backend = createLocalRepositoryBackend(rootHandle, {
+			name: 'Test App',
+			pathLabel: '~/Test App'
+		});
+		const initialSignature = await backend.getDiscoverySignature();
+
+		expect(initialSignature.contentConfigFiles).toEqual([
+			{
+				path: 'tentman/configs/posts.tentman.json',
+				content: postsConfig
+			}
+		]);
+
+		postsConfig = `{
+			"type": "content",
+			"label": "Posts",
+			"_tentmanId": "posts",
+			"content": { "mode": "file", "path": "./src/content/posts.json" },
+			"blocks": []
+		}`;
+
+		await expect(backend.getDiscoverySignature()).resolves.toMatchObject({
+			contentConfigFiles: [
+				{
+					path: 'tentman/configs/posts.tentman.json',
+					content: postsConfig
+				}
+			]
 		});
 	});
 
