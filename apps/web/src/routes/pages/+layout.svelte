@@ -15,7 +15,6 @@
 	import CollectionPanel from '$lib/features/content-management/components/CollectionPanel.svelte';
 	import Sidebar from '$lib/features/content-management/components/Sidebar.svelte';
 	import Header from '$lib/features/content-management/components/Header.svelte';
-	import RemountOnValue from '$lib/components/RemountOnValue.svelte';
 	import SidePanelHost from '$lib/components/form/SidePanelHost.svelte';
 	import { getNetlifyPreviewUrl } from '$lib/netlify/preview';
 	import {
@@ -198,6 +197,13 @@
 		}
 
 		return currentConfig?.config.label ?? siteName;
+	});
+	const localWorkspaceSurfaceKey = $derived(
+		isLocalMode ? `local-rescan:${localRescanVersion}` : 'shared-workspace'
+	);
+	const mainPanelKey = $derived.by(() => {
+		const routeKey = `${page.url.pathname}${page.url.search}`;
+		return isLocalMode ? `${routeKey}:local-rescan:${localRescanVersion}` : routeKey;
 	});
 	const currentConfigState = $derived.by(() => {
 		if (!currentConfig?.config.state || !currentPageSlug) {
@@ -767,30 +773,32 @@
 	data-sveltekit-preload-data="hover"
 >
 	<div class="hidden lg:block">
-		<Sidebar
-			{siteName}
-			{repoLabel}
-			{configs}
-			{configStatesBySlug}
-			{currentPageSlug}
-			isAuthenticated={data.isAuthenticated}
-			{isLocalMode}
-			{canEditNavigation}
-			{canAddPage}
-			{isEditingNavigation}
-			{preparingNavigationEditor}
-			{savingNavigation}
-			{hasUnsavedNavigationChanges}
-			{topLevelEditorItems}
-			onselectconfig={handleSidebarConfigSelect}
-			onstartnavigationedit={() => void startNavigationEditing()}
-			oncancelnavigationedit={cancelNavigationEditing}
-			onsavenavigationedit={() => void saveNavigationEditing()}
-			onnavconsider={handleTopLevelConsider}
-			onnavfinalize={handleTopLevelFinalize}
-			onswitchsite={() => void handleSwitchSite()}
-			onrescan={() => void handleRescanLocalRepo()}
-		/>
+		{#key localWorkspaceSurfaceKey}
+			<Sidebar
+				{siteName}
+				{repoLabel}
+				{configs}
+				{configStatesBySlug}
+				{currentPageSlug}
+				isAuthenticated={data.isAuthenticated}
+				{isLocalMode}
+				{canEditNavigation}
+				{canAddPage}
+				{isEditingNavigation}
+				{preparingNavigationEditor}
+				{savingNavigation}
+				{hasUnsavedNavigationChanges}
+				{topLevelEditorItems}
+				onselectconfig={handleSidebarConfigSelect}
+				onstartnavigationedit={() => void startNavigationEditing()}
+				oncancelnavigationedit={cancelNavigationEditing}
+				onsavenavigationedit={() => void saveNavigationEditing()}
+				onnavconsider={handleTopLevelConsider}
+				onnavfinalize={handleTopLevelFinalize}
+				onswitchsite={() => void handleSwitchSite()}
+				onrescan={() => void handleRescanLocalRepo()}
+			/>
+		{/key}
 	</div>
 
 	{#if isMobileSidebarOpen}
@@ -805,32 +813,34 @@
 				onclick={() => (isMobileSidebarOpen = false)}
 			></button>
 			<div class="relative h-full w-[min(20rem,calc(100vw-2.5rem))]">
-				<Sidebar
-					{siteName}
-					{repoLabel}
-					{configs}
-					{configStatesBySlug}
-					{currentPageSlug}
-					isAuthenticated={data.isAuthenticated}
-					{isLocalMode}
-					{canEditNavigation}
-					{canAddPage}
-					{isEditingNavigation}
-					{preparingNavigationEditor}
-					{savingNavigation}
-					{hasUnsavedNavigationChanges}
-					{topLevelEditorItems}
-					onselectconfig={handleSidebarConfigSelect}
-					mobile={true}
-					onclose={() => (isMobileSidebarOpen = false)}
-					onstartnavigationedit={() => void startNavigationEditing()}
-					oncancelnavigationedit={cancelNavigationEditing}
-					onsavenavigationedit={() => void saveNavigationEditing()}
-					onnavconsider={handleTopLevelConsider}
-					onnavfinalize={handleTopLevelFinalize}
-					onswitchsite={() => void handleSwitchSite()}
-					onrescan={() => void handleRescanLocalRepo()}
-				/>
+				{#key localWorkspaceSurfaceKey}
+					<Sidebar
+						{siteName}
+						{repoLabel}
+						{configs}
+						{configStatesBySlug}
+						{currentPageSlug}
+						isAuthenticated={data.isAuthenticated}
+						{isLocalMode}
+						{canEditNavigation}
+						{canAddPage}
+						{isEditingNavigation}
+						{preparingNavigationEditor}
+						{savingNavigation}
+						{hasUnsavedNavigationChanges}
+						{topLevelEditorItems}
+						onselectconfig={handleSidebarConfigSelect}
+						mobile={true}
+						onclose={() => (isMobileSidebarOpen = false)}
+						onstartnavigationedit={() => void startNavigationEditing()}
+						oncancelnavigationedit={cancelNavigationEditing}
+						onsavenavigationedit={() => void saveNavigationEditing()}
+						onnavconsider={handleTopLevelConsider}
+						onnavfinalize={handleTopLevelFinalize}
+						onswitchsite={() => void handleSwitchSite()}
+						onrescan={() => void handleRescanLocalRepo()}
+					/>
+				{/key}
 			</div>
 		</div>
 	{/if}
@@ -857,22 +867,24 @@
 				{@const navigation = getCollectionItems(currentConfig.slug)}
 				{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
 				<div class="hidden min-h-0 min-w-0 lg:grid">
-					<CollectionPanel
-						slug={currentConfig.slug}
-						label={currentConfig.config.label}
-						itemLabel={getConfigItemLabel(currentConfig.config)}
-						items={navigation.items}
-						groups={navigation.groups}
-						{currentItemId}
-						branch={page.url.searchParams.get('branch')}
-						status={getCollectionLoadStatus(currentConfig.slug)}
-						error={getCollectionLoadError(currentConfig.slug)}
-						canOrderItems={!!collectionSetup?.canOrderItems}
-						savingCustomOrder={savingCollectionOrder}
-						onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
-						onsavecustomorder={(collection: NavigationDraftCollection) =>
-							void saveCollectionCustomOrder(currentConfig, collection)}
-					/>
+					{#key localWorkspaceSurfaceKey}
+						<CollectionPanel
+							slug={currentConfig.slug}
+							label={currentConfig.config.label}
+							itemLabel={getConfigItemLabel(currentConfig.config)}
+							items={navigation.items}
+							groups={navigation.groups}
+							{currentItemId}
+							branch={page.url.searchParams.get('branch')}
+							status={getCollectionLoadStatus(currentConfig.slug)}
+							error={getCollectionLoadError(currentConfig.slug)}
+							canOrderItems={!!collectionSetup?.canOrderItems}
+							savingCustomOrder={savingCollectionOrder}
+							onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+							onsavecustomorder={(collection: NavigationDraftCollection) =>
+								void saveCollectionCustomOrder(currentConfig, collection)}
+						/>
+					{/key}
 				</div>
 			{/if}
 
@@ -896,13 +908,9 @@
 							</ul>
 						</section>
 					{/if}
-					<RemountOnValue
-						value={isLocalMode
-							? `${page.url.pathname}${page.url.search}:${localRescanVersion}`
-							: `${page.url.pathname}${page.url.search}`}
-					>
+					{#key mainPanelKey}
 						{@render children?.()}
-					</RemountOnValue>
+					{/key}
 				</div>
 			</section>
 
@@ -943,22 +951,24 @@
 			</button>
 		</div>
 		<div class="min-h-0">
-			<CollectionPanel
-				slug={currentConfig.slug}
-				label={currentConfig.config.label}
-				itemLabel={getConfigItemLabel(currentConfig.config)}
-				items={navigation.items}
-				groups={navigation.groups}
-				{currentItemId}
-				branch={page.url.searchParams.get('branch')}
-				status={getCollectionLoadStatus(currentConfig.slug)}
-				error={getCollectionLoadError(currentConfig.slug)}
-				canOrderItems={!!collectionSetup?.canOrderItems}
-				savingCustomOrder={savingCollectionOrder}
-				onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
-				onsavecustomorder={(collection: NavigationDraftCollection) =>
-					void saveCollectionCustomOrder(currentConfig, collection)}
-			/>
+			{#key localWorkspaceSurfaceKey}
+				<CollectionPanel
+					slug={currentConfig.slug}
+					label={currentConfig.config.label}
+					itemLabel={getConfigItemLabel(currentConfig.config)}
+					items={navigation.items}
+					groups={navigation.groups}
+					{currentItemId}
+					branch={page.url.searchParams.get('branch')}
+					status={getCollectionLoadStatus(currentConfig.slug)}
+					error={getCollectionLoadError(currentConfig.slug)}
+					canOrderItems={!!collectionSetup?.canOrderItems}
+					savingCustomOrder={savingCollectionOrder}
+					onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+					onsavecustomorder={(collection: NavigationDraftCollection) =>
+						void saveCollectionCustomOrder(currentConfig, collection)}
+				/>
+			{/key}
 		</div>
 	</div>
 {/if}

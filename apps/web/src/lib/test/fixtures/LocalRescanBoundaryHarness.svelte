@@ -1,7 +1,6 @@
-<script lang="ts">
-	import { get } from 'svelte/store';
-	import RemountOnValue from '$lib/components/RemountOnValue.svelte';
-	import { localContent } from '$lib/stores/local-content';
+	<script lang="ts">
+		import { get } from 'svelte/store';
+		import { localContent } from '$lib/stores/local-content';
 
 	let rescanVersion = $state(0);
 
@@ -13,7 +12,7 @@
 
 <button type="button" onclick={() => void handleRescan()}>Rescan repo</button>
 
-<RemountOnValue value={rescanVersion}>
+{#key rescanVersion}
 	{@const config = get(localContent).configs.find((entry) => entry.slug === 'about')?.config ?? null}
 	{@const blockLabels = config?.blocks.map((block) => block.label ?? block.id) ?? []}
 	<ul>
@@ -21,4 +20,4 @@
 			<li>{label}</li>
 		{/each}
 	</ul>
-</RemountOnValue>
+{/key}
