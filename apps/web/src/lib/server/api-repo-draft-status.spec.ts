@@ -54,7 +54,7 @@ describe('GET /api/repo/draft-status', () => {
 			name: 'docs',
 			discoveredConfig
 		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('preview-2026-04-06');
+		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('tentman-preview');
 		vi.mocked(compareDraftToBranch).mockResolvedValue({
 			modified: [],
 			created: [{ itemId: 'hello-world' }],
@@ -68,7 +68,7 @@ describe('GET /api/repo/draft-status', () => {
 		} as never);
 
 		expect(await response.json()).toEqual({
-			draftBranch: 'preview-2026-04-06',
+			draftBranch: 'tentman-preview',
 			draftChanges: {
 				modified: [],
 				created: [{ itemId: 'hello-world' }],

@@ -1,13 +1,61 @@
 import type { Octokit } from 'octokit';
-import { branchExists, createBranch, listPreviewBranches } from '$lib/github/branch';
+import { branchExists, createBranch } from '$lib/github/branch';
+
+export const TENTMAN_DRAFT_BRANCH = 'tentman-preview';
+const LEGACY_TENTMAN_DRAFT_BRANCH_PATTERN = /^tentman-preview-.+$/;
+
+export class DraftBranchConflictError extends Error {
+	readonly branchNames: string[];
+	readonly status = 409;
+
+	constructor(branchNames: string[]) {
+		super(
+			`Tentman found conflicting draft branches (${branchNames.join(
+				', '
+			)}). Merge or delete them before continuing.`
+		);
+		this.name = 'DraftBranchConflictError';
+		this.branchNames = branchNames;
+	}
+}
+
+async function listTentmanDraftBranches(
+	octokit: Octokit,
+	owner: string,
+	repo: string
+): Promise<string[]> {
+	const { data: branches } = await octokit.rest.repos.listBranches({
+		owner,
+		repo,
+		per_page: 100
+	});
+
+	return branches
+		.map((branch) => branch.name)
+		.filter(
+			(branchName) =>
+				branchName === TENTMAN_DRAFT_BRANCH ||
+				LEGACY_TENTMAN_DRAFT_BRANCH_PATTERN.test(branchName)
+		)
+		.sort();
+}
 
 export async function getLatestPreviewBranchName(
 	octokit: Octokit,
 	owner: string,
 	repo: string
 ): Promise<string | undefined> {
-	const branches = await listPreviewBranches(octokit, owner, repo);
-	return branches[0]?.name;
+	const branches = await listTentmanDraftBranches(octokit, owner, repo);
+
+	if (branches.length === 0) {
+		return undefined;
+	}
+
+	if (branches.length !== 1 || branches[0] !== TENTMAN_DRAFT_BRANCH) {
+		throw new DraftBranchConflictError(branches);
+	}
+
+	return TENTMAN_DRAFT_BRANCH;
 }
 
 export async function ensureDraftBranch(
@@ -16,27 +64,29 @@ export async function ensureDraftBranch(
 	repo: string,
 	requestedBranchName?: string | null
 ): Promise<{ branchName: string; created: boolean }> {
-	if (requestedBranchName) {
-		const exists = await branchExists(octokit, owner, repo, requestedBranchName);
-		if (exists) {
-			return { branchName: requestedBranchName, created: false };
-		}
+	if (requestedBranchName && requestedBranchName !== TENTMAN_DRAFT_BRANCH) {
+		throw new DraftBranchConflictError([requestedBranchName]);
 	}
 
-	const today = new Date();
-	const yyyy = today.getFullYear();
-	const mm = String(today.getMonth() + 1).padStart(2, '0');
-	const dd = String(today.getDate()).padStart(2, '0');
-	const baseName = `preview-${yyyy}-${mm}-${dd}`;
-
-	let branchName = requestedBranchName || baseName;
-	let sequence = 2;
-
-	while (await branchExists(octokit, owner, repo, branchName)) {
-		branchName = `${baseName}-${sequence}`;
-		sequence++;
+	const existingBranchName = await getLatestPreviewBranchName(octokit, owner, repo);
+	if (existingBranchName) {
+		return {
+			branchName: existingBranchName,
+			created: false
+		};
 	}
 
-	await createBranch(octokit, owner, repo, branchName);
-	return { branchName, created: true };
+	const exists = await branchExists(octokit, owner, repo, TENTMAN_DRAFT_BRANCH);
+	if (exists) {
+		return {
+			branchName: TENTMAN_DRAFT_BRANCH,
+			created: false
+		};
+	}
+
+	await createBranch(octokit, owner, repo, TENTMAN_DRAFT_BRANCH);
+	return {
+		branchName: TENTMAN_DRAFT_BRANCH,
+		created: true
+	};
 }

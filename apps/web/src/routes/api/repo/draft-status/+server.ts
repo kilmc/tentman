@@ -50,7 +50,12 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
 
-		if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
+		if (
+			err &&
+			typeof err === 'object' &&
+			'status' in err &&
+			(err.status === 404 || err.status === 409)
+		) {
 			throw err;
 		}
 

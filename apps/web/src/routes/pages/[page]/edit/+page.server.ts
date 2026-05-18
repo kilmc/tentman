@@ -1,31 +1,53 @@
 // SERVER_JUSTIFICATION: privileged_mutation
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
+import { saveContentDocument } from '$lib/content/service';
+import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
 	saveToPreview: async ({ locals, params, request, cookies, url }) => {
 		const requestContext = { locals, cookies };
 
 		try {
-			await requireDiscoveredConfig(requestContext, params.page);
-
-			// Parse form data
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+				requestContext,
+				params.page
+			);
 			const formData = await request.formData();
-			const contentData = JSON.parse(formData.get('data') as string);
-			const branch = (formData.get('branch') as string | null) || undefined;
+			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
+			const requestedBranchName = (formData.get('branch') as string | null) || undefined;
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const materialized = await materializeDraftAssetsFromFormData({
+				formData,
+				content: contentData,
+				backend,
+				writeOptions: {
+					ref: branchName
+				}
+			});
 
-			// Encode the data to pass via URL
-			const encodedData = Buffer.from(JSON.stringify(contentData)).toString('base64url');
+			await saveContentDocument(
+				backend,
+				discoveredConfig.config,
+				discoveredConfig.path,
+				materialized.content,
+				{
+					branch: branchName
+				}
+			);
+			await ensureDraftPullRequest(octokit, owner, name, branchName);
 
-			// Redirect to preview-changes page
 			throw redirect(
 				303,
-				buildPathWithQuery(`/pages/${params.page}/preview-changes`, {
-					data: encodedData,
-					branch
+				buildPathWithQuery(`/pages/${params.page}/edit`, {
+					saved: 'true',
+					branch: branchName
 				})
 			);
 		} catch (err) {

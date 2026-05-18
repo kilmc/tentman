@@ -5,6 +5,22 @@ vi.mock('$lib/server/page-context', () => ({
 	handleGitHubRouteError: vi.fn()
 }));
 
+vi.mock('$lib/content/service', () => ({
+	createContentDocument: vi.fn()
+}));
+
+vi.mock('$lib/features/draft-assets/server', () => ({
+	materializeDraftAssetsFromFormData: vi.fn(async ({ content }) => ({ content }))
+}));
+
+vi.mock('$lib/features/draft-publishing/service', () => ({
+	ensureDraftBranch: vi.fn(async () => ({ branchName: 'tentman-preview', created: false }))
+}));
+
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn()
+}));
+
 import { actions } from './+page.server';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
@@ -27,7 +43,12 @@ describe('routes/pages/[page]/new/+page.server', () => {
 
 	it('preserves the explicit branch when redirecting to new-item preview changes', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
 			discoveredConfig: {
+				path: 'content/posts.tentman.json',
 				config: {
 					idField: 'slug',
 					content: {
@@ -54,8 +75,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
-			location:
-				'/pages/posts/hello-world/preview-changes?data=eyJ0aXRsZSI6IkhlbGxvIHdvcmxkIiwic2x1ZyI6ImhlbGxvLXdvcmxkIn0&new=true&newFilename=hello-world&branch=preview-2026-04-06'
+			location: '/pages/posts/hello-world/edit?saved=true&branch=tentman-preview'
 		});
 	});
 

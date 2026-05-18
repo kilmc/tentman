@@ -22,7 +22,7 @@ describe('routes/publish/+page', () => {
 			async () =>
 				new Response(
 					JSON.stringify({
-						draftBranch: { name: 'preview-2026-04-05' },
+						draftBranch: { name: 'tentman-preview' },
 						configsWithChanges: [],
 						commits: []
 					}),
@@ -57,7 +57,7 @@ describe('routes/publish/+page', () => {
 				depends: () => {}
 			} as never)
 		).resolves.toEqual({
-			draftBranch: { name: 'preview-2026-04-05' },
+			draftBranch: { name: 'tentman-preview' },
 			configsWithChanges: [],
 			commits: []
 		});

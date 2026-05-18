@@ -26,6 +26,13 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 		throw httpError(404, 'No draft branch found');
 	}
 
+	if (response.status === 409) {
+		throw httpError(
+			409,
+			'Tentman found conflicting draft branches. Merge or delete them before continuing.'
+		);
+	}
+
 	if (!response.ok) {
 		throw httpError(response.status, 'Failed to load publish view');
 	}

@@ -10,17 +10,15 @@
 
 <div class="mx-auto max-w-5xl">
 	<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Publish Changes</h1>
-	<p class="mb-6 text-stone-600">Review and publish all draft changes to the main branch.</p>
+	<p class="mb-2 text-stone-600">Review and publish all saved draft changes to the live site.</p>
+	<p class="mb-6 text-sm text-stone-500">
+		Preview stays separate and opens the current preview URL for <code>tentman-preview</code>.
+	</p>
 
 	<div class="mb-6 rounded-md border border-stone-200 bg-stone-100 p-4">
 		<p class="text-sm text-stone-900">
-			<span class="font-medium">Draft Branch:</span>
-			<code class="ml-2 rounded bg-white px-2 py-1 text-xs">{data.draftBranch.name}</code>
-		</p>
-		<p class="mt-2 text-sm text-stone-600">
-			{data.commits.length} commit{data.commits.length === 1 ? '' : 's'} •
 			{data.configsWithChanges.length} content type{data.configsWithChanges.length === 1 ? '' : 's'}
-			changed
+			with unpublished changes
 		</p>
 	</div>
 
@@ -59,31 +57,6 @@
 		</div>
 	</div>
 
-	<!-- Commits -->
-	<div class="mb-6">
-		<h2 class="mb-3 text-xl font-semibold text-stone-950">Commits ({data.commits.length})</h2>
-		<div class="space-y-2">
-			{#each data.commits as commit}
-				<div class="rounded-md border border-stone-200 bg-white p-3">
-					<p class="text-sm font-medium text-stone-950">{commit.message}</p>
-					<div class="mt-1 flex items-center gap-3 text-xs text-stone-500">
-						<span>{commit.author.name}</span>
-						<span>•</span>
-						<span>{new Date(commit.author.date).toLocaleString()}</span>
-						<a
-							href={commit.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="text-stone-700 hover:text-stone-950"
-						>
-							View on GitHub →
-						</a>
-					</div>
-				</div>
-			{/each}
-		</div>
-	</div>
-
 	<!-- Actions -->
 	<div class="flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row">
 		<form
@@ -107,7 +80,7 @@
 				{#if publishing}
 					Publishing...
 				{:else}
-					Publish to Main
+					Publish Changes
 				{/if}
 			</button>
 		</form>
@@ -139,7 +112,7 @@
 				{#if discarding}
 					Discarding...
 				{:else}
-					Discard Draft
+					Discard Changes
 				{/if}
 			</button>
 		</form>

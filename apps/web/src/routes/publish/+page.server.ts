@@ -1,6 +1,8 @@
 // SERVER_JUSTIFICATION: privileged_mutation
 import { redirect, error } from '@sveltejs/kit';
 import type { Actions } from './$types';
+import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { closeDraftPullRequest, ensureDraftPullRequest } from '$lib/github/pull-request';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
 
 export const actions = {
@@ -8,33 +10,24 @@ export const actions = {
 		const requestContext = { locals, cookies };
 		const { octokit, owner, name, backend } = requireGitHubRepository(requestContext);
 
-		// Get the draft branch
-		const { listPreviewBranches } = await import('$lib/github/branch');
-		const branches = await listPreviewBranches(octokit, owner, name);
-
-		if (branches.length === 0) {
+		const draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+		if (!draftBranch) {
 			throw error(400, 'No draft branch to publish');
 		}
 
-		const draftBranch = branches[0];
-
 		try {
-			// Merge to main
-			const { mergeBranch } = await import('$lib/github/branch');
-			await mergeBranch(
-				octokit,
+			const pullRequest = await ensureDraftPullRequest(octokit, owner, name, draftBranch);
+			await octokit.rest.pulls.merge({
 				owner,
-				name,
-				draftBranch.name,
-				'main',
-				`Publish draft changes from ${draftBranch.name}`
-			);
+				repo: name,
+				pull_number: pullRequest.number,
+				commit_title: 'Publish Tentman draft changes'
+			});
 
-			// Delete branch
 			const { deleteBranch } = await import('$lib/github/branch');
-			await deleteBranch(octokit, owner, name, draftBranch.name);
+			await deleteBranch(octokit, owner, name, draftBranch);
 
-			console.log(`✅ Published and deleted draft branch: ${draftBranch.name}`);
+			console.log(`✅ Published and deleted draft branch: ${draftBranch}`);
 
 			// Invalidate content cache
 			const { invalidateContent } = await import('$lib/stores/content-cache');
@@ -56,22 +49,17 @@ export const actions = {
 		const requestContext = { locals, cookies };
 		const { octokit, owner, name } = requireGitHubRepository(requestContext);
 
-		// Get the draft branch
-		const { listPreviewBranches } = await import('$lib/github/branch');
-		const branches = await listPreviewBranches(octokit, owner, name);
-
-		if (branches.length === 0) {
+		const draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+		if (!draftBranch) {
 			throw error(400, 'No draft branch to discard');
 		}
 
-		const draftBranch = branches[0];
-
 		try {
-			// Delete branch without merging
+			await closeDraftPullRequest(octokit, owner, name, draftBranch);
 			const { deleteBranch } = await import('$lib/github/branch');
-			await deleteBranch(octokit, owner, name, draftBranch.name);
+			await deleteBranch(octokit, owner, name, draftBranch);
 
-			console.log(`✅ Discarded draft branch: ${draftBranch.name}`);
+			console.log(`✅ Discarded draft branch: ${draftBranch}`);
 
 			throw redirect(303, '/pages?cancelled=true');
 		} catch (err) {

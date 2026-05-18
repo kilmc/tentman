@@ -5,6 +5,7 @@ import { saveContentDocument } from '$lib/content/service.js';
 import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import type { ContentRecord } from '$lib/features/content-management/types';
@@ -49,6 +50,7 @@ export const actions: Actions = {
 					branch: branchName
 				}
 			);
+			await ensureDraftPullRequest(octokit, owner, name, branchName);
 
 			console.log(`✅ Saved content to ${branchName}`);
 
@@ -75,7 +77,7 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
 				requestContext,
 				params.page
 			);
@@ -83,23 +85,29 @@ export const actions: Actions = {
 			// Parse form data
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
+			const requestedBranchName = (formData.get('branchName') as string | null) || undefined;
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
-				backend
+				backend,
+				writeOptions: {
+					ref: branchName
+				}
 			});
 
-			// Save the content directly to main branch (no branch specified = default branch)
 			await saveContentDocument(
 				backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				materialized.content
-				// No branch option = commits to default branch
+				materialized.content,
+				{
+					branch: branchName
+				}
 			);
+			await ensureDraftPullRequest(octokit, owner, name, branchName);
 
-			// Redirect back to edit with success message
-			throw redirect(303, `/pages/${params.page}/edit?published=true`);
+			throw redirect(303, '/publish');
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
@@ -107,22 +115,6 @@ export const actions: Actions = {
 			}
 
 			handleGitHubRouteError(requestContext, err, getRoutePath(url));
-			// Check for protected branch error
-			if (
-				err &&
-				typeof err === 'object' &&
-				'status' in err &&
-				err.status === 403 &&
-				'message' in err &&
-				typeof err.message === 'string' &&
-				err.message.toLowerCase().includes('protected')
-			) {
-				return fail(403, {
-					error:
-						'Cannot publish directly to main branch. The main branch is protected. Please use "Save to Draft" instead to create a draft, then merge via pull request.'
-				});
-			}
-
 			logError(err, 'Publish now');
 			return fail(500, {
 				error: formatErrorMessage(err)

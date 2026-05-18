@@ -12,6 +12,7 @@
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
@@ -347,11 +348,32 @@
 			method="POST"
 			action="?/saveToPreview"
 			onsubmit={prepareFormSubmit}
-			use:enhance={() => {
-				saving = true;
-				hasUnsavedChanges = false;
+			use:enhance={({ formData, cancel }) => {
+				let submittedRefs: string[] = [];
+				const prepareSubmission = (async () => {
+					const encoded = formData.get('data');
+					if (typeof encoded !== 'string' || encoded.length === 0) {
+						cancel();
+						return;
+					}
+
+					const contentData = JSON.parse(encoded) as ContentRecord;
+					const appended = await appendDraftAssetsToFormData(formData, contentData);
+					submittedRefs = appended.refs;
+					saving = true;
+					hasUnsavedChanges = false;
+				})();
+
 				return async ({ update }) => {
+					try {
+						await prepareSubmission;
+					} catch {
+						saving = false;
+						return;
+					}
+
 					await update();
+					await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
 					saving = false;
 				};
 			}}
@@ -385,7 +407,7 @@
 					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
 					class="tm-btn tm-btn-primary"
 				>
-					{saving ? 'Saving...' : 'Continue'}
+					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 				<a href={resolve(`/pages/${data.pageSlug}${branchQuery}`)} class="tm-btn tm-btn-secondary">
 					Cancel

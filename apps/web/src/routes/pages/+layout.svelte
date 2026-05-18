@@ -17,6 +17,7 @@
 	import Header from '$lib/features/content-management/components/Header.svelte';
 	import RemountOnValue from '$lib/components/RemountOnValue.svelte';
 	import SidePanelHost from '$lib/components/form/SidePanelHost.svelte';
+	import { getNetlifyPreviewUrl } from '$lib/netlify/preview';
 	import {
 		FORM_SIDE_PANEL,
 		type FormSidePanelContext,
@@ -174,9 +175,15 @@
 
 		return null;
 	});
-	const previewUrl = $derived(
-		isLocalMode ? ($localContent.rootConfig?.local?.previewUrl ?? null) : null
-	);
+	const previewUrl = $derived.by(() => {
+		if (isLocalMode) {
+			return $localContent.rootConfig?.local?.previewUrl ?? null;
+		}
+
+		const netlifySiteName = data.rootConfig?.netlify?.siteName;
+		const branchName = $draftBranch.branchName;
+		return netlifySiteName && branchName ? getNetlifyPreviewUrl(branchName, netlifySiteName) : null;
+	});
 	const workspaceTitle = $derived.by(() => {
 		if (page.url.pathname === '/pages' || page.url.pathname === '/pages/') {
 			return 'Overview';
