@@ -719,6 +719,24 @@ pnpm run test
 pnpm run build
 ```
 
+## Verification Baseline
+
+For private release confidence, the current baseline is:
+
+```sh
+pnpm run check
+pnpm run build
+pnpm run test:core
+pnpm run test:unit -- --run
+```
+
+Policy for those commands:
+
+- TypeScript, `svelte-check`, and thin-backend guardrail errors are forbidden.
+- Failing builds or failing tests are forbidden.
+- Current `state_referenced_locally` Svelte warnings are allowed for now while broader runes cleanup is still in progress.
+- Warning-only output does not block this baseline unless it reflects a new class of warning tied to a real behavior or teardown problem.
+
 ## Notes
 
 - The old `template` / `filename` / `fields`-only schema in the previous README is obsolete.
