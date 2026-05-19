@@ -8,7 +8,7 @@
 		resolveStructuredEditorSections
 	} from '$lib/features/forms/editor-layout';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
-	import type { ContentRecord } from '$lib/features/content-management/types';
+	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 	import FormField from './FormField.svelte';
 
 	interface Props {
@@ -25,6 +25,7 @@
 			label: string;
 		}) => Promise<void>;
 		onchange?: (fieldName: string) => void;
+		onfieldvaluechange?: (fieldName: string, value: ContentValue | undefined) => void;
 		onvalidationchange?: (fieldName: string, errors: string[]) => void;
 		getFieldError?: (fieldName: string) => string | undefined;
 		showValidationErrors?: boolean;
@@ -40,6 +41,7 @@
 		navigationManifest,
 		onaddselectoption,
 		onchange,
+		onfieldvaluechange,
 		onvalidationchange,
 		getFieldError,
 		showValidationErrors = false,
@@ -77,6 +79,21 @@
 		return getFieldError?.(getFieldPath(block));
 	}
 
+	function getFieldValue(block: BlockUsage): ContentValue | undefined {
+		return value?.[getBlockStorageKey(block)] as ContentValue | undefined;
+	}
+
+	function handleFieldValueChange(block: BlockUsage, nextValue: ContentValue | undefined) {
+		const storageKey = getBlockStorageKey(block);
+		value = {
+			...value,
+			[storageKey]: nextValue
+		};
+		const nextFieldPath = getFieldPath(block);
+		onfieldvaluechange?.(nextFieldPath, nextValue);
+		onchange?.(nextFieldPath);
+	}
+
 	function toggleAside() {
 		manualAsideOpen = !(manualAsideOpen ?? isWide);
 	}
@@ -88,19 +105,21 @@
 	data-layout-mode={isWide ? 'wide' : 'stacked'}
 	data-aside-open={sections.hasAside ? String(asideOpen) : undefined}
 >
-	<div class="grid min-w-0 gap-6 @4xl/structured-form:grid-cols-[minmax(0,1fr)_18rem] @4xl/structured-form:items-start">
+	<div
+		class="grid min-w-0 gap-6 @4xl/structured-form:grid-cols-[minmax(0,1fr)_18rem] @4xl/structured-form:items-start"
+	>
 		<div class="min-w-0 space-y-4">
 			{#each sections.primaryBlocks as block (block.id)}
 				<div>
 					<FormField
 						{block}
-						bind:value={value[getBlockStorageKey(block)]}
+						value={getFieldValue(block)}
 						fieldPath={getFieldPath(block)}
 						{imagePath}
 						{blockRegistry}
 						{navigationManifest}
 						{onaddselectoption}
-						onchange={() => onchange?.(getFieldPath(block))}
+						onvaluechange={(nextValue) => handleFieldValueChange(block, nextValue)}
 						onvalidationchange={(errors) => onvalidationchange?.(getFieldPath(block), errors)}
 					/>
 					{#if showValidationErrors && getError(block)}
@@ -135,7 +154,8 @@
 							{sections.asideLabel}
 						</p>
 						<p class="mt-0.5 text-sm text-stone-600">
-							{sections.asideBlocks.length} {sections.asideBlocks.length === 1 ? 'field' : 'fields'}
+							{sections.asideBlocks.length}
+							{sections.asideBlocks.length === 1 ? 'field' : 'fields'}
 						</p>
 					</div>
 					<svg
@@ -159,14 +179,15 @@
 								<div>
 									<FormField
 										{block}
-										bind:value={value[getBlockStorageKey(block)]}
+										value={getFieldValue(block)}
 										fieldPath={getFieldPath(block)}
 										{imagePath}
 										{blockRegistry}
 										{navigationManifest}
 										{onaddselectoption}
-										onchange={() => onchange?.(getFieldPath(block))}
-										onvalidationchange={(errors) => onvalidationchange?.(getFieldPath(block), errors)}
+										onvaluechange={(nextValue) => handleFieldValueChange(block, nextValue)}
+										onvalidationchange={(errors) =>
+											onvalidationchange?.(getFieldPath(block), errors)}
 									/>
 									{#if showValidationErrors && getError(block)}
 										<div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-700">
