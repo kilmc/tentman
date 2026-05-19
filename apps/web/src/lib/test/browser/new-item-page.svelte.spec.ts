@@ -190,7 +190,8 @@ vi.mock('$lib/stores/local-repo', () => ({
 }));
 
 vi.mock('$lib/content/service', () => ({
-	createContentDocument: localFlowMocks.createContentDocument
+	createContentDocument: localFlowMocks.createContentDocument,
+	fetchContentDocument: vi.fn()
 }));
 
 import NewItemPage from '../../../routes/pages/[page]/new/+page.svelte';
