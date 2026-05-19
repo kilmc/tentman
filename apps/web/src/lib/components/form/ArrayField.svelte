@@ -4,6 +4,7 @@
 	import type { DndEvent } from 'svelte-dnd-action';
 	import { SHADOW_ITEM_MARKER_PROPERTY_NAME, dragHandle, dragHandleZone } from 'svelte-dnd-action';
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
+	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
 	import Plus from 'lucide-svelte/icons/plus';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
@@ -270,6 +271,15 @@
 		onchange?.();
 	}
 
+	function removeStructuredItem(index: number) {
+		if (isPanelOpen && selectedIndex === index && sidePanel.session) {
+			sidePanel.session.removePanelItem();
+			return;
+		}
+
+		removeItem(index);
+	}
+
 	function selectItem(index: number) {
 		selectedIndex = index;
 		openPanel(index);
@@ -376,7 +386,7 @@
 				{@const item = dragItem.item}
 				{@const imageValue = getItemImageValue(item)}
 				<div
-					class="grid min-h-10 grid-cols-[auto_minmax(0,1fr)] items-center rounded-md border border-stone-200 bg-white text-sm text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-50"
+					class="grid min-h-10 grid-cols-[auto_minmax(0,1fr)_auto] items-center rounded-md border border-stone-200 bg-white text-sm text-stone-700 transition-colors hover:border-stone-300 hover:bg-stone-50"
 					class:border-stone-950={isPanelOpen && selectedIndex === index}
 					class:bg-stone-100={isPanelOpen && selectedIndex === index}
 					class:text-stone-950={isPanelOpen && selectedIndex === index}
@@ -386,7 +396,7 @@
 						type="button"
 						use:dragHandle
 						class="inline-flex h-full min-h-10 w-9 items-center justify-center text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none"
-						aria-label={`Drag ${getPanelTitleForItem(item, index)}`}
+						aria-label={`Reorder ${getItemOrdinalLabel(index)}`}
 					>
 						<GripVertical class="h-4 w-4" />
 					</button>
@@ -428,6 +438,31 @@
 							</span>
 						</span>
 					</button>
+					<details class="relative mr-2">
+						<summary
+							class="tm-icon-btn list-none"
+							aria-label={`${getPanelTitleForItem(item, index)} actions`}
+						>
+							<MoreHorizontal class="h-4 w-4" />
+						</summary>
+						<div
+							class="absolute top-full right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
+						>
+							<button
+								type="button"
+								onclick={(event) => {
+									const menu = event.currentTarget.closest('details');
+									menu?.removeAttribute('open');
+									removeStructuredItem(index);
+								}}
+								class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+								aria-label={`Remove ${getPanelTitleForItem(item, index)}`}
+							>
+								<Trash2 class="h-4 w-4" />
+								<span>Remove {itemLabel ?? 'item'}</span>
+							</button>
+						</div>
+					</details>
 				</div>
 			{/each}
 		</div>

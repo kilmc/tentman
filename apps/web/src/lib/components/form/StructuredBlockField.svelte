@@ -54,7 +54,7 @@
 
 	<StructuredFieldsLayout
 		{blocks}
-		{value}
+		bind:value
 		{fieldPath}
 		{imagePath}
 		{blockRegistry}

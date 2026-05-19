@@ -29,6 +29,7 @@
 		value: any;
 		fieldPath?: string;
 		onchange?: () => void;
+		onvaluechange?: (value: any) => void;
 		onvalidationchange?: (errors: string[]) => void;
 		imagePath?: string; // Custom image storage path from config
 		blockRegistry: BlockRegistry;
@@ -46,6 +47,7 @@
 		value = $bindable(),
 		fieldPath,
 		onchange,
+		onvaluechange,
 		onvalidationchange,
 		imagePath,
 		blockRegistry,
@@ -78,9 +80,7 @@
 	);
 	const selectOptions = $derived(resolveSelectOptions(block.options, navigationManifest));
 	const tentmanGroupOptions = $derived(
-		isTentmanGroupBlock(block)
-			? getTentmanGroupOptions(block as TentmanGroupBlockUsage)
-			: undefined
+		isTentmanGroupBlock(block) ? getTentmanGroupOptions(block as TentmanGroupBlockUsage) : undefined
 	);
 	const tentmanGroupSelectOptions = $derived(
 		isTentmanGroupBlock(block)
@@ -90,74 +90,130 @@
 				)
 			: []
 	);
+
+	function getFallbackValue() {
+		switch (fieldType) {
+			case 'text':
+			case 'textarea':
+			case 'markdown':
+			case 'email':
+			case 'url':
+			case 'select':
+			case 'tentmanGroup':
+			case 'date':
+			case 'image':
+				return '';
+			case 'number':
+				return 0;
+			case 'boolean':
+			case 'toggle':
+				return false;
+			case 'array':
+				return [];
+			case 'object':
+				return buildBlockFormData(structuredBlocks?.blocks ?? [], {}, blockRegistry);
+			default:
+				return value;
+		}
+	}
+
+	function normalizeFieldValue(nextValue: unknown) {
+		return nextValue === undefined ? getFallbackValue() : nextValue;
+	}
+
+	let fieldValue = $state(normalizeFieldValue(value));
+
+	$effect(() => {
+		fieldValue = normalizeFieldValue(value);
+	});
+
+	function handleChange() {
+		value = fieldValue;
+		onchange?.();
+		onvaluechange?.(fieldValue);
+	}
 </script>
 
 <div data-block-id={block.id} data-field-path={fieldPath}>
 	{#if fieldType === 'text'}
-		<TextField {label} bind:value {required} {minLength} {maxLength} {onchange} />
+		<TextField
+			{label}
+			bind:value={fieldValue}
+			{required}
+			{minLength}
+			{maxLength}
+			onchange={handleChange}
+		/>
 	{:else if fieldType === 'textarea'}
-		<TextareaField {label} bind:value {required} {minLength} {maxLength} {onchange} />
+		<TextareaField
+			{label}
+			bind:value={fieldValue}
+			{required}
+			{minLength}
+			{maxLength}
+			onchange={handleChange}
+		/>
 	{:else if fieldType === 'markdown'}
 		<MarkdownField
 			fieldId={block.id}
 			{label}
-			bind:value
+			bind:value={fieldValue}
 			{required}
 			{minLength}
 			{maxLength}
 			components={block.components}
-			{onchange}
+			onchange={handleChange}
 			{onvalidationchange}
 			storagePath={block.assetsDir ?? imagePath}
 			assetsDir={block.assetsDir}
 		/>
 	{:else if fieldType === 'email'}
-		<EmailField {label} bind:value {required} {onchange} />
+		<EmailField {label} bind:value={fieldValue} {required} onchange={handleChange} />
 	{:else if fieldType === 'url'}
-		<UrlField {label} bind:value {required} {onchange} />
+		<UrlField {label} bind:value={fieldValue} {required} onchange={handleChange} />
 	{:else if fieldType === 'select'}
 		<SelectField
 			{label}
-			bind:value
+			bind:value={fieldValue}
 			options={selectOptions}
 			{required}
-			{onchange}
+			onchange={handleChange}
 		/>
 	{:else if fieldType === 'tentmanGroup'}
 		<SelectField
 			{label}
-			bind:value
+			bind:value={fieldValue}
 			options={tentmanGroupSelectOptions}
 			sourceOptions={tentmanGroupOptions}
 			{required}
-			{onchange}
+			onchange={handleChange}
 			onaddoption={onaddselectoption}
 		/>
 	{:else if fieldType === 'number'}
-		<NumberField {label} bind:value {required} {onchange} />
+		<NumberField {label} bind:value={fieldValue} {required} onchange={handleChange} />
 	{:else if fieldType === 'date'}
-		<DateField {label} bind:value {required} {onchange} />
+		<DateField {label} bind:value={fieldValue} {required} onchange={handleChange} />
 	{:else if fieldType === 'boolean' || fieldType === 'toggle'}
-		<BooleanField {label} bind:value {required} {onchange} />
+		<BooleanField {label} bind:value={fieldValue} {required} onchange={handleChange} />
 	{:else if fieldType === 'image'}
 		<ImageField
 			{label}
-			bind:value
+			bind:value={fieldValue}
 			{required}
-			{onchange}
+			onchange={handleChange}
 			storagePath={block.assetsDir ?? imagePath}
 			assetsDir={block.assetsDir ?? imagePath}
 		/>
 	{:else if fieldType === 'array'}
 		<ArrayField
 			{label}
-			bind:value
+			bind:value={fieldValue}
 			{fieldPath}
 			blocks={structuredBlocks?.blocks ?? []}
 			editorLayout={structuredBlocks?.editorLayout}
 			itemLabel={block.itemLabel}
 			{required}
-			{onchange}
+			onchange={handleChange}
 			{imagePath}
 			{blockRegistry}
 			{navigationManifest}
@@ -167,7 +223,7 @@
 		{#if shouldUseObjectPanel}
 			<StructuredObjectPanelField
 				{label}
-				bind:value
+				bind:value={fieldValue}
 				{fieldPath}
 				blocks={structuredBlocks?.blocks ?? []}
 				editorLayout={structuredBlocks?.editorLayout}
@@ -180,12 +236,12 @@
 		{:else}
 			<StructuredBlockField
 				{label}
-				bind:value
+				bind:value={fieldValue}
 				{fieldPath}
 				blocks={structuredBlocks?.blocks ?? []}
 				editorLayout={structuredBlocks?.editorLayout}
 				{required}
-				{onchange}
+				onchange={handleChange}
 				{imagePath}
 				{blockRegistry}
 				{navigationManifest}

@@ -2,6 +2,7 @@ import type { BlockRegistry } from '$lib/blocks/registry';
 import type { BlockUsage, EditorLayoutConfig } from '$lib/config/types';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
+import { getRepeatableItemLabel } from '$lib/features/forms/repeatable-labels';
 
 export type ContentPath = Array<string | number>;
 export type RepeatablePanelMode = 'create' | 'edit';
@@ -193,6 +194,14 @@ export function createFormEditSession(
 			...active.draftItem,
 			[blockId]: value
 		};
+		if (active.kind === 'repeatable' && active.mode === 'edit') {
+			active.title = getRepeatableItemLabel(
+				active.draftItem,
+				active.selectedIndex,
+				active.blocks,
+				active.label
+			);
+		}
 		active.submitError = undefined;
 		notify();
 	}
@@ -350,10 +359,7 @@ export function createFormEditSession(
 	function applyValueForEntry(entry: PanelEntry, nextValue: ContentValue) {
 		const parent = getParentEntry(entry);
 		const path = parent
-			? getRelativePath(
-					parent,
-					entry.kind === 'repeatable' ? entry.arrayPath : entry.targetPath
-				)
+			? getRelativePath(parent, entry.kind === 'repeatable' ? entry.arrayPath : entry.targetPath)
 			: entry.kind === 'repeatable'
 				? entry.arrayPath
 				: entry.targetPath;
