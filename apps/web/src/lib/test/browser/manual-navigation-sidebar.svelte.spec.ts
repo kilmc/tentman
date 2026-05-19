@@ -48,6 +48,7 @@ const sidebarEditorMocks = vi.hoisted(() => {
 				config: {
 					type: 'content' as const,
 					id: 'about',
+					_tentmanId: 'about-page',
 					label: 'About Page',
 					content: {
 						mode: 'file' as const,
@@ -62,8 +63,18 @@ const sidebarEditorMocks = vi.hoisted(() => {
 				config: {
 					type: 'content' as const,
 					id: 'blog',
+					_tentmanId: 'blog-posts',
 					label: 'Blog Posts',
-					collection: true,
+					collection: {
+						sorting: 'manual' as const,
+						groups: [
+							{
+								_tentmanId: 'featured',
+								label: 'Featured',
+								value: 'featured'
+							}
+						]
+					},
 					idField: 'slug',
 					itemLabel: 'Blog Post',
 					content: {
@@ -78,17 +89,21 @@ const sidebarEditorMocks = vi.hoisted(() => {
 		blockConfigs: [],
 		blockRegistry: null,
 		blockRegistryError: null,
-		rootConfig: null,
+		rootConfig: {
+			content: {
+				sorting: 'manual' as const
+			}
+		},
 		navigationManifest: {
 			path: 'tentman/navigation-manifest.json',
 			exists: true,
 			manifest: {
 				version: 1 as const,
 				content: {
-					items: ['about', 'blog']
+					items: ['about-page', 'blog-posts']
 				},
 				collections: {
-					blog: {
+					'blog-posts': {
 						items: ['second-post', 'hello-world', 'third-post'],
 						groups: [
 							{
@@ -133,9 +148,14 @@ const sidebarEditorMocks = vi.hoisted(() => {
 		refresh: vi.fn(async () => {}),
 		clearLocalRepo: vi.fn(async () => {}),
 		fetchContentDocument: vi.fn(async () => [
-			{ slug: 'hello-world', title: 'Hello world' },
-			{ slug: 'second-post', title: 'Second post' },
-			{ slug: 'third-post', title: 'Third post' }
+			{ _tentmanId: 'hello-world', slug: 'hello-world', title: 'Hello world' },
+			{
+				_tentmanId: 'second-post',
+				slug: 'second-post',
+				title: 'Second post',
+				tentmanGroup: 'featured'
+			},
+			{ _tentmanId: 'third-post', slug: 'third-post', title: 'Third post' }
 		]),
 		goto: vi.fn(async () => {}),
 		resolve: vi.fn((path: string) => path),
@@ -193,10 +213,12 @@ vi.mock('$lib/stores/toasts', () => ({
 
 vi.mock('$lib/utils/routing', () => ({
 	buildLoginRedirect: vi.fn((path: string) => path),
-	buildReposRedirect: vi.fn((path: string) => path)
+	buildReposRedirect: vi.fn((path: string) => path),
+	buildPathWithQuery: vi.fn((path: string) => path)
 }));
 
 import PagesLayout from '../../../routes/pages/+layout.svelte';
+import PagesLayoutCollectionLandingHarness from '$lib/test/fixtures/PagesLayoutCollectionLandingHarness.svelte';
 import PagesLayoutRepeatableWorkspaceHarness from '$lib/test/fixtures/PagesLayoutRepeatableWorkspaceHarness.svelte';
 import PagesLayoutObjectPanelWorkspaceHarness from '$lib/test/fixtures/PagesLayoutObjectPanelWorkspaceHarness.svelte';
 
@@ -221,7 +243,11 @@ const layoutData = {
 	selectedRepo: null,
 	configs: [],
 	blockConfigs: [],
-	rootConfig: null,
+	rootConfig: {
+		content: {
+			sorting: 'manual' as const
+		}
+	},
 	navigationManifest: {
 		path: 'tentman/navigation-manifest.json',
 		exists: false,
@@ -391,7 +417,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog');
 
-		const screen = render(PagesLayout, {
+		const screen = render(PagesLayoutCollectionLandingHarness, {
 			data: layoutData
 		});
 

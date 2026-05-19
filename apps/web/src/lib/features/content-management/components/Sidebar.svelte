@@ -177,7 +177,7 @@
 					type="button"
 					class="tm-icon-btn"
 					onclick={() => onclose?.()}
-					aria-label="Close site navigation"
+					aria-label="Close navigation panel"
 				>
 					<X class="h-4 w-4" />
 				</button>
