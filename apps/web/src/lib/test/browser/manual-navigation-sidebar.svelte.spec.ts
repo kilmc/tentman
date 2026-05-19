@@ -200,6 +200,12 @@ import PagesLayout from '../../../routes/pages/+layout.svelte';
 import PagesLayoutRepeatableWorkspaceHarness from '$lib/test/fixtures/PagesLayoutRepeatableWorkspaceHarness.svelte';
 import PagesLayoutObjectPanelWorkspaceHarness from '$lib/test/fixtures/PagesLayoutObjectPanelWorkspaceHarness.svelte';
 
+let desktopViewport = true;
+
+function setViewportMode(mode: 'desktop' | 'mobile') {
+	desktopViewport = mode === 'desktop';
+}
+
 const layoutData = {
 	isAuthenticated: false,
 	githubOAuthConfigured: true,
@@ -241,6 +247,18 @@ const layoutData = {
 
 describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 	beforeEach(() => {
+		setViewportMode('desktop');
+		window.matchMedia = vi.fn((query: string) => ({
+			matches: query === '(min-width: 1024px)' ? desktopViewport : false,
+			media: query,
+			onchange: null,
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			dispatchEvent: vi.fn()
+		})) as typeof window.matchMedia;
+
 		sidebarEditorMocks.refresh.mockClear();
 		sidebarEditorMocks.clearLocalRepo.mockClear();
 		sidebarEditorMocks.fetchContentDocument.mockClear();
@@ -336,6 +354,8 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 	});
 
 	it('opens and closes the mobile sidebar from the header', async () => {
+		setViewportMode('mobile');
+
 		const screen = render(PagesLayout, {
 			data: layoutData
 		});
@@ -348,6 +368,8 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 	});
 
 	it('opens the collection panel as a mobile overlay from the header', async () => {
+		setViewportMode('mobile');
+
 		sidebarEditorMocks.page.params = {
 			page: 'blog',
 			itemId: 'hello-world'
