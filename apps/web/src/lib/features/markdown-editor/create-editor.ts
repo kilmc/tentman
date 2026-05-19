@@ -83,7 +83,7 @@ function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : 'Failed to stage image';
 }
 
-function isModifierClick(event: MouseEvent): boolean {
+function isModifierClick(event: MouseEvent | KeyboardEvent): boolean {
 	return event.metaKey || event.ctrlKey;
 }
 

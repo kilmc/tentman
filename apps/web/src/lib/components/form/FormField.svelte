@@ -22,6 +22,7 @@
 	import ArrayField from './ArrayField.svelte';
 	import StructuredBlockField from './StructuredBlockField.svelte';
 	import StructuredObjectPanelField from './StructuredObjectPanelField.svelte';
+	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import { containsNestedStructuredCollection } from '$lib/features/forms/object-panel';
 
 	interface Props {
