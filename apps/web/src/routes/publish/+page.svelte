@@ -9,10 +9,11 @@
 </script>
 
 <div class="mx-auto max-w-5xl">
-	<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Publish Changes</h1>
-	<p class="mb-2 text-stone-600">Review and publish all saved draft changes to the live site.</p>
+	<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Review Draft</h1>
+	<p class="mb-2 text-stone-600">Publish everything currently staged in the managed Tentman draft.</p>
 	<p class="mb-6 text-sm text-stone-500">
-		Preview stays separate and opens the current preview URL for <code>tentman-preview</code>.
+		This page is optional. Preview screens can publish directly, but this gives you one place to
+		review and publish the whole draft branch.
 	</p>
 
 	<div class="mb-6 rounded-md border border-stone-200 bg-stone-100 p-4">
@@ -80,7 +81,7 @@
 				{#if publishing}
 					Publishing...
 				{:else}
-					Publish Changes
+					Publish Draft
 				{/if}
 			</button>
 		</form>

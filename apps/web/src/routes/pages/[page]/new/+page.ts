@@ -1,16 +1,11 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
-import {
-	buildPathWithQuery,
-	buildReposRedirect,
-	readOptionalSearchParam
-} from '$lib/utils/routing';
+import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
 
 export const load: PageLoad = async ({ parent, fetch, params, depends, url }) => {
 	const workspace = resolveWorkspaceState(await parent());
 	const reposRedirect = buildReposRedirect('/repos', url);
-	const branch = readOptionalSearchParam(url.searchParams, 'branch');
 
 	if (workspace.mode === 'local') {
 		return {
@@ -32,8 +27,7 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/form-config', {
-			slug: params.page,
-			branch
+			slug: params.page
 		})
 	);
 
@@ -55,8 +49,5 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 		throw redirect(302, `/pages/${params.page}`);
 	}
 
-	return {
-		...data,
-		branch
-	};
+	return data;
 };

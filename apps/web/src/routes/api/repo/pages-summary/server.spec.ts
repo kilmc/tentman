@@ -6,7 +6,7 @@ vi.mock('$lib/server/page-context', () => ({
 }));
 
 vi.mock('$lib/features/draft-publishing/service', () => ({
-	getLatestPreviewBranchName: vi.fn()
+	getTentmanDraftBranchName: vi.fn()
 }));
 
 vi.mock('$lib/utils/draft-comparison', () => ({
@@ -15,7 +15,7 @@ vi.mock('$lib/utils/draft-comparison', () => ({
 
 import { POST } from './+server';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { requireGitHubRepository } from '$lib/server/page-context';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
@@ -68,7 +68,7 @@ describe('POST /api/repo/pages-summary', () => {
 	});
 
 	it('returns an empty has-configs summary when there is no draft branch', async () => {
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue(undefined);
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue(undefined);
 
 		const response = await POST(
 			createRequest({
@@ -100,7 +100,7 @@ describe('POST /api/repo/pages-summary', () => {
 	});
 
 	it('summarizes changed pages for the overview screen', async () => {
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('preview-2026-04-06');
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
 		vi.mocked(compareDraftToBranch)
 			.mockResolvedValueOnce({
 				modified: [],
@@ -148,7 +148,7 @@ describe('POST /api/repo/pages-summary', () => {
 		);
 
 		expect(await response.json()).toEqual({
-			draftBranch: 'preview-2026-04-06',
+			draftBranch: 'tentman-preview',
 			changedPages: [
 				{
 					slug: 'posts',

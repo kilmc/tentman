@@ -2,7 +2,7 @@
 import { error, json } from '@sveltejs/kit';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import {
 	createEmptyPagesOverviewSummary,
 	type PagesOverviewSummaryRequest
@@ -39,7 +39,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
 	try {
 		const { octokit, owner, name } = requireGitHubRepository({ locals, cookies }, '/pages');
-		const draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+		const draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
 
 		if (!draftBranch) {
 			return json(createEmptyPagesOverviewSummary(true));

@@ -9,7 +9,7 @@ vi.mock('$lib/github/branch', () => ({
 }));
 
 vi.mock('$lib/features/draft-publishing/service', () => ({
-	getLatestPreviewBranchName: vi.fn()
+	getTentmanDraftBranchName: vi.fn()
 }));
 
 vi.mock('$lib/github/pull-request', () => ({
@@ -26,7 +26,7 @@ vi.mock('$lib/utils/draft-comparison', () => ({
 
 import { GET } from '../../routes/api/repo/publish-view/+server';
 import { getCommitsSince } from '$lib/github/branch';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { requireGitHubRepository } from '$lib/server/page-context';
@@ -55,7 +55,7 @@ describe('GET /api/repo/publish-view', () => {
 			name: 'docs',
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('tentman-preview');
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
 		vi.mocked(getCachedConfigs).mockResolvedValue([
 			{
 				slug: 'posts',
@@ -137,7 +137,7 @@ describe('GET /api/repo/publish-view', () => {
 			name: 'docs',
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockRejectedValue({ status: 401 });
+		vi.mocked(getTentmanDraftBranchName).mockRejectedValue({ status: 401 });
 
 		const cookies = createCookies();
 

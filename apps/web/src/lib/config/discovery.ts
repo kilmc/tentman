@@ -213,13 +213,15 @@ export function parseDiscoveredBlockConfig(path: string, content: string): Disco
 async function readGitHubRootConfig(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
+	ref?: string
 ): Promise<RootConfig | null> {
 	try {
 		const { data } = await octokit.rest.repos.getContent({
 			owner,
 			repo,
-			path: '.tentman.json'
+			path: '.tentman.json',
+			...(ref ? { ref } : {})
 		});
 
 		if (!('content' in data) || Array.isArray(data)) {
@@ -238,23 +240,25 @@ async function readGitHubRootConfig(
 export async function discoverGitHubConfigs(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
+	ref?: string
 ): Promise<DiscoveredConfig[]> {
 	try {
-		const rootConfig = await readGitHubRootConfig(octokit, owner, repo);
-
-		// Get the default branch
-		const { data: repoData } = await octokit.rest.repos.get({
-			owner,
-			repo
-		});
-		const defaultBranch = repoData.default_branch;
+		const rootConfig = await readGitHubRootConfig(octokit, owner, repo, ref);
+		const treeRef =
+			ref ??
+			(
+				await octokit.rest.repos.get({
+					owner,
+					repo
+				})
+			).data.default_branch;
 
 		// Get the tree recursively
 		const { data: treeData } = await octokit.rest.git.getTree({
 			owner,
 			repo,
-			tree_sha: defaultBranch,
+			tree_sha: treeRef,
 			recursive: 'true'
 		});
 
@@ -274,7 +278,8 @@ export async function discoverGitHubConfigs(
 					const { data: fileData } = await octokit.rest.repos.getContent({
 						owner,
 						repo,
-						path
+						path,
+						...(ref ? { ref } : {})
 					});
 
 					// Decode base64 content
@@ -304,21 +309,24 @@ export async function discoverGitHubConfigs(
 export async function discoverGitHubBlockConfigs(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
+	ref?: string
 ): Promise<DiscoveredBlockConfig[]> {
 	try {
-		const rootConfig = await readGitHubRootConfig(octokit, owner, repo);
-
-		const { data: repoData } = await octokit.rest.repos.get({
-			owner,
-			repo
-		});
-		const defaultBranch = repoData.default_branch;
+		const rootConfig = await readGitHubRootConfig(octokit, owner, repo, ref);
+		const treeRef =
+			ref ??
+			(
+				await octokit.rest.repos.get({
+					owner,
+					repo
+				})
+			).data.default_branch;
 
 		const { data: treeData } = await octokit.rest.git.getTree({
 			owner,
 			repo,
-			tree_sha: defaultBranch,
+			tree_sha: treeRef,
 			recursive: 'true'
 		});
 
@@ -337,7 +345,8 @@ export async function discoverGitHubBlockConfigs(
 					const { data: fileData } = await octokit.rest.repos.getContent({
 						owner,
 						repo,
-						path
+						path,
+						...(ref ? { ref } : {})
 					});
 
 					if ('content' in fileData && fileData.content) {

@@ -7,12 +7,14 @@ export interface RepoConfigsBootstrap {
 	blockConfigs: DiscoveredBlockConfig[];
 	rootConfig: RootConfig | null;
 	navigationManifest: NavigationManifestState;
+	activeDraftBranch: string | null;
 }
 
 export const EMPTY_REPO_CONFIGS_BOOTSTRAP: RepoConfigsBootstrap = {
 	configs: [],
 	blockConfigs: [],
 	rootConfig: null,
+	activeDraftBranch: null,
 	navigationManifest: {
 		path: 'tentman/navigation-manifest.json',
 		exists: false,
@@ -28,6 +30,7 @@ export function normalizeRepoConfigsBootstrap(
 		configs: value?.configs ?? [],
 		blockConfigs: value?.blockConfigs ?? [],
 		rootConfig: value?.rootConfig ?? null,
+		activeDraftBranch: value?.activeDraftBranch ?? null,
 		navigationManifest: value?.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 	};
 }

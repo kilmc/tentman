@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { load } from './+page';
 
 describe('routes/pages/[page]/new/+page', () => {
-	it('preserves the explicit draft branch when redirecting unauthenticated users to login', async () => {
+	it('preserves the current route query when redirecting unauthenticated users to login', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -13,16 +13,16 @@ describe('routes/pages/[page]/new/+page', () => {
 				params: {
 					page: 'posts'
 				},
-				url: new URL('http://localhost/pages/posts/new?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/new?template=blank'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fposts%2Fnew%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fposts%2Fnew%3Ftemplate%3Dblank'
 		});
 	});
 
-	it('returns the explicit branch so new-item draft flows can round-trip it', async () => {
+	it('loads new-item draft setup without threading a branch through the route', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -70,15 +70,13 @@ describe('routes/pages/[page]/new/+page', () => {
 				params: {
 					page: 'posts'
 				},
-				url: new URL('http://localhost/pages/posts/new?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/new'),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+			pageSlug: 'posts'
 		});
 
-		expect(fetch).toHaveBeenCalledWith(
-			'/api/repo/form-config?slug=posts&branch=preview-2026-04-06'
-		);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=posts');
 	});
 });

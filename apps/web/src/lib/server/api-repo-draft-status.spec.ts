@@ -5,7 +5,7 @@ vi.mock('$lib/server/page-context', () => ({
 }));
 
 vi.mock('$lib/features/draft-publishing/service', () => ({
-	getLatestPreviewBranchName: vi.fn()
+	getTentmanDraftBranchName: vi.fn()
 }));
 
 vi.mock('$lib/utils/draft-comparison', () => ({
@@ -13,7 +13,7 @@ vi.mock('$lib/utils/draft-comparison', () => ({
 }));
 
 import { GET } from '../../routes/api/repo/draft-status/+server';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
 import {
@@ -54,7 +54,7 @@ describe('GET /api/repo/draft-status', () => {
 			name: 'docs',
 			discoveredConfig
 		} as never);
-		vi.mocked(getLatestPreviewBranchName).mockResolvedValue('tentman-preview');
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
 		vi.mocked(compareDraftToBranch).mockResolvedValue({
 			modified: [],
 			created: [{ itemId: 'hello-world' }],

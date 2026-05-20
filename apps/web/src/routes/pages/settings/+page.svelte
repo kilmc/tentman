@@ -104,8 +104,7 @@
 					'content-type': 'application/json'
 				},
 				body: JSON.stringify({
-					action: 'repair',
-					branchName: get(draftBranch).branchName
+					action: 'repair'
 				})
 			});
 
@@ -160,8 +159,7 @@
 					'content-type': 'application/json'
 				},
 				body: JSON.stringify({
-					action: 'add-missing-config-ids',
-					branchName: get(draftBranch).branchName
+					action: 'add-missing-config-ids'
 				})
 			});
 

@@ -8,8 +8,8 @@
 	} from '$lib/features/draft-assets/client';
 	import { mergeChangesSummaryWithDraftAssets } from '$lib/features/draft-assets/shared';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
+	import { TENTMAN_DRAFT_BRANCH } from '$lib/features/draft-publishing/service';
 	import { draftBranch } from '$lib/stores/draft-branch';
-	import { buildPathWithQuery } from '$lib/utils/routing';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -22,14 +22,9 @@
 		mergeChangesSummaryWithDraftAssets(data.changesSummary, draftAssetChanges)
 	);
 	const editUrl = $derived(
-		buildPathWithQuery(
-			data.isNew
-				? `/pages/${data.discoveredConfig.slug}/new`
-				: `/pages/${data.discoveredConfig.slug}/${data.itemId}/edit`,
-			{
-				branch: data.branch ?? undefined
-			}
-		)
+		data.isNew
+			? `/pages/${data.discoveredConfig.slug}/new`
+			: `/pages/${data.discoveredConfig.slug}/${data.itemId}/edit`
 	);
 
 	$effect(() => {
@@ -71,7 +66,7 @@
 			Review the saved changes for <strong>{data.discoveredConfig.config.label}</strong>
 		</p>
 		<p class="mt-2 text-sm text-stone-500">
-			This screen only covers this item. Use <strong>Publish Changes</strong> to review the
+			This screen only covers this item. Use <strong>Review Draft</strong> to inspect the
 			current draft across the whole site before publishing.
 		</p>
 		{#if data.isNew}
@@ -209,14 +204,11 @@
 						}
 
 						await update();
-						// Keep the active draft pointer aligned with the saved redirect target.
-						if (result.type === 'redirect' && result.location) {
-							const url = new URL(result.location, window.location.origin);
-							const branch = url.searchParams.get('branch');
-							if (branch && data.repo) {
-								const repoFullName = `${data.repo.owner}/${data.repo.name}`;
-								draftBranch.setBranch(branch, repoFullName);
-							}
+						if (data.repo && (result.type === 'redirect' || result.type === 'success')) {
+							draftBranch.setBranch(
+								TENTMAN_DRAFT_BRANCH,
+								`${data.repo.owner}/${data.repo.name}`
+							);
 						}
 						if (result.type === 'redirect' || result.type === 'success') {
 							await cleanupDraftRefs(submittedRefs);
@@ -226,9 +218,6 @@
 				}}
 			>
 				<input type="hidden" name="data" value={contentDataString} />
-				{#if $draftBranch.branchName || data.branch}
-					<input type="hidden" name="branchName" value={$draftBranch.branchName ?? data.branch} />
-				{/if}
 				<input type="hidden" name="isNew" value={data.isNew ? 'true' : 'false'} />
 				{#if data.filename}
 					<input type="hidden" name="filename" value={data.filename} />
@@ -278,6 +267,9 @@
 
 						await update();
 						if (result.type === 'redirect' || result.type === 'success') {
+							draftBranch.clear();
+						}
+						if (result.type === 'redirect' || result.type === 'success') {
 							await cleanupDraftRefs(submittedRefs);
 						}
 						isSubmitting = false;
@@ -298,9 +290,9 @@
 					class="w-full rounded-md border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
 				>
 					{#if isSubmitting}
-						Saving and opening publish review...
+						Publishing...
 					{:else}
-						Publish Changes
+						Publish Draft
 					{/if}
 				</button>
 			</form>
@@ -321,7 +313,7 @@
 					Publish actions use the latest saved content.
 				</li>
 				<li>
-					<strong>Publish Changes:</strong> Saves first if needed, then takes you to the publish review step.
+					<strong>Publish Draft:</strong> Saves to the managed Tentman draft, publishes it immediately, and returns you to the workspace.
 				</li>
 			</ul>
 		</div>

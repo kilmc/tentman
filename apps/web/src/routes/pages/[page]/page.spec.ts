@@ -3,7 +3,7 @@ import { load } from './+page';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 describe('routes/pages/[page]/+page', () => {
-	it('preserves the explicit draft branch when redirecting unauthenticated users to login', async () => {
+	it('preserves the current route query when redirecting unauthenticated users to login', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -14,16 +14,16 @@ describe('routes/pages/[page]/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL('http://localhost/pages/about?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/about?saved=true'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fabout%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fabout%3Fsaved%3Dtrue'
 		});
 	});
 
-	it('passes through an explicit draft branch for singleton page reads', async () => {
+	it('lets the server choose the managed draft branch for singleton page reads', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -73,14 +73,14 @@ describe('routes/pages/[page]/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL('http://localhost/pages/about?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/about'),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
 			branch: 'preview-2026-04-06'
 		});
 
-		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about&branch=preview-2026-04-06');
+		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});
 
 	it('keeps collection routes on the explicit collection landing page', async () => {
@@ -163,7 +163,7 @@ describe('routes/pages/[page]/+page', () => {
 		});
 	});
 
-	it('preserves the explicit draft branch when the thin API returns 401', async () => {
+	it('preserves the current route query when the thin API returns 401', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -187,12 +187,12 @@ describe('routes/pages/[page]/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL('http://localhost/pages/about?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/about?saved=true'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fabout%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fabout%3Fsaved%3Dtrue'
 		});
 	});
 });

@@ -238,6 +238,19 @@
 		return () => mediaQuery.removeEventListener('change', updateViewport);
 	});
 
+	$effect(() => {
+		if (!data.selectedRepo || isLocalMode) {
+			return;
+		}
+
+		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
+		if (data.activeDraftBranch) {
+			draftBranch.setBranch(data.activeDraftBranch, repoFullName);
+		} else if (draftBranch.hasDraft(repoFullName)) {
+			draftBranch.clear();
+		}
+	});
+
 	function getGitHubCollectionStatus(slug: string): CollectionLoadStatus {
 		return githubCollectionLoadStatusBySlug[slug] ?? 'idle';
 	}
@@ -622,8 +635,7 @@
 					},
 					body: JSON.stringify({
 						action: 'save-manifest',
-						manifest,
-						branchName: get(draftBranch).branchName
+						manifest
 					})
 				});
 
@@ -686,8 +698,7 @@
 					body: JSON.stringify({
 						action: 'save-collection-order',
 						collection: config.slug,
-						order: collection,
-						branchName: get(draftBranch).branchName
+						order: collection
 					})
 				});
 
@@ -875,7 +886,6 @@
 							items={navigation.items}
 							groups={navigation.groups}
 							{currentItemId}
-							branch={page.url.searchParams.get('branch')}
 							status={getCollectionLoadStatus(currentConfig.slug)}
 							error={getCollectionLoadError(currentConfig.slug)}
 							canOrderItems={!!collectionSetup?.canOrderItems}
@@ -959,7 +969,6 @@
 					items={navigation.items}
 					groups={navigation.groups}
 					{currentItemId}
-					branch={page.url.searchParams.get('branch')}
 					status={getCollectionLoadStatus(currentConfig.slug)}
 					error={getCollectionLoadError(currentConfig.slug)}
 					canOrderItems={!!collectionSetup?.canOrderItems}

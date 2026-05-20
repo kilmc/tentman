@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/server/page-context', () => ({
-	requireDiscoveredConfig: vi.fn()
+	requireGitHubContentRepository: vi.fn()
 }));
 
 vi.mock('$lib/stores/content-cache', () => ({
 	getCachedContent: vi.fn()
+}));
+
+vi.mock('$lib/stores/config-cache', () => ({
+	getCachedConfigs: vi.fn()
 }));
 
 vi.mock('$lib/server/block-registry-data', () => ({
@@ -14,8 +18,9 @@ vi.mock('$lib/server/block-registry-data', () => ({
 
 import { GET } from '../../routes/api/repo/page-view/+server';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { getCachedConfigs } from '$lib/stores/config-cache';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
@@ -48,13 +53,11 @@ describe('GET /api/repo/page-view', () => {
 	});
 
 	it('returns the GitHub-backed page view payload for a config slug', async () => {
-		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
 			backend: { cacheKey: 'github:acme/docs' },
-			octokit: {},
-			owner: 'acme',
-			name: 'docs',
-			discoveredConfig
+			draftBranch: null
 		} as never);
+		vi.mocked(getCachedConfigs).mockResolvedValue([discoveredConfig] as never);
 		vi.mocked(getCachedContent).mockResolvedValue([
 			{
 				_filename: 'hello-world.md',
@@ -90,19 +93,16 @@ describe('GET /api/repo/page-view', () => {
 			{ cacheKey: 'github:acme/docs' },
 			discoveredConfig.config,
 			discoveredConfig.path,
-			discoveredConfig.slug,
-			undefined
+			discoveredConfig.slug
 		);
 	});
 
-	it('loads an explicit draft branch when the caller opts in', async () => {
-		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
-			octokit: {},
-			owner: 'acme',
-			name: 'docs',
-			discoveredConfig
+	it('returns the active managed draft branch when content loads from the draft by default', async () => {
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
+			backend: { cacheKey: 'github:acme/docs?ref=tentman-preview' },
+			draftBranch: 'tentman-preview'
 		} as never);
+		vi.mocked(getCachedConfigs).mockResolvedValue([discoveredConfig] as never);
 		vi.mocked(getCachedContent).mockResolvedValue({
 			title: 'Draft about'
 		});
@@ -113,7 +113,7 @@ describe('GET /api/repo/page-view', () => {
 		});
 
 		const response = await GET({
-			url: new URL('http://localhost/api/repo/page-view?slug=posts&branch=preview-2026-04-06'),
+			url: new URL('http://localhost/api/repo/page-view?slug=posts'),
 			locals: {},
 			cookies: createCookies()
 		} as never);
@@ -122,25 +122,22 @@ describe('GET /api/repo/page-view', () => {
 			content: {
 				title: 'Draft about'
 			},
-			branch: 'preview-2026-04-06'
+			branch: 'tentman-preview'
 		});
 		expect(getCachedContent).toHaveBeenCalledWith(
-			{ cacheKey: 'github:acme/docs' },
+			{ cacheKey: 'github:acme/docs?ref=tentman-preview' },
 			discoveredConfig.config,
 			discoveredConfig.path,
-			discoveredConfig.slug,
-			'preview-2026-04-06'
+			discoveredConfig.slug
 		);
 	});
 
 	it('clears the session and returns 401 when content fetch gets a GitHub 401', async () => {
-		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
 			backend: { cacheKey: 'github:acme/docs' },
-			octokit: {},
-			owner: 'acme',
-			name: 'docs',
-			discoveredConfig
+			draftBranch: null
 		} as never);
+		vi.mocked(getCachedConfigs).mockResolvedValue([discoveredConfig] as never);
 		vi.mocked(getCachedContent).mockRejectedValue({ status: 401 });
 
 		const cookies = createCookies();

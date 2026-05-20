@@ -68,7 +68,6 @@
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(false);
 	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
-	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
@@ -300,7 +299,6 @@
 			},
 			body: JSON.stringify({
 				action: 'add-collection-group',
-				branchName: get(draftBranch).branchName,
 				...input
 			})
 		});
@@ -562,9 +560,6 @@
 			}}
 		>
 			<input type="hidden" name="data" value="" />
-			{#if data.branch}
-				<input type="hidden" name="branch" value={data.branch} />
-			{/if}
 
 			{#if requiresFilename}
 				<div class="mb-5 border-b border-stone-200 pb-5">
@@ -628,7 +623,7 @@
 				>
 					{saving ? 'Creating...' : 'Create'}
 				</button>
-				<a href={resolve(`/pages/${data.pageSlug}`) + branchQuery} class="tm-btn tm-btn-secondary">
+				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary">
 					Cancel
 				</a>
 			</PageStickyFooter>

@@ -80,6 +80,7 @@ const baseData = {
 			full_name: 'acme/docs'
 		}
 	},
+	activeDraftBranch: null,
 	configs: [],
 	blockConfigs: [],
 	rootConfig: null,

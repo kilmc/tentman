@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { load } from './+page';
 
 describe('routes/pages/[page]/[itemId]/+page', () => {
-	it('preserves the explicit draft branch when redirecting unauthenticated users to login', async () => {
+	it('preserves the current route query when redirecting unauthenticated users to login', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -14,12 +14,12 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL('http://localhost/pages/posts/hello-world?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/hello-world?tab=content'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%3Ftab%3Dcontent'
 		});
 	});
 
@@ -77,7 +77,7 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});
 
-	it('passes through an explicit draft branch when present in the route URL', async () => {
+	it('lets the server choose the managed draft branch when present', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -86,7 +86,7 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 						item: { title: 'Draft hello world' },
 						itemId: 'hello-world',
 						pageSlug: 'posts',
-						branch: 'preview-2026-04-06',
+						branch: 'tentman-preview',
 						mode: 'github'
 					}),
 					{
@@ -121,19 +121,17 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL('http://localhost/pages/posts/hello-world?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/hello-world'),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+			branch: 'tentman-preview'
 		});
 
-		expect(fetch).toHaveBeenCalledWith(
-			'/api/repo/item-view?slug=posts&itemId=hello-world&branch=preview-2026-04-06'
-		);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});
 
-	it('preserves the explicit draft branch when the thin API returns 401', async () => {
+	it('preserves the current route query when the thin API returns 401', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -157,12 +155,12 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL('http://localhost/pages/posts/hello-world?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/hello-world?tab=content'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%3Ftab%3Dcontent'
 		});
 	});
 });

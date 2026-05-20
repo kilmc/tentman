@@ -5,7 +5,7 @@ import {
 	type RepoConfigsBootstrap
 } from '$lib/repository/config-bootstrap';
 import { getCachedConfigs } from '$lib/stores/config-cache';
-import { requireGitHubRepository } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
 
 export async function loadSelectedGitHubRepoConfigs(
 	locals: App.Locals,
@@ -19,7 +19,7 @@ export async function loadSelectedGitHubRepoConfigs(
 		throw error(400, 'No repository selected');
 	}
 
-	const { backend } = requireGitHubRepository({ locals, cookies });
+	const { backend, draftBranch } = await requireGitHubContentRepository({ locals, cookies });
 	const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
 		getCachedConfigs(backend),
 		backend.discoverBlockConfigs(),
@@ -31,6 +31,7 @@ export async function loadSelectedGitHubRepoConfigs(
 		configs,
 		blockConfigs,
 		rootConfig,
+		activeDraftBranch: draftBranch,
 		navigationManifest
 	});
 }

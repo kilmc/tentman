@@ -41,7 +41,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 		vi.clearAllMocks();
 	});
 
-	it('preserves the explicit branch when redirecting to new-item preview changes', async () => {
+	it('redirects back to the new item editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {},
 			octokit: {},
@@ -66,8 +66,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 				},
 				request: createRequest({
 					data: JSON.stringify({ title: 'Hello world', slug: 'hello-world' }),
-					newFilename: 'hello-world',
-					branch: 'preview-2026-04-06'
+					newFilename: 'hello-world'
 				}),
 				cookies: {
 					delete: vi.fn()
@@ -75,7 +74,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
-			location: '/pages/posts/hello-world/edit?saved=true&branch=tentman-preview'
+			location: '/pages/posts/hello-world/edit?saved=true'
 		});
 	});
 
@@ -88,19 +87,18 @@ describe('routes/pages/[page]/new/+page.server', () => {
 				page: 'posts'
 			},
 			request: createRequest({
-				data: JSON.stringify({ title: 'Hello world' }),
-				branch: 'preview-2026-04-06'
+				data: JSON.stringify({ title: 'Hello world' })
 			}),
 			cookies: {
 				delete: vi.fn()
 			},
-			url: new URL('http://localhost/pages/posts/new?branch=preview-2026-04-06')
+			url: new URL('http://localhost/pages/posts/new?template=blank')
 		} as never);
 
 		expect(handleGitHubRouteError).toHaveBeenCalledWith(
 			{ locals: {}, cookies: { delete: expect.any(Function) } },
 			{ status: 401 },
-			'/pages/posts/new?branch=preview-2026-04-06'
+			'/pages/posts/new?template=blank'
 		);
 	});
 });

@@ -155,6 +155,7 @@ const data = {
 		}
 	},
 	selectedRepo: null,
+	activeDraftBranch: null,
 	configs: [],
 	blockConfigs: [],
 	navigationManifest: {

@@ -5,7 +5,6 @@ import {
 	buildReposRedirect,
 	buildReposReturnHref,
 	getRoutePath,
-	readOptionalSearchParam,
 	sanitizeAuthRedirectTarget
 } from './routing';
 
@@ -14,27 +13,27 @@ describe('routing utils', () => {
 		expect(
 			getRoutePath({
 				pathname: '/pages/about/preview-changes',
-				search: '?data=abc&branch=preview-2026-04-06'
+				search: '?data=abc&filename=about.md'
 			})
-		).toBe('/pages/about/preview-changes?data=abc&branch=preview-2026-04-06');
+		).toBe('/pages/about/preview-changes?data=abc&filename=about.md');
 	});
 
 	it('builds a login redirect from the current route including query params', () => {
 		expect(
 			buildLoginRedirect('/auth/login', {
 				pathname: '/pages/about/edit',
-				search: '?branch=preview-2026-04-06'
+				search: '?saved=true'
 			})
-		).toBe('/auth/login?redirect=%2Fpages%2Fabout%2Fedit%3Fbranch%3Dpreview-2026-04-06');
+		).toBe('/auth/login?redirect=%2Fpages%2Fabout%2Fedit%3Fsaved%3Dtrue');
 	});
 
 	it('builds a repos redirect from the current route including query params', () => {
 		expect(
 			buildReposRedirect('/repos', {
 				pathname: '/pages/about/edit',
-				search: '?branch=preview-2026-04-06'
+				search: '?saved=true'
 			})
-		).toBe('/repos?returnTo=%2Fpages%2Fabout%2Fedit%3Fbranch%3Dpreview-2026-04-06');
+		).toBe('/repos?returnTo=%2Fpages%2Fabout%2Fedit%3Fsaved%3Dtrue');
 	});
 
 	it('builds a repos return href from a safe return target', () => {
@@ -46,24 +45,18 @@ describe('routing utils', () => {
 			buildPathWithQuery('/pages/posts/hello-world/preview-changes', {
 				data: 'abc',
 				filename: 'hello-world.md',
-				branch: 'preview-2026-04-06',
+				new: 'true',
 				newFilename: undefined
 			})
 		).toBe(
-			'/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&branch=preview-2026-04-06'
+			'/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&new=true'
 		);
-	});
-
-	it('treats empty search params as absent', () => {
-		const searchParams = new URLSearchParams('branch=');
-
-		expect(readOptionalSearchParam(searchParams, 'branch')).toBeUndefined();
 	});
 
 	it('keeps safe in-app auth redirect targets', () => {
 		expect(
-			sanitizeAuthRedirectTarget('/pages/about/preview-changes?data=abc&branch=preview-2026-04-06')
-		).toBe('/pages/about/preview-changes?data=abc&branch=preview-2026-04-06');
+			sanitizeAuthRedirectTarget('/pages/about/preview-changes?data=abc&filename=about.md')
+		).toBe('/pages/about/preview-changes?data=abc&filename=about.md');
 	});
 
 	it('falls back when the auth redirect target points back into auth routes', () => {

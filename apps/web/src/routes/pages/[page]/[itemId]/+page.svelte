@@ -35,7 +35,6 @@
 	const flashMessageKeys = ['published', 'deleted', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const isDraftView = $derived(!isLocalMode && !!data.branch);
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
@@ -234,7 +233,7 @@
 					<p class="mt-1 text-sm text-stone-500">{config.label}</p>
 				</div>
 				<a
-					href={resolve(`/pages/${data.pageSlug}/${data.itemId}/edit${branchQuery}`)}
+					href={resolve(`/pages/${data.pageSlug}/${data.itemId}/edit`)}
 					class="tm-btn tm-btn-secondary mt-4 sm:mt-0"
 				>
 					Edit

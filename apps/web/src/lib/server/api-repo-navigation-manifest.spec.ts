@@ -76,10 +76,10 @@ vi.mock('$lib/repository/github', () => ({
 
 vi.mock('$lib/features/draft-publishing/service', () => ({
 	ensureDraftBranch: vi.fn(async () => ({
-		branchName: 'preview-2026-04-24',
+		branchName: 'tentman-preview',
 		created: false
 	})),
-	getLatestPreviewBranchName: vi.fn(async () => 'preview-2026-04-24')
+	getTentmanDraftBranchName: vi.fn(async () => 'tentman-preview')
 }));
 
 import { POST } from '../../routes/api/repo/navigation-manifest/+server';
@@ -91,10 +91,7 @@ import {
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
-import {
-	ensureDraftBranch,
-	getLatestPreviewBranchName
-} from '$lib/features/draft-publishing/service';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 
 function createCookies() {
 	return {
@@ -162,20 +159,14 @@ describe('POST /api/repo/navigation-manifest', () => {
 		} as never);
 
 		expect(writeMissingContentConfigIds).toHaveBeenCalled();
-		expect(getLatestPreviewBranchName).toHaveBeenCalled();
-		expect(ensureDraftBranch).toHaveBeenCalledWith(
-			expect.anything(),
-			'acme',
-			'docs',
-			'preview-2026-04-24'
-		);
+		expect(ensureDraftBranch).toHaveBeenCalledWith(expect.anything(), 'acme', 'docs');
 		expect(reconcileManualNavigationSetup).toHaveBeenCalled();
 		expect(writeNavigationManifest).toHaveBeenCalled();
 		expect(await response.json()).toEqual({
 			navigationManifest: await loadNavigationManifestState({} as never, {
-				ref: 'preview-2026-04-24'
+				ref: 'tentman-preview'
 			}),
-			branchName: 'preview-2026-04-24'
+			branchName: 'tentman-preview'
 		});
 	});
 
@@ -220,7 +211,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			{
 				message: 'Update Tentman navigation manifest',
-				ref: 'preview-2026-04-24'
+				ref: 'tentman-preview'
 			}
 		);
 	});
@@ -293,7 +284,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			{
 				message: 'Update Tentman navigation manifest',
-				ref: 'preview-2026-04-24'
+				ref: 'tentman-preview'
 			}
 		);
 	});
@@ -361,7 +352,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			{
 				message: 'Update Tentman navigation manifest',
-				ref: 'preview-2026-04-24'
+				ref: 'tentman-preview'
 			}
 		);
 	});

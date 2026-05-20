@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { load } from './+page';
 
 describe('routes/pages/[page]/edit/+page', () => {
-	it('preserves the explicit draft branch when redirecting unauthenticated users to login', async () => {
+	it('preserves the current route query when redirecting unauthenticated users to login', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -13,12 +13,12 @@ describe('routes/pages/[page]/edit/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL('http://localhost/pages/about/edit?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/about/edit?view=full'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fabout%2Fedit%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fabout%2Fedit%3Fview%3Dfull'
 		});
 	});
 
@@ -78,7 +78,7 @@ describe('routes/pages/[page]/edit/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});
 
-	it('passes through an explicit draft branch for singleton draft editing', async () => {
+	it('lets the server choose the managed draft branch for singleton draft editing', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -90,7 +90,7 @@ describe('routes/pages/[page]/edit/+page', () => {
 							}
 						},
 						content: { title: 'Draft About' },
-						branch: 'preview-2026-04-06',
+						branch: 'tentman-preview',
 						pageSlug: 'about',
 						mode: 'github'
 					}),
@@ -125,13 +125,13 @@ describe('routes/pages/[page]/edit/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL('http://localhost/pages/about/edit?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/about/edit'),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+			branch: 'tentman-preview'
 		});
 
-		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about&branch=preview-2026-04-06');
+		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});
 });
