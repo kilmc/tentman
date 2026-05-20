@@ -8,22 +8,23 @@
 	import {
 		createFormEditSession,
 		type FormDirtyState,
+		type FormEditSessionRecoveryState,
 		type PrepareSubmitResult
 	} from '$lib/features/forms/edit-session';
-import {
-	FORM_SIDE_PANEL,
-	type FormSidePanelContext,
-	type FormSidePanelState
-} from '$lib/features/forms/side-panel';
-import { validateFormData, type ValidationError } from '$lib/utils/validation';
-import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
-import type { ContentRecord } from '$lib/features/content-management/types';
-import {
-	FORM_CONTENT_CONTEXT,
-	type FormContentContext
-} from '$lib/components/form/form-content-context';
-import SidePanelHost from './SidePanelHost.svelte';
-import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
+	import {
+		FORM_SIDE_PANEL,
+		type FormSidePanelContext,
+		type FormSidePanelState
+	} from '$lib/features/forms/side-panel';
+	import { validateFormData, type ValidationError } from '$lib/utils/validation';
+	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
+	import type { ContentRecord } from '$lib/features/content-management/types';
+	import {
+		FORM_CONTENT_CONTEXT,
+		type FormContentContext
+	} from '$lib/components/form/form-content-context';
+	import SidePanelHost from './SidePanelHost.svelte';
+	import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
 	interface Props {
 		config: ParsedContentConfig;
@@ -184,6 +185,18 @@ import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 		editSession.markSaved(data);
 	}
 
+	export function exportRecoveryState(): FormEditSessionRecoveryState {
+		return editSession.exportRecoveryState();
+	}
+
+	export function restoreRecoveryState(state: FormEditSessionRecoveryState): void {
+		editSession.restoreRecoveryState(state, {
+			blockRegistry,
+			navigationManifest,
+			onaddselectoption
+		});
+	}
+
 	function handleFieldChange(fieldName: string) {
 		editSession.updateData(formData);
 		// Mark field as touched
@@ -301,7 +314,7 @@ import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
 		<StructuredFieldsLayout
 			blocks={config.blocks}
-			value={formData}
+			bind:value={formData}
 			imagePath={config.imagePath}
 			{blockRegistry}
 			{navigationManifest}

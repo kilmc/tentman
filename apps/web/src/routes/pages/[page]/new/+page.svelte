@@ -4,6 +4,7 @@
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import FormGenerator from '$lib/components/form/FormGenerator.svelte';
 	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -17,7 +18,21 @@
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { toasts } from '$lib/stores/toasts';
 	import { createContentDocument } from '$lib/content/service';
+	import {
+		clearEditorRecoverySnapshot,
+		createEditorRecoverySnapshot,
+		getContentFingerprint,
+		resolveEditorRecoveryState,
+		writeEditorRecoverySnapshot,
+		type EditorRecoveryState
+	} from '$lib/features/forms/editor-recovery';
+	import {
+		getEditorSaveStatusMeta,
+		shouldShowEditorSaveStatus,
+		type EditorSaveStatus
+	} from '$lib/features/forms/editor-save-status';
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import type { ContentRecord } from '$lib/features/content-management/types';
@@ -47,11 +62,34 @@
 	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	let recoveryState = $state<EditorRecoveryState>({ kind: 'none' });
+	let recoveryWriteTimer = $state<number | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const requiresFilename = $derived(false);
 	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
 	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
+	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
+	const recoveryContextKey = $derived.by(() =>
+		isLocalMode
+			? `local:${$localRepo.backend?.cacheKey ?? 'none'}`
+			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
+	);
+	const currentSaveError = $derived(form?.error ?? localError);
+	const saveStatus = $derived.by<EditorSaveStatus>(() => {
+		if (saving) {
+			return 'saving';
+		}
+		if (currentSaveError) {
+			return 'failed';
+		}
+		if (hasUnsavedChanges) {
+			return 'unsaved';
+		}
+		return 'not-saved';
+	});
+	const saveStatusMeta = $derived(getEditorSaveStatusMeta(saveStatus));
+	const showSaveStatus = $derived(shouldShowEditorSaveStatus(saveStatus));
 	const githubBlockRegistry = $derived.by(() => {
 		if (isLocalMode || blockRegistryError) {
 			return null;
@@ -62,6 +100,18 @@
 
 	function handleDirtyStateChange(state: FormDirtyState) {
 		formHasUnsavedChanges = state.isDirty;
+
+		if (!state.isDirty && !filenameHasUnsavedChanges) {
+			clearRecoveryDraft();
+		}
+	}
+
+	function handleFormChange() {
+		if (!hasUnsavedChanges) {
+			return;
+		}
+
+		scheduleRecoveryDraftWrite();
 	}
 
 	function applyRemoteData() {
@@ -97,7 +147,12 @@
 			}
 		]);
 
-		return cleanup;
+		return () => {
+			cleanup();
+			if (recoveryWriteTimer !== null) {
+				window.clearTimeout(recoveryWriteTimer);
+			}
+		};
 	});
 
 	async function loadLocalConfig(pageSlug: string) {
@@ -132,6 +187,83 @@
 		localLoadRequest += 1;
 		applyRemoteData();
 	});
+
+	$effect(() => {
+		if (hasUnsavedChanges || saving || typeof localStorage === 'undefined') {
+			return;
+		}
+
+		recoveryState = resolveEditorRecoveryState({
+			storage: localStorage,
+			routeKey: recoveryRouteKey,
+			contextKey: recoveryContextKey,
+			baselineFingerprint: getContentFingerprint({})
+		});
+	});
+
+	function persistRecoveryDraft() {
+		if (!formGenerator || !hasUnsavedChanges || typeof localStorage === 'undefined') {
+			return;
+		}
+
+		writeEditorRecoverySnapshot(
+			localStorage,
+			createEditorRecoverySnapshot({
+				routeKey: recoveryRouteKey,
+				contextKey: recoveryContextKey,
+				baselineFingerprint: getContentFingerprint({}),
+				session: formGenerator.exportRecoveryState()
+			})
+		);
+	}
+
+	function scheduleRecoveryDraftWrite() {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		if (recoveryWriteTimer !== null) {
+			window.clearTimeout(recoveryWriteTimer);
+		}
+
+		recoveryWriteTimer = window.setTimeout(() => {
+			persistRecoveryDraft();
+			recoveryWriteTimer = null;
+		}, 150);
+	}
+
+	function clearRecoveryDraft() {
+		if (recoveryWriteTimer !== null && typeof window !== 'undefined') {
+			window.clearTimeout(recoveryWriteTimer);
+			recoveryWriteTimer = null;
+		}
+
+		if (typeof localStorage !== 'undefined') {
+			clearEditorRecoverySnapshot(localStorage, recoveryRouteKey);
+		}
+
+		if (recoveryState.kind !== 'none') {
+			recoveryState = { kind: 'none' };
+		}
+	}
+
+	function recoverDraft(snapshot = recoveryState.kind === 'none' ? null : recoveryState.snapshot) {
+		if (!formGenerator || !snapshot) {
+			return;
+		}
+
+		formGenerator.restoreRecoveryState(snapshot.session);
+		recoveryState = { kind: 'none' };
+		toasts.info('Recovered local unsaved changes.', 4000);
+	}
+
+	function recoverStaleDraft() {
+		if (recoveryState.kind !== 'stale') {
+			return;
+		}
+
+		recoverDraft(recoveryState.snapshot);
+	}
 
 	async function handleAddSelectOption(input: {
 		collection: string;
@@ -216,6 +348,7 @@
 			return;
 		}
 
+		persistRecoveryDraft();
 		saving = true;
 		formHasUnsavedChanges = false;
 		filenameHasUnsavedChanges = false;
@@ -234,6 +367,7 @@
 				undefined
 			);
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
+			clearRecoveryDraft();
 			await localContent.refresh({ force: true });
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
@@ -252,20 +386,60 @@
 			<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">
 				New {config ? getConfigItemLabel(config) : 'Item'}
 			</h1>
-			{#if hasUnsavedChanges}
-				<span
-					class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
-				>
-					Unsaved changes
+			{#if showSaveStatus}
+				<span class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${saveStatusMeta.className}`}>
+					{saveStatusMeta.label}
 				</span>
 			{/if}
 		</div>
 	</div>
 
-	{#if form?.error || localError}
+	{#if recoveryState.kind === 'available'}
+		<div class="mb-5 rounded-md border border-blue-200 bg-blue-50 p-4">
+			<p class="text-sm font-medium text-blue-900">Local recovery available</p>
+			<p class="mt-1 text-sm text-blue-800">
+				Tentman found unsaved changes for this new item. Recover them to continue editing, or
+				discard the local recovery.
+			</p>
+			<div class="mt-3 flex flex-col gap-2 sm:flex-row">
+				<button type="button" onclick={() => recoverDraft()} class="tm-btn tm-btn-primary">
+					Recover changes
+				</button>
+				<button type="button" onclick={clearRecoveryDraft} class="tm-btn tm-btn-secondary">
+					Discard recovery
+				</button>
+			</div>
+		</div>
+	{:else if recoveryState.kind === 'stale'}
+		<div class="mb-5 rounded-md border border-amber-200 bg-amber-50 p-4">
+			<p class="text-sm font-medium text-amber-900">Saved content changed after this recovery</p>
+			<p class="mt-1 text-sm text-amber-800">
+				Tentman kept your local draft, but newer saved content is loaded now. Replace the editor
+				with the recovered draft only if you want to review and re-save those older unsaved edits.
+			</p>
+			<div class="mt-3 flex flex-col gap-2 sm:flex-row">
+				<button
+					type="button"
+					onclick={recoverStaleDraft}
+					class="tm-btn tm-btn-primary"
+				>
+					Replace with recovery
+				</button>
+				<button type="button" onclick={clearRecoveryDraft} class="tm-btn tm-btn-secondary">
+					Discard recovery
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	{#if currentSaveError}
 		<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 			<p class="text-sm font-medium text-red-800">Failed to create item</p>
-			<p class="mt-1 text-sm text-red-700">{form?.error || localError}</p>
+			<p class="mt-1 text-sm text-red-700">{currentSaveError}</p>
+			<p class="mt-2 text-sm text-red-700">
+				Your edits have not been discarded. You can retry from this page, and Tentman will keep a
+				local recovery until a save succeeds.
+			</p>
 		</div>
 	{/if}
 
@@ -287,6 +461,7 @@
 							oninput={() => {
 								filenameError = '';
 								filenameHasUnsavedChanges = true;
+								scheduleRecoveryDraftWrite();
 							}}
 							placeholder="e.g., 2025-11-30 or my-update"
 							class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
@@ -325,6 +500,7 @@
 					currentItemId={undefined}
 					navigationManifest={navigationManifest?.manifest}
 					onaddselectoption={handleAddSelectOption}
+					onchange={handleFormChange}
 					ondirtystatechange={handleDirtyStateChange}
 				/>
 			{/if}
@@ -359,21 +535,28 @@
 					const contentData = JSON.parse(encoded) as ContentRecord;
 					const appended = await appendDraftAssetsToFormData(formData, contentData);
 					submittedRefs = appended.refs;
+					persistRecoveryDraft();
 					saving = true;
 					formHasUnsavedChanges = false;
 					filenameHasUnsavedChanges = false;
 				})();
 
-				return async ({ update }) => {
+				return async ({ update, result }) => {
 					try {
 						await prepareSubmission;
 					} catch {
+						formHasUnsavedChanges = true;
 						saving = false;
 						return;
 					}
 
 					await update();
-					await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
+					if (result.type === 'redirect' || result.type === 'success') {
+						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
+						clearRecoveryDraft();
+					} else {
+						formHasUnsavedChanges = true;
+					}
 					saving = false;
 				};
 			}}
@@ -397,6 +580,7 @@
 							oninput={() => {
 								filenameError = '';
 								filenameHasUnsavedChanges = true;
+								scheduleRecoveryDraftWrite();
 							}}
 							placeholder="e.g., 2025-11-30 or my-update"
 							class="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none"
@@ -431,6 +615,7 @@
 					currentItemId={undefined}
 					navigationManifest={navigationManifest?.manifest}
 					onaddselectoption={handleAddSelectOption}
+					onchange={handleFormChange}
 					ondirtystatechange={handleDirtyStateChange}
 				/>
 			{/if}

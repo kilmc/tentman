@@ -480,6 +480,48 @@ describe('features/forms/edit-session', () => {
 		});
 	});
 
+	it('restores exported recovery state including an open dirty panel draft', () => {
+		const original = createFormEditSession({
+			sections: [{ title: 'Intro' }]
+		});
+
+		original.openPanel({
+			...repeatablePanel({
+				id: 'repeatable:sections',
+				mode: 'edit',
+				label: 'Section',
+				listLabel: 'Sections',
+				title: 'Section 1: Intro',
+				blocks: [{ id: 'title', type: 'text', label: 'Title' }],
+				selectedIndex: 0,
+				selectedItem: { title: 'Intro' },
+				arrayPath: ['sections'],
+				itemFieldPath: 'sections[0]'
+			})
+		});
+		original.updatePanelField('title', 'Recovered intro');
+
+		const snapshot = original.exportRecoveryState();
+		const restored = createFormEditSession({
+			sections: [{ title: 'Intro' }]
+		});
+		restored.restoreRecoveryState(snapshot, {
+			blockRegistry,
+			navigationManifest: null,
+			onaddselectoption: undefined
+		});
+
+		expect(restored.getDirtyState()).toMatchObject({
+			isDirty: true,
+			hasPanelDraft: true
+		});
+		expect(restored.getActivePanel()).toMatchObject({
+			title: 'Section 1: Recovered intro',
+			selectedItem: { title: 'Recovered intro' },
+			isDirty: true
+		});
+	});
+
 	it('parses field paths with array indices', () => {
 		expect(parseFieldPath('galleries[0].images[2].alt')).toEqual([
 			'galleries',

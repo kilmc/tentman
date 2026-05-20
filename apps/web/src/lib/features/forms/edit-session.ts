@@ -73,6 +73,32 @@ export type PrepareSubmitResult =
 	| { ok: true; data: ContentRecord }
 	| { ok: false; data: ContentRecord; message: string };
 
+export interface FormEditSessionRecoveryPanel {
+	id: string;
+	kind: FormPanelKind;
+	mode: RepeatablePanelMode;
+	label: string;
+	listLabel: string;
+	title: string;
+	blocks: BlockUsage[];
+	editorLayout?: EditorLayoutConfig;
+	selectedItem: ContentRecord;
+	targetPath: ContentPath;
+	itemFieldPath?: string;
+	imagePath?: string;
+	selectedIndex?: number;
+	arrayPath?: ContentPath;
+	draftItem: ContentRecord;
+	initialItem: ContentRecord;
+	submitError?: string;
+}
+
+export interface FormEditSessionRecoveryState {
+	data: ContentRecord;
+	baseline: ContentRecord;
+	panelStack: FormEditSessionRecoveryPanel[];
+}
+
 type PanelEntry = (OpenRepeatablePanelInput | OpenObjectPanelInput) & {
 	draftItem: ContentRecord;
 	initialItem: ContentRecord;
@@ -103,6 +129,11 @@ export interface FormEditSession {
 	removePanelItem: () => void;
 	prepareSubmit: () => PrepareSubmitResult;
 	markSaved: (data?: ContentRecord) => void;
+	exportRecoveryState: () => FormEditSessionRecoveryState;
+	restoreRecoveryState: (
+		state: FormEditSessionRecoveryState,
+		runtime: Pick<BasePanelInput, 'blockRegistry' | 'navigationManifest' | 'onaddselectoption'>
+	) => void;
 	destroy: () => void;
 }
 
@@ -315,6 +346,24 @@ export function createFormEditSession(
 		notify();
 	}
 
+	function exportRecoveryState(): FormEditSessionRecoveryState {
+		return {
+			data: cloneContentRecord(data),
+			baseline: cloneContentRecord(baseline),
+			panelStack: panelStack.map(toRecoveryPanel)
+		};
+	}
+
+	function restoreRecoveryState(
+		state: FormEditSessionRecoveryState,
+		runtime: Pick<BasePanelInput, 'blockRegistry' | 'navigationManifest' | 'onaddselectoption'>
+	) {
+		data = cloneContentRecord(state.data);
+		baseline = cloneContentRecord(state.baseline);
+		panelStack = state.panelStack.map((panel) => fromRecoveryPanel(panel, runtime));
+		notify();
+	}
+
 	function destroy() {
 		panelStack = [];
 		options.onPanelChange?.(null);
@@ -392,6 +441,8 @@ export function createFormEditSession(
 		removePanelItem,
 		prepareSubmit,
 		markSaved,
+		exportRecoveryState,
+		restoreRecoveryState,
 		destroy
 	};
 }
@@ -441,6 +492,68 @@ function toPanelView(entry: PanelEntry, parent: PanelEntry | null): FormPanelVie
 		submitError,
 		hasParentPanel: parent !== null,
 		parentPanelTitle: parent?.title
+	};
+}
+
+function toRecoveryPanel(entry: PanelEntry): FormEditSessionRecoveryPanel {
+	return {
+		id: entry.id,
+		kind: entry.kind,
+		mode: entry.mode,
+		label: entry.label,
+		listLabel: entry.listLabel,
+		title: entry.title,
+		blocks: entry.blocks,
+		editorLayout: entry.editorLayout,
+		selectedItem: cloneContentRecord(entry.selectedItem),
+		targetPath: [...entry.targetPath],
+		itemFieldPath: entry.itemFieldPath,
+		imagePath: entry.imagePath,
+		selectedIndex: entry.kind === 'repeatable' ? entry.selectedIndex : undefined,
+		arrayPath: entry.kind === 'repeatable' ? [...entry.arrayPath] : undefined,
+		draftItem: cloneContentRecord(entry.draftItem),
+		initialItem: cloneContentRecord(entry.initialItem),
+		submitError: entry.submitError
+	};
+}
+
+function fromRecoveryPanel(
+	panel: FormEditSessionRecoveryPanel,
+	runtime: Pick<BasePanelInput, 'blockRegistry' | 'navigationManifest' | 'onaddselectoption'>
+): PanelEntry {
+	const basePanel = {
+		id: panel.id,
+		kind: panel.kind,
+		mode: panel.mode,
+		label: panel.label,
+		listLabel: panel.listLabel,
+		title: panel.title,
+		blocks: panel.blocks,
+		editorLayout: panel.editorLayout,
+		selectedItem: cloneContentRecord(panel.selectedItem),
+		targetPath: [...panel.targetPath],
+		itemFieldPath: panel.itemFieldPath,
+		imagePath: panel.imagePath,
+		blockRegistry: runtime.blockRegistry,
+		navigationManifest: runtime.navigationManifest,
+		onaddselectoption: runtime.onaddselectoption,
+		draftItem: cloneContentRecord(panel.draftItem),
+		initialItem: cloneContentRecord(panel.initialItem),
+		submitError: panel.submitError
+	};
+
+	if (panel.kind === 'repeatable') {
+		return {
+			...basePanel,
+			kind: 'repeatable',
+			selectedIndex: panel.selectedIndex ?? 0,
+			arrayPath: [...(panel.arrayPath ?? [])]
+		};
+	}
+
+	return {
+		...basePanel,
+		kind: 'object'
 	};
 }
 
