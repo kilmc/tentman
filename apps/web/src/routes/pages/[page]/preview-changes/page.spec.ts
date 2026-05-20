@@ -13,15 +13,12 @@ describe('routes/pages/[page]/preview-changes/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL(
-					'http://localhost/pages/about/preview-changes?data=abc&branch=preview-2026-04-06'
-				),
+				url: new URL('http://localhost/pages/about/preview-changes?data=abc&filename=about.md'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location:
-				'/repos?returnTo=%2Fpages%2Fabout%2Fpreview-changes%3Fdata%3Dabc%26branch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fabout%2Fpreview-changes%3Fdata%3Dabc%26filename%3Dabout.md'
 		});
 	});
 
@@ -65,6 +62,7 @@ describe('routes/pages/[page]/preview-changes/+page', () => {
 						contentData: { title: 'About' },
 						changesSummary: { totalChanges: 1, files: [] },
 						changesError: null,
+						branch: 'tentman-preview',
 						repo: { owner: 'acme', name: 'docs' }
 					}),
 					{
@@ -113,7 +111,7 @@ describe('routes/pages/[page]/preview-changes/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-preview?slug=about&data=abc');
 	});
 
-	it('returns the explicit branch so singleton preview can round-trip draft context', async () => {
+	it('returns the active managed draft branch from the server response', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -122,6 +120,7 @@ describe('routes/pages/[page]/preview-changes/+page', () => {
 						contentData: { title: 'About' },
 						changesSummary: { totalChanges: 1, files: [] },
 						changesError: null,
+						branch: 'tentman-preview',
 						repo: { owner: 'acme', name: 'docs' }
 					}),
 					{
@@ -155,13 +154,11 @@ describe('routes/pages/[page]/preview-changes/+page', () => {
 				params: {
 					page: 'about'
 				},
-				url: new URL(
-					'http://localhost/pages/about/preview-changes?data=abc&branch=preview-2026-04-06'
-				),
+				url: new URL('http://localhost/pages/about/preview-changes?data=abc'),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+			branch: 'tentman-preview'
 		});
 	});
 });

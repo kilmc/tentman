@@ -5,14 +5,14 @@ import { findContentItemByRoute } from '$lib/features/content-management/item';
 import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { getCachedConfigs } from '$lib/stores/config-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const slug = url.searchParams.get('slug');
 	const itemId = url.searchParams.get('itemId');
-	const branch = url.searchParams.get('branch') || undefined;
 
 	if (!slug || !itemId) {
 		throw error(400, 'Missing page or item identifier');
@@ -21,11 +21,15 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { backend, discoveredConfig } = await requireDiscoveredConfig(
+		const { backend, draftBranch } = await requireGitHubContentRepository(
 			requestContext,
-			slug,
 			`/pages/${slug}/${itemId}`
 		);
+		const discoveredConfig = (await getCachedConfigs(backend)).find((config) => config.slug === slug);
+
+		if (!discoveredConfig) {
+			throw error(404, 'Configuration not found');
+		}
 
 		if (!discoveredConfig.config.collection) {
 			return json({
@@ -41,8 +45,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				discoveredConfig.slug,
-				branch
+				discoveredConfig.slug
 			);
 
 			if (Array.isArray(content)) {
@@ -71,7 +74,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 		const { blockConfigs, packageBlocks, blockRegistryError } =
 			await loadGitHubBlockRegistryData(backend);
-		const navigationManifest = await loadNavigationManifestState(backend, { ref: branch });
+		const navigationManifest = await loadNavigationManifestState(backend);
 
 		return json({
 			discoveredConfig,
@@ -82,7 +85,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			item,
 			contentError,
 			itemId,
-			branch: branch ?? null,
+			branch: draftBranch,
 			pageSlug: slug,
 			mode: 'github' as const
 		});

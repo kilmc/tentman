@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/server/page-context', () => ({
-	requireDiscoveredConfig: vi.fn()
+	requireGitHubContentRepository: vi.fn()
 }));
 
 vi.mock('$lib/server/block-registry-data', () => ({
 	loadGitHubBlockRegistryData: vi.fn()
+}));
+
+vi.mock('$lib/stores/config-cache', () => ({
+	getCachedConfigs: vi.fn()
 }));
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
@@ -19,7 +23,8 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 
 import { GET } from '../../routes/api/repo/form-config/+server';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
+import { getCachedConfigs } from '$lib/stores/config-cache';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
@@ -52,10 +57,11 @@ describe('GET /api/repo/form-config', () => {
 	});
 
 	it('returns the form config bootstrap for a page slug', async () => {
-		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
 			backend: { cacheKey: 'github:acme/docs' },
-			discoveredConfig
+			draftBranch: null
 		} as never);
+		vi.mocked(getCachedConfigs).mockResolvedValue([discoveredConfig] as never);
 		vi.mocked(loadGitHubBlockRegistryData).mockResolvedValue({
 			blockConfigs: [],
 			packageBlocks: [],
@@ -86,7 +92,7 @@ describe('GET /api/repo/form-config', () => {
 	});
 
 	it('clears the session and returns 401 on GitHub auth failure', async () => {
-		vi.mocked(requireDiscoveredConfig).mockRejectedValue({ status: 401 });
+		vi.mocked(requireGitHubContentRepository).mockRejectedValue({ status: 401 });
 
 		const cookies = createCookies();
 

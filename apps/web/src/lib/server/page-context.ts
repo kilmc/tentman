@@ -1,7 +1,10 @@
 import { error, redirect, type Cookies } from '@sveltejs/kit';
 import type { DiscoveredConfig } from '$lib/config/discovery';
+import {
+	TENTMAN_DRAFT_BRANCH,
+	getTentmanDraftBranchName
+} from '$lib/features/draft-publishing/service';
 import { getCachedConfigs } from '$lib/stores/config-cache';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import type { GitHubUserSnapshot } from '$lib/auth/session';
 import { buildReposReturnHref } from '$lib/utils/routing';
@@ -20,6 +23,10 @@ interface GitHubRepositoryContext {
 	owner: string;
 	name: string;
 	user?: GitHubUserSnapshot;
+}
+
+interface GitHubContentContext extends GitHubRepositoryContext {
+	draftBranch: string | null;
 }
 
 export function isLocalMode(locals: AppLocals): boolean {
@@ -48,6 +55,32 @@ export function requireGitHubRepository(
 		owner: locals.selectedRepo.owner,
 		name: locals.selectedRepo.name,
 		user: locals.user
+	};
+}
+
+export async function requireGitHubContentRepository(
+	context: GitHubRequestContext,
+	redirectTo = '/pages'
+): Promise<GitHubContentContext> {
+	const repository = requireGitHubRepository(context, redirectTo);
+	const draftBranch =
+		(await getTentmanDraftBranchName(repository.octokit, repository.owner, repository.name)) ??
+		null;
+
+	if (!draftBranch) {
+		return {
+			...repository,
+			draftBranch: null
+		};
+	}
+
+	return {
+		...repository,
+		backend: createGitHubRepositoryBackend(repository.octokit, repository.repo, {
+			defaultRef: draftBranch
+		}),
+		draftBranch,
+		user: repository.user
 	};
 }
 
@@ -82,7 +115,11 @@ export async function getOptionalDraftBranchName(
 	redirectTo = '/pages'
 ): Promise<string | undefined> {
 	const repository = requireGitHubRepository(context, redirectTo);
-	return getLatestPreviewBranchName(repository.octokit, repository.owner, repository.name);
+	return getTentmanDraftBranchName(repository.octokit, repository.owner, repository.name);
+}
+
+export function getManagedDraftBranchName(): string {
+	return TENTMAN_DRAFT_BRANCH;
 }
 
 export function handleGitHubRouteError(

@@ -15,10 +15,7 @@ import {
 	addCollectionGroupToConfigSource,
 	addNavigationGroupToManifest
 } from '$lib/features/content-management/navigation-group-options';
-import {
-	ensureDraftBranch,
-	getLatestPreviewBranchName
-} from '$lib/features/draft-publishing/service';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { getCachedConfigs } from '$lib/stores/config-cache';
@@ -29,20 +26,16 @@ const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
 type NavigationManifestMutation =
 	| {
 			action: 'enable';
-			branchName?: string;
 	  }
 	| {
 			action: 'repair';
-			branchName?: string;
 	  }
 	| {
 			action: 'add-missing-config-ids';
-			branchName?: string;
 	  }
 	| {
 			action: 'save-manifest';
 			manifest: unknown;
-			branchName?: string;
 	  }
 	| {
 			action: 'add-collection-group';
@@ -50,13 +43,11 @@ type NavigationManifestMutation =
 			id: string;
 			value: string;
 			label: string;
-			branchName?: string;
 	  }
 	| {
 			action: 'save-collection-order';
 			collection: string;
 			order: unknown;
-			branchName?: string;
 	  };
 
 function assertMutation(value: unknown): NavigationManifestMutation {
@@ -72,7 +63,6 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		value?: unknown;
 		label?: unknown;
 		order?: unknown;
-		branchName?: unknown;
 	};
 
 	if (
@@ -188,16 +178,8 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			backend.readRootConfig(),
 			loadNavigationManifestState(backend)
 		]);
-		const requestedBranchName =
-			typeof mutation.branchName === 'string' && mutation.branchName.length > 0
-				? mutation.branchName
-				: null;
-		const existingDraftBranch =
-			requestedBranchName ?? (await getLatestPreviewBranchName(octokit, owner, name));
 		const requiresDraftBranch = mutation.action !== undefined;
-		const draftBranch = requiresDraftBranch
-			? await ensureDraftBranch(octokit, owner, name, existingDraftBranch)
-			: null;
+		const draftBranch = requiresDraftBranch ? await ensureDraftBranch(octokit, owner, name) : null;
 		const writeOptions = draftBranch
 			? {
 					ref: draftBranch.branchName

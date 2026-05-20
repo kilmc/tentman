@@ -21,8 +21,7 @@ export const actions: Actions = {
 			);
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
-			const requestedBranchName = (formData.get('branch') as string | null) || undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -46,8 +45,7 @@ export const actions: Actions = {
 			throw redirect(
 				303,
 				buildPathWithQuery(`/pages/${params.page}/edit`, {
-					saved: 'true',
-					branch: branchName
+					saved: 'true'
 				})
 			);
 		} catch (err) {

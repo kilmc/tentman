@@ -3,13 +3,13 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { getCachedConfigs } from '$lib/stores/config-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const slug = url.searchParams.get('slug');
-	const branch = url.searchParams.get('branch') || undefined;
 	if (!slug) {
 		throw error(400, 'Missing page slug');
 	}
@@ -17,7 +17,15 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { backend, discoveredConfig } = await requireDiscoveredConfig(requestContext, slug, `/pages/${slug}`);
+		const { backend, draftBranch } = await requireGitHubContentRepository(
+			requestContext,
+			`/pages/${slug}`
+		);
+		const discoveredConfig = (await getCachedConfigs(backend)).find((config) => config.slug === slug);
+
+		if (!discoveredConfig) {
+			throw error(404, 'Configuration not found');
+		}
 
 		let content = null;
 		let contentError = null;
@@ -27,8 +35,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				backend,
 				discoveredConfig.config,
 				discoveredConfig.path,
-				discoveredConfig.slug,
-				branch
+				discoveredConfig.slug
 			);
 		} catch (err) {
 			handleGitHubSessionError({ cookies }, err);
@@ -46,7 +53,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			blockRegistryError,
 			content,
 			contentError,
-			branch: branch ?? null,
+			branch: draftBranch,
 			pageSlug: slug,
 			mode: 'github' as const
 		});

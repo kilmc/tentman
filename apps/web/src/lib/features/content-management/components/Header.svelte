@@ -115,7 +115,7 @@
 		{#if showPublish}
 			<a href={publishHref} class="tm-btn tm-btn-primary">
 				<UploadCloud class="h-4 w-4" />
-				Publish
+				Review Draft
 			</a>
 		{/if}
 	</div>

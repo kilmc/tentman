@@ -1,5 +1,4 @@
 <script lang="ts">
-	/* eslint-disable svelte/no-navigation-without-resolve -- links are resolved before branch query strings are appended */
 	import { resolve } from '$app/paths';
 	import { flip } from 'svelte/animate';
 	import type { DndEvent } from 'svelte-dnd-action';
@@ -28,7 +27,6 @@
 		items: CollectionNavigationItem[];
 		groups: CollectionNavigationGroup[];
 		currentItemId?: string | null;
-		branch?: string | null;
 		status?: 'idle' | 'loading' | 'ready' | 'error';
 		error?: string | null;
 		canOrderItems?: boolean;
@@ -44,7 +42,6 @@
 		items,
 		groups,
 		currentItemId = null,
-		branch = null,
 		status = 'ready',
 		error = null,
 		canOrderItems = false,
@@ -72,7 +69,6 @@
 	let sortMenu = $state<HTMLDetailsElement | null>(null);
 	let collapsedGroupIds = $state<string[]>([]);
 
-	const branchQuery = $derived(branch ? `?branch=${encodeURIComponent(branch)}` : '');
 	const allItems = $derived([...groups.flatMap((group) => group.items), ...items]);
 	const hasDateSort = $derived(allItems.some((item) => item.sortDate !== null));
 	const visibleItems = $derived.by(() => {
@@ -317,7 +313,7 @@
 				</div>
 
 				<a
-					href={resolve(`/pages/${slug}/new`) + branchQuery}
+					href={resolve(`/pages/${slug}/new`)}
 					class="tm-icon-btn"
 					aria-label={`New ${itemLabel}`}
 				>
@@ -530,7 +526,7 @@
 								{#if !isGroupCollapsed(group.id)}
 									{#each group.items as item (item.itemId)}
 										<a
-											href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+											href={resolve(`/pages/${slug}/${item.itemId}/edit`)}
 											class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 											class:tm-nav-link-active={currentItemId === item.itemId}
 											aria-label={getItemLinkLabel(item)}
@@ -556,7 +552,7 @@
 						<section class="grid gap-1">
 							{#each items as item (item.itemId)}
 								<a
-									href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+									href={resolve(`/pages/${slug}/${item.itemId}/edit`)}
 									class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 									class:tm-nav-link-active={currentItemId === item.itemId}
 									aria-label={getItemLinkLabel(item)}
@@ -580,7 +576,7 @@
 				<div class="grid gap-1">
 					{#each visibleItems as item (item.itemId)}
 						<a
-							href={resolve(`/pages/${slug}/${item.itemId}/edit`) + branchQuery}
+							href={resolve(`/pages/${slug}/${item.itemId}/edit`)}
 							class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 							class:tm-nav-link-active={currentItemId === item.itemId}
 							aria-label={getItemLinkLabel(item)}

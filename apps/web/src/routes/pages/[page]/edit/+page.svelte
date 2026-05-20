@@ -60,7 +60,6 @@
 
 	const config = $derived(discoveredConfig?.config ?? null);
 	const isDraftView = $derived(!isLocalMode && !!data.branch);
-	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
@@ -565,9 +564,6 @@
 			}}
 		>
 			<input type="hidden" name="data" value="" />
-			{#if data.branch}
-				<input type="hidden" name="branch" value={data.branch} />
-			{/if}
 			{#if blockRegistryError}
 				<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
 					<p class="text-sm font-medium text-red-800">Failed to load block registry</p>
@@ -596,7 +592,7 @@
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
-				<a href={resolve(`/pages/${data.pageSlug}${branchQuery}`)} class="tm-btn tm-btn-secondary">
+				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary">
 					Cancel
 				</a>
 			</PageStickyFooter>

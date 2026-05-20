@@ -10,15 +10,6 @@ export function getRoutePath(currentRoute: RouteLocationLike): string {
 	return `${currentRoute.pathname}${currentRoute.search}`;
 }
 
-export function readOptionalSearchParam(
-	searchParams: URLSearchParams,
-	key: string
-): string | undefined {
-	const value = searchParams.get(key);
-
-	return value ? value : undefined;
-}
-
 export function buildPathWithQuery(
 	pathname: string,
 	query: Record<string, QueryValue> = {}

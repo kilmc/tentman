@@ -4,9 +4,9 @@ import type { Actions } from './$types';
 import { saveContentDocument } from '$lib/content/service.js';
 import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
-import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftBranch, publishDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
-import { getRoutePath } from '$lib/utils/routing';
+import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
@@ -25,8 +25,7 @@ export const actions: Actions = {
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 
 			// Get or create draft branch
-			const formBranchName = formData.get('branchName') as string | null;
-			const { branchName, created } = await ensureDraftBranch(octokit, owner, name, formBranchName);
+			const { branchName, created } = await ensureDraftBranch(octokit, owner, name);
 			if (created) {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
@@ -55,10 +54,7 @@ export const actions: Actions = {
 			console.log(`✅ Saved content to ${branchName}`);
 
 			// Redirect back to index page
-			throw redirect(
-				303,
-				`/pages/${params.page}/edit?saved=true&branch=${encodeURIComponent(branchName)}`
-			);
+			throw redirect(303, buildPathWithQuery(`/pages/${params.page}/edit`, { saved: 'true' }));
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
@@ -85,8 +81,7 @@ export const actions: Actions = {
 			// Parse form data
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
-			const requestedBranchName = (formData.get('branchName') as string | null) || undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -106,8 +101,12 @@ export const actions: Actions = {
 				}
 			);
 			await ensureDraftPullRequest(octokit, owner, name, branchName);
+			await publishDraftBranch(octokit, owner, name);
 
-			throw redirect(303, '/publish');
+			const { invalidateContent } = await import('$lib/stores/content-cache');
+			invalidateContent(backend.cacheKey);
+
+			throw redirect(303, buildPathWithQuery(`/pages/${params.page}/edit`, { published: 'true' }));
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {

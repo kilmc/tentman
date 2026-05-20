@@ -29,13 +29,21 @@ function decodeGitHubContent(content: string): string {
 
 export function createGitHubRepositoryBackend(
 	octokit: Octokit,
-	repository: GitHubRepositoryIdentity
+	repository: GitHubRepositoryIdentity,
+	options?: {
+		defaultRef?: string;
+	}
 ): GitHubRepositoryBackend {
 	const { owner, name, full_name } = repository;
+	const defaultRef = options?.defaultRef;
+
+	function readRef(options?: RepositoryReadOptions): string | undefined {
+		return options?.ref ?? defaultRef;
+	}
 
 	return {
 		kind: 'github',
-		cacheKey: `github:${owner}/${name}`,
+		cacheKey: defaultRef ? `github:${owner}/${name}?ref=${defaultRef}` : `github:${owner}/${name}`,
 		label: full_name,
 		supportsDraftBranches: true,
 		owner,
@@ -44,11 +52,11 @@ export function createGitHubRepositoryBackend(
 		octokit,
 
 		discoverConfigs() {
-			return discoverGitHubConfigs(octokit, owner, name);
+			return discoverGitHubConfigs(octokit, owner, name, defaultRef);
 		},
 
 		discoverBlockConfigs() {
-			return discoverGitHubBlockConfigs(octokit, owner, name);
+			return discoverGitHubBlockConfigs(octokit, owner, name, defaultRef);
 		},
 
 		async readRootConfig(): Promise<RootConfig | null> {
@@ -56,7 +64,8 @@ export function createGitHubRepositoryBackend(
 				const { data } = await octokit.rest.repos.getContent({
 					owner,
 					repo: name,
-					path: '.tentman.json'
+					path: '.tentman.json',
+					...(defaultRef ? { ref: defaultRef } : {})
 				});
 
 				if (!('content' in data) || Array.isArray(data)) {
@@ -70,11 +79,12 @@ export function createGitHubRepositoryBackend(
 		},
 
 		async readTextFile(path: string, options?: RepositoryReadOptions): Promise<string> {
+			const ref = readRef(options);
 			const { data } = await octokit.rest.repos.getContent({
 				owner,
 				repo: name,
 				path,
-				...(options?.ref && { ref: options.ref })
+				...(ref && { ref })
 			});
 
 			if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) {
@@ -90,13 +100,14 @@ export function createGitHubRepositoryBackend(
 			options?: RepositoryWriteOptions
 		): Promise<void> {
 			let sha: string | undefined;
+			const ref = readRef(options);
 
 			try {
 				const { data } = await octokit.rest.repos.getContent({
 					owner,
 					repo: name,
 					path,
-					...(options?.ref && { ref: options.ref })
+					...(ref && { ref })
 				});
 
 				if ('sha' in data) {
@@ -113,7 +124,7 @@ export function createGitHubRepositoryBackend(
 				message: options?.message || `Update ${path} via Tentman CMS`,
 				content: Buffer.from(content).toString('base64'),
 				...(sha && { sha }),
-				...(options?.ref && { branch: options.ref })
+				...(ref && { branch: ref })
 			});
 		},
 
@@ -122,19 +133,21 @@ export function createGitHubRepositoryBackend(
 			content: Uint8Array,
 			options?: RepositoryWriteOptions
 		): Promise<void> {
+			const ref = readRef(options);
 			await writeGitHubImage(octokit, owner, name, content, {
 				path,
-				branch: options?.ref,
+				branch: ref,
 				message: options?.message
 			});
 		},
 
 		async deleteFile(path: string, options?: RepositoryWriteOptions): Promise<void> {
+			const ref = readRef(options);
 			const { data } = await octokit.rest.repos.getContent({
 				owner,
 				repo: name,
 				path,
-				...(options?.ref && { ref: options.ref })
+				...(ref && { ref })
 			});
 
 			if (!('sha' in data)) {
@@ -147,16 +160,17 @@ export function createGitHubRepositoryBackend(
 				path,
 				message: options?.message || `Delete ${path} via Tentman CMS`,
 				sha: data.sha,
-				...(options?.ref && { branch: options.ref })
+				...(ref && { branch: ref })
 			});
 		},
 
 		async listDirectory(path: string, options?: RepositoryReadOptions): Promise<RepoEntry[]> {
+			const ref = readRef(options);
 			const { data } = await octokit.rest.repos.getContent({
 				owner,
 				repo: name,
 				path: path || '.',
-				...(options?.ref && { ref: options.ref })
+				...(ref && { ref })
 			});
 
 			if (!Array.isArray(data)) {
@@ -173,12 +187,13 @@ export function createGitHubRepositoryBackend(
 		},
 
 		async fileExists(path: string, options?: RepositoryReadOptions): Promise<boolean> {
+			const ref = readRef(options);
 			try {
 				await octokit.rest.repos.getContent({
 					owner,
 					repo: name,
 					path,
-					...(options?.ref && { ref: options.ref })
+					...(ref && { ref })
 				});
 				return true;
 			} catch (error) {

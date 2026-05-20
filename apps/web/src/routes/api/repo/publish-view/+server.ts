@@ -2,7 +2,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getCommitsSince } from '$lib/github/branch';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
@@ -14,7 +14,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 
 	try {
 		const { octokit, owner, name, backend } = requireGitHubRepository(requestContext, '/publish');
-		const draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+		const draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
 		if (!draftBranch) {
 			throw error(404, 'No draft branch found');
 		}
@@ -57,12 +57,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
 
-		if (
-			err &&
-			typeof err === 'object' &&
-			'status' in err &&
-			(err.status === 404 || err.status === 409)
-		) {
+		if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
 			throw err;
 		}
 

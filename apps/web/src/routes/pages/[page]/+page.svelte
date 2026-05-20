@@ -43,7 +43,6 @@
 	);
 	const isSingletonContent = $derived(!config?.collection);
 	const isCollectionContent = $derived(!!config?.collection);
-	const activeBranch = $derived(data.branch ?? null);
 	const collectionItemLabel = $derived(config ? getConfigItemLabel(config) : 'item');
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
@@ -52,7 +51,6 @@
 
 		return isLocalMode ? localBlockRegistry : createBlockRegistry(blockConfigs, { packageBlocks });
 	});
-	const branchQueryValue = $derived(activeBranch ?? undefined);
 	const collectionItemCount = $derived(Array.isArray(content) ? content.length : 0);
 	const orderedCollectionNavigation = $derived.by(() => {
 		if (!config?.collection || !Array.isArray(content) || contentError) {
@@ -75,24 +73,18 @@
 			return null;
 		}
 
-		return buildPathWithQuery(resolve(`/pages/${data.pageSlug}/${firstItemId}/edit`), {
-			branch: branchQueryValue
-		});
+		return resolve(`/pages/${data.pageSlug}/${firstItemId}/edit`);
 	});
 	const newCollectionItemHref = $derived.by(() => {
 		if (!config?.collection) {
 			return null;
 		}
 
-		return buildPathWithQuery(resolve(`/pages/${data.pageSlug}/new`), {
-			branch: branchQueryValue
-		});
+		return resolve(`/pages/${data.pageSlug}/new`);
 	});
 
 	function getCollectionItemHref(itemId: string) {
-		return buildPathWithQuery(resolve(`/pages/${data.pageSlug}/${itemId}/edit`), {
-			branch: branchQueryValue
-		});
+		return resolve(`/pages/${data.pageSlug}/${itemId}/edit`);
 	}
 	const flashMessageKeys = [
 		'saved',
@@ -204,12 +196,6 @@
 					source: 'page-view.draft-status-401'
 				});
 				window.location.assign(redirectTarget);
-				return;
-			}
-
-			if (response.status === 409) {
-				draftStatusError =
-					'Tentman found conflicting draft branches. Merge or delete them before continuing.';
 				return;
 			}
 
@@ -328,9 +314,7 @@
 	});
 
 	function getEditHref() {
-		const path = resolve(`/pages/${discoveredConfig.slug}/edit`);
-		const branch = !isLocalMode && isSingletonContent ? activeBranch : undefined;
-		return branch ? `${path}?branch=${encodeURIComponent(branch)}` : path;
+		return resolve(`/pages/${discoveredConfig.slug}/edit`);
 	}
 </script>
 

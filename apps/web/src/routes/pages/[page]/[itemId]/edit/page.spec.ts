@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { load } from './+page';
 
 describe('routes/pages/[page]/[itemId]/edit/+page', () => {
-	it('preserves the explicit draft branch when redirecting unauthenticated users to login', async () => {
+	it('preserves the current route query when redirecting unauthenticated users to login', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -14,13 +14,12 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL('http://localhost/pages/posts/hello-world/edit?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/hello-world/edit?view=full'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location:
-				'/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%2Fedit%3Fbranch%3Dpreview-2026-04-06'
+			location: '/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%2Fedit%3Fview%3Dfull'
 		});
 	});
 
@@ -78,7 +77,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});
 
-	it('passes through an explicit draft branch for draft-backed item editing', async () => {
+	it('lets the server choose the managed draft branch for draft-backed item editing', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -122,15 +121,13 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL('http://localhost/pages/posts/hello-world/edit?branch=preview-2026-04-06'),
+				url: new URL('http://localhost/pages/posts/hello-world/edit'),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
 			branch: 'preview-2026-04-06'
 		});
 
-		expect(fetch).toHaveBeenCalledWith(
-			'/api/repo/item-view?slug=posts&itemId=hello-world&branch=preview-2026-04-06'
-		);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});
 });

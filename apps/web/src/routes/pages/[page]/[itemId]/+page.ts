@@ -1,10 +1,6 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
-import {
-	buildPathWithQuery,
-	buildReposRedirect,
-	readOptionalSearchParam
-} from '$lib/utils/routing';
+import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
@@ -32,12 +28,10 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 
 	depends('app:content');
 
-	const branch = readOptionalSearchParam(url.searchParams, 'branch');
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/item-view', {
 			slug: params.page,
-			itemId: params.itemId,
-			branch
+			itemId: params.itemId
 		})
 	);
 

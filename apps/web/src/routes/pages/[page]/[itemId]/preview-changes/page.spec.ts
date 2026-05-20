@@ -15,14 +15,14 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page', () => {
 					itemId: 'hello-world'
 				},
 				url: new URL(
-					'http://localhost/pages/posts/hello-world/preview-changes?data=abc&branch=preview-2026-04-06'
+					'http://localhost/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md'
 				),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
 			location:
-				'/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%2Fpreview-changes%3Fdata%3Dabc%26branch%3Dpreview-2026-04-06'
+				'/repos?returnTo=%2Fpages%2Fposts%2Fhello-world%2Fpreview-changes%3Fdata%3Dabc%26filename%3Dhello-world.md'
 		});
 	});
 
@@ -53,7 +53,7 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page', () => {
 		});
 	});
 
-	it('preserves the explicit branch when redirecting new-item previews back to the form', async () => {
+	it('redirects new-item previews back to the form without preserving a branch query', async () => {
 		await expect(
 			load({
 				parent: async () => ({
@@ -76,14 +76,12 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				url: new URL(
-					'http://localhost/pages/posts/hello-world/preview-changes?new=true&branch=preview-2026-04-06'
-				),
+				url: new URL('http://localhost/pages/posts/hello-world/preview-changes?new=true'),
 				depends: () => {}
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/pages/posts/new?branch=preview-2026-04-06'
+			location: '/pages/posts/new'
 		});
 	});
 
@@ -150,7 +148,7 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page', () => {
 		);
 	});
 
-	it('returns the explicit branch so preview routes can round-trip draft item context', async () => {
+	it('loads preview routes without round-tripping draft branch query params', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -196,12 +194,13 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page', () => {
 					itemId: 'hello-world'
 				},
 				url: new URL(
-					'http://localhost/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&branch=preview-2026-04-06'
+					'http://localhost/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md'
 				),
 				depends: () => {}
 			} as never)
 		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+			itemId: 'hello-world',
+			filename: 'hello-world.md'
 		});
 	});
 });

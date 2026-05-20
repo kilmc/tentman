@@ -29,14 +29,14 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 				delete: vi.fn()
 			},
 			url: new URL(
-				'http://localhost/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&branch=preview-2026-04-06'
+				'http://localhost/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md'
 			)
 		} as never);
 
 		expect(handleGitHubRouteError).toHaveBeenCalledWith(
 			{ locals: {}, cookies: { delete: expect.any(Function) } },
 			{ status: 401 },
-			'/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&branch=preview-2026-04-06'
+			'/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md'
 		);
 	});
 });

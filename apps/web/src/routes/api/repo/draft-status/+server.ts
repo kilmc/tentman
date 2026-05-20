@@ -1,7 +1,7 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getLatestPreviewBranchName } from '$lib/features/draft-publishing/service';
+import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
@@ -25,7 +25,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		let draftChanges = null;
 
 		try {
-			draftBranch = await getLatestPreviewBranchName(octokit, owner, name);
+			draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
 			if (draftBranch) {
 				draftChanges = await compareDraftToBranch(
 					octokit,
@@ -50,12 +50,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
 
-		if (
-			err &&
-			typeof err === 'object' &&
-			'status' in err &&
-			(err.status === 404 || err.status === 409)
-		) {
+		if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
 			throw err;
 		}
 

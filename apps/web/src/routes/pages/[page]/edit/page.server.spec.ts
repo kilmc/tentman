@@ -41,7 +41,7 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 		vi.clearAllMocks();
 	});
 
-	it('preserves the explicit branch when redirecting to page preview changes', async () => {
+	it('redirects back to the editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {},
 			octokit: {},
@@ -61,8 +61,7 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 					page: 'about'
 				},
 				request: createRequest({
-					data: JSON.stringify({ title: 'About' }),
-					branch: 'preview-2026-04-06'
+					data: JSON.stringify({ title: 'About' })
 				}),
 				cookies: {
 					delete: vi.fn()
@@ -70,7 +69,7 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
-			location: '/pages/about/edit?saved=true&branch=tentman-preview'
+			location: '/pages/about/edit?saved=true'
 		});
 	});
 
@@ -83,19 +82,18 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 				page: 'about'
 			},
 			request: createRequest({
-				data: JSON.stringify({ title: 'About' }),
-				branch: 'preview-2026-04-06'
+				data: JSON.stringify({ title: 'About' })
 			}),
 			cookies: {
 				delete: vi.fn()
 			},
-			url: new URL('http://localhost/pages/about/edit?branch=preview-2026-04-06')
+			url: new URL('http://localhost/pages/about/edit?view=full')
 		} as never);
 
 		expect(handleGitHubRouteError).toHaveBeenCalledWith(
 			{ locals: {}, cookies: { delete: expect.any(Function) } },
 			{ status: 401 },
-			'/pages/about/edit?branch=preview-2026-04-06'
+			'/pages/about/edit?view=full'
 		);
 	});
 });

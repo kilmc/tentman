@@ -18,17 +18,18 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
 				requestContext,
 				params.page
 			);
 			const formData = await request.formData();
-			const branch = (formData.get('branch') as string | null) || undefined;
-
 			const itemId = params.itemId;
+			const { branchName } = await ensureDraftBranch(octokit, owner, name);
 
 			// Delete the content - prepare options based on type
-			const deleteOptions: { itemId?: string; filename?: string; branch?: string } = { branch };
+			const deleteOptions: { itemId?: string; filename?: string; branch?: string } = {
+				branch: branchName
+			};
 
 			if (discoveredConfig.config.content.mode === 'directory') {
 				// Directory-backed collections need the stored filename to delete an entry
@@ -38,7 +39,7 @@ export const actions: Actions = {
 					discoveredConfig.config,
 					discoveredConfig.path,
 					params.page,
-					branch
+					branchName
 				);
 
 				if (Array.isArray(content)) {
@@ -64,8 +65,7 @@ export const actions: Actions = {
 			throw redirect(
 				303,
 				buildPathWithQuery(`/pages/${params.page}`, {
-					deleted: 'true',
-					branch
+					deleted: 'true'
 				})
 			);
 		} catch (err) {
@@ -92,12 +92,11 @@ export const actions: Actions = {
 			);
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
-			const requestedBranchName = (formData.get('branch') as string | null) || undefined;
 			const filename =
 				discoveredConfig.config.content.mode === 'directory'
 					? ((formData.get('filename') as string | null) ?? undefined)
 					: undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -136,8 +135,7 @@ export const actions: Actions = {
 			throw redirect(
 				303,
 				buildPathWithQuery(`/pages/${params.page}/${params.itemId}/edit`, {
-					saved: 'true',
-					branch: branchName
+					saved: 'true'
 				})
 			);
 		} catch (err) {

@@ -155,7 +155,7 @@
 									href={resolve('/publish')}
 									class="inline-flex items-center rounded-md bg-stone-950 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
 								>
-									Publish Changes
+									Review Draft
 								</a>
 							{/if}
 						{/if}

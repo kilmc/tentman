@@ -4,10 +4,10 @@ import type { Actions } from './$types';
 import { createContentDocument, saveContentDocument } from '$lib/content/service.js';
 import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
-import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftBranch, publishDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
-import { getRoutePath } from '$lib/utils/routing';
+import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { getExistingItemMutationOptions } from '$lib/server/preview';
 import type { ContentRecord } from '$lib/features/content-management/types';
@@ -30,8 +30,7 @@ export const actions: Actions = {
 			const newFilename = (formData.get('newFilename') as string) || undefined;
 
 			// Get or create draft branch
-			const formBranchName = formData.get('branchName') as string | null;
-			const { branchName, created } = await ensureDraftBranch(octokit, owner, name, formBranchName);
+			const { branchName, created } = await ensureDraftBranch(octokit, owner, name);
 			if (created) {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
@@ -94,7 +93,7 @@ export const actions: Actions = {
 			// Redirect back to index page
 			throw redirect(
 				303,
-				`/pages/${params.page}/${params.itemId}/edit?saved=true&branch=${encodeURIComponent(branchName)}`
+				buildPathWithQuery(`/pages/${params.page}/${params.itemId}/edit`, { saved: 'true' })
 			);
 		} catch (err) {
 			// Handle redirects
@@ -125,8 +124,7 @@ export const actions: Actions = {
 			const isNew = formData.get('isNew') === 'true';
 			const filename = (formData.get('filename') as string) || undefined;
 			const newFilename = (formData.get('newFilename') as string) || undefined;
-			const requestedBranchName = (formData.get('branchName') as string | null) || undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name, requestedBranchName);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -176,8 +174,15 @@ export const actions: Actions = {
 				});
 			}
 			await ensureDraftPullRequest(octokit, owner, name, branchName);
+			await publishDraftBranch(octokit, owner, name);
 
-			throw redirect(303, '/publish');
+			const { invalidateContent } = await import('$lib/stores/content-cache');
+			invalidateContent(backend.cacheKey);
+
+			const redirectPath = isNew
+				? `/pages/${params.page}`
+				: `/pages/${params.page}/${params.itemId}/edit`;
+			throw redirect(303, buildPathWithQuery(redirectPath, { published: 'true' }));
 		} catch (err) {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {

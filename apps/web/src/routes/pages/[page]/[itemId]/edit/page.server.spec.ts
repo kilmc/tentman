@@ -71,7 +71,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 		vi.clearAllMocks();
 	});
 
-	it('preserves the explicit branch when redirecting to item preview changes', async () => {
+	it('redirects back to the item editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {},
 			octokit: {},
@@ -89,8 +89,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 				},
 				request: createRequest({
 					data: JSON.stringify({ title: 'Hello world' }),
-					filename: 'hello-world.md',
-					branch: 'preview-2026-04-06'
+					filename: 'hello-world.md'
 				}),
 				cookies: {
 					delete: vi.fn()
@@ -98,13 +97,16 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
-			location: '/pages/posts/hello-world/edit?saved=true&branch=tentman-preview'
+			location: '/pages/posts/hello-world/edit?saved=true'
 		});
 	});
 
-	it('deletes the draft item from the explicit branch when provided', async () => {
+	it('deletes the draft item from the managed draft branch', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: { cacheKey: 'github:acme/docs' },
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
 			discoveredConfig: collectionConfig
 		} as never);
 		vi.mocked(getCachedContent).mockResolvedValue([
@@ -121,16 +123,14 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 					page: 'posts',
 					itemId: 'hello-world'
 				},
-				request: createRequest({
-					branch: 'preview-2026-04-06'
-				}),
+				request: createRequest({}),
 				cookies: {
 					delete: vi.fn()
 				}
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
-			location: '/pages/posts?deleted=true&branch=preview-2026-04-06'
+			location: '/pages/posts?deleted=true'
 		});
 
 		expect(getCachedContent).toHaveBeenCalledWith(
@@ -138,14 +138,14 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			collectionConfig.config,
 			collectionConfig.path,
 			'posts',
-			'preview-2026-04-06'
+			'tentman-preview'
 		);
 		expect(deleteContentDocument).toHaveBeenCalledWith(
 			{ cacheKey: 'github:acme/docs' },
 			collectionConfig.config,
 			collectionConfig.path,
 			{
-				branch: 'preview-2026-04-06',
+				branch: 'tentman-preview',
 				filename: 'hello-world.md'
 			}
 		);
@@ -162,19 +162,18 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			},
 			request: createRequest({
 				data: JSON.stringify({ title: 'Hello world' }),
-				filename: 'hello-world.md',
-				branch: 'preview-2026-04-06'
+				filename: 'hello-world.md'
 			}),
 			cookies: {
 				delete: vi.fn()
 			},
-			url: new URL('http://localhost/pages/posts/hello-world/edit?branch=preview-2026-04-06')
+			url: new URL('http://localhost/pages/posts/hello-world/edit?view=full')
 		} as never);
 
 		expect(handleGitHubRouteError).toHaveBeenCalledWith(
 			{ locals: {}, cookies: { delete: expect.any(Function) } },
 			{ status: 401 },
-			'/pages/posts/hello-world/edit?branch=preview-2026-04-06'
+			'/pages/posts/hello-world/edit?view=full'
 		);
 	});
 });

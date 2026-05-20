@@ -131,7 +131,7 @@ describe('routes/pages/+page', () => {
 	it('loads the changed pages overview through the thin summary endpoint', async () => {
 		const fetcher = vi.fn();
 		overviewMocks.loadPagesOverviewSummary.mockResolvedValue({
-			draftBranch: 'preview-2026-04-06',
+			draftBranch: 'tentman-preview',
 			changedPages: [
 				{
 					slug: 'posts',
@@ -198,7 +198,7 @@ describe('routes/pages/+page', () => {
 			} as never)
 		).toEqual({
 			summary: {
-				draftBranch: 'preview-2026-04-06',
+				draftBranch: 'tentman-preview',
 				changedPages: [
 					{
 						slug: 'posts',

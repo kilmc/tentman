@@ -203,7 +203,10 @@ vi.mock('$lib/stores/draft-branch', () => ({
 		subscribe(callback: (value: { branchName: string | null }) => void) {
 			callback({ branchName: null });
 			return () => {};
-		}
+		},
+		setBranch: vi.fn(),
+		hasDraft: vi.fn(() => false),
+		clear: vi.fn()
 	}
 }));
 
@@ -241,6 +244,7 @@ const layoutData = {
 		}
 	},
 	selectedRepo: null,
+	activeDraftBranch: null,
 	configs: [],
 	blockConfigs: [],
 	rootConfig: {

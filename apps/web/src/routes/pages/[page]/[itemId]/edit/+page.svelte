@@ -87,7 +87,6 @@
 	const config = $derived(discoveredConfig?.config ?? null);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
 	const isDraftView = $derived(!isLocalMode && !!data.branch);
-	const branchQuery = $derived(data.branch ? `?branch=${encodeURIComponent(data.branch)}` : '');
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
@@ -324,7 +323,6 @@
 			},
 			body: JSON.stringify({
 				action: 'add-collection-group',
-				branchName: get(draftBranchStore).branchName,
 				...input
 			})
 		});
@@ -745,9 +743,6 @@
 			}}
 		>
 			<input type="hidden" name="data" value="" />
-			{#if data.branch}
-				<input type="hidden" name="branch" value={data.branch} />
-			{/if}
 			{#if item?._filename}
 				<input type="hidden" name="filename" value={item._filename} />
 			{/if}
@@ -782,7 +777,7 @@
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 				<a
-					href={resolve(`/pages/${data.pageSlug}/${data.itemId}${branchQuery}`)}
+					href={resolve(`/pages/${data.pageSlug}/${data.itemId}`)}
 					class="tm-btn tm-btn-secondary"
 				>
 					Cancel
@@ -871,9 +866,6 @@
 							};
 						}}
 					>
-						{#if data.branch}
-							<input type="hidden" name="branch" value={data.branch} />
-						{/if}
 						<div class="flex gap-3">
 							<button
 								type="submit"

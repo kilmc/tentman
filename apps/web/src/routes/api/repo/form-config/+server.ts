@@ -3,12 +3,12 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
-import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
+import { getCachedConfigs } from '$lib/stores/config-cache';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const slug = url.searchParams.get('slug');
-	const branch = url.searchParams.get('branch') || undefined;
 	if (!slug) {
 		throw error(400, 'Missing page slug');
 	}
@@ -16,14 +16,18 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { backend, discoveredConfig } = await requireDiscoveredConfig(
+		const { backend, draftBranch } = await requireGitHubContentRepository(
 			requestContext,
-			slug,
 			`/pages/${slug}/new`
 		);
+		const discoveredConfig = (await getCachedConfigs(backend)).find((config) => config.slug === slug);
+
+		if (!discoveredConfig) {
+			throw error(404, 'Configuration not found');
+		}
 		const { blockConfigs, packageBlocks, blockRegistryError } =
 			await loadGitHubBlockRegistryData(backend);
-		const navigationManifest = await loadNavigationManifestState(backend, { ref: branch });
+		const navigationManifest = await loadNavigationManifestState(backend);
 
 		return json({
 			discoveredConfig,
@@ -32,7 +36,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			blockRegistryError,
 			navigationManifest,
 			pageSlug: slug,
-			branch: branch ?? null,
+			branch: draftBranch,
 			mode: 'github' as const
 		});
 	} catch (err) {
