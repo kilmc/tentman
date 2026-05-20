@@ -56,6 +56,7 @@ const localFlowMocks = vi.hoisted(() => {
 		instructionDiscovery: unknown;
 		error: string | null;
 	};
+
 	const backend = {
 		kind: 'local' as const,
 		cacheKey: 'local:docs',
@@ -63,11 +64,11 @@ const localFlowMocks = vi.hoisted(() => {
 		supportsDraftBranches: false
 	};
 	const discoveredConfig = {
-		slug: 'posts',
-		path: 'content/posts.json',
+		slug: 'about',
+		path: 'content/about.json',
 		config: {
-			label: 'Posts',
-			collection: true,
+			label: 'About',
+			collection: false,
 			blocks: [],
 			content: {
 				mode: 'file'
@@ -132,7 +133,8 @@ const localFlowMocks = vi.hoisted(() => {
 			});
 		}),
 		materializeDraftAssets: vi.fn(),
-		createContentDocument: vi.fn(),
+		fetchContentDocument: vi.fn(),
+		saveContentDocument: vi.fn(),
 		deleteDraftAsset: vi.fn(),
 		goto: vi.fn(),
 		resolve: vi.fn((path: string) => path),
@@ -141,7 +143,7 @@ const localFlowMocks = vi.hoisted(() => {
 });
 
 const pageState = vi.hoisted(() => ({
-	url: new URL('http://localhost/pages/posts/new')
+	url: new URL('http://localhost/pages/about/edit')
 }));
 
 vi.mock('$app/forms', () => ({
@@ -198,23 +200,24 @@ vi.mock('$lib/stores/local-repo', () => ({
 }));
 
 vi.mock('$lib/content/service', () => ({
-	createContentDocument: localFlowMocks.createContentDocument,
-	fetchContentDocument: vi.fn()
+	fetchContentDocument: localFlowMocks.fetchContentDocument,
+	saveContentDocument: localFlowMocks.saveContentDocument
 }));
 
-import NewItemPage from '../../../routes/pages/[page]/new/+page.svelte';
+import PageEditPage from '../../../routes/pages/[page]/edit/+page.svelte';
 
-describe('routes/pages/[page]/new/+page.svelte', () => {
+describe('routes/pages/[page]/edit/+page.svelte', () => {
 	beforeEach(() => {
 		localStorage.clear();
 		localFlowMocks.refresh.mockClear();
 		localFlowMocks.materializeDraftAssets.mockReset();
-		localFlowMocks.createContentDocument.mockReset();
+		localFlowMocks.fetchContentDocument.mockReset();
+		localFlowMocks.saveContentDocument.mockReset();
 		localFlowMocks.deleteDraftAsset.mockReset();
 		localFlowMocks.goto.mockReset();
 		localFlowMocks.resolve.mockClear();
 		localFlowMocks.beforeNavigateCallbacks = [];
-		pageState.url = new URL('http://localhost/pages/posts/new');
+		pageState.url = new URL('http://localhost/pages/about/edit');
 		localFlowMocks.localContentStore.set({
 			status: 'idle',
 			backendKey: null,
@@ -237,33 +240,39 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 		});
 		setMockFormGeneratorResult({
 			data: {
-				title: 'Hello world',
+				title: 'Updated about',
 				body: '![Hero](draft-asset:hero)'
 			},
 			errors: []
 		});
+		localFlowMocks.fetchContentDocument.mockResolvedValue({
+			title: 'About',
+			body: 'Original body'
+		});
 		localFlowMocks.materializeDraftAssets.mockResolvedValue({
 			content: {
-				title: 'Hello world',
+				title: 'Updated about',
 				body: '![Hero](/images/hero-asset.png)'
 			},
 			fileChanges: [],
 			cleanedRefs: ['draft-asset:hero']
 		});
-		localFlowMocks.createContentDocument.mockResolvedValue(undefined);
+		localFlowMocks.saveContentDocument.mockResolvedValue(undefined);
 		localFlowMocks.deleteDraftAsset.mockResolvedValue(undefined);
 		localFlowMocks.goto.mockResolvedValue(undefined);
 	});
 
-	it('cleans up staged assets after a successful local create flow', async () => {
-		const screen = render(NewItemPage, {
+	it('cleans up staged assets after a successful local page save', async () => {
+		const screen = render(PageEditPage, {
 			data: {
 				mode: 'local',
-				pageSlug: 'posts',
+				pageSlug: 'about',
 				discoveredConfig: null,
 				blockConfigs: [],
 				packageBlocks: [],
 				blockRegistryError: null,
+				content: null,
+				contentError: null,
 				branch: null
 			},
 			form: undefined as never
@@ -271,96 +280,62 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 
 		await expect.element(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
 
-		await screen.getByRole('button', { name: 'Create Item' }).click();
+		await screen.getByRole('button', { name: 'Save Changes' }).click();
 
-		await expect.poll(() => localFlowMocks.materializeDraftAssets.mock.calls.length).toBe(1);
-		expect(localFlowMocks.materializeDraftAssets).toHaveBeenCalledWith({
-			backend: localFlowMocks.backend,
-			content: {
-				title: 'Hello world',
-				body: '![Hero](draft-asset:hero)'
-			}
-		});
-		expect(localFlowMocks.createContentDocument).toHaveBeenCalledWith(
+		await expect.poll(() => localFlowMocks.saveContentDocument.mock.calls.length).toBe(1);
+		expect(localFlowMocks.saveContentDocument).toHaveBeenCalledWith(
 			localFlowMocks.backend,
 			localFlowMocks.discoveredConfig.config,
 			localFlowMocks.discoveredConfig.path,
 			{
-				title: 'Hello world',
+				title: 'Updated about',
 				body: '![Hero](/images/hero-asset.png)'
-			},
-			undefined
+			}
 		);
 		expect(localFlowMocks.deleteDraftAsset).toHaveBeenCalledWith('draft-asset:hero');
-		expect(localFlowMocks.refresh).toHaveBeenNthCalledWith(2, { force: true });
-		expect(localFlowMocks.goto).toHaveBeenCalledWith('/pages/posts?published=true');
-		expect(localFlowMocks.deleteDraftAsset.mock.invocationCallOrder[0]).toBeGreaterThan(
-			localFlowMocks.createContentDocument.mock.invocationCallOrder[0]
-		);
+		expect(localFlowMocks.goto).toHaveBeenCalledWith('/pages/about/edit?published=true');
 	});
 
-	it('shows dirty state from the form session and blocks navigation when discarded', async () => {
-		const screen = render(NewItemPage, {
-			data: {
-				mode: 'local',
-				pageSlug: 'posts',
-				discoveredConfig: null,
-				blockConfigs: [],
-				packageBlocks: [],
-				blockRegistryError: null,
-				branch: null
-			},
-			form: undefined as never
-		});
-
-		await expect.element(screen.getByText('Unsaved changes')).not.toBeInTheDocument();
-
-		await screen.getByTestId('mock-form-dirty').click();
-
-		await expect.element(screen.getByText('Unsaved changes')).toBeVisible();
-
-		const cancel = vi.fn();
-		const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-		localFlowMocks.beforeNavigateCallbacks.at(-1)?.({ cancel });
-
-		expect(confirm).toHaveBeenCalledWith(
-			'You have unsaved changes. Are you sure you want to leave?'
-		);
-		expect(cancel).toHaveBeenCalled();
-		confirm.mockRestore();
-	});
-
-	it('recovers unsaved local draft state after reload-style interruption', async () => {
+	it('recovers unsaved local page edits after interruption', async () => {
 		localStorage.setItem(
-			'tentman:editor-recovery:v1:/pages/posts/new',
+			'tentman:editor-recovery:v1:/pages/about/edit',
 			JSON.stringify({
 				version: 1,
-				routeKey: '/pages/posts/new',
+				routeKey: '/pages/about/edit',
 				contextKey: 'local:local:docs',
-				baselineFingerprint: '{}',
+				baselineFingerprint: JSON.stringify({
+					title: 'About',
+					body: 'Original body'
+				}),
 				recoveredAt: 123,
 				session: {
 					data: {
-						title: 'Recovered hello world'
+						title: 'Recovered about'
 					},
-					baseline: {},
+					baseline: {
+						title: 'About'
+					},
 					panelStack: []
 				}
 			})
 		);
 		setMockFormGeneratorResult({
-			data: {},
+			data: {
+				title: 'About'
+			},
 			errors: []
 		});
 
-		const screen = render(NewItemPage, {
+		const screen = render(PageEditPage, {
 			data: {
 				mode: 'local',
-				pageSlug: 'posts',
+				pageSlug: 'about',
 				discoveredConfig: null,
 				blockConfigs: [],
 				packageBlocks: [],
 				blockRegistryError: null,
+				content: null,
+				contentError: null,
 				branch: null
 			},
 			form: undefined as never
@@ -370,6 +345,6 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 		await screen.getByRole('button', { name: 'Recover changes' }).click();
 		await expect
 			.element(screen.getByTestId('mock-form-data'))
-			.toHaveTextContent('Recovered hello world');
+			.toHaveTextContent('Recovered about');
 	});
 });

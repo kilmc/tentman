@@ -28,6 +28,25 @@ const config = {
 };
 
 describe('components/form/FormGenerator.svelte', () => {
+	it('marks the form dirty and submits changed text field values', async () => {
+		const screen = render(FormGeneratorSubmitHarness, {
+			config,
+			blockRegistry,
+			initialData: {
+				title: 'Original title'
+			},
+			width: 640
+		});
+
+		const titleInput = screen.getByLabelText('Title');
+		await titleInput.fill('Updated title');
+
+		await expect.element(screen.getByTestId('form-dirty-state')).toHaveTextContent('dirty');
+
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent('Updated title');
+	});
+
 	it('renders the aside as a collapsed stacked section in narrow containers', async () => {
 		const screen = render(FormGeneratorSubmitHarness, {
 			config,
