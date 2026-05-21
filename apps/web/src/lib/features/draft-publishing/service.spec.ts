@@ -1,11 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/github/branch', () => ({
-	createBranch: vi.fn()
+	createBranch: vi.fn(),
+	deleteBranch: vi.fn()
 }));
 
-import { TENTMAN_DRAFT_BRANCH, ensureDraftBranch, getTentmanDraftBranchName } from './service';
-import { createBranch } from '$lib/github/branch';
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn(),
+	closeDraftPullRequest: vi.fn()
+}));
+
+import {
+	TENTMAN_DRAFT_BRANCH,
+	discardDraftBranch,
+	ensureDraftBranch,
+	getTentmanDraftBranchName,
+	publishDraftBranch
+} from './service';
+import { createBranch, deleteBranch } from '$lib/github/branch';
+import { closeDraftPullRequest, ensureDraftPullRequest } from '$lib/github/pull-request';
 
 function createOctokit(branchNames: string[]) {
 	return {
@@ -16,6 +29,9 @@ function createOctokit(branchNames: string[]) {
 						name
 					}))
 				}))
+			},
+			pulls: {
+				merge: vi.fn(async () => ({}))
 			}
 		}
 	} as never;
@@ -72,5 +88,46 @@ describe('draft-publishing/service', () => {
 			'docs',
 			TENTMAN_DRAFT_BRANCH
 		);
+	});
+
+	it('publishes the managed draft branch through the matching pull request and deletes the branch', async () => {
+		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]);
+		vi.mocked(ensureDraftPullRequest).mockResolvedValue({
+			number: 42
+		} as never);
+
+		await expect(publishDraftBranch(octokit, 'acme', 'docs')).resolves.toEqual({
+			branchName: TENTMAN_DRAFT_BRANCH
+		});
+
+		expect(ensureDraftPullRequest).toHaveBeenCalledWith(
+			octokit,
+			'acme',
+			'docs',
+			TENTMAN_DRAFT_BRANCH
+		);
+		expect(octokit.rest.pulls.merge).toHaveBeenCalledWith({
+			owner: 'acme',
+			repo: 'docs',
+			pull_number: 42,
+			commit_title: 'Publish Tentman draft changes'
+		});
+		expect(deleteBranch).toHaveBeenCalledWith(octokit, 'acme', 'docs', TENTMAN_DRAFT_BRANCH);
+	});
+
+	it('discards the managed draft branch and closes its pull request before deleting it', async () => {
+		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]);
+
+		await expect(discardDraftBranch(octokit, 'acme', 'docs')).resolves.toEqual({
+			branchName: TENTMAN_DRAFT_BRANCH
+		});
+
+		expect(closeDraftPullRequest).toHaveBeenCalledWith(
+			octokit,
+			'acme',
+			'docs',
+			TENTMAN_DRAFT_BRANCH
+		);
+		expect(deleteBranch).toHaveBeenCalledWith(octokit, 'acme', 'docs', TENTMAN_DRAFT_BRANCH);
 	});
 });

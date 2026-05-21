@@ -92,4 +92,31 @@ describe('routes/publish/+page', () => {
 			location: '/repos?returnTo=%2Fpublish'
 		});
 	});
+
+	it('surfaces a not-found error when there is no managed draft branch to review', async () => {
+		await expect(
+			load({
+				parent: async () => ({
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'github',
+						repo: {
+							owner: 'acme',
+							name: 'docs',
+							full_name: 'acme/docs'
+						}
+					}
+				}),
+				fetch: async () => new Response(null, { status: 404 }),
+				depends: () => {}
+			} as never)
+		).rejects.toMatchObject({
+			status: 404
+		});
+	});
 });
