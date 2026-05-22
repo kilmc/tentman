@@ -15,7 +15,16 @@ import {
 } from './paths.js';
 import { NAVIGATION_MANIFEST_PATH, parseNavigationManifest } from './manifest.js';
 
-export const ROOT_CONFIG_PATH = '.tentman.json';
+export const ROOT_CONFIG_PATH = 'tentman.json';
+
+export class TentmanProjectError extends Error {
+	constructor(code, message, details = {}) {
+		super(message);
+		this.name = 'TentmanProjectError';
+		this.code = code;
+		Object.assign(this, details);
+	}
+}
 
 async function pathExists(absolutePath) {
 	try {
@@ -24,6 +33,19 @@ async function pathExists(absolutePath) {
 	} catch {
 		return false;
 	}
+}
+
+async function isDirectory(absolutePath) {
+	try {
+		const stats = await fs.stat(absolutePath);
+		return stats.isDirectory();
+	} catch {
+		return false;
+	}
+}
+
+async function hasGitBoundary(directoryPath) {
+	return pathExists(path.join(directoryPath, '.git'));
 }
 
 async function walkDirectory(rootDir, currentDir) {
@@ -71,6 +93,30 @@ export function parseRootConfig(source) {
 				: undefined,
 		raw: input
 	};
+}
+
+export async function resolveTentmanProjectRoot(inputPath) {
+	const resolvedInputPath = path.resolve(inputPath);
+	let currentDir = (await isDirectory(resolvedInputPath))
+		? resolvedInputPath
+		: path.dirname(resolvedInputPath);
+
+	while (true) {
+		if (await hasGitBoundary(currentDir)) {
+			return currentDir;
+		}
+
+		const parentDir = path.dirname(currentDir);
+		if (parentDir === currentDir) {
+			throw new TentmanProjectError(
+				'git.not-found',
+				`No git repository found for ${resolvedInputPath}`,
+				{ inputPath: resolvedInputPath }
+			);
+		}
+
+		currentDir = parentDir;
+	}
 }
 
 function parseBlockConfig(source, blockPath) {
@@ -192,19 +238,47 @@ async function readContentItems(rootDir, config) {
 }
 
 export async function loadTentmanProject(projectRoot) {
-	const rootDir = path.resolve(projectRoot);
+	const rootDir = await resolveTentmanProjectRoot(projectRoot);
 	const rootConfigPath = resolveProjectPath(rootDir, ROOT_CONFIG_PATH);
-	const rootConfigSource = await fs.readFile(rootConfigPath, 'utf8');
-	const rootConfig = parseRootConfig(rootConfigSource);
+
+	let rootConfigSource;
+	try {
+		rootConfigSource = await fs.readFile(rootConfigPath, 'utf8');
+	} catch (error) {
+		if (error && typeof error === 'object' && error.code === 'ENOENT') {
+			throw new TentmanProjectError(
+				'root-config.missing',
+				`No ${ROOT_CONFIG_PATH} found at ${rootDir}`,
+				{ rootDir, path: ROOT_CONFIG_PATH }
+			);
+		}
+
+		throw error;
+	}
+
+	let rootConfig;
+	try {
+		rootConfig = parseRootConfig(rootConfigSource);
+	} catch (error) {
+		throw new TentmanProjectError(
+			'root-config.invalid',
+			error instanceof Error ? error.message : `Failed to parse ${ROOT_CONFIG_PATH}`,
+			{ rootDir, path: ROOT_CONFIG_PATH, cause: error }
+		);
+	}
+
 	const configsDir = stripLeadingDotSlash(rootConfig.configsDir ?? 'tentman/configs');
 	const configsDirPath = resolveProjectPath(rootDir, configsDir);
+	const configsDirExists = await pathExists(configsDirPath);
 	const blocksDir = rootConfig.blocksDir ? stripLeadingDotSlash(rootConfig.blocksDir) : null;
 	const blocksDirPath = blocksDir ? resolveProjectPath(rootDir, blocksDir) : null;
 	const blocksDirExists = blocksDirPath ? await pathExists(blocksDirPath) : false;
 	const componentsDir = stripLeadingDotSlash(rootConfig.componentsDir ?? 'src/lib/content-components');
-	const configPaths = (await walkDirectory(rootDir, configsDirPath))
-		.filter((file) => file.endsWith('.tentman.json'))
-		.sort();
+	const configPaths = configsDirExists
+		? (await walkDirectory(rootDir, configsDirPath))
+				.filter((file) => file.endsWith('.tentman.json'))
+				.sort()
+		: [];
 
 	const configs = [];
 	for (const configPath of configPaths) {
@@ -251,9 +325,11 @@ export async function loadTentmanProject(projectRoot) {
 
 	return {
 		rootDir,
+		rootConfigPath: ROOT_CONFIG_PATH,
 		rootConfig,
 		rootConfigSource,
 		configsDir: toPosixPath(configsDir),
+		configsDirExists,
 		configs,
 		contentByConfigPath,
 		blocksDir: blocksDir ? toPosixPath(blocksDir) : null,

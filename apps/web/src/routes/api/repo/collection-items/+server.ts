@@ -1,36 +1,22 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import { getOrderedCollectionNavigation } from '$lib/features/content-management/navigation';
-import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getCachedContent } from '$lib/stores/content-cache';
-import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { handleGitHubSessionError } from '$lib/server/auth/github';
+import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
-	if (!locals.isAuthenticated || !locals.githubToken) {
-		throw error(401, 'Not authenticated');
-	}
-
-	if (!locals.selectedRepo) {
-		throw error(400, 'No repository selected');
-	}
-
 	const slug = url.searchParams.get('slug');
 	if (!slug) {
 		throw error(400, 'Missing collection slug');
 	}
 
-	const octokit = createGitHubServerClient(locals.githubToken, cookies);
-	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
+	const requestContext = { locals, cookies };
 
 	try {
-		const [configs, navigationManifest, rootConfig] = await Promise.all([
-			getCachedConfigs(backend),
-			loadNavigationManifestState(backend),
-			backend.readRootConfig()
-		]);
+		const { backend, configs, navigationManifest, rootConfig } =
+			await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
 		const discoveredConfig = configs.find((config) => config.slug === slug);
 
 		if (!discoveredConfig) {
@@ -57,7 +43,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			)
 		);
 	} catch (err) {
-		handleGitHubSessionError({ cookies }, err);
+		handleGitHubSessionError(requestContext, err);
 
 		if (err && typeof err === 'object' && 'status' in err) {
 			throw err;

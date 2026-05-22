@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
@@ -9,13 +8,10 @@ import {
 	loadTentmanProject
 } from './index.js';
 import { serializeJson } from './json.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-component-inspect-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-component-inspect-');
 }
 
 test('inspects a scaffolded content component by name', async () => {
@@ -43,7 +39,7 @@ test('inspects a scaffolded content component by name', async () => {
 
 test('inspects a scaffolded content component by id from a configured directory', async () => {
 	const projectRoot = await copyFixture();
-	const rootConfigPath = path.join(projectRoot, '.tentman.json');
+	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.componentsDir = './src/lib/components/content';
 	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));

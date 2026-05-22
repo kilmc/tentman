@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { listTentmanContent, loadTentmanProject } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 test('lists discovered content configs with summary metadata', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-list-'));
 	const content = listTentmanContent(project);
 
 	assert.equal(content.length, 6);
@@ -24,7 +24,7 @@ test('lists discovered content configs with summary metadata', async () => {
 });
 
 test('lists collection items by any known config reference', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-list-'));
 	const content = listTentmanContent(project, 'blog');
 
 	assert.equal(content.config.label, 'Blog Posts');
@@ -38,7 +38,7 @@ test('lists collection items by any known config reference', async () => {
 });
 
 test('throws when listing an unknown config reference', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-list-'));
 
 	assert.throws(() => listTentmanContent(project, 'missing-config'), /Unknown content config reference/);
 });

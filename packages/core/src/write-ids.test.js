@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
@@ -9,14 +8,10 @@ import {
 	summarizeIdWriteChanges,
 	writeMissingTentmanIds
 } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	await stripFixtureIds(projectRoot);
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-');
 }
 
 async function stripFixtureIds(projectRoot) {
@@ -51,6 +46,7 @@ function createDeterministicIdGenerator() {
 
 test('writes missing config and collection item ids', async () => {
 	const projectRoot = await copyFixture();
+	await stripFixtureIds(projectRoot);
 	const project = await loadTentmanProject(projectRoot);
 	const changes = await writeMissingTentmanIds(project, {
 		generateId: createDeterministicIdGenerator()
@@ -91,6 +87,7 @@ test('writes missing config and collection item ids', async () => {
 
 test('writes missing collection group ids', async () => {
 	const projectRoot = await copyFixture();
+	await stripFixtureIds(projectRoot);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
 	blogConfig.collection = {
@@ -132,6 +129,7 @@ test('writes missing collection group ids', async () => {
 
 test('replaces legacy and malformed ids', async () => {
 	const projectRoot = await copyFixture();
+	await stripFixtureIds(projectRoot);
 	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const postPath = path.join(projectRoot, 'src/content/posts/designing-a-realistic-fixture.md');
@@ -206,6 +204,7 @@ test('replaces legacy and malformed ids', async () => {
 
 test('backfills _tentmanGroupId from legacy group values without rewriting group', async () => {
 	const projectRoot = await copyFixture();
+	await stripFixtureIds(projectRoot);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
 	blogConfig.collection = {
@@ -257,6 +256,7 @@ test('backfills _tentmanGroupId from legacy group values without rewriting group
 
 test('does not overwrite an existing _tentmanGroupId during backfill', async () => {
 	const projectRoot = await copyFixture();
+	await stripFixtureIds(projectRoot);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
 	blogConfig.collection = {

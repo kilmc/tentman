@@ -107,7 +107,7 @@ describe('routes/repos/+page.server', () => {
 
 	it('keeps the selection flow alive when reading the root config fails without auth expiry', async () => {
 		const cookies = createCookies();
-		const rootConfigError = new Error('No .tentman.json in this repo');
+		const rootConfigError = new Error('No tentman.json in this repo');
 		mocks.readRootConfig.mockRejectedValue(rootConfigError);
 
 		await expect(

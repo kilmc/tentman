@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { get } from 'svelte/store';
 	import type { PageData } from './$types';
@@ -63,7 +63,7 @@
 			await localContent.refresh({ force: true });
 		}
 
-		await invalidateAll();
+		await invalidate('app:content');
 	}
 
 	async function handleRepairNavigationState() {

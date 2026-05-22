@@ -172,12 +172,12 @@ skip_if_exists: true
 		backend,
 		localRepoStore,
 		hydrate: vi.fn(async () => {}),
-		invalidateAll: vi.fn(async () => {})
+		invalidate: vi.fn(async () => {})
 	};
 });
 
 vi.mock('$app/navigation', () => ({
-	invalidateAll: instructionsPageMocks.invalidateAll
+	invalidate: instructionsPageMocks.invalidate
 }));
 
 vi.mock('$lib/stores/local-repo', () => ({
@@ -261,7 +261,7 @@ const services: InstructionsWorkspaceServices = {
 
 describe('InstructionsWorkspace', () => {
 	beforeEach(() => {
-		instructionsPageMocks.invalidateAll.mockClear();
+		instructionsPageMocks.invalidate.mockClear();
 		instructionsPageMocks.hydrate.mockClear();
 
 		for (const key of Object.keys(instructionsPageMocks.files)) {
@@ -343,5 +343,6 @@ describe('InstructionsWorkspace', () => {
 		expect(instructionsPageMocks.files['src/routes/press-kit/+page.svelte']).toBe(
 			'<h1>Existing page</h1>\n'
 		);
+		expect(instructionsPageMocks.invalidate).toHaveBeenCalledWith('app:content');
 	});
 });

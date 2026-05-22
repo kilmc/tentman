@@ -2,6 +2,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
+	invalidateNavigationManifestStateCache,
 	loadNavigationManifestState,
 	parseNavigationManifest,
 	reconcileManualNavigationSetup,
@@ -16,9 +17,12 @@ import {
 	addNavigationGroupToManifest
 } from '$lib/features/content-management/navigation-group-options';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
+import {
+	createGitHubRepositoryBackend,
+	invalidateGitHubRepositoryMetadataCache
+} from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
-import { getCachedConfigs } from '$lib/stores/config-cache';
+import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
 
 const CONFIG_ID_COMMIT_MESSAGE = 'Add Tentman content config ids';
 const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
@@ -185,6 +189,11 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 					ref: draftBranch.branchName
 				}
 			: {};
+		const draftBackend = draftBranch
+			? createGitHubRepositoryBackend(octokit, locals.selectedRepo, {
+					defaultRef: draftBranch.branchName
+				})
+			: null;
 		const nextConfigs = configs.map((config) => ({
 			...config,
 			config: {
@@ -305,6 +314,17 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 					...writeOptions
 				}
 			);
+		}
+
+		invalidateCache(backend.cacheKey);
+		invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
+		invalidateNavigationManifestStateCache(backend);
+		invalidateNavigationManifestStateCache(backend, writeOptions);
+
+		if (draftBackend) {
+			invalidateCache(draftBackend.cacheKey);
+			invalidateGitHubRepositoryMetadataCache(draftBackend.cacheKey);
+			invalidateNavigationManifestStateCache(draftBackend);
 		}
 
 		return json({

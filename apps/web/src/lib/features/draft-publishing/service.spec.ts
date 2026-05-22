@@ -12,6 +12,7 @@ vi.mock('$lib/github/pull-request', () => ({
 
 import {
 	TENTMAN_DRAFT_BRANCH,
+	clearDraftBranchCache,
 	discardDraftBranch,
 	ensureDraftBranch,
 	getTentmanDraftBranchName,
@@ -24,11 +25,17 @@ function createOctokit(branchNames: string[]) {
 	return {
 		rest: {
 			repos: {
-				listBranches: vi.fn(async () => ({
-					data: branchNames.map((name) => ({
-						name
-					}))
-				}))
+				getBranch: vi.fn(async ({ branch }: { branch: string }) => {
+					if (branchNames.includes(branch)) {
+						return {
+							data: {
+								name: branch
+							}
+						};
+					}
+
+					throw { status: 404 };
+				})
 			},
 			pulls: {
 				merge: vi.fn(async () => ({}))
@@ -40,6 +47,7 @@ function createOctokit(branchNames: string[]) {
 describe('draft-publishing/service', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearDraftBranchCache();
 	});
 
 	it('returns the managed draft branch when it is the only Tentman draft branch', async () => {
@@ -62,6 +70,26 @@ describe('draft-publishing/service', () => {
 				'docs'
 			)
 		).resolves.toBe(TENTMAN_DRAFT_BRANCH);
+	});
+
+	it('caches draft branch lookups until the cache is cleared', async () => {
+		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]);
+
+		await expect(getTentmanDraftBranchName(octokit, 'acme', 'docs')).resolves.toBe(
+			TENTMAN_DRAFT_BRANCH
+		);
+		await expect(getTentmanDraftBranchName(octokit, 'acme', 'docs')).resolves.toBe(
+			TENTMAN_DRAFT_BRANCH
+		);
+
+		expect(octokit.rest.repos.getBranch).toHaveBeenCalledTimes(1);
+
+		clearDraftBranchCache();
+
+		await expect(getTentmanDraftBranchName(octokit, 'acme', 'docs')).resolves.toBe(
+			TENTMAN_DRAFT_BRANCH
+		);
+		expect(octokit.rest.repos.getBranch).toHaveBeenCalledTimes(2);
 	});
 
 	it('reuses the canonical draft branch when it already exists', async () => {

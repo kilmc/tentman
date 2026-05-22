@@ -25,6 +25,7 @@ const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 const MAX_RECENT_REPOS = 5;
 const LOGIN_COOLDOWN_MAX_AGE = 15;
 const OAUTH_REQUEST_MAX_AGE = 60 * 10;
+export const GITHUB_REST_API_VERSION = '2022-11-28';
 
 interface GitHubSessionSnapshot {
 	v: 1;
@@ -339,7 +340,14 @@ export function isGitHubUnauthorizedError(value: unknown): boolean {
 }
 
 export function createGitHubServerClient(token: string, cookies: Pick<Cookies, 'delete'>): Octokit {
-	const octokit = new Octokit({ auth: token });
+	const octokit = new Octokit({
+		auth: token,
+		request: {
+			headers: {
+				'X-GitHub-Api-Version': GITHUB_REST_API_VERSION
+			}
+		}
+	});
 
 	octokit.hook.error('request', async (error) => {
 		if (isGitHubUnauthorizedError(error)) {

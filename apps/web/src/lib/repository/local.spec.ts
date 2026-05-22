@@ -155,7 +155,7 @@ describe('createLocalRepositoryBackend', () => {
 			tentman: createDirectoryHandle({
 				configs: configsHandle
 			}),
-			'.tentman.json': createFileHandle(
+			'tentman.json': createFileHandle(
 				JSON.stringify({
 					configsDir: './tentman/configs'
 				})
@@ -208,7 +208,7 @@ describe('createLocalRepositoryBackend', () => {
 		} as unknown as FileSystemDirectoryHandle;
 
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(
+			'tentman.json': createFileHandle(
 				JSON.stringify({
 					configsDir: './tentman/configs'
 				})
@@ -275,7 +275,7 @@ describe('createLocalRepositoryBackend', () => {
 		} as unknown as FileSystemDirectoryHandle;
 
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(
+			'tentman.json': createFileHandle(
 				JSON.stringify({
 					configsDir: './tentman/configs',
 					blocksDir: './tentman/blocks'
@@ -335,7 +335,7 @@ describe('createLocalRepositoryBackend', () => {
 			}`)
 		};
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			'tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
 			tentman: createDirectoryHandle({
 				configs: createDirectoryHandle(configEntries)
 			})
@@ -378,7 +378,7 @@ describe('createLocalRepositoryBackend', () => {
 			"blocks": []
 		}`;
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			'tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
 			tentman: createDirectoryHandle({
 				configs: createDirectoryHandle({
 					'posts.tentman.json': createFileHandle(() => configContent)
@@ -470,7 +470,7 @@ describe('createLocalRepositoryBackend', () => {
 			}
 		});
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			'tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
 			tentman: createDirectoryHandle({
 				'navigation-manifest.json': createFileHandle(() => navigationManifest),
 				configs: createDirectoryHandle({
@@ -514,7 +514,7 @@ describe('createLocalRepositoryBackend', () => {
 			"blocks": []
 		}`;
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
+			'tentman.json': createFileHandle(JSON.stringify({ configsDir: './tentman/configs' })),
 			tentman: createDirectoryHandle({
 				configs: createDirectoryHandle({
 					'posts.tentman.json': createFileHandle(() => postsConfig)
@@ -557,7 +557,7 @@ describe('createLocalRepositoryBackend', () => {
 			configsDir: './tentman/configs'
 		});
 		const rootHandle = createDirectoryHandle({
-			'.tentman.json': createFileHandle(() => rootConfig),
+			'tentman.json': createFileHandle(() => rootConfig),
 			tentman: createDirectoryHandle({
 				configs: createDirectoryHandle({
 					'posts.tentman.json': createFileHandle(`{

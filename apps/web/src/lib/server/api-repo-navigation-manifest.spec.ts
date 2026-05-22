@@ -33,6 +33,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 		},
 		error: null
 	})),
+	invalidateNavigationManifestStateCache: vi.fn(),
 	parseNavigationManifest: vi.fn((value: string) => JSON.parse(value)),
 	saveCollectionOrder: vi.fn(async () => ({
 		version: 1,
@@ -71,7 +72,8 @@ vi.mock('$lib/repository/github', () => ({
 			})
 		),
 		writeTextFile: vi.fn(async () => {})
-	}))
+	})),
+	invalidateGitHubRepositoryMetadataCache: vi.fn()
 }));
 
 vi.mock('$lib/features/draft-publishing/service', () => ({

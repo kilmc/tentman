@@ -19,7 +19,8 @@ vi.mock('$lib/stores/config-cache', () => ({
 vi.mock('$lib/repository/github', () => ({
 	createGitHubRepositoryBackend: vi.fn(() => ({
 		cacheKey: 'github:acme/docs'
-	}))
+	})),
+	invalidateGitHubRepositoryMetadataCache: vi.fn()
 }));
 
 vi.mock('$lib/server/auth/github', async () => {

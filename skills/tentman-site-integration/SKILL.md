@@ -1,6 +1,6 @@
 ---
 name: tentman-site-integration
-description: Use when integrating Tentman into an existing website, adding or revising `.tentman.json` or `*.tentman.json` files, mapping an existing site content model onto Tentman, or updating an existing Tentman integration using the latest published docs.
+description: Use when integrating Tentman into an existing website, adding or revising `tentman.json` or `*.tentman.json` files, mapping an existing site content model onto Tentman, or updating an existing Tentman integration using the latest published docs.
 ---
 
 # Tentman Site Integration
@@ -58,7 +58,7 @@ If no CLI entrypoint is available, continue with careful file inspection and exp
 
 1. `blockPackages` work in GitHub-backed or server mode, not local browser-backed mode.
 2. In local mode, custom adapter files must be self-contained ESM `.js` or `.mjs` modules.
-3. Root config paths resolve relative to `.tentman.json`.
+3. Root config paths resolve relative to `tentman.json`.
 4. Content paths resolve relative to the config file that declares them.
 5. Block adapter paths resolve relative to the block config that declares them.
 

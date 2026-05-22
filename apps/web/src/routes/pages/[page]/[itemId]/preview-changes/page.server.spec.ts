@@ -24,7 +24,8 @@ vi.mock('$lib/github/pull-request', () => ({
 }));
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
-	syncCollectionItemGroupSelection: vi.fn()
+	syncCollectionItemGroupSelection: vi.fn(),
+	invalidateNavigationManifestStateCache: vi.fn()
 }));
 
 vi.mock('$lib/stores/content-cache', () => ({

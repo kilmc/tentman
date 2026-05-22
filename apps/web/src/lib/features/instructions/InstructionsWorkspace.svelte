@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { createInstructionInputDefaults, normalizeSlug } from '$lib/features/instructions/input';
@@ -415,7 +415,7 @@
 				activePlan = payload.plan;
 			}
 
-			await invalidateAll();
+			await invalidate('app:content');
 			await refreshInstructions({ preservePlanState: true });
 		} catch (error) {
 			applyError = error instanceof Error ? error.message : 'Could not finish creating this.';

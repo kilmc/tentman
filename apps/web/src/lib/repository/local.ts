@@ -331,12 +331,12 @@ export function createLocalRepositoryBackend(
 
 	function shouldInvalidateDiscovery(path: string): boolean {
 		const normalizedPath = path.replace(/^\.\//, '');
-		return normalizedPath === '.tentman.json' || normalizedPath.endsWith('.tentman.json');
+		return normalizedPath === 'tentman.json' || normalizedPath.endsWith('.tentman.json');
 	}
 
 	async function readRootConfigFromDisk(): Promise<RootConfig | null> {
 		try {
-			const content = await readFileText(rootHandle, '.tentman.json');
+			const content = await readFileText(rootHandle, 'tentman.json');
 			return parseRootConfig(content);
 		} catch {
 			return null;
@@ -345,7 +345,7 @@ export function createLocalRepositoryBackend(
 
 	async function readRootConfigTextFromDisk(): Promise<string | null> {
 		try {
-			return await readFileText(rootHandle, '.tentman.json');
+			return await readFileText(rootHandle, 'tentman.json');
 		} catch {
 			return null;
 		}

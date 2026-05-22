@@ -26,6 +26,10 @@ vi.mock('$lib/stores/content-cache', () => ({
 	invalidateContent: vi.fn()
 }));
 
+vi.mock('$lib/features/content-management/navigation-manifest', () => ({
+	invalidateNavigationManifestStateCache: vi.fn()
+}));
+
 import { actions } from './+page.server';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateContent } from '$lib/stores/content-cache';

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { explainTentmanNavigation, loadTentmanProject } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 test('explains top-level config navigation position', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-explain-'));
 	const explanation = explainTentmanNavigation(project, 'contact');
 
 	assert.deepEqual(explanation, {
@@ -20,7 +20,7 @@ test('explains top-level config navigation position', async () => {
 });
 
 test('explains collection item navigation position and manifest group membership', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-explain-'));
 	const explanation = explainTentmanNavigation(project, 'blog', 'why-this-test-app-is-so-plain');
 
 	assert.deepEqual(explanation, {
@@ -45,7 +45,7 @@ test('explains collection item navigation position and manifest group membership
 });
 
 test('throws when explaining an unknown collection item reference', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-explain-'));
 
 	assert.throws(
 		() => explainTentmanNavigation(project, 'blog', 'missing-item'),

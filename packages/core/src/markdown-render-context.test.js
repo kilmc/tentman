@@ -12,6 +12,7 @@ async function createMarkdownRenderContextFixture() {
 	const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-markdown-context-'));
 
 	await Promise.all([
+		fs.mkdir(path.join(projectRoot, '.git'), { recursive: true }),
 		fs.mkdir(path.join(projectRoot, 'tentman/configs'), { recursive: true }),
 		fs.mkdir(path.join(projectRoot, 'tentman/blocks'), { recursive: true }),
 		fs.mkdir(path.join(projectRoot, 'src/routes/about'), { recursive: true }),
@@ -21,7 +22,7 @@ async function createMarkdownRenderContextFixture() {
 
 	await Promise.all([
 		fs.writeFile(
-			path.join(projectRoot, '.tentman.json'),
+			path.join(projectRoot, 'tentman.json'),
 			JSON.stringify(
 				{
 					configsDir: './tentman/configs',

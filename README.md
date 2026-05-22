@@ -113,7 +113,7 @@ Notes:
 
 Most repos only need:
 
-1. An optional root config at `.tentman.json`
+1. A root config at `tentman.json`
 2. One or more content configs like `tentman/configs/blog.tentman.json`
 3. Optional reusable block configs like `tentman/blocks/image-gallery.tentman.json`
 4. An optional navigation manifest at `tentman/navigation-manifest.json`
@@ -696,7 +696,7 @@ alone and are no longer Tentman’s canonical group-membership storage.
 
 Path rules:
 
-- Root config paths resolve relative to `.tentman.json`
+- Root config paths resolve relative to `tentman.json`
 - Content paths resolve relative to the config file that declares them
 - Block adapter paths resolve relative to the block config that declares them
 - Files beginning with `_` are skipped during top-level content discovery
@@ -705,7 +705,7 @@ Path rules:
 
 [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app) is the current reference implementation for a consumer repo. It includes:
 
-- Root config in [`/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json)
+- Root config in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json)
 - Content configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs)
 - Reusable blocks in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks)
 - A template file in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md)

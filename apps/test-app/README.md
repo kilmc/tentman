@@ -6,7 +6,7 @@ If you want another repository to copy the Tentman config layout, this is the be
 
 ## What It Shows
 
-- Root config in [`/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json)
+- Root config in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json)
 - Content configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs)
 - Reusable block configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks)
 - A directory-backed collection for blog posts
@@ -21,7 +21,7 @@ If you want another repository to copy the Tentman config layout, this is the be
 
 ```text
 test-app/
-  .tentman.json
+  tentman.json
   tentman/
     blocks/
     configs/
@@ -36,7 +36,7 @@ test-app/
 
 ## Key Files
 
-- [`/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/.tentman.json)
+- [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/blog.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/blog.tentman.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/about.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/about.tentman.json)
 - [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/contact.tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs/contact.tentman.json)

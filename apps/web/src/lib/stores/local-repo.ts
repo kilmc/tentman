@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
-import { invalidateAll } from '$app/navigation';
+import { invalidate } from '$app/navigation';
 import { type LocalRepositoryIdentity } from '$lib/repository/selection';
 import { createLocalRepositoryBackend, type LocalRepositoryBackend } from '$lib/repository/local';
 import { traceRouting } from '$lib/utils/routing-trace';
@@ -229,7 +229,7 @@ function createStore() {
 			set({ status: 'idle', repo: null, backend: null, error: null });
 			traceRouting('local-repo:cleared');
 			if (options.invalidate ?? true) {
-				await invalidateAll();
+				await invalidate('app:content');
 			}
 		}
 	};

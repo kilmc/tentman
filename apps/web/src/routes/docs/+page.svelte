@@ -402,7 +402,7 @@
 	];
 
 	const pathRules = [
-		'Root config paths resolve relative to `.tentman.json`.',
+		'Root config paths resolve relative to `tentman.json`.',
 		'Content storage paths resolve relative to the config file that declares them.',
 		'Custom adapter paths resolve relative to the reusable block config file that declares them.',
 		'If `configsDir` is set, Tentman only discovers top-level content configs inside that directory.',
@@ -805,7 +805,7 @@ tentman component validate`;
 			<ol class="list-decimal space-y-2 pl-6">
 				<li>
 					Add an optional <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm"
-						>.tentman.json</code
+						>tentman.json</code
 					>
 					file.
 				</li>
@@ -841,7 +841,7 @@ tentman component validate`;
 	<section id="root-config" class="scroll-mt-24 border-t border-stone-200 py-8">
 		<h2 class="text-2xl font-semibold text-stone-950">Root Config</h2>
 		<p class="mt-4 max-w-3xl text-base leading-7 text-stone-700">
-			The root <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">.tentman.json</code> file is optional.
+			The root <code class="rounded bg-stone-100 px-1.5 py-0.5 text-sm">tentman.json</code> file is expected at the repo root.
 			Keep it for project-wide defaults like discovery paths, preview links, and package blocks.
 		</p>
 		<p class="mt-3 max-w-3xl text-sm leading-6 text-stone-600">

@@ -7,13 +7,12 @@ import { createTentmanStructuredBlockResolver } from './markdown-render-context.
 import { getNavigationReferenceId, getNavigationReferenceIds } from './manifest.js';
 import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 import { NAVIGATION_MANIFEST_PATH } from './manifest.js';
+import { ROOT_CONFIG_PATH } from './project.js';
 import {
 	getConfigByReference,
 	getGroupReferences,
 	getItemByReference
 } from './references.js';
-
-const ROOT_CONFIG_PATH = '.tentman.json';
 
 function createDiagnostic(level, code, message, details = {}) {
 	return { level, code, message, ...details };
@@ -595,12 +594,32 @@ export async function checkAssetDirectories(project) {
 export async function doctorTentmanProject(project, options = {}) {
 	const diagnostics = [];
 
-	if (project.configs.length === 0) {
+	if (!project.configsDirExists) {
+		diagnostics.push(
+			createDiagnostic(
+				'error',
+				'configs.missing-directory',
+				`Configured content config directory does not exist: ${project.configsDir}`,
+				{ path: ROOT_CONFIG_PATH }
+			)
+		);
+	} else if (project.configs.length === 0) {
 		diagnostics.push(
 			createDiagnostic(
 				'error',
 				'config.none',
 				`No content config files found in ${project.configsDir}`
+			)
+		);
+	}
+
+	if (project.blocksDir && !project.blocksDirExists) {
+		diagnostics.push(
+			createDiagnostic(
+				'error',
+				'blocks.missing-directory',
+				`Configured reusable block directory does not exist: ${project.blocksDir}`,
+				{ path: ROOT_CONFIG_PATH }
 			)
 		);
 	}

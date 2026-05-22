@@ -22,6 +22,7 @@ const CACHE_TTL = 60 * 1000;
 
 // Module-level cache (persists across requests in the same Node process)
 const cache = new Map<string, CacheEntry>();
+const inflightFetches = new Map<string, Promise<DiscoveredConfig[]>>();
 
 /**
  * Get a unique key for a repository
@@ -50,27 +51,39 @@ export async function getCachedConfigs(backend: RepositoryBackend): Promise<Disc
 		return cachedEntry!.configs;
 	}
 
+	const inflightFetch = inflightFetches.get(repoKey);
+	if (inflightFetch) {
+		console.log(`⏳ [CONFIG CACHE] Reusing in-flight fetch for ${repoKey}`);
+		return inflightFetch;
+	}
+
 	// Cache miss or stale - fetch from GitHub
 	console.log(`🔄 [CONFIG CACHE] Cache miss for ${repoKey}, fetching from backend...`);
 	const fetchStart = performance.now();
+	const fetchPromise = backend
+		.discoverConfigs()
+		.then((configs) => {
+			const fetchTime = performance.now() - fetchStart;
+			console.log(`✅ [CONFIG CACHE] Fetched ${configs.length} configs in ${fetchTime.toFixed(0)}ms`);
 
-	try {
-		const configs = await backend.discoverConfigs();
-		const fetchTime = performance.now() - fetchStart;
-		console.log(`✅ [CONFIG CACHE] Fetched ${configs.length} configs in ${fetchTime.toFixed(0)}ms`);
+			cache.set(repoKey, {
+				configs,
+				timestamp: Date.now(),
+				repoKey
+			});
 
-		// Update the cache
-		cache.set(repoKey, {
-			configs,
-			timestamp: Date.now(),
-			repoKey
+			return configs;
+		})
+		.catch((error) => {
+			console.error(`❌ [CONFIG CACHE] Failed to fetch configs for ${repoKey}:`, error);
+			throw error;
+		})
+		.finally(() => {
+			inflightFetches.delete(repoKey);
 		});
 
-		return configs;
-	} catch (error) {
-		console.error(`❌ [CONFIG CACHE] Failed to fetch configs for ${repoKey}:`, error);
-		throw error;
-	}
+	inflightFetches.set(repoKey, fetchPromise);
+	return fetchPromise;
 }
 
 /**
@@ -79,6 +92,7 @@ export async function getCachedConfigs(backend: RepositoryBackend): Promise<Disc
 export function invalidateCache(repoKey: string): void {
 	console.log(`🗑️ [CONFIG CACHE] Invalidating cache for ${repoKey}`);
 	cache.delete(repoKey);
+	inflightFetches.delete(repoKey);
 }
 
 /**
@@ -87,6 +101,7 @@ export function invalidateCache(repoKey: string): void {
 export function clearCache(): void {
 	console.log('🗑️ [CONFIG CACHE] Clearing all cached configs');
 	cache.clear();
+	inflightFetches.clear();
 }
 
 /**

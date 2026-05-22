@@ -8,8 +8,12 @@ import type {
 	InstructionExecutionPlan,
 	InstructionInputValues
 } from '$lib/features/instructions/types';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { invalidateNavigationManifestStateCache } from '$lib/features/content-management/navigation-manifest';
+import {
+	createGitHubRepositoryBackend,
+	invalidateGitHubRepositoryMetadataCache
+} from '$lib/repository/github';
 import { invalidateCache } from '$lib/stores/config-cache';
 
 interface ApplyInstructionRequest {
@@ -145,6 +149,8 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			message: `Apply instruction ${validatedPlan.instructionId} via Tentman`
 		});
 		invalidateCache(backend.cacheKey);
+		invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
+		invalidateNavigationManifestStateCache(backend);
 
 		return json({
 			result,

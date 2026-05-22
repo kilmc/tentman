@@ -3,7 +3,6 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getCommitsSince } from '$lib/github/branch';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
-import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
@@ -19,7 +18,6 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			throw error(404, 'No draft branch found');
 		}
 
-		await ensureDraftPullRequest(octokit, owner, name, draftBranch);
 		const configs = await getCachedConfigs(backend);
 		const configsWithChanges = [];
 

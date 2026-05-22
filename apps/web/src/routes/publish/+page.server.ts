@@ -17,9 +17,17 @@ export const actions = {
 
 			console.log(`✅ Published and deleted draft branch: ${branchName}`);
 
-			// Invalidate content cache
+			// Invalidate bootstrap/content caches after merging draft changes into main.
 			const { invalidateContent } = await import('$lib/stores/content-cache');
+			const { invalidateCache } = await import('$lib/stores/config-cache');
+			const { invalidateGitHubRepositoryMetadataCache } = await import('$lib/repository/github');
+			const {
+				invalidateNavigationManifestStateCache
+			} = await import('$lib/features/content-management/navigation-manifest');
+			invalidateCache(backend.cacheKey);
 			invalidateContent(backend.cacheKey);
+			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
+			invalidateNavigationManifestStateCache(backend);
 
 			throw redirect(303, '/pages?merged=true');
 		} catch (err) {
