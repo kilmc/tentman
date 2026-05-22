@@ -7,9 +7,12 @@
 import type { Octokit } from 'octokit';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { fetchContentDocument } from '$lib/content/service';
+import { resolveConfigPath } from '$lib/utils/validation';
 import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
+
+const DRAFT_COMPARISON_CONTEXT_TTL = 60 * 1000;
 
 export interface DraftChange {
 	itemId: string;
@@ -33,6 +36,31 @@ export interface DraftMetadata {
 	mainHeadCommit?: string; // Current SHA of main branch
 }
 
+interface DraftBranchChangedFile {
+	filename: string;
+	status: string;
+	previous_filename?: string;
+}
+
+interface DraftComparisonContext {
+	metadata: DraftMetadata;
+	changedFiles: DraftBranchChangedFile[];
+	canUseCheapComparison: boolean;
+}
+
+interface CachedDraftComparisonContext {
+	value: DraftComparisonContext;
+	timestamp: number;
+}
+
+const draftComparisonContextCache = new Map<string, CachedDraftComparisonContext>();
+const draftComparisonContextInflight = new Map<string, Promise<DraftComparisonContext>>();
+
+export function clearDraftComparisonContextCache(): void {
+	draftComparisonContextCache.clear();
+	draftComparisonContextInflight.clear();
+}
+
 /**
  * Compare content between main and draft branches
  *
@@ -53,14 +81,34 @@ export async function compareDraftToBranch(
 	draftBranch: string
 ): Promise<DraftComparison> {
 	try {
-		// Check if draft branch exists and gather metadata
-		const metadata = await getBranchMetadata(octokit, owner, repo, draftBranch);
+		const comparisonContext = await getDraftComparisonContext(
+			octokit,
+			owner,
+			repo,
+			draftBranch
+		);
+		const { metadata } = comparisonContext;
 
 		if (!metadata.branchExists) {
 			console.log(
 				`[DRAFT COMPARISON] Branch ${draftBranch} does not exist, returning empty comparison`
 			);
 			return { ...emptyComparison(), metadata };
+		}
+
+		if (comparisonContext.canUseCheapComparison) {
+			const cheapComparison = buildCheapDraftComparison(
+				config,
+				configPath,
+				comparisonContext.changedFiles
+			);
+
+			if (cheapComparison && !cheapComparison.requiresFullFetch) {
+				return {
+					...cheapComparison.comparison,
+					metadata
+				};
+			}
 		}
 
 		const backend = createGitHubRepositoryBackend(octokit, {
@@ -76,8 +124,6 @@ export async function compareDraftToBranch(
 		]);
 
 		const comparison = compareLoadedDraftContent(config, mainContent, draftContent);
-
-		// Attach metadata to comparison result
 		comparison.metadata = metadata;
 		return comparison;
 	} catch (error) {
@@ -85,6 +131,49 @@ export async function compareDraftToBranch(
 		// Gracefully degrade - return empty comparison
 		return emptyComparison();
 	}
+}
+
+function getDraftComparisonContextCacheKey(owner: string, repo: string, draftBranch: string): string {
+	return `${owner}/${repo}:${draftBranch}`;
+}
+
+function isFreshDraftComparisonContext(
+	entry: CachedDraftComparisonContext | undefined
+): entry is CachedDraftComparisonContext {
+	return Boolean(entry) && Date.now() - entry.timestamp < DRAFT_COMPARISON_CONTEXT_TTL;
+}
+
+async function getDraftComparisonContext(
+	octokit: Octokit,
+	owner: string,
+	repo: string,
+	draftBranch: string
+): Promise<DraftComparisonContext> {
+	const cacheKey = getDraftComparisonContextCacheKey(owner, repo, draftBranch);
+	const cachedEntry = draftComparisonContextCache.get(cacheKey);
+	if (isFreshDraftComparisonContext(cachedEntry)) {
+		return cachedEntry.value;
+	}
+
+	const pending = draftComparisonContextInflight.get(cacheKey);
+	if (pending) {
+		return pending;
+	}
+
+	const fetchPromise = loadDraftComparisonContext(octokit, owner, repo, draftBranch)
+		.then((value) => {
+			draftComparisonContextCache.set(cacheKey, {
+				value,
+				timestamp: Date.now()
+			});
+			return value;
+		})
+		.finally(() => {
+			draftComparisonContextInflight.delete(cacheKey);
+		});
+
+	draftComparisonContextInflight.set(cacheKey, fetchPromise);
+	return fetchPromise;
 }
 
 export function compareLoadedDraftContent(
@@ -104,40 +193,15 @@ export function compareLoadedDraftContent(
 }
 
 /**
- * Check if a branch exists in the repository
- */
-async function checkBranchExists(
-	octokit: Octokit,
-	owner: string,
-	repo: string,
-	branch: string
-): Promise<boolean> {
-	try {
-		await octokit.rest.repos.getBranch({
-			owner,
-			repo,
-			branch
-		});
-		return true;
-	} catch (error: any) {
-		if (error.status === 404) {
-			return false;
-		}
-		throw error;
-	}
-}
-
-/**
  * Get metadata about the draft branch including staleness and conflict detection
  */
-async function getBranchMetadata(
+async function loadDraftComparisonContext(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
 	draftBranch: string
-): Promise<DraftMetadata> {
+): Promise<DraftComparisonContext> {
 	try {
-		// Check if branch exists
 		const branchData = await octokit.rest.repos.getBranch({
 			owner,
 			repo,
@@ -166,49 +230,224 @@ async function getBranchMetadata(
 			branch: 'main'
 		});
 		const mainHeadCommit = mainBranch.data.commit.sha;
-
-		// Compare commits to detect if main has advanced
-		const comparison = await octokit.rest.repos.compareCommits({
+		const { files, mergeBaseCommit } = await listChangedFilesBetweenRefs(
+			octokit,
 			owner,
 			repo,
-			base: draftCommitSha,
-			head: mainHeadCommit
-		});
-
-		// If there are commits ahead, main has advanced and there may be conflicts
-		const hasConflicts = comparison.data.ahead_by > 0;
-
-		// Get the base commit where draft branched from main
-		// This is approximated by finding the merge base
-		let draftBaseCommit: string | undefined;
-		try {
-			const mergeBase = await octokit.rest.repos.compareCommits({
-				owner,
-				repo,
-				base: 'main',
-				head: draftBranch
-			});
-			draftBaseCommit = mergeBase.data.merge_base_commit.sha;
-		} catch (error) {
-			console.warn('[DRAFT METADATA] Could not determine merge base:', error);
-		}
+			'main',
+			draftBranch
+		);
+		const draftBaseCommit = mergeBaseCommit;
+		const hasConflicts = Boolean(draftBaseCommit && draftBaseCommit !== mainHeadCommit);
 
 		return {
-			branchExists: true,
-			lastCommitDate,
-			isStale,
-			hasConflicts,
-			draftBaseCommit,
-			mainHeadCommit
+			metadata: {
+				branchExists: true,
+				lastCommitDate,
+				isStale,
+				hasConflicts,
+				draftBaseCommit,
+				mainHeadCommit
+			},
+			changedFiles: files,
+			canUseCheapComparison: true
 		};
 	} catch (error: any) {
 		if (error.status === 404) {
-			return { branchExists: false };
+			return {
+				metadata: { branchExists: false },
+				changedFiles: [],
+				canUseCheapComparison: true
+			};
 		}
 		console.error('[DRAFT METADATA] Error getting branch metadata:', error);
-		// Return minimal metadata on error
-		return { branchExists: true };
+		return {
+			metadata: { branchExists: true },
+			changedFiles: [],
+			canUseCheapComparison: false
+		};
 	}
+}
+
+async function listChangedFilesBetweenRefs(
+	octokit: Octokit,
+	owner: string,
+	repo: string,
+	base: string,
+	head: string
+): Promise<{ files: DraftBranchChangedFile[]; mergeBaseCommit?: string }> {
+	const files: DraftBranchChangedFile[] = [];
+	let page = 1;
+	let mergeBaseCommit: string | undefined;
+
+	while (true) {
+		const response = await octokit.rest.repos.compareCommits({
+			owner,
+			repo,
+			base,
+			head,
+			per_page: 100,
+			page
+		});
+
+		if (!mergeBaseCommit) {
+			mergeBaseCommit = response.data.merge_base_commit?.sha;
+		}
+
+		for (const file of response.data.files ?? []) {
+			files.push({
+				filename: file.filename,
+				status: file.status,
+				...(file.previous_filename ? { previous_filename: file.previous_filename } : {})
+			});
+		}
+
+		if ((response.data.files?.length ?? 0) < 100) {
+			break;
+		}
+
+		page += 1;
+	}
+
+	return { files, mergeBaseCommit };
+}
+
+function buildCheapDraftComparison(
+	config: ParsedContentConfig,
+	configPath: string,
+	changedFiles: DraftBranchChangedFile[]
+): { comparison: DraftComparison; requiresFullFetch: boolean } | null {
+	if (config.content.mode === 'file') {
+		const filePath = resolveConfigPath(configPath, config.content.path);
+		const relevantFileChanged = changedFiles.some((file) => file.filename === filePath);
+
+		if (!relevantFileChanged) {
+			return {
+				comparison: emptyComparison(),
+				requiresFullFetch: false
+			};
+		}
+
+		if (!config.collection) {
+			return {
+				comparison: {
+					modified: [{ itemId: '_singleton' }],
+					created: [],
+					deleted: []
+				},
+				requiresFullFetch: false
+			};
+		}
+
+		return {
+			comparison: emptyComparison(),
+			requiresFullFetch: true
+		};
+	}
+
+	const resolvedDirectoryPath = resolveConfigPath(configPath, config.content.path);
+	const resolvedTemplatePath = resolveConfigPath(configPath, config.content.template);
+	const templateFilename = resolvedTemplatePath.split('/').pop() ?? resolvedTemplatePath;
+	const templateExt =
+		config.content.template.substring(config.content.template.lastIndexOf('.')) || '.md';
+	const prefix = resolvedDirectoryPath ? `${resolvedDirectoryPath}/` : '';
+	const relevantFiles = changedFiles.filter((file) =>
+		isRelevantDirectoryContentChange(file, prefix, templateFilename, templateExt)
+	);
+
+	if (relevantFiles.length === 0) {
+		return {
+			comparison: emptyComparison(),
+			requiresFullFetch: false
+		};
+	}
+
+	const modified: DraftChange[] = [];
+	const created: DraftChange[] = [];
+	const deleted: DraftChange[] = [];
+
+	for (const file of relevantFiles) {
+		const itemId = getDirectoryItemIdFromPath(file.filename);
+		if (!itemId) {
+			return {
+				comparison: emptyComparison(),
+				requiresFullFetch: true
+			};
+		}
+
+		if (file.status === 'renamed') {
+			return {
+				comparison: emptyComparison(),
+				requiresFullFetch: true
+			};
+		}
+
+		switch (file.status) {
+			case 'added':
+				created.push({ itemId });
+				break;
+			case 'removed':
+				deleted.push({ itemId });
+				break;
+			case 'modified':
+			case 'changed':
+				modified.push({ itemId });
+				break;
+			default:
+				return {
+					comparison: emptyComparison(),
+					requiresFullFetch: true
+				};
+		}
+	}
+
+	return {
+		comparison: {
+			modified,
+			created,
+			deleted
+		},
+		requiresFullFetch: false
+	};
+}
+
+function isRelevantDirectoryContentChange(
+	file: DraftBranchChangedFile,
+	prefix: string,
+	templateFilename: string,
+	templateExt: string
+): boolean {
+	if (!file.filename.startsWith(prefix)) {
+		return false;
+	}
+
+	const relativePath = file.filename.slice(prefix.length);
+	if (relativePath.length === 0 || relativePath.includes('/')) {
+		return false;
+	}
+
+	if (relativePath.startsWith('_')) {
+		return false;
+	}
+
+	if (relativePath === templateFilename) {
+		return false;
+	}
+
+	if (relativePath.endsWith('.tentman.json')) {
+		return false;
+	}
+
+	return relativePath.endsWith(templateExt);
+}
+
+function getDirectoryItemIdFromPath(path: string): string | null {
+	const filename = path.split('/').pop();
+	if (!filename) {
+		return null;
+	}
+
+	return filename.replace(/\.[^/.]+$/, '');
 }
 
 /**

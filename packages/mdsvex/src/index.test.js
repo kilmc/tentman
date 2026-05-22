@@ -54,7 +54,7 @@ async function createAutoContextFixture() {
 
 	await Promise.all([
 		fs.writeFile(
-			path.join(projectRoot, '.tentman.json'),
+			path.join(projectRoot, 'tentman.json'),
 			JSON.stringify(
 				{
 					configsDir: './tentman/configs',

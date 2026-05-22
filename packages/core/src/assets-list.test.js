@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { listTentmanAssets, loadTentmanProject } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 test('lists config asset counts across the fixture project', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-assets-list-'));
 	const assets = await listTentmanAssets(project);
 
 	assert.deepEqual(
@@ -23,7 +23,7 @@ test('lists config asset counts across the fixture project', async () => {
 });
 
 test('lists known assets for a selected config by item and field', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-assets-list-'));
 	const assets = await listTentmanAssets(project, 'blog');
 
 	assert.equal(assets.config.label, 'Blog Posts');
@@ -39,7 +39,7 @@ test('lists known assets for a selected config by item and field', async () => {
 });
 
 test('throws when listing assets for an unknown config reference', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-assets-list-'));
 
 	await assert.rejects(
 		() => listTentmanAssets(project, 'missing-config'),

@@ -19,7 +19,13 @@ export {
 	serializeMarkdownContentRecord,
 	updateContentRecordFileSource
 } from './content-files.js';
-export { ROOT_CONFIG_PATH, loadTentmanProject, parseRootConfig } from './project.js';
+export {
+	ROOT_CONFIG_PATH,
+	TentmanProjectError,
+	loadTentmanProject,
+	parseRootConfig,
+	resolveTentmanProjectRoot
+} from './project.js';
 export {
 	checkContentComponentReferenceBindings,
 	checkNavigationManifest,

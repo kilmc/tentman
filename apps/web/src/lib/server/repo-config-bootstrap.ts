@@ -7,10 +7,15 @@ import {
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 
-export async function loadSelectedGitHubRepoConfigs(
+export interface SelectedGitHubRepoBootstrapContext extends RepoConfigsBootstrap {
+	backend: Awaited<ReturnType<typeof requireGitHubContentRepository>>['backend'];
+	draftBranch: string | null;
+}
+
+export async function loadSelectedGitHubRepoBootstrapContext(
 	locals: App.Locals,
 	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>
-): Promise<RepoConfigsBootstrap> {
+): Promise<SelectedGitHubRepoBootstrapContext> {
 	if (!locals.isAuthenticated || !locals.githubToken) {
 		throw error(401, 'Not authenticated');
 	}
@@ -27,11 +32,24 @@ export async function loadSelectedGitHubRepoConfigs(
 		loadNavigationManifestState(backend)
 	]);
 
-	return normalizeRepoConfigsBootstrap({
-		configs,
-		blockConfigs,
-		rootConfig,
-		activeDraftBranch: draftBranch,
-		navigationManifest
-	});
+	return {
+		backend,
+		draftBranch,
+		...normalizeRepoConfigsBootstrap({
+			configs,
+			blockConfigs,
+			rootConfig,
+			activeDraftBranch: draftBranch,
+			navigationManifest
+		})
+	};
+}
+
+export async function loadSelectedGitHubRepoConfigs(
+	locals: App.Locals,
+	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>
+): Promise<RepoConfigsBootstrap> {
+	const { backend: _backend, draftBranch: _draftBranch, ...bootstrap } =
+		await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
+	return bootstrap;
 }

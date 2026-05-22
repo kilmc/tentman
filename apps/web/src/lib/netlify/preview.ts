@@ -5,7 +5,7 @@
  * where the branch name is normalized to be URL-safe.
  *
  * @param branchName - Git branch name (e.g., "preview/user123-1234567890")
- * @param siteName - Netlify site name from .tentman.json config
+ * @param siteName - Netlify site name from tentman.json config
  * @returns Full Netlify preview URL
  *
  * @example

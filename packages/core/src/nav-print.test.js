@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadTentmanProject, printTentmanNavigation } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 test('prints top-level navigation in effective manifest order', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-print-'));
 	const navigation = printTentmanNavigation(project);
 
 	assert.deepEqual(
@@ -25,7 +25,7 @@ test('prints top-level navigation in effective manifest order', async () => {
 });
 
 test('prints effective collection navigation including manifest groups', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-print-'));
 	const navigation = printTentmanNavigation(project, 'blog');
 
 	assert.equal(navigation.config.label, 'Blog Posts');
@@ -42,7 +42,7 @@ test('prints effective collection navigation including manifest groups', async (
 });
 
 test('throws when printing collection navigation for a singleton config', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-print-'));
 
 	assert.throws(
 		() => printTentmanNavigation(project, 'about'),

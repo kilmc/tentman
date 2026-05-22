@@ -26,7 +26,7 @@ Responsibilities:
 - detect common frameworks
 - detect likely content folders
 - detect static/public asset directories
-- create `.tentman.json`
+- create `tentman.json`
 - create `tentman/configs`
 - create `tentman/blocks`
 - create initial templates for directory-backed content
@@ -327,4 +327,3 @@ Possible future public packages:
 - `@tentman/schema` for public types/schema helpers
 
 Avoid publishing `@tentman/core` until there is a deliberate product reason to support third-party UIs as a stable integration surface.
-

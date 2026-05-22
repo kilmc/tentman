@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
@@ -9,13 +8,10 @@ import {
 	validateTentmanContentComponents
 } from './index.js';
 import { serializeJson } from './json.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-component-validate-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-component-validate-');
 }
 
 test('returns no diagnostics when the project components directory does not exist yet', async () => {

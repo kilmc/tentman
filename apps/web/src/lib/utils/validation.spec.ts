@@ -79,4 +79,10 @@ describe('utils/validation', () => {
 		expect(resolveConfigPath('src/lib/db/posts/posts.tentman.json', '.')).toBe('src/lib/db/posts');
 		expect(resolveConfigPath('src/lib/db/posts/posts.tentman.json', './')).toBe('src/lib/db/posts');
 	});
+
+	it('normalizes repo-root-relative config paths without a leading slash', () => {
+		expect(resolveConfigPath('src/lib/db/posts/posts.tentman.json', '/src/content/posts')).toBe(
+			'src/content/posts'
+		);
+	});
 });

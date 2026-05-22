@@ -1,38 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$lib/stores/config-cache', () => ({
-	getCachedConfigs: vi.fn()
-}));
-
 vi.mock('$lib/stores/content-cache', () => ({
 	getCachedContent: vi.fn()
 }));
 
-vi.mock('$lib/server/auth/github', async () => {
-	const actual =
-		await vi.importActual<typeof import('$lib/server/auth/github')>('$lib/server/auth/github');
-
-	return {
-		...actual,
-		createGitHubServerClient: vi.fn(() => ({
-			rest: {
-				repos: {
-					getContent: vi.fn(async () => {
-						throw {
-							status: 404
-						};
-					})
-				}
-			}
-		}))
-	};
-});
+vi.mock('$lib/server/repo-config-bootstrap', () => ({
+	loadSelectedGitHubRepoBootstrapContext: vi.fn()
+}));
 
 import { GET } from '../../routes/api/repo/collection-items/+server';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
 import {
-	createGitHubServerClient,
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
 	GITHUB_TOKEN_COOKIE,
@@ -63,13 +42,29 @@ function createCookies() {
 	};
 }
 
+function createBootstrapContext(configs: unknown[]) {
+	return {
+		backend: { cacheKey: 'github:acme/docs' },
+		configs,
+		navigationManifest: {
+			path: 'tentman/navigation-manifest.json',
+			exists: false,
+			manifest: null,
+			error: null
+		},
+		rootConfig: null
+	} as const;
+}
+
 describe('GET /api/repo/collection-items', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
 	it('returns collection navigation items for the requested slug', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([collectionConfig] as never);
+		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue(
+			createBootstrapContext([collectionConfig]) as never
+		);
 		vi.mocked(getCachedContent).mockResolvedValue([
 			{
 				_filename: 'hello-world.md',
@@ -77,7 +72,6 @@ describe('GET /api/repo/collection-items', () => {
 			}
 		]);
 
-		const cookies = createCookies();
 		const response = await GET({
 			url: new URL('http://localhost/api/repo/collection-items?slug=posts'),
 			locals: {
@@ -89,10 +83,9 @@ describe('GET /api/repo/collection-items', () => {
 					full_name: 'acme/docs'
 				}
 			},
-			cookies
+			cookies: createCookies()
 		} as never);
 
-		expect(createGitHubServerClient).toHaveBeenCalledWith('secret-token', cookies);
 		expect(await response.json()).toEqual({
 			items: [
 				{
@@ -106,22 +99,24 @@ describe('GET /api/repo/collection-items', () => {
 	});
 
 	it('returns slug-based items when manual sorting is not enabled and Tentman ids are missing', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([
-			{
-				...collectionConfig,
-				config: {
-					...collectionConfig.config,
-					collection: true,
-					blocks: [
-						...collectionConfig.config.blocks,
-						{
-							id: 'date',
-							type: 'date'
-						}
-					]
+		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue(
+			createBootstrapContext([
+				{
+					...collectionConfig,
+					config: {
+						...collectionConfig.config,
+						collection: true,
+						blocks: [
+							...collectionConfig.config.blocks,
+							{
+								id: 'date',
+								type: 'date'
+							}
+						]
+					}
 				}
-			}
-		] as never);
+			]) as never
+		);
 		vi.mocked(getCachedContent).mockResolvedValue([
 			{
 				_filename: 'latest-news.md',
@@ -157,7 +152,9 @@ describe('GET /api/repo/collection-items', () => {
 	});
 
 	it('clears the session and returns 401 when GitHub rejects the request', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([collectionConfig] as never);
+		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue(
+			createBootstrapContext([collectionConfig]) as never
+		);
 		vi.mocked(getCachedContent).mockRejectedValue({ status: 401 });
 
 		const cookies = createCookies();

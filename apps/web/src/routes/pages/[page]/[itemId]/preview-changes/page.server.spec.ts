@@ -5,12 +5,171 @@ vi.mock('$lib/server/page-context', () => ({
 	handleGitHubRouteError: vi.fn()
 }));
 
+vi.mock('$lib/content/service', () => ({
+	createContentDocument: vi.fn(),
+	saveContentDocument: vi.fn()
+}));
+
+vi.mock('$lib/features/draft-assets/server', () => ({
+	materializeDraftAssetsFromFormData: vi.fn(async ({ content }) => ({ content }))
+}));
+
+vi.mock('$lib/features/draft-publishing/service', () => ({
+	ensureDraftBranch: vi.fn(async () => ({ branchName: 'tentman-preview', created: false })),
+	publishDraftBranch: vi.fn(async () => ({ branchName: 'tentman-preview' }))
+}));
+
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn()
+}));
+
+vi.mock('$lib/features/content-management/navigation-manifest', () => ({
+	syncCollectionItemGroupSelection: vi.fn(),
+	invalidateNavigationManifestStateCache: vi.fn()
+}));
+
+vi.mock('$lib/stores/content-cache', () => ({
+	invalidateContent: vi.fn()
+}));
+
 import { actions } from './+page.server';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { invalidateContent } from '$lib/stores/content-cache';
+
+function createRequest(form: Record<string, string>) {
+	return {
+		formData: async () => {
+			const data = new FormData();
+			for (const [key, value] of Object.entries(form)) {
+				data.set(key, value);
+			}
+			return data;
+		}
+	};
+}
 
 describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it('saves item draft changes and returns to the editor with a saved flag', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: { cacheKey: 'github:acme/docs' },
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: {
+				slug: 'posts',
+				config: {
+					content: {
+						mode: 'directory'
+					}
+				},
+				path: 'content/posts.tentman.json'
+			}
+		} as never);
+
+		await expect(
+			actions.createPreview({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Hello world' }),
+					filename: 'hello-world'
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts/hello-world/edit?saved=true'
+		});
+	});
+
+	it('publishes item draft changes directly from the preview screen', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: { cacheKey: 'github:acme/docs' },
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: {
+				slug: 'posts',
+				config: {
+					content: {
+						mode: 'directory'
+					}
+				},
+				path: 'content/posts.tentman.json'
+			}
+		} as never);
+
+		await expect(
+			actions.publishNow({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Hello world' }),
+					filename: 'hello-world'
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts/hello-world/edit?published=true'
+		});
+
+		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
+	});
+
+	it('publishes newly created collection items and returns to the collection view', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: { cacheKey: 'github:acme/docs' },
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: {
+				slug: 'posts',
+				config: {
+					content: {
+						mode: 'directory'
+					}
+				},
+				path: 'content/posts.tentman.json'
+			}
+		} as never);
+
+		await expect(
+			actions.publishNow({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'draft-item'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Draft item' }),
+					isNew: 'true',
+					newFilename: 'draft-item'
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts?published=true'
+		});
+
+		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
 	});
 
 	it('preserves preview query params when auth expires during item draft save', async () => {
@@ -25,6 +184,34 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 			request: {
 				formData: async () => new FormData()
 			},
+			cookies: {
+				delete: vi.fn()
+			},
+			url: new URL(
+				'http://localhost/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md'
+			)
+		} as never);
+
+		expect(handleGitHubRouteError).toHaveBeenCalledWith(
+			{ locals: {}, cookies: { delete: expect.any(Function) } },
+			{ status: 401 },
+			'/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md'
+		);
+	});
+
+	it('preserves preview query params when auth expires during item publish-now', async () => {
+		vi.mocked(requireDiscoveredConfig).mockRejectedValue({ status: 401 });
+
+		await actions.publishNow({
+			locals: {},
+			params: {
+				page: 'posts',
+				itemId: 'hello-world'
+			},
+			request: createRequest({
+				data: JSON.stringify({ title: 'Hello world' }),
+				filename: 'hello-world'
+			}),
 			cookies: {
 				delete: vi.fn()
 			},

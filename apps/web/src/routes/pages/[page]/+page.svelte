@@ -21,6 +21,7 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument } from '$lib/content/service';
+	import { syncDraftBranchStoreForRepo } from './draft-status';
 
 	let { data }: { data: PageData } = $props();
 
@@ -216,14 +217,7 @@
 			draftBranch = result.draftBranch;
 			draftChanges = result.draftChanges;
 
-			if (data.selectedRepo) {
-				const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-				if (result.draftBranch) {
-					draftBranchStore.setBranch(result.draftBranch, repoFullName);
-				} else if (draftBranchStore.hasDraft(repoFullName)) {
-					draftBranchStore.clear();
-				}
-			}
+			syncDraftBranchStoreForRepo(data.selectedRepo, result.draftBranch, draftBranchStore);
 		} catch (error) {
 			if (requestId !== draftStatusRequest) {
 				return;

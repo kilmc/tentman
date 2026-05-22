@@ -1,21 +1,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { checkTentmanAssets, loadTentmanProject, runTentmanCi } from './index.js';
 import { serializeJson } from './json.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-assets-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-assets-');
 }
 
 test('checks current fixture assets conservatively', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyFixture());
 	const diagnostics = await checkTentmanAssets(project);
 
 	assert.deepEqual(diagnostics, []);
@@ -70,7 +66,7 @@ test('reports missing asset files, path mismatches, and missing asset directorie
 });
 
 test('includes assets check in tentman ci aggregation', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyFixture());
 	const result = await runTentmanCi(project);
 
 	assert.deepEqual(

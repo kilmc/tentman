@@ -100,11 +100,18 @@ export const actions: Actions = {
 					branch: branchName
 				}
 			);
-			await ensureDraftPullRequest(octokit, owner, name, branchName);
 			await publishDraftBranch(octokit, owner, name);
 
 			const { invalidateContent } = await import('$lib/stores/content-cache');
+			const { invalidateCache } = await import('$lib/stores/config-cache');
+			const { invalidateGitHubRepositoryMetadataCache } = await import('$lib/repository/github');
+			const {
+				invalidateNavigationManifestStateCache
+			} = await import('$lib/features/content-management/navigation-manifest');
+			invalidateCache(backend.cacheKey);
 			invalidateContent(backend.cacheKey);
+			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
+			invalidateNavigationManifestStateCache(backend);
 
 			throw redirect(303, buildPathWithQuery(`/pages/${params.page}/edit`, { published: 'true' }));
 		} catch (err) {

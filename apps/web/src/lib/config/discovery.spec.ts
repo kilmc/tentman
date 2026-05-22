@@ -10,7 +10,8 @@ import {
 describe('getDiscoverableContentConfigPaths', () => {
 	it('filters by root discovery rules', () => {
 		const paths = [
-			'.tentman.json',
+			'tentman.json',
+			'tentman/tentman.json',
 			'tentman/configs/posts.tentman.json',
 			'tentman/configs/_draft.tentman.json',
 			'tentman/blocks/seo.tentman.json',
@@ -29,7 +30,8 @@ describe('getDiscoverableContentConfigPaths', () => {
 describe('getDiscoverableBlockConfigPaths', () => {
 	it('returns block configs only from blocksDir', () => {
 		const paths = [
-			'.tentman.json',
+			'tentman.json',
+			'tentman/tentman.json',
 			'tentman/configs/posts.tentman.json',
 			'tentman/blocks/seo.tentman.json',
 			'tentman/blocks/media/gallery.tentman.json',

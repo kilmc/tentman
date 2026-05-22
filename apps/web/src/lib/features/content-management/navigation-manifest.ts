@@ -28,7 +28,8 @@ import type {
 } from '$lib/repository/types';
 
 export const NAVIGATION_MANIFEST_PATH = 'tentman/navigation-manifest.json';
-const ROOT_CONFIG_PATH = '.tentman.json';
+const ROOT_CONFIG_PATH = 'tentman.json';
+const NAVIGATION_MANIFEST_CACHE_TTL = 60 * 1000;
 
 export interface NavigationManifestGroup {
 	id: string;
@@ -118,6 +119,14 @@ interface ConfigIdentityState {
 	refMap: Map<string, string>;
 	changed: boolean;
 }
+
+interface CachedNavigationManifestStateEntry {
+	value: NavigationManifestState;
+	timestamp: number;
+}
+
+const navigationManifestCache = new Map<string, CachedNavigationManifestStateEntry>();
+const navigationManifestInflight = new Map<string, Promise<NavigationManifestState>>();
 
 function assertObject(value: unknown, message: string): asserts value is Record<string, unknown> {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -461,24 +470,45 @@ export function serializeNavigationManifest(manifest: NavigationManifest): strin
 	return `${JSON.stringify(manifest, null, '\t')}\n`;
 }
 
-export async function loadNavigationManifestState(
+function isServerRuntime(): boolean {
+	return typeof window === 'undefined';
+}
+
+function getNavigationManifestCacheKey(
+	backend: RepositoryBackend,
+	options?: RepositoryReadOptions
+): string {
+	return `${backend.cacheKey}:navigation-manifest:${options?.ref ?? ''}`;
+}
+
+function isFreshNavigationManifestState(
+	entry: CachedNavigationManifestStateEntry | undefined
+): entry is CachedNavigationManifestStateEntry {
+	return Boolean(entry) && Date.now() - entry.timestamp < NAVIGATION_MANIFEST_CACHE_TTL;
+}
+
+async function readNavigationManifestState(
 	backend: RepositoryBackend,
 	options?: RepositoryReadOptions
 ): Promise<NavigationManifestState> {
-	const exists = await backend.fileExists(NAVIGATION_MANIFEST_PATH, options);
+	let content: string;
 
-	if (!exists) {
-		return {
-			path: NAVIGATION_MANIFEST_PATH,
-			exists: false,
-			manifest: null,
-			error: null
-		};
+	try {
+		content = await backend.readTextFile(NAVIGATION_MANIFEST_PATH, options);
+	} catch (error) {
+		if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+			return {
+				path: NAVIGATION_MANIFEST_PATH,
+				exists: false,
+				manifest: null,
+				error: null
+			};
+		}
+
+		throw error;
 	}
 
 	try {
-		const content = await backend.readTextFile(NAVIGATION_MANIFEST_PATH, options);
-
 		return {
 			path: NAVIGATION_MANIFEST_PATH,
 			exists: true,
@@ -493,6 +523,55 @@ export async function loadNavigationManifestState(
 			error: error instanceof Error ? error.message : 'Failed to parse navigation manifest'
 		};
 	}
+}
+
+export function invalidateNavigationManifestStateCache(
+	backend: RepositoryBackend,
+	options?: RepositoryReadOptions
+): void {
+	const cacheKey = getNavigationManifestCacheKey(backend, options);
+	navigationManifestCache.delete(cacheKey);
+	navigationManifestInflight.delete(cacheKey);
+}
+
+export function clearNavigationManifestStateCache(): void {
+	navigationManifestCache.clear();
+	navigationManifestInflight.clear();
+}
+
+export async function loadNavigationManifestState(
+	backend: RepositoryBackend,
+	options?: RepositoryReadOptions
+): Promise<NavigationManifestState> {
+	if (!isServerRuntime()) {
+		return readNavigationManifestState(backend, options);
+	}
+
+	const cacheKey = getNavigationManifestCacheKey(backend, options);
+	const cachedEntry = navigationManifestCache.get(cacheKey);
+	if (isFreshNavigationManifestState(cachedEntry)) {
+		return cachedEntry.value;
+	}
+
+	const pending = navigationManifestInflight.get(cacheKey);
+	if (pending) {
+		return pending;
+	}
+
+	const fetchPromise = readNavigationManifestState(backend, options)
+		.then((value) => {
+			navigationManifestCache.set(cacheKey, {
+				value,
+				timestamp: Date.now()
+			});
+			return value;
+		})
+		.finally(() => {
+			navigationManifestInflight.delete(cacheKey);
+		});
+
+	navigationManifestInflight.set(cacheKey, fetchPromise);
+	return fetchPromise;
 }
 
 function getSuggestedConfigIdBase(config: DiscoveredConfig): string {

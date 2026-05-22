@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
@@ -9,17 +8,14 @@ import {
 	summarizeFormatCheck,
 	writeTentmanFormat
 } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-format-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-format-');
 }
 
 test('reports current fixture files Tentman would rewrite conservatively', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyFixture());
 	const rewrites = await checkTentmanFormat(project);
 
 	assert.deepEqual(rewrites, [

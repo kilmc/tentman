@@ -1,6 +1,6 @@
 import type { RepositoryBackend, RepositoryWriteOptions } from '$lib/repository/types';
 
-const ROOT_CONFIG_PATH = '.tentman.json';
+const ROOT_CONFIG_PATH = 'tentman.json';
 const DEFAULT_PREVIEW_BASE_URL = 'http://localhost';
 
 type JsonObject = Record<string, unknown>;

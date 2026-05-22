@@ -17,6 +17,7 @@ import {
 	printTentmanNavigation,
 	rebuildNavigationManifest,
 	refreshNavigationManifest,
+	ROOT_CONFIG_PATH,
 	runTentmanCi,
 	summarizeFormatCheck,
 	summarizeIdWriteChanges,
@@ -172,7 +173,7 @@ function getWatchMode(flags) {
 
 function collectNavigationWatchRoots(project) {
 	const roots = new Set();
-	roots.add(path.join(project.rootDir, '.tentman.json'));
+	roots.add(path.join(project.rootDir, ROOT_CONFIG_PATH));
 	roots.add(path.join(project.rootDir, 'tentman', 'configs'));
 
 	for (const config of project.configs) {
@@ -241,13 +242,14 @@ async function watchNavigationManifest(projectRoot, flags) {
 	let closed = false;
 	let debounceTimer = null;
 	let project = await loadTentmanProject(projectRoot);
+	const resolvedProjectRoot = project.rootDir;
 	let watchRoots = normalizeWatchRoots(collectNavigationWatchRoots(project));
 	let watcher = null;
-	const manifestPath = path.resolve(projectRoot, 'tentman/navigation-manifest.json');
+	const manifestPath = path.resolve(resolvedProjectRoot, 'tentman/navigation-manifest.json');
 
 	const toRelativeWatchPath = (candidatePath) => {
 		const absolutePath = path.resolve(candidatePath);
-		const relativePath = path.relative(projectRoot, absolutePath);
+		const relativePath = path.relative(resolvedProjectRoot, absolutePath);
 		return relativePath.replaceAll(path.sep, '/');
 	};
 
@@ -415,7 +417,28 @@ async function run() {
 	const [command, subcommand] = positional;
 
 	if (command === 'doctor') {
-		const project = await loadTentmanProject(getProjectRoot(positional, 1));
+		let project;
+		try {
+			project = await loadTentmanProject(getProjectRoot(positional, 1));
+		} catch (error) {
+			if (error && typeof error === 'object' && typeof error.code === 'string') {
+				printDiagnostics(
+					'Tentman doctor',
+					[
+						{
+							level: 'error',
+							code: error.code,
+							message: error instanceof Error ? error.message : 'Failed to load Tentman project',
+							...(typeof error.path === 'string' ? { path: error.path } : {})
+						}
+					],
+					{ json }
+				);
+				return 1;
+			}
+
+			throw error;
+		}
 		const diagnostics = await doctorTentmanProject(project);
 		printDiagnostics('Tentman doctor', diagnostics, { json });
 		return getDiagnosticCounts(diagnostics).errors > 0 ? 1 : 0;

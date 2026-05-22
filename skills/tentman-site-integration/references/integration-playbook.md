@@ -36,7 +36,7 @@ Answer these questions from the repo itself:
 3. Is each editable area a singleton page, a directory-backed collection, or a file-backed collection?
 4. Are there repeated nested structures that justify a reusable block?
 5. Where should uploaded images land?
-6. Is there a preview URL or Netlify site name worth wiring into `.tentman.json`?
+6. Is there a preview URL or Netlify site name worth wiring into `tentman.json`?
 
 Useful repo signals:
 
@@ -46,7 +46,7 @@ Useful repo signals:
 - markdown or frontmatter parsers
 - JSON or YAML loaders
 - existing CMS, admin, or editorial config folders
-- existing `.tentman.json`, `*.tentman.json`, `tentman/blocks`, `src/lib/content-components`, or navigation manifest files
+- existing `tentman.json`, `*.tentman.json`, `tentman/blocks`, `src/lib/content-components`, or navigation manifest files
 
 If the repo already contains Tentman files, treat the task as an update or migration unless the user explicitly wants a redesign.
 
@@ -89,7 +89,7 @@ Prefer author-facing models over implementation leakage:
 
 Typical files to add or update:
 
-- `.tentman.json`
+- `tentman.json`
 - `tentman/configs/*.tentman.json`
 - `tentman/blocks/*.tentman.json`
 - template files for directory-backed content

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
@@ -10,14 +9,10 @@ import {
 	refreshNavigationManifest,
 	summarizeNavigationRefreshChanges
 } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-nav-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	await writeLegacyNavigationManifest(projectRoot);
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-nav-');
 }
 
 async function writeLegacyNavigationManifest(projectRoot) {
@@ -52,6 +47,7 @@ async function writeLegacyNavigationManifest(projectRoot) {
 
 test('refreshes navigation manifest references to stable ids', async () => {
 	const projectRoot = await copyFixture();
+	await writeLegacyNavigationManifest(projectRoot);
 	const project = await loadTentmanProject(projectRoot);
 	const beforeDiagnostics = checkNavigationManifest(project);
 

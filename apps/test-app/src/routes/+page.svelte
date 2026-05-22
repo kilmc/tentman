@@ -157,7 +157,7 @@
 	<div class="file-grid">
 		<div class="file-card">
 			<p class="eyebrow">Root config</p>
-			<code>.tentman.json</code>
+			<code>tentman.json</code>
 		</div>
 		<div class="file-card">
 			<p class="eyebrow">Content configs</p>

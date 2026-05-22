@@ -1,26 +1,19 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import { resolveContentDocumentState } from '$lib/features/content-management/state';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getCachedContent } from '$lib/stores/content-cache';
-import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { handleGitHubSessionError } from '$lib/server/auth/github';
+import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {
-	if (!locals.isAuthenticated || !locals.githubToken) {
-		throw error(401, 'Not authenticated');
-	}
-
-	if (!locals.selectedRepo) {
-		throw error(400, 'No repository selected');
-	}
-
-	const octokit = createGitHubServerClient(locals.githubToken, cookies);
-	const backend = createGitHubRepositoryBackend(octokit, locals.selectedRepo);
+	const requestContext = { locals, cookies };
 
 	try {
-		const [configs, rootConfig] = await Promise.all([getCachedConfigs(backend), backend.readRootConfig()]);
+		const { backend, configs, rootConfig } = await loadSelectedGitHubRepoBootstrapContext(
+			locals,
+			cookies
+		);
 		const statesBySlugEntries = await Promise.all(
 			configs
 				.filter((config) => !!config.config.state)
@@ -44,7 +37,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			statesBySlug
 		});
 	} catch (err) {
-		handleGitHubSessionError({ cookies }, err);
+		handleGitHubSessionError(requestContext, err);
 
 		if (err && typeof err === 'object' && 'status' in err) {
 			throw err;

@@ -5,7 +5,23 @@ import type {
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
-import { clearContentCache, getCachedContent } from './content-cache';
+import {
+	clearContentCache,
+	getCachedContent,
+	invalidateContent
+} from './content-cache';
+
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (reason?: unknown) => void;
+
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+
+	return { promise, resolve, reject };
+}
 
 class MemoryRepositoryBackend implements RepositoryBackend {
 	kind = 'local' as const;
@@ -14,6 +30,7 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 	supportsDraftBranches = false;
 	readCount = 0;
 	files = new Map<string, string>();
+	pendingReads = new Map<string, ReturnType<typeof createDeferred<string>>>();
 
 	constructor(initialFiles: Record<string, string>) {
 		for (const [path, content] of Object.entries(initialFiles)) {
@@ -35,6 +52,11 @@ class MemoryRepositoryBackend implements RepositoryBackend {
 
 	async readTextFile(path: string, _options?: RepositoryReadOptions): Promise<string> {
 		this.readCount += 1;
+
+		const pendingRead = this.pendingReads.get(path);
+		if (pendingRead) {
+			return pendingRead.promise;
+		}
 
 		const content = this.files.get(path);
 		if (content === undefined) {
@@ -133,5 +155,80 @@ describe('stores/content-cache', () => {
 		expect(second).toEqual(first);
 		expect(draft).toEqual(first);
 		expect(backend.readCount).toBe(2);
+	});
+
+	it('dedupes concurrent content fetches for the same config and branch', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/site.json': '{\n  "title": "Tentman"\n}\n'
+		});
+		const pendingRead = createDeferred<string>();
+		backend.pendingReads.set('content/site.json', pendingRead);
+
+		const firstPromise = getCachedContent(
+			backend,
+			singletonConfig,
+			'content/settings.tentman.json',
+			'settings'
+		);
+		const secondPromise = getCachedContent(
+			backend,
+			singletonConfig,
+			'content/settings.tentman.json',
+			'settings'
+		);
+
+		expect(backend.readCount).toBe(1);
+
+		pendingRead.resolve('{\n  "title": "Tentman"\n}\n');
+
+		await expect(firstPromise).resolves.toEqual({ title: 'Tentman' });
+		await expect(secondPromise).resolves.toEqual({ title: 'Tentman' });
+	});
+
+	it('clears inflight state after a failed content fetch', async () => {
+		const backend = new MemoryRepositoryBackend({});
+
+		await expect(
+			getCachedContent(backend, singletonConfig, 'content/settings.tentman.json', 'settings')
+		).rejects.toThrow('File not found: content/site.json');
+
+		backend.files.set('content/site.json', '{\n  "title": "Tentman"\n}\n');
+
+		await expect(
+			getCachedContent(backend, singletonConfig, 'content/settings.tentman.json', 'settings')
+		).resolves.toEqual({ title: 'Tentman' });
+		expect(backend.readCount).toBe(2);
+	});
+
+	it('drops inflight content fetches during invalidation', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/site.json': '{\n  "title": "Tentman"\n}\n'
+		});
+		const pendingRead = createDeferred<string>();
+		backend.pendingReads.set('content/site.json', pendingRead);
+
+		const firstPromise = getCachedContent(
+			backend,
+			singletonConfig,
+			'content/settings.tentman.json',
+			'settings'
+		);
+
+		invalidateContent(backend.cacheKey, 'settings');
+		backend.pendingReads.delete('content/site.json');
+
+		const secondPromise = getCachedContent(
+			backend,
+			singletonConfig,
+			'content/settings.tentman.json',
+			'settings'
+		);
+
+		expect(backend.readCount).toBe(2);
+
+		pendingRead.resolve('{\n  "title": "Tentman"\n}\n');
+
+		await expect(firstPromise).resolves.toEqual({ title: 'Tentman' });
+		await expect(secondPromise).resolves.toEqual({ title: 'Tentman' });
 	});
 });

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getTentmanSchema, loadTentmanProject } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 test('summarizes repo schema across content configs', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
 	const schema = getTentmanSchema(project);
 
 	assert.deepEqual(
@@ -23,7 +23,7 @@ test('summarizes repo schema across content configs', async () => {
 });
 
 test('expands effective fields for a selected config schema', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
 	const schema = getTentmanSchema(project, 'about');
 
 	assert.equal(schema.config.label, 'About');
@@ -55,7 +55,7 @@ test('expands effective fields for a selected config schema', async () => {
 });
 
 test('includes collection metadata in selected config schema', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
 	const schema = getTentmanSchema(project, 'blog');
 
 	assert.equal(schema.config.collection.enabled, true);
@@ -68,7 +68,7 @@ test('includes collection metadata in selected config schema', async () => {
 });
 
 test('throws when exporting schema for an unknown config reference', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
 
 	assert.throws(() => getTentmanSchema(project, 'missing-config'), /Unknown content config reference/);
 });

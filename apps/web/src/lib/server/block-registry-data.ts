@@ -58,12 +58,14 @@ async function loadSerializablePackageBlocks(
 export async function loadGitHubBlockRegistryData(
 	backend: GitHubRepositoryBackend,
 	options: {
+		blockConfigs?: DiscoveredBlockConfig[];
+		rootConfig?: RootConfig | null;
 		loadBlockPackageModule?: LoadBlockPackageModule;
 	} = {}
 ): Promise<GitHubBlockRegistryData> {
 	const [blockConfigs, rootConfig] = await Promise.all([
-		backend.discoverBlockConfigs(),
-		backend.readRootConfig()
+		options.blockConfigs ? Promise.resolve(options.blockConfigs) : backend.discoverBlockConfigs(),
+		'rootConfig' in options ? Promise.resolve(options.rootConfig ?? null) : backend.readRootConfig()
 	]);
 
 	try {

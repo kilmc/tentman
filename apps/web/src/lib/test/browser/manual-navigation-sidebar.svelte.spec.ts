@@ -159,7 +159,7 @@ const sidebarEditorMocks = vi.hoisted(() => {
 		]),
 		goto: vi.fn(async () => {}),
 		resolve: vi.fn((path: string) => path),
-		invalidateAll: vi.fn(async () => {}),
+		invalidate: vi.fn(async () => {}),
 		toasts: {
 			success: vi.fn(),
 			error: vi.fn()
@@ -169,7 +169,7 @@ const sidebarEditorMocks = vi.hoisted(() => {
 
 vi.mock('$app/navigation', () => ({
 	goto: sidebarEditorMocks.goto,
-	invalidateAll: sidebarEditorMocks.invalidateAll
+	invalidate: sidebarEditorMocks.invalidate
 }));
 
 vi.mock('$app/paths', () => ({
@@ -294,7 +294,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		sidebarEditorMocks.fetchContentDocument.mockClear();
 		sidebarEditorMocks.goto.mockClear();
 		sidebarEditorMocks.resolve.mockClear();
-		sidebarEditorMocks.invalidateAll.mockClear();
+		sidebarEditorMocks.invalidate.mockClear();
 		sidebarEditorMocks.toasts.success.mockClear();
 		sidebarEditorMocks.toasts.error.mockClear();
 		sidebarEditorMocks.localContentStore.set(sidebarEditorMocks.localContentReadyState);

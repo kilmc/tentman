@@ -66,7 +66,7 @@ describe('root config editor helpers', () => {
 
 	it('writes local.previewUrl without dropping existing root config values', async () => {
 		const files = {
-			'.tentman.json': JSON.stringify({
+			'tentman.json': JSON.stringify({
 				siteName: 'Docs',
 				configsDir: 'tentman/configs',
 				local: {
@@ -80,7 +80,7 @@ describe('root config editor helpers', () => {
 			message: 'Update local preview URL'
 		});
 
-		expect(JSON.parse(files['.tentman.json'])).toEqual({
+		expect(JSON.parse(files['tentman.json'])).toEqual({
 			siteName: 'Docs',
 			configsDir: 'tentman/configs',
 			local: {
@@ -95,7 +95,7 @@ describe('root config editor helpers', () => {
 
 		await writeLocalPreviewUrl(createBackend(files), 'http://localhost:5173/');
 
-		expect(JSON.parse(files['.tentman.json'])).toEqual({
+		expect(JSON.parse(files['tentman.json'])).toEqual({
 			local: {
 				previewUrl: 'http://localhost:5173/'
 			}

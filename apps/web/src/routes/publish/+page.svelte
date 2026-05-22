@@ -2,10 +2,14 @@
 	import type { PageData } from './$types';
 	import { enhance } from '$app/forms';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
+	import { createDiscardEnhanceHandler, createPublishEnhanceHandler } from './form-behavior';
 
 	let { data }: { data: PageData } = $props();
 	let publishing = $state(false);
 	let discarding = $state(false);
+
+	const confirmDiscard = () =>
+		confirm('Are you sure you want to discard all draft changes? This cannot be undone.');
 </script>
 
 <div class="mx-auto max-w-5xl">
@@ -63,15 +67,7 @@
 		<form
 			method="POST"
 			action="?/publish"
-			use:enhance={() => {
-				publishing = true;
-				return async ({ update }) => {
-					await update();
-					// Clear draft branch from store on success
-					draftBranchStore.clear();
-					publishing = false;
-				};
-			}}
+			use:enhance={createPublishEnhanceHandler(draftBranchStore, (value) => (publishing = value))}
 		>
 			<button
 				type="submit"
@@ -89,21 +85,11 @@
 		<form
 			method="POST"
 			action="?/discard"
-			use:enhance={({ cancel }) => {
-				if (
-					!confirm('Are you sure you want to discard all draft changes? This cannot be undone.')
-				) {
-					cancel();
-					return;
-				}
-				discarding = true;
-				return async ({ update }) => {
-					await update();
-					// Clear draft branch from store on success
-					draftBranchStore.clear();
-					discarding = false;
-				};
-			}}
+			use:enhance={createDiscardEnhanceHandler(
+				draftBranchStore,
+				(value) => (discarding = value),
+				confirmDiscard
+			)}
 		>
 			<button
 				type="submit"

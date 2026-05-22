@@ -77,14 +77,18 @@ export function validateFormData(
  * Removes leading ./ or . from paths
  */
 export function normalizeGitHubPath(path: string): string {
-	// Remove leading ./
+	if (path === '.' || path === './' || path === '/') {
+		return '';
+	}
+
 	if (path.startsWith('./')) {
 		return path.slice(2);
 	}
-	// Remove leading . if it's the entire path
-	if (path === '.') {
-		return '';
+
+	if (path.startsWith('/')) {
+		return path.replace(/^\/+/, '');
 	}
+
 	return path;
 }
 
@@ -126,7 +130,7 @@ export function resolveConfigPath(configPath: string, relativePath: string): str
 
 	// Handle relative paths starting with ../
 	if (relativePath.startsWith('../')) {
-		return resolveRelativePath(configDir, relativePath);
+		return normalizeGitHubPath(resolveRelativePath(configDir, relativePath));
 	}
 
 	// Already absolute or root-relative - just normalize

@@ -1,5 +1,9 @@
 import type { Octokit } from 'octokit';
-import { discoverGitHubBlockConfigs, discoverGitHubConfigs } from '$lib/config/discovery';
+import {
+	discoverGitHubBlockConfigs,
+	discoverGitHubConfigs,
+	type DiscoveredBlockConfig
+} from '$lib/config/discovery';
 import { parseRootConfig, type RootConfig } from '$lib/config/root-config';
 import { writeGitHubImage } from '$lib/github/image';
 import type {
@@ -8,6 +12,30 @@ import type {
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
+import { normalizeGitHubPath } from '$lib/utils/validation';
+
+interface CachedMetadataEntry<T> {
+	value: T;
+	timestamp: number;
+}
+
+interface GitHubRepositoryRequestStat {
+	repoKey: string;
+	operation: string;
+	path: string;
+	ref: string | null;
+	count: number;
+	totalDurationMs: number;
+	lastDurationMs: number;
+	lastUpdatedAt: number;
+}
+
+const METADATA_CACHE_TTL = 60 * 1000;
+const rootConfigCache = new Map<string, CachedMetadataEntry<RootConfig | null>>();
+const rootConfigInflight = new Map<string, Promise<RootConfig | null>>();
+const blockConfigCache = new Map<string, CachedMetadataEntry<DiscoveredBlockConfig[]>>();
+const blockConfigInflight = new Map<string, Promise<DiscoveredBlockConfig[]>>();
+const githubRepositoryRequestStats = new Map<string, GitHubRepositoryRequestStat>();
 
 export interface GitHubRepositoryIdentity {
 	owner: string;
@@ -27,6 +55,149 @@ function decodeGitHubContent(content: string): string {
 	return Buffer.from(content, 'base64').toString('utf-8');
 }
 
+function sanitizeRepositoryPath(path: string): string {
+	return normalizeGitHubPath(path);
+}
+
+function isGitHubRequestInstrumentationEnabled(): boolean {
+	return Boolean(import.meta.env?.DEV);
+}
+
+function getGitHubRepositoryRequestStatKey(
+	repoKey: string,
+	operation: string,
+	path: string,
+	ref: string | null
+): string {
+	return `${repoKey}:${operation}:${path}:${ref ?? '-'}`;
+}
+
+function recordGitHubRepositoryRequestStat(
+	repoKey: string,
+	operation: string,
+	path: string,
+	ref: string | null,
+	durationMs: number
+): void {
+	if (!isGitHubRequestInstrumentationEnabled()) {
+		return;
+	}
+
+	const statKey = getGitHubRepositoryRequestStatKey(repoKey, operation, path, ref);
+	const existing = githubRepositoryRequestStats.get(statKey);
+	const nextStat: GitHubRepositoryRequestStat = existing
+		? {
+				...existing,
+				count: existing.count + 1,
+				totalDurationMs: existing.totalDurationMs + durationMs,
+				lastDurationMs: durationMs,
+				lastUpdatedAt: Date.now()
+			}
+		: {
+				repoKey,
+				operation,
+				path,
+				ref,
+				count: 1,
+				totalDurationMs: durationMs,
+				lastDurationMs: durationMs,
+				lastUpdatedAt: Date.now()
+			};
+
+	githubRepositoryRequestStats.set(statKey, nextStat);
+	console.log('[GITHUB REPO REQUEST]', {
+		repoKey,
+		operation,
+		path,
+		ref,
+		durationMs: Number(durationMs.toFixed(1)),
+		count: nextStat.count
+	});
+}
+
+async function instrumentGitHubRepositoryRequest<T>(
+	repoKey: string,
+	operation: string,
+	path: string,
+	ref: string | null,
+	action: () => Promise<T>
+): Promise<T> {
+	const start = performance.now();
+	try {
+		return await action();
+	} finally {
+		recordGitHubRepositoryRequestStat(repoKey, operation, path, ref, performance.now() - start);
+	}
+}
+
+function isFresh<T>(entry: CachedMetadataEntry<T> | undefined): entry is CachedMetadataEntry<T> {
+	return Boolean(entry) && Date.now() - entry.timestamp < METADATA_CACHE_TTL;
+}
+
+function readCachedMetadata<T>(
+	key: string,
+	cache: Map<string, CachedMetadataEntry<T>>,
+	inflight: Map<string, Promise<T>>,
+	load: () => Promise<T>
+): Promise<T> {
+	const cachedEntry = cache.get(key);
+	if (isFresh(cachedEntry)) {
+		return Promise.resolve(cachedEntry.value);
+	}
+
+	const pending = inflight.get(key);
+	if (pending) {
+		return pending;
+	}
+
+	const fetchPromise = load()
+		.then((value) => {
+			cache.set(key, {
+				value,
+				timestamp: Date.now()
+			});
+			return value;
+		})
+		.finally(() => {
+			inflight.delete(key);
+		});
+
+	inflight.set(key, fetchPromise);
+	return fetchPromise;
+}
+
+function getRootConfigCacheKey(repoKey: string): string {
+	return `${repoKey}:root-config`;
+}
+
+function getBlockConfigCacheKey(repoKey: string): string {
+	return `${repoKey}:block-configs`;
+}
+
+export function invalidateGitHubRepositoryMetadataCache(repoKey: string): void {
+	rootConfigCache.delete(getRootConfigCacheKey(repoKey));
+	rootConfigInflight.delete(getRootConfigCacheKey(repoKey));
+	blockConfigCache.delete(getBlockConfigCacheKey(repoKey));
+	blockConfigInflight.delete(getBlockConfigCacheKey(repoKey));
+}
+
+export function clearGitHubRepositoryMetadataCache(): void {
+	rootConfigCache.clear();
+	rootConfigInflight.clear();
+	blockConfigCache.clear();
+	blockConfigInflight.clear();
+}
+
+export function clearGitHubRepositoryRequestStats(): void {
+	githubRepositoryRequestStats.clear();
+}
+
+export function getGitHubRepositoryRequestStats(): GitHubRepositoryRequestStat[] {
+	return [...githubRepositoryRequestStats.values()].sort(
+		(left, right) => right.lastUpdatedAt - left.lastUpdatedAt
+	);
+}
+
 export function createGitHubRepositoryBackend(
 	octokit: Octokit,
 	repository: GitHubRepositoryIdentity,
@@ -36,6 +207,7 @@ export function createGitHubRepositoryBackend(
 ): GitHubRepositoryBackend {
 	const { owner, name, full_name } = repository;
 	const defaultRef = options?.defaultRef;
+	const repoKey = defaultRef ? `github:${owner}/${name}?ref=${defaultRef}` : `github:${owner}/${name}`;
 
 	function readRef(options?: RepositoryReadOptions): string | undefined {
 		return options?.ref ?? defaultRef;
@@ -43,7 +215,7 @@ export function createGitHubRepositoryBackend(
 
 	return {
 		kind: 'github',
-		cacheKey: defaultRef ? `github:${owner}/${name}?ref=${defaultRef}` : `github:${owner}/${name}`,
+		cacheKey: repoKey,
 		label: full_name,
 		supportsDraftBranches: true,
 		owner,
@@ -52,43 +224,83 @@ export function createGitHubRepositoryBackend(
 		octokit,
 
 		discoverConfigs() {
-			return discoverGitHubConfigs(octokit, owner, name, defaultRef);
+			return instrumentGitHubRepositoryRequest(
+				repoKey,
+				'discoverConfigs',
+				'<config-discovery>',
+				defaultRef ?? null,
+				() => discoverGitHubConfigs(octokit, owner, name, defaultRef)
+			);
 		},
 
 		discoverBlockConfigs() {
-			return discoverGitHubBlockConfigs(octokit, owner, name, defaultRef);
+			return readCachedMetadata(
+				getBlockConfigCacheKey(repoKey),
+				blockConfigCache,
+				blockConfigInflight,
+				() =>
+					instrumentGitHubRepositoryRequest(
+						repoKey,
+						'discoverBlockConfigs',
+						'<block-config-discovery>',
+						defaultRef ?? null,
+						() => discoverGitHubBlockConfigs(octokit, owner, name, defaultRef)
+					)
+			);
 		},
 
 		async readRootConfig(): Promise<RootConfig | null> {
-			try {
-				const { data } = await octokit.rest.repos.getContent({
-					owner,
-					repo: name,
-					path: '.tentman.json',
-					...(defaultRef ? { ref: defaultRef } : {})
-				});
+			return readCachedMetadata(
+				getRootConfigCacheKey(repoKey),
+				rootConfigCache,
+				rootConfigInflight,
+				async () => {
+					try {
+						const { data } = await instrumentGitHubRepositoryRequest(
+							repoKey,
+							'readRootConfig',
+							'tentman.json',
+							defaultRef ?? null,
+							() =>
+								octokit.rest.repos.getContent({
+									owner,
+									repo: name,
+									path: 'tentman.json',
+									...(defaultRef ? { ref: defaultRef } : {})
+								})
+						);
 
-				if (!('content' in data) || Array.isArray(data)) {
-					return null;
+						if (!('content' in data) || Array.isArray(data)) {
+							return null;
+						}
+
+						return parseRootConfig(decodeGitHubContent(data.content));
+					} catch {
+						return null;
+					}
 				}
-
-				return parseRootConfig(decodeGitHubContent(data.content));
-			} catch {
-				return null;
-			}
+			);
 		},
 
 		async readTextFile(path: string, options?: RepositoryReadOptions): Promise<string> {
 			const ref = readRef(options);
-			const { data } = await octokit.rest.repos.getContent({
-				owner,
-				repo: name,
-				path,
-				...(ref && { ref })
-			});
+			const normalizedPath = sanitizeRepositoryPath(path);
+			const { data } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'readTextFile',
+				normalizedPath,
+				ref ?? null,
+				() =>
+					octokit.rest.repos.getContent({
+						owner,
+						repo: name,
+						path: normalizedPath,
+						...(ref && { ref })
+					})
+			);
 
 			if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) {
-				throw new Error(`Expected file at ${path}`);
+				throw new Error(`Expected file at ${normalizedPath}`);
 			}
 
 			return decodeGitHubContent(data.content);
@@ -101,14 +313,22 @@ export function createGitHubRepositoryBackend(
 		): Promise<void> {
 			let sha: string | undefined;
 			const ref = readRef(options);
+			const normalizedPath = sanitizeRepositoryPath(path);
 
 			try {
-				const { data } = await octokit.rest.repos.getContent({
-					owner,
-					repo: name,
-					path,
-					...(ref && { ref })
-				});
+				const { data } = await instrumentGitHubRepositoryRequest(
+					repoKey,
+					'readForWriteTextFile',
+					normalizedPath,
+					ref ?? null,
+					() =>
+						octokit.rest.repos.getContent({
+							owner,
+							repo: name,
+							path: normalizedPath,
+							...(ref && { ref })
+						})
+				);
 
 				if ('sha' in data) {
 					sha = data.sha;
@@ -117,15 +337,22 @@ export function createGitHubRepositoryBackend(
 				// Create if missing.
 			}
 
-			await octokit.rest.repos.createOrUpdateFileContents({
-				owner,
-				repo: name,
-				path,
-				message: options?.message || `Update ${path} via Tentman CMS`,
-				content: Buffer.from(content).toString('base64'),
-				...(sha && { sha }),
-				...(ref && { branch: ref })
-			});
+			await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'writeTextFile',
+				normalizedPath,
+				ref ?? null,
+				() =>
+					octokit.rest.repos.createOrUpdateFileContents({
+						owner,
+						repo: name,
+						path: normalizedPath,
+						message: options?.message || `Update ${normalizedPath} via Tentman CMS`,
+						content: Buffer.from(content).toString('base64'),
+						...(sha && { sha }),
+						...(ref && { branch: ref })
+					})
+			);
 		},
 
 		async writeBinaryFile(
@@ -134,47 +361,79 @@ export function createGitHubRepositoryBackend(
 			options?: RepositoryWriteOptions
 		): Promise<void> {
 			const ref = readRef(options);
-			await writeGitHubImage(octokit, owner, name, content, {
-				path,
-				branch: ref,
-				message: options?.message
-			});
+			const normalizedPath = sanitizeRepositoryPath(path);
+			await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'writeBinaryFile',
+				normalizedPath,
+				ref ?? null,
+				() =>
+					writeGitHubImage(octokit, owner, name, content, {
+						path: normalizedPath,
+						branch: ref,
+						message: options?.message
+					})
+			);
 		},
 
 		async deleteFile(path: string, options?: RepositoryWriteOptions): Promise<void> {
 			const ref = readRef(options);
-			const { data } = await octokit.rest.repos.getContent({
-				owner,
-				repo: name,
-				path,
-				...(ref && { ref })
-			});
+			const normalizedPath = sanitizeRepositoryPath(path);
+			const { data } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'readForDeleteFile',
+				normalizedPath,
+				ref ?? null,
+				() =>
+					octokit.rest.repos.getContent({
+						owner,
+						repo: name,
+						path: normalizedPath,
+						...(ref && { ref })
+					})
+			);
 
 			if (!('sha' in data)) {
-				throw new Error(`Expected file at ${path}`);
+				throw new Error(`Expected file at ${normalizedPath}`);
 			}
 
-			await octokit.rest.repos.deleteFile({
-				owner,
-				repo: name,
-				path,
-				message: options?.message || `Delete ${path} via Tentman CMS`,
-				sha: data.sha,
-				...(ref && { branch: ref })
-			});
+			await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'deleteFile',
+				normalizedPath,
+				ref ?? null,
+				() =>
+					octokit.rest.repos.deleteFile({
+						owner,
+						repo: name,
+						path: normalizedPath,
+						message: options?.message || `Delete ${normalizedPath} via Tentman CMS`,
+						sha: data.sha,
+						...(ref && { branch: ref })
+					})
+			);
 		},
 
 		async listDirectory(path: string, options?: RepositoryReadOptions): Promise<RepoEntry[]> {
 			const ref = readRef(options);
-			const { data } = await octokit.rest.repos.getContent({
-				owner,
-				repo: name,
-				path: path || '.',
-				...(ref && { ref })
-			});
+			const normalizedPath = sanitizeRepositoryPath(path);
+			const requestPath = normalizedPath || '.';
+			const { data } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'listDirectory',
+				requestPath,
+				ref ?? null,
+				() =>
+					octokit.rest.repos.getContent({
+						owner,
+						repo: name,
+						path: requestPath,
+						...(ref && { ref })
+					})
+			);
 
 			if (!Array.isArray(data)) {
-				throw new Error(`Expected directory at ${path || '.'}`);
+				throw new Error(`Expected directory at ${normalizedPath || '.'}`);
 			}
 
 			return data
@@ -188,13 +447,21 @@ export function createGitHubRepositoryBackend(
 
 		async fileExists(path: string, options?: RepositoryReadOptions): Promise<boolean> {
 			const ref = readRef(options);
+			const normalizedPath = sanitizeRepositoryPath(path);
 			try {
-				await octokit.rest.repos.getContent({
-					owner,
-					repo: name,
-					path,
-					...(ref && { ref })
-				});
+				await instrumentGitHubRepositoryRequest(
+					repoKey,
+					'fileExists',
+					normalizedPath,
+					ref ?? null,
+					() =>
+						octokit.rest.repos.getContent({
+							owner,
+							repo: name,
+							path: normalizedPath,
+							...(ref && { ref })
+						})
+				);
 				return true;
 			} catch (error) {
 				if (error && typeof error === 'object' && 'status' in error && error.status === 404) {

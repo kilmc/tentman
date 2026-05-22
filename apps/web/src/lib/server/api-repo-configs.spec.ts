@@ -5,11 +5,11 @@ vi.mock('$lib/stores/config-cache', () => ({
 }));
 
 const pageContextMocks = vi.hoisted(() => ({
-	requireGitHubRepository: vi.fn()
+	requireGitHubContentRepository: vi.fn()
 }));
 
 vi.mock('$lib/server/page-context', () => ({
-	requireGitHubRepository: pageContextMocks.requireGitHubRepository
+	requireGitHubContentRepository: pageContextMocks.requireGitHubContentRepository
 }));
 
 import { GET } from '../../routes/api/repo/configs/+server';
@@ -30,10 +30,13 @@ function createCookies() {
 describe('GET /api/repo/configs', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		pageContextMocks.requireGitHubRepository.mockReturnValue({
+		pageContextMocks.requireGitHubContentRepository.mockResolvedValue({
 			backend: {
 				discoverBlockConfigs: vi.fn(async () => []),
 				readRootConfig: vi.fn(async () => null),
+				readTextFile: vi.fn(async () => {
+					throw { status: 404 };
+				}),
 				fileExists: vi.fn(async () => false)
 			}
 		});
@@ -86,6 +89,7 @@ describe('GET /api/repo/configs', () => {
 			],
 			blockConfigs: [],
 			rootConfig: null,
+			activeDraftBranch: null,
 			navigationManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: false,

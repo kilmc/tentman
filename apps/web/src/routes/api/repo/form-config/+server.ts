@@ -3,9 +3,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
-import { requireGitHubContentRepository } from '$lib/server/page-context';
-import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-import { getCachedConfigs } from '$lib/stores/config-cache';
+import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const slug = url.searchParams.get('slug');
@@ -16,18 +14,25 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { backend, draftBranch } = await requireGitHubContentRepository(
-			requestContext,
-			`/pages/${slug}/new`
-		);
-		const discoveredConfig = (await getCachedConfigs(backend)).find((config) => config.slug === slug);
+		const {
+			backend,
+			configs,
+			blockConfigs: cachedBlockConfigs,
+			rootConfig,
+			navigationManifest,
+			draftBranch
+		} =
+			await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
+		const discoveredConfig = configs.find((config) => config.slug === slug);
 
 		if (!discoveredConfig) {
 			throw error(404, 'Configuration not found');
 		}
 		const { blockConfigs, packageBlocks, blockRegistryError } =
-			await loadGitHubBlockRegistryData(backend);
-		const navigationManifest = await loadNavigationManifestState(backend);
+			await loadGitHubBlockRegistryData(backend, {
+				blockConfigs: cachedBlockConfigs,
+				rootConfig
+			});
 
 		return json({
 			discoveredConfig,
@@ -40,7 +45,9 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			mode: 'github' as const
 		});
 	} catch (err) {
-		handleGitHubSessionError({ cookies }, err);
+		handleGitHubSessionError(requestContext, err, {
+			redirectTo: `/pages/${slug}/new`
+		});
 
 		if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
 			throw err;

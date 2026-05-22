@@ -589,7 +589,7 @@ const editorLayoutRows = [
 ];
 
 const pathRules = [
-	'Root config paths resolve relative to .tentman.json.',
+	'Root config paths resolve relative to tentman.json.',
 	'Content storage paths resolve relative to the config file that declares them.',
 	'Custom adapter paths resolve relative to the reusable block config file that declares them.',
 	'If configsDir is set, Tentman only discovers top-level content configs inside that directory.',
@@ -994,7 +994,7 @@ const docsPages: DocsPage[] = [
 					{
 						kind: 'rich-text',
 						html: `<ol class="list-decimal space-y-3 pl-5">
-<li>Add an optional ${inlineCode('.tentman.json')} file if you want shared defaults like discovery paths or state presets.</li>
+<li>Add an optional ${inlineCode('tentman.json')} file if you want shared defaults like discovery paths or state presets.</li>
 <li>Create a content config, often under ${inlineCode('tentman/configs/posts.tentman.json')}.</li>
 <li>Use ${inlineCode('content.mode: "directory"')} so each post lives in its own file.</li>
 <li>Define a few blocks such as title, slug, publish date, published, and body.</li>

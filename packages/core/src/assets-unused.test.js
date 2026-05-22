@@ -1,20 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { findUnusedTentmanAssets, loadTentmanProject } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 async function copyFixture() {
-	const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-core-assets-unused-'));
-	const projectRoot = path.join(tempRoot, 'test-app');
-	await fs.cp(testAppRoot, projectRoot, { recursive: true });
-	return projectRoot;
+	return copyTestAppToTempGitRepo('tentman-core-assets-unused-');
 }
 
 test('reports no unused files in configured asset directories for the fixture', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyFixture());
 	const unused = await findUnusedTentmanAssets(project);
 
 	assert.deepEqual(
@@ -28,7 +24,7 @@ test('reports no unused files in configured asset directories for the fixture', 
 });
 
 test('ignores loose root assets outside explicit image field directories', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyFixture());
 	const unused = await findUnusedTentmanAssets(project);
 
 	assert.ok(!unused.some((entry) => entry.path === 'static/images'));

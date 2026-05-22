@@ -7,7 +7,7 @@ import {
 	validateContentComponent
 } from './content-components.js';
 import { serializeJson } from './json.js';
-import { ROOT_CONFIG_PATH, parseRootConfig } from './project.js';
+import { ROOT_CONFIG_PATH, parseRootConfig, resolveTentmanProjectRoot } from './project.js';
 import { getPathRelativeToRoot, resolveProjectPath, toPosixPath } from './paths.js';
 
 const DEFAULT_COMPONENTS_DIR = 'src/lib/content-components';
@@ -82,7 +82,7 @@ function getPreviewTemplateSource(name, kind) {
 }
 
 export async function createContentComponentScaffold(projectRoot, name, options = {}) {
-	const rootDir = path.resolve(projectRoot);
+	const rootDir = await resolveTentmanProjectRoot(projectRoot);
 	const normalizedName = validateComponentName(name);
 	const normalizedKind = validateComponentKind(options.kind);
 	const rootConfigPath = resolveProjectPath(rootDir, ROOT_CONFIG_PATH);

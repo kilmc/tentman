@@ -34,7 +34,7 @@ function createBackend(files: Record<string, string>): RepositoryBackend {
 			return [];
 		},
 		async readRootConfig() {
-			return JSON.parse(files['.tentman.json']) as never;
+			return JSON.parse(files['tentman.json']) as never;
 		},
 		async readTextFile(path: string) {
 			const value = files[path];
@@ -62,7 +62,7 @@ function createBackend(files: Record<string, string>): RepositoryBackend {
 
 const settingsPageMocks = vi.hoisted(() => {
 	const files = {
-		'.tentman.json': JSON.stringify({
+		'tentman.json': JSON.stringify({
 			siteName: 'Docs',
 			local: {
 				previewUrl: 'http://localhost:5173/'
@@ -77,7 +77,7 @@ const settingsPageMocks = vi.hoisted(() => {
 		blockConfigs: [],
 		blockRegistry: null,
 		blockRegistryError: null,
-		rootConfig: JSON.parse(files['.tentman.json']),
+		rootConfig: JSON.parse(files['tentman.json']),
 		navigationManifest: {
 			path: 'tentman/navigation-manifest.json',
 			exists: false,
@@ -103,7 +103,7 @@ const settingsPageMocks = vi.hoisted(() => {
 	const refresh = vi.fn(async () => {
 		localContentStore.set({
 			...localContentReadyState,
-			rootConfig: JSON.parse(files['.tentman.json'])
+			rootConfig: JSON.parse(files['tentman.json'])
 		});
 	});
 
@@ -113,12 +113,12 @@ const settingsPageMocks = vi.hoisted(() => {
 		localContentStore,
 		localRepoStore,
 		refresh,
-		invalidateAll: vi.fn(async () => {})
+		invalidate: vi.fn(async () => {})
 	};
 });
 
 vi.mock('$app/navigation', () => ({
-	invalidateAll: settingsPageMocks.invalidateAll
+	invalidate: settingsPageMocks.invalidate
 }));
 
 vi.mock('$app/state', () => ({
@@ -173,14 +173,14 @@ const data = {
 
 describe('routes/pages/settings/+page.svelte', () => {
 	beforeEach(() => {
-		settingsPageMocks.files['.tentman.json'] = JSON.stringify({
+		settingsPageMocks.files['tentman.json'] = JSON.stringify({
 			siteName: 'Docs',
 			local: {
 				previewUrl: 'http://localhost:5173/'
 			}
 		});
 		settingsPageMocks.refresh.mockClear();
-		settingsPageMocks.invalidateAll.mockClear();
+		settingsPageMocks.invalidate.mockClear();
 		settingsPageMocks.localContentStore.set(settingsPageMocks.localContentReadyState);
 	});
 
@@ -192,13 +192,13 @@ describe('routes/pages/settings/+page.svelte', () => {
 		await screen.getByLabelText('Preview port').fill('4173');
 		await screen.getByRole('button', { name: 'Save port' }).click();
 
-		expect(JSON.parse(settingsPageMocks.files['.tentman.json'])).toMatchObject({
+		expect(JSON.parse(settingsPageMocks.files['tentman.json'])).toMatchObject({
 			local: {
 				previewUrl: 'http://localhost:4173/'
 			}
 		});
 		expect(settingsPageMocks.refresh).toHaveBeenCalledWith({ force: true });
-		expect(settingsPageMocks.invalidateAll).toHaveBeenCalled();
+		expect(settingsPageMocks.invalidate).toHaveBeenCalledWith('app:content');
 		await expect.element(screen.getByText('Local preview port updated.')).toBeVisible();
 	});
 
@@ -211,7 +211,7 @@ describe('routes/pages/settings/+page.svelte', () => {
 		await expect
 			.element(screen.getByText('Use the site preview port, not the Tentman app port.'))
 			.toBeVisible();
-		expect(JSON.parse(settingsPageMocks.files['.tentman.json'])).toMatchObject({
+		expect(JSON.parse(settingsPageMocks.files['tentman.json'])).toMatchObject({
 			local: {
 				previewUrl: 'http://localhost:5173/'
 			}

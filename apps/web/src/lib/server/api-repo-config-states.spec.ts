@@ -1,36 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$lib/stores/config-cache', () => ({
-	getCachedConfigs: vi.fn()
-}));
-
 vi.mock('$lib/stores/content-cache', () => ({
 	getCachedContent: vi.fn()
 }));
 
-vi.mock('$lib/server/auth/github', async () => {
-	const actual =
-		await vi.importActual<typeof import('$lib/server/auth/github')>('$lib/server/auth/github');
-
-	return {
-		...actual,
-		createGitHubServerClient: vi.fn(() => ({
-			rest: {
-				repos: {
-					getContent: vi.fn(async () => {
-						throw {
-							status: 404
-						};
-					})
-				}
-			}
-		}))
-	};
-});
+vi.mock('$lib/server/repo-config-bootstrap', () => ({
+	loadSelectedGitHubRepoBootstrapContext: vi.fn()
+}));
 
 import { GET } from '../../routes/api/repo/config-states/+server';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
 
 const singletonConfig = {
 	slug: 'about',
@@ -64,7 +44,11 @@ describe('GET /api/repo/config-states', () => {
 	});
 
 	it('returns resolved top-level config states for singleton content', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([singletonConfig] as never);
+		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue({
+			backend: { cacheKey: 'github:acme/docs' },
+			configs: [singletonConfig],
+			rootConfig: null
+		} as never);
 		vi.mocked(getCachedContent).mockResolvedValue({
 			title: 'About',
 			published: false

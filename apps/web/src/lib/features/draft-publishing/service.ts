@@ -3,6 +3,15 @@ import { createBranch, deleteBranch } from '$lib/github/branch';
 import { closeDraftPullRequest, ensureDraftPullRequest } from '$lib/github/pull-request';
 
 export const TENTMAN_DRAFT_BRANCH = 'tentman-preview';
+const DRAFT_BRANCH_CACHE_TTL = 60 * 1000;
+
+interface CachedDraftBranchEntry {
+	value: string | undefined;
+	timestamp: number;
+}
+
+const draftBranchCache = new Map<string, CachedDraftBranchEntry>();
+const draftBranchInflight = new Map<string, Promise<string | undefined>>();
 
 export class MissingDraftBranchError extends Error {
 	readonly status = 400;
@@ -13,21 +22,47 @@ export class MissingDraftBranchError extends Error {
 	}
 }
 
-async function listTentmanDraftBranches(
+function getDraftBranchCacheKey(owner: string, repo: string): string {
+	return `${owner}/${repo}:${TENTMAN_DRAFT_BRANCH}`;
+}
+
+function isFreshDraftBranchEntry(
+	entry: CachedDraftBranchEntry | undefined
+): entry is CachedDraftBranchEntry {
+	return Boolean(entry) && Date.now() - entry.timestamp < DRAFT_BRANCH_CACHE_TTL;
+}
+
+export function invalidateDraftBranchCache(owner: string, repo: string): void {
+	const cacheKey = getDraftBranchCacheKey(owner, repo);
+	draftBranchCache.delete(cacheKey);
+	draftBranchInflight.delete(cacheKey);
+}
+
+export function clearDraftBranchCache(): void {
+	draftBranchCache.clear();
+	draftBranchInflight.clear();
+}
+
+async function readTentmanDraftBranchName(
 	octokit: Octokit,
 	owner: string,
 	repo: string
-): Promise<string[]> {
-	const { data: branches } = await octokit.rest.repos.listBranches({
-		owner,
-		repo,
-		per_page: 100
-	});
+): Promise<string | undefined> {
+	try {
+		await octokit.rest.repos.getBranch({
+			owner,
+			repo,
+			branch: TENTMAN_DRAFT_BRANCH
+		});
 
-	return branches
-		.map((branch) => branch.name)
-		.filter((branchName) => branchName === TENTMAN_DRAFT_BRANCH)
-		.sort();
+		return TENTMAN_DRAFT_BRANCH;
+	} catch (error) {
+		if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+			return undefined;
+		}
+
+		throw error;
+	}
 }
 
 export async function getTentmanDraftBranchName(
@@ -35,13 +70,31 @@ export async function getTentmanDraftBranchName(
 	owner: string,
 	repo: string
 ): Promise<string | undefined> {
-	const branches = await listTentmanDraftBranches(octokit, owner, repo);
-
-	if (branches.length === 0) {
-		return undefined;
+	const cacheKey = getDraftBranchCacheKey(owner, repo);
+	const cachedEntry = draftBranchCache.get(cacheKey);
+	if (isFreshDraftBranchEntry(cachedEntry)) {
+		return cachedEntry.value;
 	}
 
-	return TENTMAN_DRAFT_BRANCH;
+	const pending = draftBranchInflight.get(cacheKey);
+	if (pending) {
+		return pending;
+	}
+
+	const fetchPromise = readTentmanDraftBranchName(octokit, owner, repo)
+		.then((value) => {
+			draftBranchCache.set(cacheKey, {
+				value,
+				timestamp: Date.now()
+			});
+			return value;
+		})
+		.finally(() => {
+			draftBranchInflight.delete(cacheKey);
+		});
+
+	draftBranchInflight.set(cacheKey, fetchPromise);
+	return fetchPromise;
 }
 
 export async function ensureDraftBranch(
@@ -58,6 +111,11 @@ export async function ensureDraftBranch(
 	}
 
 	await createBranch(octokit, owner, repo, TENTMAN_DRAFT_BRANCH);
+	draftBranchCache.set(getDraftBranchCacheKey(owner, repo), {
+		value: TENTMAN_DRAFT_BRANCH,
+		timestamp: Date.now()
+	});
+	draftBranchInflight.delete(getDraftBranchCacheKey(owner, repo));
 	return {
 		branchName: TENTMAN_DRAFT_BRANCH,
 		created: true
@@ -83,6 +141,7 @@ export async function publishDraftBranch(
 		commit_title: 'Publish Tentman draft changes'
 	});
 	await deleteBranch(octokit, owner, repo, draftBranch);
+	invalidateDraftBranchCache(owner, repo);
 
 	return { branchName: draftBranch };
 }
@@ -100,6 +159,7 @@ export async function discardDraftBranch(
 
 	await closeDraftPullRequest(octokit, owner, repo, draftBranch);
 	await deleteBranch(octokit, owner, repo, draftBranch);
+	invalidateDraftBranchCache(owner, repo);
 
 	return { branchName: draftBranch };
 }

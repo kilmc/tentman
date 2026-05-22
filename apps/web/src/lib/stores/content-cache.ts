@@ -21,6 +21,7 @@ const CACHE_TTL = 60 * 1000;
 
 // Module-level cache (persists across requests in the same Node process)
 const cache = new Map<string, ContentCacheEntry>();
+const inflightFetches = new Map<string, Promise<any>>();
 
 /**
  * Get a unique key for content
@@ -60,27 +61,38 @@ export async function getCachedContent(
 		return cachedEntry!.content;
 	}
 
+	const inflightFetch = inflightFetches.get(cacheKey);
+	if (inflightFetch) {
+		console.log(`⏳ [CONTENT CACHE] Reusing in-flight fetch for ${cacheKey}`);
+		return inflightFetch;
+	}
+
 	// Cache miss or stale - fetch from GitHub
 	console.log(`🔄 [CONTENT CACHE] Cache miss for ${cacheKey}, fetching from backend...`);
 	const fetchStart = performance.now();
+	const fetchPromise = fetchContentDocument(backend, config, configPath, { branch })
+		.then((content) => {
+			const fetchTime = performance.now() - fetchStart;
+			console.log(`✅ [CONTENT CACHE] Fetched content in ${fetchTime.toFixed(0)}ms`);
 
-	try {
-		const content = await fetchContentDocument(backend, config, configPath, { branch });
-		const fetchTime = performance.now() - fetchStart;
-		console.log(`✅ [CONTENT CACHE] Fetched content in ${fetchTime.toFixed(0)}ms`);
+			cache.set(cacheKey, {
+				content,
+				timestamp: Date.now(),
+				cacheKey
+			});
 
-		// Update the cache
-		cache.set(cacheKey, {
-			content,
-			timestamp: Date.now(),
-			cacheKey
+			return content;
+		})
+		.catch((error) => {
+			console.error(`❌ [CONTENT CACHE] Failed to fetch content for ${cacheKey}:`, error);
+			throw error;
+		})
+		.finally(() => {
+			inflightFetches.delete(cacheKey);
 		});
 
-		return content;
-	} catch (error) {
-		console.error(`❌ [CONTENT CACHE] Failed to fetch content for ${cacheKey}:`, error);
-		throw error;
-	}
+	inflightFetches.set(cacheKey, fetchPromise);
+	return fetchPromise;
 }
 
 /**
@@ -127,21 +139,31 @@ export function invalidateContent(cacheKey: string, configSlug?: string, branch?
 		const specificKey = getContentKey(cacheKey, configSlug, branch);
 		console.log(`🗑️ [CONTENT CACHE] Invalidating cache for ${specificKey}`);
 		cache.delete(specificKey);
+		inflightFetches.delete(specificKey);
 	} else {
 		// Invalidate all branches for a config, or the whole repo when no slug is provided.
 		const prefix = configSlug ? `${cacheKey}/${configSlug}/` : `${cacheKey}/`;
-		const keysToDelete: string[] = [];
+		const keysToDelete = new Set<string>();
 
 		for (const [key] of cache.entries()) {
 			if (key.startsWith(prefix)) {
-				keysToDelete.push(key);
+				keysToDelete.add(key);
+			}
+		}
+
+		for (const [key] of inflightFetches.entries()) {
+			if (key.startsWith(prefix)) {
+				keysToDelete.add(key);
 			}
 		}
 
 		console.log(
-			`🗑️ [CONTENT CACHE] Invalidating ${keysToDelete.length} cache entries for ${prefix}*`
+			`🗑️ [CONTENT CACHE] Invalidating ${keysToDelete.size} cache entries for ${prefix}*`
 		);
-		keysToDelete.forEach((key) => cache.delete(key));
+		keysToDelete.forEach((key) => {
+			cache.delete(key);
+			inflightFetches.delete(key);
+		});
 	}
 }
 
@@ -151,6 +173,7 @@ export function invalidateContent(cacheKey: string, configSlug?: string, branch?
 export function clearContentCache(): void {
 	console.log('🗑️ [CONTENT CACHE] Clearing all cached content');
 	cache.clear();
+	inflightFetches.clear();
 }
 
 /**

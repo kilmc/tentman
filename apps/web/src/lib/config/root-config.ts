@@ -13,7 +13,7 @@ export function shouldUseLocalConfigCache(rootConfig: RootConfig | null | undefi
 }
 
 /**
- * Fetches the root configuration file (.tentman.json) from a repository.
+ * Fetches the root configuration file (tentman.json) from a repository.
  * This file contains site-wide settings like Netlify site name for preview URLs.
  *
  * @param octokit - Authenticated Octokit instance
@@ -30,7 +30,7 @@ export async function fetchRootConfig(
 		const { data } = await octokit.rest.repos.getContent({
 			owner,
 			repo,
-			path: '.tentman.json'
+			path: 'tentman.json'
 		});
 
 		// Ensure we got file content, not directory listing

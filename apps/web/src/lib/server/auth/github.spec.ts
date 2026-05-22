@@ -8,13 +8,27 @@ const { privateEnv } = vi.hoisted(() => ({
 	}
 }));
 
+const { OctokitMock } = vi.hoisted(() => ({
+	OctokitMock: vi.fn(() => ({
+		hook: {
+			error: vi.fn()
+		}
+	}))
+}));
+
 vi.mock('$env/dynamic/private', () => ({
 	env: privateEnv
 }));
 
+vi.mock('octokit', () => ({
+	Octokit: OctokitMock
+}));
+
 import {
 	clearGitHubOAuthRequest,
+	createGitHubServerClient,
 	createGitHubOAuthState,
+	GITHUB_REST_API_VERSION,
 	getGitHubClientId,
 	getGitHubOAuthCredentials,
 	GITHUB_LOGIN_COOLDOWN_COOKIE,
@@ -80,6 +94,28 @@ function setPrivateEnv(values: Partial<typeof privateEnv>) {
 }
 
 describe('server/auth/github', () => {
+	it('creates Octokit clients with explicit GitHub API version headers', () => {
+		const cookies = createCookieStore();
+		const hookError = vi.fn();
+		OctokitMock.mockReturnValueOnce({
+			hook: {
+				error: hookError
+			}
+		});
+
+		createGitHubServerClient('secret-token', cookies);
+
+		expect(OctokitMock).toHaveBeenCalledWith({
+			auth: 'secret-token',
+			request: {
+				headers: {
+					'X-GitHub-Api-Version': GITHUB_REST_API_VERSION
+				}
+			}
+		});
+		expect(hookError).toHaveBeenCalledWith('request', expect.any(Function));
+	});
+
 	it('reads the GitHub OAuth config from runtime env instead of build-time imports', () => {
 		setPrivateEnv({
 			GITHUB_CLIENT_ID: ' github-client-id ',

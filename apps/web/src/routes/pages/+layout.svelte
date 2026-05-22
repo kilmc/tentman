@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount, setContext, type Snippet } from 'svelte';
@@ -59,6 +59,16 @@
 	type CollectionItemsBySlug = Record<string, OrderedCollectionNavigation>;
 	type ConfigStatesBySlug = Record<string, ResolvedContentState | null>;
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+	const GITHUB_PAGES_INVALIDATION_PATHS = new Set([
+		'/api/repo/collection-items',
+		'/api/repo/config-states',
+		'/api/repo/configs',
+		'/api/repo/draft-status',
+		'/api/repo/form-config',
+		'/api/repo/instructions',
+		'/api/repo/pages-summary'
+	]);
 
 	// Canonical layout terms:
 	// - Sidebar: left app/site navigation
@@ -363,6 +373,14 @@
 		window.location.assign(redirectTarget);
 	}
 
+	function shouldInvalidateGitHubPagesData(url: URL): boolean {
+		return GITHUB_PAGES_INVALIDATION_PATHS.has(url.pathname);
+	}
+
+	async function invalidateGitHubPagesData() {
+		await Promise.all([invalidate('app:content'), invalidate(shouldInvalidateGitHubPagesData)]);
+	}
+
 	async function handleSwitchSite() {
 		if (isLocalMode) {
 			localContent.reset();
@@ -579,6 +597,14 @@
 		preparingNavigationEditor = true;
 
 		try {
+			if (!isLocalMode) {
+				await Promise.all(
+					configs
+						.filter((config: DiscoveredConfig) => config.config.collection)
+						.map((config: DiscoveredConfig) => loadGitHubCollectionItems(config))
+				);
+			}
+
 			const draft = createNavigationDraft(
 				configs,
 				navigationManifest,
@@ -657,7 +683,7 @@
 			}
 
 			cancelNavigationEditing();
-			await invalidateAll();
+			await invalidateGitHubPagesData();
 			toasts.success('Navigation saved.');
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to save navigation changes.');
@@ -721,7 +747,7 @@
 				await loadGitHubCollectionItems(config, { force: true });
 			}
 
-			await invalidateAll();
+			await invalidateGitHubPagesData();
 			toasts.success(`${config.config.label} order saved.`);
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to save collection order.');
@@ -754,11 +780,10 @@
 			return;
 		}
 
-		void Promise.all(
-			configs
-				.filter((config: DiscoveredConfig) => config.config.collection)
-				.map((config: DiscoveredConfig) => loadGitHubCollectionItems(config))
-		);
+		if (currentConfig?.config.collection) {
+			void loadGitHubCollectionItems(currentConfig);
+		}
+
 		void loadGitHubConfigStates();
 	});
 

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { checkNavigationManifest, loadTentmanProject } from './index.js';
-import { testAppRoot } from './test-paths.test-helper.js';
+import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
 
 test('reports the refreshed fixture manifest as clean', async () => {
-	const project = await loadTentmanProject(testAppRoot);
+	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-nav-check-'));
 	const diagnostics = checkNavigationManifest(project);
 
 	assert.equal(diagnostics.filter((diagnostic) => diagnostic.level === 'error').length, 0);

@@ -129,10 +129,6 @@ export function getDiscoverableContentConfigPaths(
 	const blocksDir = normalizeDir(rootConfig?.blocksDir);
 
 	return paths.filter((path) => {
-		if (path === '.tentman.json') {
-			return false;
-		}
-
 		if (!path.endsWith('.tentman.json')) {
 			return false;
 		}
@@ -165,10 +161,6 @@ export function getDiscoverableBlockConfigPaths(
 	}
 
 	return paths.filter((path) => {
-		if (path === '.tentman.json') {
-			return false;
-		}
-
 		if (!path.endsWith('.tentman.json')) {
 			return false;
 		}
@@ -220,7 +212,7 @@ async function readGitHubRootConfig(
 		const { data } = await octokit.rest.repos.getContent({
 			owner,
 			repo,
-			path: '.tentman.json',
+			path: 'tentman.json',
 			...(ref ? { ref } : {})
 		});
 
