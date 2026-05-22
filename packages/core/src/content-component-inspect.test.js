@@ -25,9 +25,16 @@ test('inspects a scaffolded content component by name', async () => {
 	assert.equal(component.name, 'promo-banner');
 	assert.equal(component.kind, 'inline');
 	assert.equal(component.path, 'src/lib/content-components/promo-banner');
-	assert.equal(component.componentJsonPath, 'src/lib/content-components/promo-banner/component.json');
+	assert.equal(
+		component.componentJsonPath,
+		'src/lib/content-components/promo-banner/component.json'
+	);
 	assert.equal(component.renderTemplatePath, 'src/lib/content-components/promo-banner/render.njk');
-	assert.equal(component.previewTemplatePath, 'src/lib/content-components/promo-banner/preview.njk');
+	assert.equal(
+		component.previewTemplatePath,
+		'src/lib/content-components/promo-banner/preview.njk'
+	);
+	assert.deepEqual(component.previewTemplateWarnings, []);
 	assert.deepEqual(component.attributes, {
 		label: {
 			type: 'string',
@@ -52,9 +59,28 @@ test('inspects a scaffolded content component by id from a configured directory'
 	assert.equal(component.path, 'src/lib/components/content/hero-callout');
 });
 
+test('includes preview sanitization warnings in component inspection', async () => {
+	const projectRoot = await copyFixture();
+	await createContentComponentScaffold(projectRoot, 'promo-banner');
+	await fs.writeFile(
+		path.join(projectRoot, 'src/lib/content-components/promo-banner/preview.njk'),
+		'<span style="color: red">Promo</span>\n'
+	);
+	const project = await loadTentmanProject(projectRoot);
+
+	const component = await inspectTentmanContentComponent(project, 'promo-banner');
+
+	assert.deepEqual(component.previewTemplateWarnings, [
+		'Stripped unsupported style attribute from <span>'
+	]);
+});
+
 test('throws when inspecting an unknown content component', async () => {
 	const projectRoot = await copyFixture();
-	await fs.rm(path.join(projectRoot, 'src/lib/content-components'), { recursive: true, force: true });
+	await fs.rm(path.join(projectRoot, 'src/lib/content-components'), {
+		recursive: true,
+		force: true
+	});
 	const project = await loadTentmanProject(projectRoot);
 
 	await assert.rejects(

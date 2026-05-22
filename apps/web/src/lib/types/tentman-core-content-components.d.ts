@@ -61,6 +61,14 @@ declare module '@tentman/core/content-components' {
 		full: unknown;
 	}
 
+	export interface CoreContentComponentPreviewDiagnostic {
+		kind: 'tag' | 'attribute' | 'img-src';
+		tagName: string;
+		attributeName?: string;
+		value?: string;
+		message: string;
+	}
+
 	export function collectContentComponents(
 		components: Array<
 			Omit<CoreLoadedContentComponent, 'definition'> & {
@@ -88,6 +96,16 @@ declare module '@tentman/core/content-components' {
 		}
 	): string;
 
+	export function sanitizeContentComponentPreviewHtml(html: string): {
+		html: string;
+		diagnostics: CoreContentComponentPreviewDiagnostic[];
+	};
+
+	export function inspectContentComponentPreviewTemplateSource(source: string): {
+		html: string;
+		diagnostics: CoreContentComponentPreviewDiagnostic[];
+	};
+
 	export function getContentComponentReferenceAttribute(component: CoreLoadedContentComponent): {
 		attributeId: string;
 		definition: CoreContentComponentAttributeDefinition;
@@ -108,11 +126,13 @@ declare module '@tentman/core/content-components' {
 		props: Record<string, string>;
 	} | null;
 
-	export function collectContentComponentReferenceIndex<TBlock extends {
-		id?: string;
-		collection?: unknown;
-		referenceFor?: string | string[];
-	}>(options: {
+	export function collectContentComponentReferenceIndex<
+		TBlock extends {
+			id?: string;
+			collection?: unknown;
+			referenceFor?: string | string[];
+		}
+	>(options: {
 		blocks: TBlock[];
 		contentItem: object;
 		resolveStructuredBlocks: (block: TBlock) => TBlock[] | null;

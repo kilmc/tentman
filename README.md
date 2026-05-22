@@ -317,7 +317,9 @@ Supported schema rules:
 - attribute `valueFromMarkdownLabel`: optional boolean; only one attribute may use it
 
 `render.njk` produces final site output. `preview.njk` produces the safe authoring representation
-shown inside Tentman. Both receive the normalized attribute map.
+shown inside Tentman. Tentman sanitizes `preview.njk` down to presentational HTML before mounting it
+inside an isolated preview host, so repo-defined previews cannot add app-level interactivity. Both
+templates receive the normalized attribute map.
 
 Example `render.njk`:
 

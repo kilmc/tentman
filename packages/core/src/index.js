@@ -45,11 +45,13 @@ export {
 	getContentComponentReferenceAttribute,
 	getContentComponentReferenceScope,
 	getContentComponentRenderTarget,
+	inspectContentComponentPreviewTemplateSource,
 	loadContentComponent,
 	normalizeContentComponentInstance,
 	resolveContentComponentInstance,
 	resolveContentComponentRenderTarget,
 	renderContentComponent,
+	sanitizeContentComponentPreviewHtml,
 	validateContentComponentInstance,
 	validateContentComponent
 } from './content-components.js';
@@ -63,9 +65,6 @@ export { getTentmanSchema } from './schema.js';
 export { explainTentmanNavigation } from './nav-explain.js';
 export { printTentmanNavigation } from './nav-print.js';
 export { getConfigReferences, getItemReferences, orderByReferences } from './references.js';
-export {
-	refreshNavigationManifest,
-	summarizeNavigationRefreshChanges
-} from './nav-refresh.js';
+export { refreshNavigationManifest, summarizeNavigationRefreshChanges } from './nav-refresh.js';
 export { rebuildNavigationManifest } from './nav-rebuild.js';
 export { summarizeIdWriteChanges, writeMissingTentmanIds } from './write-ids.js';

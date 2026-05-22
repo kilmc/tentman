@@ -1,4 +1,9 @@
-import { collectContentComponents, loadContentComponent, validateContentComponent } from './content-components.js';
+import {
+	collectContentComponents,
+	inspectContentComponentPreviewTemplateSource,
+	loadContentComponent,
+	validateContentComponent
+} from './content-components.js';
 import { resolveProjectPath } from './paths.js';
 
 function createDiagnostic(level, code, message, details = {}) {
@@ -41,6 +46,16 @@ export async function validateTentmanContentComponents(project) {
 		try {
 			const component = validateContentComponent(await loadContentComponent(componentDirPath));
 			loadedComponents.push(component);
+			const previewInspection = inspectContentComponentPreviewTemplateSource(
+				component.previewTemplateSource
+			);
+			for (const diagnostic of previewInspection.diagnostics) {
+				diagnostics.push(
+					createDiagnostic('warning', 'component.preview-unsafe-html', diagnostic.message, {
+						path: component.previewTemplatePath
+					})
+				);
+			}
 		} catch (error) {
 			diagnostics.push(
 				createDiagnostic(

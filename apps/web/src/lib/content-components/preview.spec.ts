@@ -2,7 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { applyPreviewContentComponentTransforms } from './preview';
 import type { ContentComponentRegistry } from './registry';
 
-function createRegistry(overrides: Partial<ContentComponentRegistry['components'][number]> = {}): ContentComponentRegistry {
+function extractPreviewHtml(markdown: string): string {
+	const match = markdown.match(/data-tentman-safe-preview-html="([^"]+)"/);
+	if (!match) {
+		throw new Error(`Expected safe preview host markup in: ${markdown}`);
+	}
+
+	return decodeURIComponent(
+		match[1]
+			.replaceAll('&amp;', '&')
+			.replaceAll('&quot;', '"')
+			.replaceAll('&lt;', '<')
+			.replaceAll('&gt;', '>')
+	);
+}
+
+function createRegistry(
+	overrides: Partial<ContentComponentRegistry['components'][number]> = {}
+): ContentComponentRegistry {
 	const component = {
 		directory: 'src/lib/content-components/buy-button',
 		componentJsonPath: 'src/lib/content-components/buy-button/component.json',
@@ -47,7 +64,8 @@ describe('applyPreviewContentComponentTransforms', () => {
 			createRegistry()
 		);
 
-		expect(result.markdown).toContain('Buy button: Buy tickets');
+		expect(result.markdown).toContain('data-tentman-safe-preview-host="inline"');
+		expect(extractPreviewHtml(result.markdown)).toContain('Buy button: Buy tickets');
 		expect(result.errors).toEqual([]);
 	});
 
@@ -68,7 +86,7 @@ describe('applyPreviewContentComponentTransforms', () => {
 		});
 
 		const result = applyPreviewContentComponentTransforms(':doc-link{href="/docs"}', registry);
-		expect(result.markdown).toContain('Doc link: /docs');
+		expect(extractPreviewHtml(result.markdown)).toContain('Doc link: /docs');
 		expect(result.errors).toEqual([]);
 	});
 
@@ -78,7 +96,7 @@ describe('applyPreviewContentComponentTransforms', () => {
 			componentJsonPath: 'src/lib/content-components/callout-box/component.json',
 			renderTemplatePath: 'src/lib/content-components/callout-box/render.njk',
 			previewTemplatePath: 'src/lib/content-components/callout-box/preview.njk',
-			previewTemplateSource: '<aside>Callout: {{ title | escape }}</aside>',
+			previewTemplateSource: '<h3>Callout: {{ title | escape }}</h3>',
 			definition: {
 				id: 'callout-box',
 				name: 'callout-box',
@@ -92,8 +110,44 @@ describe('applyPreviewContentComponentTransforms', () => {
 			}
 		});
 
-		const result = applyPreviewContentComponentTransforms('::callout-box{title="Latest update"}', registry);
-		expect(result.markdown).toContain('Callout: Latest update');
+		const result = applyPreviewContentComponentTransforms(
+			'::callout-box{title="Latest update"}',
+			registry
+		);
+		expect(result.markdown).toContain('data-tentman-safe-preview-host="block"');
+		expect(extractPreviewHtml(result.markdown)).toContain('Callout: Latest update');
+		expect(result.errors).toEqual([]);
+	});
+
+	it('sanitizes hostile preview html before building the shadow host markup', () => {
+		const registry = createRegistry({
+			previewTemplateSource:
+				'<a href="{{ href | escape }}" onclick="alert(1)"><span class="safe">Buy button: {{ label | escape }}</span></a><img src="javascript:alert(1)" alt="Bad">'
+		});
+
+		const result = applyPreviewContentComponentTransforms(
+			':buy-button[Buy tickets]{href="/tickets"}',
+			registry
+		);
+
+		expect(extractPreviewHtml(result.markdown)).toBe(
+			'<span class="safe">Buy button: Buy tickets</span><img alt="Bad">'
+		);
+		expect(result.errors).toEqual([]);
+	});
+
+	it('keeps Theresa-style span previews compatible with the safe host wrapper', () => {
+		const result = applyPreviewContentComponentTransforms(
+			':buy-button[Buy tickets]{href="/tickets"}',
+			createRegistry({
+				previewTemplateSource:
+					'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>'
+			})
+		);
+
+		expect(extractPreviewHtml(result.markdown)).toBe(
+			'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: Buy tickets</span>'
+		);
 		expect(result.errors).toEqual([]);
 	});
 
@@ -104,7 +158,9 @@ describe('applyPreviewContentComponentTransforms', () => {
 		);
 
 		expect(result.markdown).toContain(':buy-button[Buy tickets]');
-		expect(result.errors[0]).toContain('Markdown preview failed for content component "buy-button"');
+		expect(result.errors[0]).toContain(
+			'Markdown preview failed for content component "buy-button"'
+		);
 	});
 
 	it('preserves source and reports errors for malformed directive attributes', () => {
@@ -124,7 +180,9 @@ describe('applyPreviewContentComponentTransforms', () => {
 		);
 
 		expect(result.markdown).toContain(':missing-widget[Hello]{href="/x"}');
-		expect(result.errors[0]).toContain('Markdown preview unknown content component "missing-widget"');
+		expect(result.errors[0]).toContain(
+			'Markdown preview unknown content component "missing-widget"'
+		);
 	});
 
 	it('resolves sibling-object references through defaulted reference attributes', () => {
@@ -187,7 +245,7 @@ describe('applyPreviewContentComponentTransforms', () => {
 			])
 		});
 
-		expect(result.markdown).toContain('Gallery embed: Homepage gallery');
+		expect(extractPreviewHtml(result.markdown)).toContain('Gallery embed: Homepage gallery');
 		expect(result.errors).toEqual([]);
 	});
 });

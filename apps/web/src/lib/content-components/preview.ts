@@ -3,6 +3,10 @@ import {
 	renderContentComponent,
 	validateContentComponentInstance
 } from '@tentman/core/content-components';
+import {
+	createSafePreviewHostMarkup,
+	sanitizeRenderedPreviewHtml
+} from '$lib/content-components/safe-preview';
 import { parseContentDirectiveMatchesSafe } from './directives';
 import type { ContentComponentRegistry } from './registry';
 
@@ -83,10 +87,15 @@ function applyDirectiveMatches(
 				throw new Error(validationErrors.join(' '));
 			}
 
-			transformed += renderContentComponent(component, instance, 'preview', {
+			const previewHtml = renderContentComponent(component, instance, 'preview', {
 				contentItem: options.contentItem,
 				referenceIndex: options.referenceIndex
 			}).trim();
+			const sanitizedPreview = sanitizeRenderedPreviewHtml(previewHtml);
+			transformed += createSafePreviewHostMarkup({
+				html: sanitizedPreview.html,
+				kind: component.definition.kind
+			});
 		} catch (error) {
 			errors.push(
 				`Markdown preview failed for content component "${match.name}" at ${location.line}:${location.column}: ${

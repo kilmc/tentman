@@ -12,6 +12,7 @@ import {
 	serializeContentComponentDirective
 } from './directives';
 import type { ContentComponentRegistry } from './registry';
+import { mountSafePreviewHost, sanitizeRenderedPreviewHtml } from './safe-preview';
 
 const BROKEN_ATTRIBUTE_NAME = '__tentmanBroken';
 const BROKEN_ERROR_ATTRIBUTE_NAME = '__tentmanBrokenError';
@@ -307,8 +308,8 @@ function buildComponentNodeView(
 			dom.dataset.tentmanContentComponentBroken = brokenState.broken ? 'true' : 'false';
 			dom.className =
 				component.definition.kind === 'block'
-					? 'my-3 rounded-2xl border border-stone-300 bg-stone-50 p-3 text-sm text-stone-900 shadow-sm'
-					: 'inline-flex max-w-full items-center rounded-xl border border-stone-300 bg-stone-50 px-2 py-1.5 text-sm text-stone-900 shadow-sm';
+					? 'relative my-3 overflow-hidden rounded-2xl border border-stone-300 bg-stone-50 p-3 text-sm text-stone-900 shadow-sm'
+					: 'relative inline-flex max-w-full items-center overflow-hidden rounded-xl border border-stone-300 bg-stone-50 px-2 py-1.5 text-sm text-stone-900 shadow-sm';
 
 			try {
 				const labelAttributeName = getMarkdownLabelAttributeName(component);
@@ -328,18 +329,22 @@ function buildComponentNodeView(
 					throw new Error(brokenState.error || 'Content component marker needs repair.');
 				}
 
-				dom.innerHTML = renderContentComponent(component, instance, 'preview', {
+				const previewHtml = renderContentComponent(component, instance, 'preview', {
 					contentItem: previewRenderOptions?.contentItem ?? null,
 					referenceIndex: previewRenderOptions?.referenceIndex ?? new Map()
 				}).trim();
+				const sanitizedPreview = sanitizeRenderedPreviewHtml(previewHtml);
+				mountSafePreviewHost(dom, {
+					html: sanitizedPreview.html,
+					kind: component.definition.kind
+				});
 			} catch (error) {
 				dom.dataset.tentmanContentComponentBroken = 'true';
 				dom.className =
 					component.definition.kind === 'block'
-						? 'my-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 shadow-sm'
-						: 'inline-flex max-w-full items-center rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 shadow-sm';
-				const message =
-					error instanceof Error ? error.message : 'Content component preview failed';
+						? 'relative my-3 overflow-hidden rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 shadow-sm'
+						: 'relative inline-flex max-w-full items-center overflow-hidden rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 shadow-sm';
+				const message = error instanceof Error ? error.message : 'Content component preview failed';
 				dom.innerHTML =
 					component.definition.kind === 'block'
 						? `<div class="grid gap-2"><p class="text-xs font-semibold tracking-[0.14em] uppercase text-red-600">Invalid ${escapeHtml(component.definition.name)}</p><p class="font-medium">${escapeHtml(message)}</p></div>`
@@ -380,14 +385,14 @@ function createContentComponentExtension(
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
 	const inline = component.definition.kind === 'inline';
 
-		return Node.create({
-			name: nodeName,
-			inline,
-			group: inline ? 'inline' : 'block',
-			atom: true,
-			selectable: true,
+	return Node.create({
+		name: nodeName,
+		inline,
+		group: inline ? 'inline' : 'block',
+		atom: true,
+		selectable: true,
 
-			addAttributes() {
+		addAttributes() {
 			return {
 				...Object.fromEntries(
 					Object.entries(component.definition.attributes).map(([attributeName, definition]) => [
@@ -444,7 +449,10 @@ function createContentComponentExtension(
 						attributes: recoverableDirective.attributes
 					});
 				} catch (error) {
-					const recoveredAttributes = getSchemaAttributes(component, recoverableDirective.attributes);
+					const recoveredAttributes = getSchemaAttributes(
+						component,
+						recoverableDirective.attributes
+					);
 					if (labelAttributeName) {
 						recoveredAttributes[labelAttributeName] = recoverableDirective.markdownLabel ?? '';
 					}
@@ -458,9 +466,7 @@ function createContentComponentExtension(
 							[BROKEN_ATTRIBUTE_NAME]: 'true',
 							[BROKEN_ERROR_ATTRIBUTE_NAME]:
 								recoverableDirective.error ??
-								(error instanceof Error
-									? error.message
-									: 'Content component marker needs repair.'),
+								(error instanceof Error ? error.message : 'Content component marker needs repair.'),
 							[RAW_ATTRIBUTE_NAME]: recoverableDirective.raw
 						}
 					};
@@ -495,7 +501,10 @@ function createContentComponentExtension(
 				return brokenState.raw;
 			}
 
-			return serializeContentComponentDirective(component, getSchemaAttributes(component, attributes));
+			return serializeContentComponentDirective(
+				component,
+				getSchemaAttributes(component, attributes)
+			);
 		},
 
 		addNodeView() {
@@ -517,7 +526,8 @@ function createToolbarItem(
 	const nodeName = toNodeName(component.definition.name);
 	const buttonLabel = toButtonLabel(component);
 	const dialogTitle = component.definition.editor?.dialogTitle ?? buttonLabel;
-	const submitLabel = component.definition.editor?.submitLabel ?? `Save ${buttonLabel.toLowerCase()}`;
+	const submitLabel =
+		component.definition.editor?.submitLabel ?? `Save ${buttonLabel.toLowerCase()}`;
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
 	const dialogFieldIds = getDialogFieldIds(component);
 	const referenceAttribute = getContentComponentReferenceAttribute(component);
@@ -552,24 +562,22 @@ function createToolbarItem(
 					required: Boolean(definition.required),
 					defaultValue: definition.default ?? '',
 					referenceBinding,
-					options:
-						referenceBinding
-							? undefined
-							: definition.type === 'enum'
+					options: referenceBinding
+						? undefined
+						: definition.type === 'enum'
 							? (definition.options ?? []).map((option) => ({
 									label: toFieldLabel(component, option),
 									value: option
 								}))
 							: undefined,
-					getOptions:
-						referenceBinding
-							? () =>
-									options.resolveReferenceOptions?.({
-										component,
-										attributeName,
-										binding: referenceBinding
-									}) ?? []
-							: undefined
+					getOptions: referenceBinding
+						? () =>
+								options.resolveReferenceOptions?.({
+									component,
+									attributeName,
+									binding: referenceBinding
+								}) ?? []
+						: undefined
 				};
 			}),
 			getInitialValues(editor) {
@@ -589,7 +597,7 @@ function createToolbarItem(
 			},
 			serialize(values) {
 				const instance = normalizeContentComponentInstance(component, {
-					markdownLabel: labelAttributeName ? values[labelAttributeName] ?? '' : undefined,
+					markdownLabel: labelAttributeName ? (values[labelAttributeName] ?? '') : undefined,
 					attributes: values
 				});
 
@@ -598,7 +606,7 @@ function createToolbarItem(
 			validate(values) {
 				try {
 					normalizeContentComponentInstance(component, {
-						markdownLabel: labelAttributeName ? values[labelAttributeName] ?? '' : undefined,
+						markdownLabel: labelAttributeName ? (values[labelAttributeName] ?? '') : undefined,
 						attributes: values
 					});
 					return null;
@@ -608,7 +616,7 @@ function createToolbarItem(
 			},
 			submit(editor, values) {
 				const instance = normalizeContentComponentInstance(component, {
-					markdownLabel: labelAttributeName ? values[labelAttributeName] ?? '' : undefined,
+					markdownLabel: labelAttributeName ? (values[labelAttributeName] ?? '') : undefined,
 					attributes: values
 				});
 				const cleanAttributes = {
