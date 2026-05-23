@@ -2,45 +2,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { handle } from './hooks.server';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
-	GITHUB_SESSION_COOKIE,
-	GITHUB_TOKEN_COOKIE
+	persistGitHubSession
 } from '$lib/server/auth/github';
 import { SELECTED_BACKEND_COOKIE, SELECTED_LOCAL_REPO_COOKIE } from '$lib/repository/selection';
-
-function encodeSessionCookie(user: {
-	login: string;
-	name: string | null;
-	avatar_url: string;
-	email: string | null;
-}) {
-	return Buffer.from(
-		JSON.stringify({
-			v: 1,
-			user
-		})
-	).toString('base64url');
-}
 
 function createCookies(initial: Record<string, string> = {}) {
 	const values = new Map(Object.entries(initial));
 
 	return {
+		values,
 		get: vi.fn((name: string) => values.get(name)),
-		set: vi.fn(),
-		delete: vi.fn()
+		set: vi.fn((name: string, value: string) => {
+			values.set(name, value);
+		}),
+		delete: vi.fn((name: string) => {
+			values.delete(name);
+		})
 	};
 }
 
 describe('hooks.server', () => {
 	it('bootstraps authenticated locals from cookies without calling GitHub', async () => {
 		const cookies = createCookies({
-			[GITHUB_TOKEN_COOKIE]: 'secret-token',
-			[GITHUB_SESSION_COOKIE]: encodeSessionCookie({
-				login: 'kilmc',
-				name: 'Kilian',
-				avatar_url: 'https://avatars.example/kilmc',
-				email: 'kilian@example.com'
-			}),
 			[GITHUB_REPO_SESSION_COOKIE]: Buffer.from(
 				JSON.stringify({
 					v: 1,
@@ -51,6 +34,15 @@ describe('hooks.server', () => {
 			).toString('base64url'),
 			selected_repo: '{"owner":"acme","name":"repo","full_name":"acme/repo"}',
 			[SELECTED_BACKEND_COOKIE]: 'github'
+		});
+		persistGitHubSession(cookies, {
+			token: 'secret-token',
+			user: {
+				login: 'kilmc',
+				name: 'Kilian',
+				avatar_url: 'https://avatars.example/kilmc',
+				email: 'kilian@example.com'
+			}
 		});
 
 		let resolvedLocals: App.Locals | undefined;

@@ -160,7 +160,7 @@ describe('server/auth/github', () => {
 		});
 	});
 
-	it('persists and reads the GitHub session snapshot separately from the token', () => {
+	it('persists an opaque GitHub session cookie and keeps the token server-side', () => {
 		const cookies = createCookieStore();
 
 		persistGitHubSession(cookies, {
@@ -173,9 +173,10 @@ describe('server/auth/github', () => {
 			}
 		});
 
-		expect(cookies.set).toHaveBeenCalledTimes(2);
-		expect(cookies.values.get(GITHUB_TOKEN_COOKIE)).toBe('secret-token');
-		expect(cookies.values.get(GITHUB_SESSION_COOKIE)).toBeTruthy();
+		expect(cookies.set).toHaveBeenCalledTimes(1);
+		expect(cookies.values.get(GITHUB_TOKEN_COOKIE)).toBeUndefined();
+		expect(cookies.values.get(GITHUB_SESSION_COOKIE)).toMatch(/^[a-f0-9]{64}$/);
+		expect(cookies.values.get(GITHUB_SESSION_COOKIE)).not.toBe('secret-token');
 		expect(readGitHubSession(cookies)).toEqual({
 			token: 'secret-token',
 			user: {
@@ -187,15 +188,12 @@ describe('server/auth/github', () => {
 		});
 	});
 
-	it('ignores a malformed session snapshot without discarding the token', () => {
+	it('treats an unknown session id as unauthenticated', () => {
 		const cookies = createCookieStore({
-			[GITHUB_TOKEN_COOKIE]: 'secret-token',
-			[GITHUB_SESSION_COOKIE]: 'definitely-not-base64'
+			[GITHUB_SESSION_COOKIE]: 'missing-session'
 		});
 
-		expect(readGitHubSession(cookies)).toEqual({
-			token: 'secret-token'
-		});
+		expect(readGitHubSession(cookies)).toEqual({});
 	});
 
 	it('persists the selected GitHub repo shell snapshot for later requests', () => {

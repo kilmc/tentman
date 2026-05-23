@@ -26,11 +26,7 @@ const MAX_RECENT_REPOS = 5;
 const LOGIN_COOLDOWN_MAX_AGE = 15;
 const OAUTH_REQUEST_MAX_AGE = 60 * 10;
 export const GITHUB_REST_API_VERSION = '2022-11-28';
-
-interface GitHubSessionSnapshot {
-	v: 1;
-	user: GitHubUserSnapshot;
-}
+const GITHUB_SESSION_TTL_MS = SESSION_COOKIE_MAX_AGE * 1000;
 
 interface GitHubSessionPayload {
 	token: string;
@@ -43,8 +39,15 @@ interface GitHubRepoSessionSnapshot {
 }
 
 interface CookieTarget {
-	cookies: Pick<Cookies, 'delete'>;
+	cookies: Pick<Cookies, 'delete'> & Partial<Pick<Cookies, 'get'>>;
 }
+
+interface StoredGitHubSession extends GitHubSessionPayload {
+	expiresAt: number;
+}
+
+// Keep the live GitHub bearer token on the server only. Browsers get an opaque session id.
+const githubSessions = new Map<string, StoredGitHubSession>();
 
 function isGitHubRepositoryIdentity(value: unknown): value is GitHubRepositoryIdentity {
 	if (!value || typeof value !== 'object') {
@@ -123,25 +126,8 @@ export function getGitHubCookieOptions(
 	};
 }
 
-function encodeSessionSnapshot(snapshot: GitHubSessionSnapshot): string {
-	return Buffer.from(JSON.stringify(snapshot)).toString('base64url');
-}
-
 function encodeRepoSessionSnapshot(snapshot: GitHubRepoSessionSnapshot): string {
 	return Buffer.from(JSON.stringify(snapshot)).toString('base64url');
-}
-
-function decodeSessionSnapshot(value: string): GitHubSessionSnapshot | null {
-	try {
-		const parsed = JSON.parse(Buffer.from(value, 'base64url').toString()) as GitHubSessionSnapshot;
-		if (parsed?.v !== 1 || !parsed.user?.login || !parsed.user.avatar_url) {
-			return null;
-		}
-
-		return parsed;
-	} catch {
-		return null;
-	}
 }
 
 function decodeRepoSessionSnapshot(value: string): GitHubRepoSessionSnapshot | null {
@@ -159,34 +145,52 @@ function decodeRepoSessionSnapshot(value: string): GitHubRepoSessionSnapshot | n
 	}
 }
 
+function createGitHubSessionId(): string {
+	return randomBytes(32).toString('hex');
+}
+
+function readStoredGitHubSession(sessionId: string | undefined): StoredGitHubSession | null {
+	if (!sessionId) {
+		return null;
+	}
+
+	const session = githubSessions.get(sessionId);
+
+	if (!session) {
+		return null;
+	}
+
+	if (session.expiresAt <= Date.now()) {
+		githubSessions.delete(sessionId);
+		return null;
+	}
+
+	return session;
+}
+
 export function persistGitHubSession(
-	cookies: Pick<Cookies, 'set'>,
+	cookies: Pick<Cookies, 'set' | 'delete'>,
 	session: GitHubSessionPayload
 ): void {
 	const options = getGitHubCookieOptions();
+	const sessionId = createGitHubSessionId();
 
-	cookies.set(GITHUB_TOKEN_COOKIE, session.token, options);
-	cookies.set(
-		GITHUB_SESSION_COOKIE,
-		encodeSessionSnapshot({
-			v: 1,
-			user: session.user
-		}),
-		options
-	);
+	githubSessions.set(sessionId, {
+		...session,
+		expiresAt: Date.now() + GITHUB_SESSION_TTL_MS
+	});
+	cookies.set(GITHUB_SESSION_COOKIE, sessionId, options);
+	cookies.delete(GITHUB_TOKEN_COOKIE, { path: '/' });
 }
 
 export function readGitHubSession(cookies: Pick<Cookies, 'get'>): {
 	token?: string;
 	user?: GitHubUserSnapshot;
 } {
-	const token = cookies.get(GITHUB_TOKEN_COOKIE);
-	const rawSession = cookies.get(GITHUB_SESSION_COOKIE);
-	const snapshot = rawSession ? decodeSessionSnapshot(rawSession) : null;
+	const session = readStoredGitHubSession(cookies.get(GITHUB_SESSION_COOKIE));
 
 	return {
-		...(token ? { token } : {}),
-		...(snapshot?.user ? { user: snapshot.user } : {})
+		...(session ? { token: session.token, user: session.user } : {})
 	};
 }
 
@@ -264,7 +268,15 @@ export function readRecentGitHubRepositories(
 	}
 }
 
-export function clearGitHubSession(cookies: Pick<Cookies, 'delete'>): void {
+export function clearGitHubSession(
+	cookies: Pick<Cookies, 'delete'> & Partial<Pick<Cookies, 'get'>>
+): void {
+	const sessionId = cookies.get?.(GITHUB_SESSION_COOKIE);
+
+	if (sessionId) {
+		githubSessions.delete(sessionId);
+	}
+
 	cookies.delete(GITHUB_TOKEN_COOKIE, { path: '/' });
 	cookies.delete(GITHUB_SESSION_COOKIE, { path: '/' });
 	cookies.delete(GITHUB_REPO_SESSION_COOKIE, { path: '/' });
@@ -339,7 +351,10 @@ export function isGitHubUnauthorizedError(value: unknown): boolean {
 	return false;
 }
 
-export function createGitHubServerClient(token: string, cookies: Pick<Cookies, 'delete'>): Octokit {
+export function createGitHubServerClient(
+	token: string,
+	cookies: Pick<Cookies, 'delete'> & Partial<Pick<Cookies, 'get'>>
+): Octokit {
 	const octokit = new Octokit({
 		auth: token,
 		request: {
