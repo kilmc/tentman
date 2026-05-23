@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	inspectContentComponentPreviewCssSource,
 	inspectContentComponentPreviewTemplateSource,
+	sanitizeContentComponentPreviewCss,
 	sanitizeContentComponentPreviewHtml
 } from './index.js';
 
@@ -56,4 +58,45 @@ test('sanitizeContentComponentPreviewHtml preserves Theresa-style simple span pr
 		'<span class="tm-component-preview tm-component-preview--buy-button">Buy tickets</span>'
 	);
 	assert.deepEqual(result.diagnostics, []);
+});
+
+test('sanitizeContentComponentPreviewCss preserves safe preview styles', () => {
+	const result = sanitizeContentComponentPreviewCss(
+		'.tm-component-preview { color: red; display: grid; position: absolute; inset: 0; }'
+	);
+
+	assert.equal(
+		result.css,
+		'.tm-component-preview { color: red; display: grid; position: absolute; inset: 0; }'
+	);
+	assert.deepEqual(result.diagnostics, []);
+});
+
+test('sanitizeContentComponentPreviewCss strips unsafe selectors, at-rules, and declarations', () => {
+	const result = sanitizeContentComponentPreviewCss(
+		'@import url("/evil.css"); :host { color: red; } .card, .safe { position: fixed; z-index: 99; background-image: url("/evil.png"); color: red; }'
+	);
+
+	assert.equal(result.css, '.card, .safe { color: red; }');
+	assert.deepEqual(
+		result.diagnostics.map((diagnostic) => diagnostic.message),
+		[
+			'Stripped unsupported @import preview CSS rule',
+			'Stripped unsupported preview CSS selector ":host"',
+			'Stripped unsupported position declaration from preview CSS',
+			'Stripped unsupported z-index declaration from preview CSS',
+			'Blocked unsafe preview CSS value for background-image'
+		]
+	);
+});
+
+test('inspectContentComponentPreviewCssSource reports filtered preview css diagnostics', () => {
+	const result = inspectContentComponentPreviewCssSource(
+		'.card { transition: opacity 120ms ease; color: red; }'
+	);
+
+	assert.equal(result.css, '.card { color: red; }');
+	assert.deepEqual(result.diagnostics.map((diagnostic) => diagnostic.message), [
+		'Stripped unsupported transition declaration from preview CSS'
+	]);
 });

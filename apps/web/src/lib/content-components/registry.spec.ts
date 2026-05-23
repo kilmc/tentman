@@ -61,7 +61,36 @@ describe('loadContentComponentRegistryFromRepository', () => {
 
 		expect(registry.components).toHaveLength(1);
 		expect(registry.getByName('buy-button')?.definition.id).toBe('buy-button');
+		expect(registry.getByName('buy-button')?.previewCssPath).toBeNull();
+		expect(registry.getByName('buy-button')?.previewCssSource).toBeNull();
 		expect(registry.errors).toEqual([]);
+	});
+
+	it('loads optional preview.css alongside preview.njk', async () => {
+		const registry = await loadContentComponentRegistryFromRepository(
+			createRepository({
+				'src/lib/content-components/buy-button/component.json': JSON.stringify({
+					id: 'buy-button',
+					name: 'buy-button',
+					kind: 'inline',
+					attributes: {
+						href: { type: 'string', required: true },
+						label: { type: 'string', required: true, valueFromMarkdownLabel: true }
+					}
+				}),
+				'src/lib/content-components/buy-button/render.njk': '<a>{{ label }}</a>',
+				'src/lib/content-components/buy-button/preview.njk':
+					'<span>Buy button: {{ label }}</span>',
+				'src/lib/content-components/buy-button/preview.css': '.tm-component-preview { color: red; }'
+			})
+		);
+
+		expect(registry.getByName('buy-button')?.previewCssPath).toBe(
+			'src/lib/content-components/buy-button/preview.css'
+		);
+		expect(registry.getByName('buy-button')?.previewCssSource).toBe(
+			'.tm-component-preview { color: red; }'
+		);
 	});
 
 	it('returns empty registry when the components directory is missing', async () => {

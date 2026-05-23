@@ -2040,7 +2040,8 @@ const docsPages: DocsPage[] = [
   buy-button/
     component.json
     render.njk
-    preview.njk`,
+    preview.njk
+    preview.css  # optional`,
 								language: 'text'
 							},
 							{
@@ -2071,6 +2072,16 @@ const docsPages: DocsPage[] = [
 									'Produces the safe authoring preview shown inside Tentman. Preview HTML is sanitized to a presentational subset before Tentman mounts it in an isolated preview host.',
 								code: contentComponentPreviewExample,
 								language: 'html'
+							},
+							{
+								title: 'preview.css',
+								description:
+									'Optional shadow-root-only preview styling. Tentman filters unsafe CSS before applying it, and the styles never ship to final site output.',
+								code: `.tm-component-preview {
+  border: 1px solid currentColor;
+  padding: 0.35rem 0.5rem;
+}`,
+								language: 'css'
 							}
 						]
 					}

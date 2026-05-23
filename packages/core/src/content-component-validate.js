@@ -1,5 +1,6 @@
 import {
 	collectContentComponents,
+	inspectContentComponentPreviewCssSource,
 	inspectContentComponentPreviewTemplateSource,
 	loadContentComponent,
 	validateContentComponent
@@ -55,6 +56,18 @@ export async function validateTentmanContentComponents(project) {
 						path: component.previewTemplatePath
 					})
 				);
+			}
+			if (component.previewCssSource) {
+				const previewCssInspection = inspectContentComponentPreviewCssSource(
+					component.previewCssSource
+				);
+				for (const diagnostic of previewCssInspection.diagnostics) {
+					diagnostics.push(
+						createDiagnostic('warning', 'component.preview-unsafe-css', diagnostic.message, {
+							path: component.previewCssPath
+						})
+					);
+				}
 			}
 		} catch (error) {
 			diagnostics.push(

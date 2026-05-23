@@ -34,7 +34,9 @@ test('inspects a scaffolded content component by name', async () => {
 		component.previewTemplatePath,
 		'src/lib/content-components/promo-banner/preview.njk'
 	);
+	assert.equal(component.previewCssPath, null);
 	assert.deepEqual(component.previewTemplateWarnings, []);
+	assert.deepEqual(component.previewCssWarnings, []);
 	assert.deepEqual(component.attributes, {
 		label: {
 			type: 'string',
@@ -72,6 +74,24 @@ test('includes preview sanitization warnings in component inspection', async () 
 
 	assert.deepEqual(component.previewTemplateWarnings, [
 		'Stripped unsupported style attribute from <span>'
+	]);
+	assert.deepEqual(component.previewCssWarnings, []);
+});
+
+test('includes preview css sanitization warnings in component inspection', async () => {
+	const projectRoot = await copyFixture();
+	await createContentComponentScaffold(projectRoot, 'promo-banner');
+	await fs.writeFile(
+		path.join(projectRoot, 'src/lib/content-components/promo-banner/preview.css'),
+		'.promo-banner { transform: scale(2); color: red; }\n'
+	);
+	const project = await loadTentmanProject(projectRoot);
+
+	const component = await inspectTentmanContentComponent(project, 'promo-banner');
+
+	assert.equal(component.previewCssPath, 'src/lib/content-components/promo-banner/preview.css');
+	assert.deepEqual(component.previewCssWarnings, [
+		'Stripped unsupported transform declaration from preview CSS'
 	]);
 });
 

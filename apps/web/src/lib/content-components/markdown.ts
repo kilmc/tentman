@@ -12,7 +12,11 @@ import {
 	serializeContentComponentDirective
 } from './directives';
 import type { ContentComponentRegistry } from './registry';
-import { mountSafePreviewHost, sanitizeRenderedPreviewHtml } from './safe-preview';
+import {
+	mountSafePreviewHost,
+	sanitizeRenderedPreviewCss,
+	sanitizeRenderedPreviewHtml
+} from './safe-preview';
 
 const BROKEN_ATTRIBUTE_NAME = '__tentmanBroken';
 const BROKEN_ERROR_ATTRIBUTE_NAME = '__tentmanBrokenError';
@@ -334,8 +338,12 @@ function buildComponentNodeView(
 					referenceIndex: previewRenderOptions?.referenceIndex ?? new Map()
 				}).trim();
 				const sanitizedPreview = sanitizeRenderedPreviewHtml(previewHtml);
+				const sanitizedPreviewCss = component.previewCssSource
+					? sanitizeRenderedPreviewCss(component.previewCssSource)
+					: null;
 				mountSafePreviewHost(dom, {
 					html: sanitizedPreview.html,
+					css: sanitizedPreviewCss?.css,
 					kind: component.definition.kind
 				});
 			} catch (error) {

@@ -42,6 +42,7 @@ export {
 	collectContentComponents,
 	collectContentComponentReferenceIndex,
 	discoverContentComponents,
+	inspectContentComponentPreviewCssSource,
 	getContentComponentReferenceAttribute,
 	getContentComponentReferenceScope,
 	getContentComponentRenderTarget,
@@ -51,6 +52,7 @@ export {
 	resolveContentComponentInstance,
 	resolveContentComponentRenderTarget,
 	renderContentComponent,
+	sanitizeContentComponentPreviewCss,
 	sanitizeContentComponentPreviewHtml,
 	validateContentComponentInstance,
 	validateContentComponent

@@ -476,7 +476,8 @@ async function run() {
 		console.log('1. Edit component.json');
 		console.log('2. Edit render.njk');
 		console.log('3. Edit preview.njk (sanitized presentational HTML only)');
-		console.log(`4. Use the ${created.name} marker in markdown`);
+		console.log(`4. Optional: add preview.css for safe shadow-root-only preview styling`);
+		console.log(`5. Use the ${created.name} marker in markdown`);
 		return 0;
 	}
 
@@ -526,9 +527,16 @@ async function run() {
 		console.log(`component.json: ${component.componentJsonPath}`);
 		console.log(`render.njk: ${component.renderTemplatePath}`);
 		console.log(`preview.njk: ${component.previewTemplatePath}`);
+		console.log(`preview.css: ${component.previewCssPath ?? '(not present)'}`);
 		if (component.previewTemplateWarnings.length > 0) {
 			console.log('Preview warnings:');
 			for (const warning of component.previewTemplateWarnings) {
+				console.log(`- ${warning}`);
+			}
+		}
+		if (component.previewCssWarnings.length > 0) {
+			console.log('Preview CSS warnings:');
+			for (const warning of component.previewCssWarnings) {
 				console.log(`- ${warning}`);
 			}
 		}

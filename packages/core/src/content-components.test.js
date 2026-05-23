@@ -51,6 +51,8 @@ test('loads and validates a content component from disk', async () => {
 	assert.equal(component.definition.editor, undefined);
 	assert.match(component.renderTemplatePath, /render\.njk$/);
 	assert.match(component.previewTemplatePath, /preview\.njk$/);
+	assert.equal(component.previewCssPath, null);
+	assert.equal(component.previewCssSource, null);
 });
 
 test('discovers, normalizes, and renders a buy-button component end to end', async () => {

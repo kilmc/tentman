@@ -22,8 +22,10 @@ declare module '@tentman/core/content-components' {
 		componentJsonPath: string;
 		renderTemplatePath: string;
 		previewTemplatePath: string;
+		previewCssPath?: string | null;
 		renderTemplateSource: string;
 		previewTemplateSource: string;
+		previewCssSource?: string | null;
 		definition: {
 			id: string;
 			name: string;
@@ -69,6 +71,15 @@ declare module '@tentman/core/content-components' {
 		message: string;
 	}
 
+	export interface CoreContentComponentPreviewCssDiagnostic {
+		kind: 'at-rule' | 'selector' | 'declaration';
+		atRule?: string;
+		selector?: string;
+		property?: string;
+		value?: string;
+		message: string;
+	}
+
 	export function collectContentComponents(
 		components: Array<
 			Omit<CoreLoadedContentComponent, 'definition'> & {
@@ -101,9 +112,19 @@ declare module '@tentman/core/content-components' {
 		diagnostics: CoreContentComponentPreviewDiagnostic[];
 	};
 
+	export function sanitizeContentComponentPreviewCss(css: string): {
+		css: string;
+		diagnostics: CoreContentComponentPreviewCssDiagnostic[];
+	};
+
 	export function inspectContentComponentPreviewTemplateSource(source: string): {
 		html: string;
 		diagnostics: CoreContentComponentPreviewDiagnostic[];
+	};
+
+	export function inspectContentComponentPreviewCssSource(source: string): {
+		css: string;
+		diagnostics: CoreContentComponentPreviewCssDiagnostic[];
 	};
 
 	export function getContentComponentReferenceAttribute(component: CoreLoadedContentComponent): {

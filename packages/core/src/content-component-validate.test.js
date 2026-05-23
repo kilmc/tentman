@@ -55,6 +55,31 @@ test('reports unsafe preview template html as warnings', async () => {
 	assert.match(diagnostics[0].path, /preview\.njk$/);
 });
 
+test('reports unsafe preview css as warnings', async () => {
+	const projectRoot = await copyFixture();
+	await createContentComponentScaffold(projectRoot, 'promo-banner');
+	const previewCssPath = path.join(
+		projectRoot,
+		'src/lib/content-components/promo-banner/preview.css'
+	);
+	await fs.writeFile(
+		previewCssPath,
+		'.promo-banner { color: red; z-index: 3; background-image: url("/hero.png"); }\n'
+	);
+	const project = await loadTentmanProject(projectRoot);
+
+	const diagnostics = await validateTentmanContentComponents(project);
+
+	assert.equal(diagnostics.length, 2);
+	assert.deepEqual(
+		diagnostics.map((diagnostic) => diagnostic.code),
+		['component.preview-unsafe-css', 'component.preview-unsafe-css']
+	);
+	assert.match(diagnostics[0].message, /z-index declaration/);
+	assert.match(diagnostics[1].message, /preview CSS value for background-image/);
+	assert.match(diagnostics[0].path, /preview\.css$/);
+});
+
 test('reports invalid content component files', async () => {
 	const projectRoot = await copyFixture();
 	const componentDir = path.join(projectRoot, 'src/lib/content-components/broken-widget');

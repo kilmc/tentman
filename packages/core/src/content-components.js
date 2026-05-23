@@ -10,10 +10,15 @@ export {
 	inspectContentComponentPreviewTemplateSource,
 	sanitizeContentComponentPreviewHtml
 } from './content-component-preview-sanitizer.js';
+export {
+	inspectContentComponentPreviewCssSource,
+	sanitizeContentComponentPreviewCss
+} from './content-component-preview-css-sanitizer.js';
 
 const COMPONENT_CONFIG_NAME = 'component.json';
 const RENDER_TEMPLATE_NAME = 'render.njk';
 const PREVIEW_TEMPLATE_NAME = 'preview.njk';
+const PREVIEW_STYLESHEET_NAME = 'preview.css';
 const VALID_COMPONENT_KINDS = new Set(['inline', 'block']);
 const VALID_ATTRIBUTE_TYPES = new Set(['string', 'enum']);
 const VALID_EDITOR_CONTROLS = new Set(['text', 'url', 'select']);
@@ -563,20 +568,26 @@ export async function loadContentComponent(directory) {
 	const componentJsonPath = path.join(normalizedDirectory, COMPONENT_CONFIG_NAME);
 	const renderTemplatePath = path.join(normalizedDirectory, RENDER_TEMPLATE_NAME);
 	const previewTemplatePath = path.join(normalizedDirectory, PREVIEW_TEMPLATE_NAME);
+	const previewCssPath = path.join(normalizedDirectory, PREVIEW_STYLESHEET_NAME);
+	const hasPreviewCss = await pathExists(previewCssPath);
 
-	const [componentJsonSource, renderTemplateSource, previewTemplateSource] = await Promise.all([
-		readRequiredFile(componentJsonPath),
-		readRequiredFile(renderTemplatePath),
-		readRequiredFile(previewTemplatePath)
-	]);
+	const [componentJsonSource, renderTemplateSource, previewTemplateSource, previewCssSource] =
+		await Promise.all([
+			readRequiredFile(componentJsonPath),
+			readRequiredFile(renderTemplatePath),
+			readRequiredFile(previewTemplatePath),
+			hasPreviewCss ? readRequiredFile(previewCssPath) : Promise.resolve(null)
+		]);
 
 	return {
 		directory: normalizedDirectory,
 		componentJsonPath,
 		renderTemplatePath,
 		previewTemplatePath,
+		previewCssPath: hasPreviewCss ? previewCssPath : null,
 		renderTemplateSource,
 		previewTemplateSource,
+		previewCssSource,
 		definition: parseJsonObject(componentJsonSource, componentJsonPath)
 	};
 }
@@ -606,12 +617,31 @@ export function validateContentComponent(component) {
 		throw new Error('content component.previewTemplatePath must be a non-empty string');
 	}
 
+	if (component.previewCssPath !== null && component.previewCssPath !== undefined) {
+		if (
+			typeof component.previewCssPath !== 'string' ||
+			component.previewCssPath.length === 0
+		) {
+			throw new Error('content component.previewCssPath must be null or a non-empty string');
+		}
+	}
+
 	if (typeof component.renderTemplateSource !== 'string') {
 		throw new Error(`${component.renderTemplatePath} must be loaded as a string`);
 	}
 
 	if (typeof component.previewTemplateSource !== 'string') {
 		throw new Error(`${component.previewTemplatePath} must be loaded as a string`);
+	}
+
+	if (component.previewCssSource !== null && component.previewCssSource !== undefined) {
+		if (typeof component.previewCssSource !== 'string') {
+			throw new Error('content component.previewCssSource must be null or a string');
+		}
+
+		if (component.previewCssPath === null || component.previewCssPath === undefined) {
+			throw new Error('content component.previewCssPath is required when previewCssSource is set');
+		}
 	}
 
 	assertPlainObject(component.definition, `${componentJsonPath} must be an object`);

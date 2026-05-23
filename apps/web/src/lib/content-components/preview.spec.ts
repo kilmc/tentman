@@ -17,18 +17,35 @@ function extractPreviewHtml(markdown: string): string {
 	);
 }
 
+function extractPreviewCss(markdown: string): string | null {
+	const match = markdown.match(/data-tentman-safe-preview-css="([^"]+)"/);
+	if (!match) {
+		return null;
+	}
+
+	return decodeURIComponent(
+		match[1]
+			.replaceAll('&amp;', '&')
+			.replaceAll('&quot;', '"')
+			.replaceAll('&lt;', '<')
+			.replaceAll('&gt;', '>')
+	);
+}
+
 function createRegistry(
 	overrides: Partial<ContentComponentRegistry['components'][number]> = {}
 ): ContentComponentRegistry {
 	const component = {
 		directory: 'src/lib/content-components/buy-button',
 		componentJsonPath: 'src/lib/content-components/buy-button/component.json',
-		renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-		previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
-		renderTemplateSource: '<a>{{ label }}</a>',
-		previewTemplateSource:
-			'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>',
-		definition: {
+			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
+			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
+			previewCssPath: null,
+			renderTemplateSource: '<a>{{ label }}</a>',
+			previewTemplateSource:
+				'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>',
+			previewCssSource: null,
+			definition: {
 			id: 'buy-button',
 			name: 'buy-button',
 			kind: 'inline' as const,
@@ -148,6 +165,20 @@ describe('applyPreviewContentComponentTransforms', () => {
 		expect(extractPreviewHtml(result.markdown)).toBe(
 			'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: Buy tickets</span>'
 		);
+		expect(result.errors).toEqual([]);
+	});
+
+	it('embeds sanitized preview css into the safe host markup', () => {
+		const result = applyPreviewContentComponentTransforms(
+			':buy-button[Buy tickets]{href="/tickets"}',
+			createRegistry({
+				previewCssPath: 'src/lib/content-components/buy-button/preview.css',
+				previewCssSource:
+					'.tm-component-preview { color: red; z-index: 20; background-image: url("/hero.png"); }'
+			})
+		);
+
+		expect(extractPreviewCss(result.markdown)).toBe('.tm-component-preview { color: red; }');
 		expect(result.errors).toEqual([]);
 	});
 
