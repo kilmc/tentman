@@ -26,6 +26,7 @@ export interface DraftAssetMetadata {
 export interface DraftAssetSubmissionEntry {
 	id: string;
 	ref: string;
+	storagePath: string;
 	originalName: string;
 	mimeType: string;
 	size: number;

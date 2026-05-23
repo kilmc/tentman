@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { RepositoryBackend } from '$lib/repository/types';
-import { materializeDraftAssetsFromFormData } from './server';
-import { buildDraftAssetRef } from './shared';
+	import type { RepositoryBackend } from '$lib/repository/types';
+	import { materializeDraftAssetsFromFormData } from './server';
+	import { buildDraftAssetRef } from './shared';
 
 function createBackend() {
 	return {
@@ -33,6 +33,7 @@ describe('draft-assets/server', () => {
 				{
 					id: 'hero',
 					ref: heroRef,
+					storagePath: 'static/images/',
 					originalName: 'hero.png',
 					mimeType: 'image/png',
 					size: 5,
@@ -49,6 +50,8 @@ describe('draft-assets/server', () => {
 			content: {
 				body: `![Hero](${heroRef})`
 			},
+			configPath: 'content/posts.tentman.json',
+			blocks: [{ id: 'body', type: 'markdown' }],
 			backend,
 			writeOptions: {
 				ref: 'draft/preview-branch'
@@ -56,15 +59,15 @@ describe('draft-assets/server', () => {
 		});
 
 		expect(backend.writeBinaryFile).toHaveBeenCalledWith(
-			'static/images/hero-asset.png',
+			'static/images/hero-hero.png',
 			expect.any(Uint8Array),
 			{ ref: 'draft/preview-branch' }
 		);
 		expect(result.content).toEqual({
-			body: '![Hero](/images/hero-asset.png)'
+			body: '![Hero](/images/hero-hero.png)'
 		});
 		expect(result.fileChanges).toEqual([
-			{ path: 'static/images/hero-asset.png', type: 'create', size: 5 }
+			{ path: 'static/images/hero-hero.png', type: 'create', size: 5 }
 		]);
 		expect(result.cleanedRefs).toEqual([heroRef]);
 	});
@@ -80,6 +83,7 @@ describe('draft-assets/server', () => {
 				{
 					id: 'hero',
 					ref: heroRef,
+					storagePath: 'static/images/',
 					originalName: 'hero.png',
 					mimeType: 'image/png',
 					size: 5,
@@ -96,8 +100,89 @@ describe('draft-assets/server', () => {
 				content: {
 					body: `![Hero](${heroRef})`
 				},
+				configPath: 'content/posts.tentman.json',
+				blocks: [{ id: 'body', type: 'markdown' }],
 				backend
 			})
 		).rejects.toThrow(`Draft asset file is missing for ${heroRef}`);
+	});
+
+	it('ignores tampered target paths and recomputes the final repo write path on the server', async () => {
+		const backend = createBackend();
+		const formData = new FormData();
+		const heroRef = buildDraftAssetRef('hero');
+
+		formData.set(
+			'draftAssetManifest',
+			JSON.stringify([
+				{
+					id: 'hero',
+					ref: heroRef,
+					storagePath: 'static/images/',
+					originalName: 'hero.png',
+					mimeType: 'image/png',
+					size: 5,
+					targetFilename: 'evil.js',
+					targetPath: 'src/routes/+page.server.ts',
+					publicPath: '/not-the-real-path'
+				}
+			])
+		);
+		formData.set('draftAssetFile:hero', new File(['12345'], 'hero.png', { type: 'image/png' }));
+
+		const result = await materializeDraftAssetsFromFormData({
+			formData,
+			content: {
+				body: `![Hero](${heroRef})`
+			},
+			configPath: 'content/posts.tentman.json',
+			blocks: [{ id: 'body', type: 'markdown' }],
+			backend
+		});
+
+		expect(backend.writeBinaryFile).toHaveBeenCalledWith(
+			'static/images/hero-hero.png',
+			expect.any(Uint8Array),
+			undefined
+		);
+		expect(result.content).toEqual({
+			body: '![Hero](/images/hero-hero.png)'
+		});
+	});
+
+	it('rejects draft asset writes outside the configured asset locations', async () => {
+		const backend = createBackend();
+		const formData = new FormData();
+		const heroRef = buildDraftAssetRef('hero');
+
+		formData.set(
+			'draftAssetManifest',
+			JSON.stringify([
+				{
+					id: 'hero',
+					ref: heroRef,
+					storagePath: 'src/routes/',
+					originalName: 'hero.png',
+					mimeType: 'image/png',
+					size: 5,
+					targetFilename: 'evil.js',
+					targetPath: 'src/routes/+page.server.ts',
+					publicPath: '/not-the-real-path'
+				}
+			])
+		);
+		formData.set('draftAssetFile:hero', new File(['12345'], 'hero.png', { type: 'image/png' }));
+
+		await expect(
+			materializeDraftAssetsFromFormData({
+				formData,
+				content: {
+					body: `![Hero](${heroRef})`
+				},
+				configPath: 'content/posts.tentman.json',
+				blocks: [{ id: 'body', type: 'markdown', assetsDir: './static/images/posts' }],
+				backend
+			})
+		).rejects.toThrow(`Draft asset storage path is not allowed for ${heroRef}`);
 	});
 });

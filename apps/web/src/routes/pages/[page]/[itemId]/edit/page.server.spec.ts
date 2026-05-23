@@ -73,7 +73,9 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 
 	it('redirects back to the item editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: {},
+			backend: {
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
@@ -103,7 +105,9 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 
 	it('deletes the draft item from the managed draft branch', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: {
+				cacheKey: 'github:acme/docs'
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',

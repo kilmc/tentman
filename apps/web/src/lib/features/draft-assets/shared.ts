@@ -1,6 +1,8 @@
 import type { ChangesSummary, FileChange } from '$lib/content/adapters/types';
+import type { BlockUsage } from '$lib/config/types';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 import type { SelectedBackend } from '$lib/repository/selection';
+import { resolveConfigPath } from '$lib/utils/validation';
 import {
 	DRAFT_ASSET_FILE_FIELD_PREFIX,
 	DRAFT_ASSET_MANIFEST_FIELD,
@@ -179,17 +181,12 @@ export function getDraftAssetFileFieldName(id: string): string {
 	return `${DRAFT_ASSET_FILE_FIELD_PREFIX}${id}`;
 }
 
-export function buildDraftAssetMetadata(input: {
+export function buildDraftAssetPaths(input: {
 	id: string;
-	repoKey: string;
 	storagePath?: string;
 	originalName: string;
 	mimeType: string;
-	size: number;
-	createdAt?: string;
-	byteStore: 'opfs' | 'idb';
-	byteKey: string;
-}): DraftAssetMetadata {
+}) {
 	const normalizedStoragePath = normalizeDraftAssetStoragePath(input.storagePath);
 	const extension = getFileExtension(input.originalName, input.mimeType);
 	const baseName = sanitizeFilenamePart(input.originalName.replace(/\.[^/.]+$/, ''));
@@ -203,17 +200,38 @@ export function buildDraftAssetMetadata(input: {
 	const publicPath = `${trimTrailingSlash(publicBasePath)}/${targetFilename}`;
 
 	return {
+		storagePath: normalizedStoragePath,
+		targetFilename,
+		targetPath,
+		publicPath
+	};
+}
+
+export function buildDraftAssetMetadata(input: {
+	id: string;
+	repoKey: string;
+	storagePath?: string;
+	originalName: string;
+	mimeType: string;
+	size: number;
+	createdAt?: string;
+	byteStore: 'opfs' | 'idb';
+	byteKey: string;
+}): DraftAssetMetadata {
+	const paths = buildDraftAssetPaths(input);
+
+	return {
 		id: input.id,
 		ref: buildDraftAssetRef(input.id),
 		repoKey: input.repoKey,
-		storagePath: normalizedStoragePath,
+		storagePath: paths.storagePath,
 		originalName: input.originalName,
 		mimeType: input.mimeType,
 		size: input.size,
 		createdAt: input.createdAt ?? new Date().toISOString(),
-		targetFilename,
-		targetPath,
-		publicPath,
+		targetFilename: paths.targetFilename,
+		targetPath: paths.targetPath,
+		publicPath: paths.publicPath,
 		byteStore: input.byteStore,
 		byteKey: input.byteKey
 	};
@@ -280,6 +298,7 @@ export function toDraftAssetSubmissionEntry(
 	return {
 		id: metadata.id,
 		ref: metadata.ref,
+		storagePath: metadata.storagePath,
 		originalName: metadata.originalName,
 		mimeType: metadata.mimeType,
 		size: metadata.size,
@@ -313,6 +332,104 @@ export function mergeChangesSummaryWithDraftAssets(
 	};
 }
 
+function addAllowedDraftAssetStoragePath(
+	allowedPathsByRef: Map<string, Set<string>>,
+	ref: string,
+	storagePath: string
+) {
+	const normalizedStoragePath = normalizeDraftAssetStoragePath(storagePath);
+	const existing = allowedPathsByRef.get(ref);
+	if (existing) {
+		existing.add(normalizedStoragePath);
+		return;
+	}
+
+	allowedPathsByRef.set(ref, new Set([normalizedStoragePath]));
+}
+
+function collectAllowedDraftAssetStoragePathsFromValue(
+	allowedPathsByRef: Map<string, Set<string>>,
+	value: ContentValue | undefined,
+	storagePath: string
+) {
+	for (const ref of collectDraftAssetRefsFromValue(value)) {
+		addAllowedDraftAssetStoragePath(allowedPathsByRef, ref, storagePath);
+	}
+}
+
+function collectAllowedDraftAssetStoragePathsFromBlocks(
+	allowedPathsByRef: Map<string, Set<string>>,
+	blocks: BlockUsage[],
+	value: ContentRecord,
+	configPath: string,
+	defaultStoragePath: string
+) {
+	for (const block of blocks) {
+		const blockValue = value[block.id];
+		const blockStoragePath = block.assetsDir
+			? resolveConfigPath(configPath, block.assetsDir)
+			: defaultStoragePath;
+
+		if (block.type === 'markdown' || block.type === 'image') {
+			collectAllowedDraftAssetStoragePathsFromValue(
+				allowedPathsByRef,
+				blockValue as ContentValue | undefined,
+				blockStoragePath
+			);
+		}
+
+		const nestedBlocks = 'blocks' in block && Array.isArray(block.blocks) ? block.blocks : null;
+		if (!nestedBlocks || !blockValue || typeof blockValue !== 'object') {
+			continue;
+		}
+
+		if (Array.isArray(blockValue)) {
+			for (const item of blockValue) {
+				if (item && typeof item === 'object' && !Array.isArray(item)) {
+					collectAllowedDraftAssetStoragePathsFromBlocks(
+						allowedPathsByRef,
+						nestedBlocks,
+						item as ContentRecord,
+						configPath,
+						defaultStoragePath
+					);
+				}
+			}
+			continue;
+		}
+
+		collectAllowedDraftAssetStoragePathsFromBlocks(
+			allowedPathsByRef,
+			nestedBlocks,
+			blockValue as ContentRecord,
+			configPath,
+			defaultStoragePath
+		);
+	}
+}
+
+export function collectAllowedDraftAssetStoragePaths(input: {
+	content: ContentRecord;
+	blocks: BlockUsage[];
+	configPath: string;
+	defaultStoragePath?: string;
+}): Map<string, Set<string>> {
+	const defaultStoragePath = input.defaultStoragePath
+		? resolveConfigPath(input.configPath, input.defaultStoragePath)
+		: 'static/images/';
+	const allowedPathsByRef = new Map<string, Set<string>>();
+
+	collectAllowedDraftAssetStoragePathsFromBlocks(
+		allowedPathsByRef,
+		input.blocks,
+		input.content,
+		input.configPath,
+		defaultStoragePath
+	);
+
+	return allowedPathsByRef;
+}
+
 export function parseDraftAssetManifest(
 	value: FormDataEntryValue | null
 ): DraftAssetSubmissionEntry[] {
@@ -334,6 +451,7 @@ export function parseDraftAssetManifest(
 		if (
 			typeof candidate.id !== 'string' ||
 			typeof candidate.ref !== 'string' ||
+			typeof candidate.storagePath !== 'string' ||
 			typeof candidate.originalName !== 'string' ||
 			typeof candidate.mimeType !== 'string' ||
 			typeof candidate.size !== 'number' ||

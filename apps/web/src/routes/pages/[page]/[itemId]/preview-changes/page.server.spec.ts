@@ -55,13 +55,17 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 
 	it('saves item draft changes and returns to the editor with a saved flag', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
 				slug: 'posts',
 				config: {
+					blocks: [],
 					content: {
 						mode: 'directory'
 					}
@@ -93,13 +97,17 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 
 	it('publishes item draft changes directly from the preview screen', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
 				slug: 'posts',
 				config: {
+					blocks: [],
 					content: {
 						mode: 'directory'
 					}
@@ -133,13 +141,17 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 
 	it('publishes newly created collection items and returns to the collection view', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
 				slug: 'posts',
 				config: {
+					blocks: [],
 					content: {
 						mode: 'directory'
 					}
