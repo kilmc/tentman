@@ -53,13 +53,18 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 
 	it('saves singleton draft changes and returns to the editor with a saved flag', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
 				slug: 'about',
-				config: {},
+				config: {
+					blocks: []
+				},
 				path: 'content/about.tentman.json'
 			}
 		} as never);
@@ -85,13 +90,18 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 
 	it('publishes singleton draft changes directly from the preview screen', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
 				slug: 'about',
-				config: {},
+				config: {
+					blocks: []
+				},
 				path: 'content/about.tentman.json'
 			}
 		} as never);

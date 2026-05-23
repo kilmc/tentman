@@ -43,7 +43,9 @@ describe('routes/pages/[page]/new/+page.server', () => {
 
 	it('redirects back to the new item editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: {},
+			backend: {
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
@@ -51,6 +53,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 				path: 'content/posts.tentman.json',
 				config: {
 					idField: 'slug',
+					blocks: [],
 					content: {
 						mode: 'directory'
 					}

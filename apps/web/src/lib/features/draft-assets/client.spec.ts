@@ -55,6 +55,7 @@ describe('draft-assets/client', () => {
 			{
 				id: 'hero',
 				ref: heroRef,
+				storagePath: 'static/images/',
 				originalName: 'hero.png',
 				mimeType: 'image/png',
 				size: 11,

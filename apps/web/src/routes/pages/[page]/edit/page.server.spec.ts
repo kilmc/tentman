@@ -43,13 +43,17 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 
 	it('redirects back to the editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
-			backend: {},
+			backend: {
+				readRootConfig: vi.fn(async () => null)
+			},
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
 				slug: 'about',
-				config: {},
+				config: {
+					blocks: []
+				},
 				path: 'content/about.tentman.json'
 			}
 		} as never);

@@ -25,7 +25,10 @@ export const actions: Actions = {
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
+				configPath: discoveredConfig.path,
+				blocks: discoveredConfig.config.blocks,
 				backend,
+				defaultStoragePath: (await backend.readRootConfig())?.assetsDir,
 				writeOptions: {
 					ref: branchName
 				}
