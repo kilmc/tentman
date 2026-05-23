@@ -76,7 +76,8 @@ vi.mock('$lib/stores/local-content', () => ({
 }));
 
 vi.mock('$lib/content-components/browser', () => ({
-	loadContentComponentRegistryForMode: contentComponentLoaderMocks.loadContentComponentRegistryForMode
+	loadContentComponentRegistryForMode:
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode
 }));
 
 import ItemCard from '$lib/components/ItemCard.svelte';
@@ -182,6 +183,122 @@ describe('shared draft asset rendering surfaces', () => {
 		});
 
 		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
+		expect(host).not.toBeNull();
+		expect(host?.shadowRoot?.textContent).toContain('Buy button: Buy tickets');
+	});
+
+	it('renders hostile preview html inside a shadow host after sanitization', async () => {
+		const buyButtonComponent = {
+			directory: 'src/lib/content-components/buy-button',
+			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
+			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
+			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
+			renderTemplateSource: '<a>{{ label }}</a>',
+			previewTemplateSource:
+				'<a href="{{ href | escape }}" onclick="alert(1)"><span class="safe">Buy button: {{ label | escape }}</span></a><img src="javascript:alert(1)" alt="Bad">',
+			definition: {
+				id: 'buy-button',
+				name: 'buy-button',
+				kind: 'inline',
+				attributes: {
+					href: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: false
+					},
+					label: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: true
+					}
+				}
+			}
+		};
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
+			components: [buyButtonComponent],
+			errors: [],
+			getByName(name: string) {
+				return name === 'buy-button' ? buyButtonComponent : undefined;
+			}
+		});
+
+		const screen = render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body',
+				components: ['buy-button']
+			},
+			value: ':buy-button[Buy tickets]{href="/tickets"}',
+			blockRegistry: new Map() as never
+		});
+
+		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
+		expect(host?.shadowRoot?.querySelector('a')).toBeNull();
+		expect(host?.shadowRoot?.querySelector('img')?.getAttribute('src')).toBeNull();
+		expect(host?.shadowRoot?.textContent).toContain('Buy button: Buy tickets');
+	});
+
+	it('applies safe preview css inside the shadow host only', async () => {
+		const buyButtonComponent = {
+			directory: 'src/lib/content-components/buy-button',
+			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
+			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
+			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
+			previewCssPath: 'src/lib/content-components/buy-button/preview.css',
+			renderTemplateSource: '<a>{{ label }}</a>',
+			previewTemplateSource:
+				'<span class="safe buy-button-preview">Buy button: {{ label | escape }}</span>',
+			previewCssSource:
+				'.buy-button-preview { color: rgb(255, 0, 0); z-index: 20; } body { color: rgb(0, 0, 255); }',
+			definition: {
+				id: 'buy-button',
+				name: 'buy-button',
+				kind: 'inline',
+				attributes: {
+					href: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: false
+					},
+					label: {
+						type: 'string',
+						required: true,
+						valueFromMarkdownLabel: true
+					}
+				}
+			}
+		};
+		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
+			components: [buyButtonComponent],
+			errors: [],
+			getByName(name: string) {
+				return name === 'buy-button' ? buyButtonComponent : undefined;
+			}
+		});
+
+		const screen = render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body',
+				components: ['buy-button']
+			},
+			value: ':buy-button[Buy tickets]{href="/tickets"}',
+			blockRegistry: new Map() as never
+		});
+
+		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
+		const preview = host?.shadowRoot?.querySelector('.buy-button-preview');
+		expect(preview).not.toBeNull();
+		expect(host?.shadowRoot?.querySelector('style:last-of-type')?.textContent).not.toContain(
+			'z-index'
+		);
+		expect(getComputedStyle(preview as Element).color).toBe('rgb(255, 0, 0)');
+		expect(getComputedStyle(document.body).color).not.toBe('rgb(0, 0, 255)');
 	});
 
 	it('surfaces content component preview errors without hiding the markdown', async () => {

@@ -11,8 +11,10 @@ interface LoadedContentComponentFileSet {
 	componentJsonPath: string;
 	renderTemplatePath: string;
 	previewTemplatePath: string;
+	previewCssPath: string | null;
 	renderTemplateSource: string;
 	previewTemplateSource: string;
+	previewCssSource: string | null;
 	definition: unknown;
 }
 
@@ -70,25 +72,31 @@ function isDirectory(entry: RepoEntry): boolean {
 }
 
 async function loadComponentFiles(
-	backend: Pick<RepositoryBackend, 'readTextFile'>,
+	backend: Pick<RepositoryBackend, 'fileExists' | 'readTextFile'>,
 	directory: string
 ): Promise<LoadedContentComponentFileSet> {
 	const componentJsonPath = joinPath(directory, 'component.json');
 	const renderTemplatePath = joinPath(directory, 'render.njk');
 	const previewTemplatePath = joinPath(directory, 'preview.njk');
-	const [componentSource, renderTemplateSource, previewTemplateSource] = await Promise.all([
-		backend.readTextFile(componentJsonPath),
-		backend.readTextFile(renderTemplatePath),
-		backend.readTextFile(previewTemplatePath)
-	]);
+	const previewCssPath = joinPath(directory, 'preview.css');
+	const hasPreviewCss = await backend.fileExists(previewCssPath);
+	const [componentSource, renderTemplateSource, previewTemplateSource, previewCssSource] =
+		await Promise.all([
+			backend.readTextFile(componentJsonPath),
+			backend.readTextFile(renderTemplatePath),
+			backend.readTextFile(previewTemplatePath),
+			hasPreviewCss ? backend.readTextFile(previewCssPath) : Promise.resolve(null)
+		]);
 
 	return {
 		directory,
 		componentJsonPath,
 		renderTemplatePath,
 		previewTemplatePath,
+		previewCssPath: hasPreviewCss ? previewCssPath : null,
 		renderTemplateSource,
 		previewTemplateSource,
+		previewCssSource,
 		definition: JSON.parse(componentSource)
 	};
 }

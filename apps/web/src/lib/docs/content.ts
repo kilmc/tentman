@@ -1141,17 +1141,20 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'content',
 								href: docsHref('reference/content'),
-								description: 'Choose where the data actually lives once you know the domain deserves its own config.'
+								description:
+									'Choose where the data actually lives once you know the domain deserves its own config.'
 							},
 							{
 								label: 'collection',
 								href: docsHref('reference/collection'),
-								description: 'Add repeated-item behavior, grouping, and item-level state when the domain becomes many items.'
+								description:
+									'Add repeated-item behavior, grouping, and item-level state when the domain becomes many items.'
 							},
 							{
 								label: 'Examples / Blog posts',
 								href: docsHref('examples/blog-posts'),
-								description: 'See a fuller content config where storage, collection behavior, and editor structure all come together.'
+								description:
+									'See a fuller content config where storage, collection behavior, and editor structure all come together.'
 							}
 						]
 					}
@@ -1207,17 +1210,20 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'BlockUsage',
 								href: docsHref('reference/block-usage'),
-								description: 'Use this for primitive fields and the common properties every block entry can take.'
+								description:
+									'Use this for primitive fields and the common properties every block entry can take.'
 							},
 							{
 								label: 'BlockConfig',
 								href: docsHref('reference/block-config'),
-								description: 'Use this once the grouped shape needs to become a reusable local block.'
+								description:
+									'Use this once the grouped shape needs to become a reusable local block.'
 							},
 							{
 								label: 'Package blocks',
 								href: docsHref('reference/package-blocks'),
-								description: 'Only jump here when the block system needs to move between repositories.'
+								description:
+									'Only jump here when the block system needs to move between repositories.'
 							}
 						]
 					}
@@ -1261,17 +1267,20 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'FAQ example',
 								href: docsHref('examples/faq'),
-								description: 'Start here when the collection is small and mostly just repeats question-and-answer items.'
+								description:
+									'Start here when the collection is small and mostly just repeats question-and-answer items.'
 							},
 							{
 								label: 'Blog posts example',
 								href: docsHref('examples/blog-posts'),
-								description: 'Use this when the collection needs manual ordering, grouping, or richer per-item metadata.'
+								description:
+									'Use this when the collection needs manual ordering, grouping, or richer per-item metadata.'
 							},
 							{
 								label: 'CollectionGroupConfig',
 								href: docsHref('reference/collection-group-config'),
-								description: 'Open the exact type page only when you are defining reusable group options.'
+								description:
+									'Open the exact type page only when you are defining reusable group options.'
 							}
 						]
 					}
@@ -1319,17 +1328,20 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'Inline state',
 								href: docsHref('reference/state'),
-								description: 'Use the nested state property when only one config or collection needs the badge mapping.'
+								description:
+									'Use the nested state property when only one config or collection needs the badge mapping.'
 							},
 							{
 								label: 'Shared preset',
 								href: docsHref('reference/state-preset'),
-								description: 'Extract repeated cases into root.statePresets once multiple configs should share the same labels or variants.'
+								description:
+									'Extract repeated cases into root.statePresets once multiple configs should share the same labels or variants.'
 							},
 							{
 								label: 'Exact type shape',
 								href: docsHref('reference/state-config'),
-								description: 'Use StateConfig when you need the precise object contract rather than the placement guidance.'
+								description:
+									'Use StateConfig when you need the precise object contract rather than the placement guidance.'
 							}
 						]
 					}
@@ -1407,7 +1419,8 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'Start inline with BlockUsage',
 								href: docsHref('reference/block-usage'),
-								description: 'Model the first version directly in one config so the editorial flow stays visible.'
+								description:
+									'Model the first version directly in one config so the editorial flow stays visible.'
 							},
 							{
 								label: 'Extract a BlockConfig',
@@ -1417,7 +1430,8 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'Promote to package blocks',
 								href: docsHref('reference/package-blocks'),
-								description: 'Package the pattern only once multiple repos need the same reusable block system.'
+								description:
+									'Package the pattern only once multiple repos need the same reusable block system.'
 							}
 						]
 					}
@@ -1539,7 +1553,8 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'Content modes',
 								href: docsHref('reference/content-modes'),
-								description: 'Compare the available storage strategies before choosing the exact fields.'
+								description:
+									'Compare the available storage strategies before choosing the exact fields.'
 							},
 							{
 								label: 'Directory collection example',
@@ -1549,7 +1564,8 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'File-backed collection example',
 								href: docsHref('examples/file-backed-collection'),
-								description: 'See the nested content object when everything lives inside one JSON source file.'
+								description:
+									'See the nested content object when everything lives inside one JSON source file.'
 							}
 						]
 					}
@@ -1659,12 +1675,14 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'collection',
 								href: docsHref('reference/collection'),
-								description: 'Use collection.state when each repeated item should carry its own badge.'
+								description:
+									'Use collection.state when each repeated item should carry its own badge.'
 							},
 							{
 								label: 'State guide',
 								href: docsHref('guides/state'),
-								description: 'Read the higher-level decision guide before locking in the exact reference shape.'
+								description:
+									'Read the higher-level decision guide before locking in the exact reference shape.'
 							}
 						]
 					}
@@ -2022,7 +2040,8 @@ const docsPages: DocsPage[] = [
   buy-button/
     component.json
     render.njk
-    preview.njk`,
+    preview.njk
+    preview.css  # optional`,
 								language: 'text'
 							},
 							{
@@ -2049,9 +2068,20 @@ const docsPages: DocsPage[] = [
 							},
 							{
 								title: 'preview.njk',
-								description: 'Produces the safe authoring preview shown inside Tentman.',
+								description:
+									'Produces the safe authoring preview shown inside Tentman. Preview HTML is sanitized to a presentational subset before Tentman mounts it in an isolated preview host.',
 								code: contentComponentPreviewExample,
 								language: 'html'
+							},
+							{
+								title: 'preview.css',
+								description:
+									'Optional shadow-root-only preview styling. Tentman filters unsafe CSS before applying it, and the styles never ship to final site output.',
+								code: `.tm-component-preview {
+  border: 1px solid currentColor;
+  padding: 0.35rem 0.5rem;
+}`,
+								language: 'css'
 							}
 						]
 					}
@@ -2291,12 +2321,14 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'State guide',
 								href: docsHref('guides/state'),
-								description: 'Add editorial badges when posts need Draft, Published, or similar statuses.'
+								description:
+									'Add editorial badges when posts need Draft, Published, or similar statuses.'
 							},
 							{
 								label: 'content',
 								href: docsHref('reference/content'),
-								description: 'Change the storage mode once you understand how the directory-backed shape behaves.'
+								description:
+									'Change the storage mode once you understand how the directory-backed shape behaves.'
 							}
 						]
 					}
@@ -2340,12 +2372,14 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'collection',
 								href: docsHref('reference/collection'),
-								description: 'Add manual ordering or grouping once the plain repeatable shape is working.'
+								description:
+									'Add manual ordering or grouping once the plain repeatable shape is working.'
 							},
 							{
 								label: 'Single page',
 								href: docsHref('examples/single-page'),
-								description: 'Switch to a singleton when the content is really one document, not many entries.'
+								description:
+									'Switch to a singleton when the content is really one document, not many entries.'
 							}
 						]
 					}
@@ -2397,7 +2431,8 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'Content modes',
 								href: docsHref('reference/content-modes'),
-								description: 'Compare this singleton file-backed pattern with other storage strategies.'
+								description:
+									'Compare this singleton file-backed pattern with other storage strategies.'
 							},
 							{
 								label: 'state',
@@ -2454,12 +2489,14 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'Content modes',
 								href: docsHref('reference/content-modes'),
-								description: 'Compare directory mode with file-backed storage before standardizing on it.'
+								description:
+									'Compare directory mode with file-backed storage before standardizing on it.'
 							},
 							{
 								label: 'collection',
 								href: docsHref('reference/collection'),
-								description: 'Layer in grouping, manual ordering, and item-level state once the core pattern is working.'
+								description:
+									'Layer in grouping, manual ordering, and item-level state once the core pattern is working.'
 							}
 						]
 					}
@@ -2511,12 +2548,14 @@ const docsPages: DocsPage[] = [
 							{
 								label: 'FAQ example',
 								href: docsHref('examples/faq'),
-								description: 'Use this as the lighter-weight pattern when the items are simple and editorial metadata is minimal.'
+								description:
+									'Use this as the lighter-weight pattern when the items are simple and editorial metadata is minimal.'
 							},
 							{
 								label: 'content',
 								href: docsHref('reference/content'),
-								description: 'Review the nested storage object fields once you know file-backed arrays are the right fit.'
+								description:
+									'Review the nested storage object fields once you know file-backed arrays are the right fit.'
 							}
 						]
 					}

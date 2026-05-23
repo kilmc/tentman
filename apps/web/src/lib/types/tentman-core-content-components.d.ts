@@ -22,8 +22,10 @@ declare module '@tentman/core/content-components' {
 		componentJsonPath: string;
 		renderTemplatePath: string;
 		previewTemplatePath: string;
+		previewCssPath?: string | null;
 		renderTemplateSource: string;
 		previewTemplateSource: string;
+		previewCssSource?: string | null;
 		definition: {
 			id: string;
 			name: string;
@@ -61,6 +63,23 @@ declare module '@tentman/core/content-components' {
 		full: unknown;
 	}
 
+	export interface CoreContentComponentPreviewDiagnostic {
+		kind: 'tag' | 'attribute' | 'img-src';
+		tagName: string;
+		attributeName?: string;
+		value?: string;
+		message: string;
+	}
+
+	export interface CoreContentComponentPreviewCssDiagnostic {
+		kind: 'at-rule' | 'selector' | 'declaration';
+		atRule?: string;
+		selector?: string;
+		property?: string;
+		value?: string;
+		message: string;
+	}
+
 	export function collectContentComponents(
 		components: Array<
 			Omit<CoreLoadedContentComponent, 'definition'> & {
@@ -88,6 +107,26 @@ declare module '@tentman/core/content-components' {
 		}
 	): string;
 
+	export function sanitizeContentComponentPreviewHtml(html: string): {
+		html: string;
+		diagnostics: CoreContentComponentPreviewDiagnostic[];
+	};
+
+	export function sanitizeContentComponentPreviewCss(css: string): {
+		css: string;
+		diagnostics: CoreContentComponentPreviewCssDiagnostic[];
+	};
+
+	export function inspectContentComponentPreviewTemplateSource(source: string): {
+		html: string;
+		diagnostics: CoreContentComponentPreviewDiagnostic[];
+	};
+
+	export function inspectContentComponentPreviewCssSource(source: string): {
+		css: string;
+		diagnostics: CoreContentComponentPreviewCssDiagnostic[];
+	};
+
 	export function getContentComponentReferenceAttribute(component: CoreLoadedContentComponent): {
 		attributeId: string;
 		definition: CoreContentComponentAttributeDefinition;
@@ -108,11 +147,13 @@ declare module '@tentman/core/content-components' {
 		props: Record<string, string>;
 	} | null;
 
-	export function collectContentComponentReferenceIndex<TBlock extends {
-		id?: string;
-		collection?: unknown;
-		referenceFor?: string | string[];
-	}>(options: {
+	export function collectContentComponentReferenceIndex<
+		TBlock extends {
+			id?: string;
+			collection?: unknown;
+			referenceFor?: string | string[];
+		}
+	>(options: {
 		blocks: TBlock[];
 		contentItem: object;
 		resolveStructuredBlocks: (block: TBlock) => TBlock[] | null;

@@ -157,10 +157,14 @@ function printDiagnostics(title, diagnostics, options = {}) {
 
 	for (const diagnostic of diagnostics) {
 		const location = diagnostic.path ? ` (${diagnostic.path})` : '';
-		console.log(`${diagnostic.level.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}${location}`);
+		console.log(
+			`${diagnostic.level.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}${location}`
+		);
 	}
 
-	console.log(`\n${counts.errors} error${counts.errors === 1 ? '' : 's'}, ${counts.warnings} warning${counts.warnings === 1 ? '' : 's'}`);
+	console.log(
+		`\n${counts.errors} error${counts.errors === 1 ? '' : 's'}, ${counts.warnings} warning${counts.warnings === 1 ? '' : 's'}`
+	);
 }
 
 function getWatchMode(flags) {
@@ -180,7 +184,9 @@ function collectNavigationWatchRoots(project) {
 		const content = project.contentByConfigPath.get(config.path);
 		if (content?.path) {
 			const absoluteContentPath = path.join(project.rootDir, content.path);
-			roots.add(config.content.mode === 'file' ? path.dirname(absoluteContentPath) : absoluteContentPath);
+			roots.add(
+				config.content.mode === 'file' ? path.dirname(absoluteContentPath) : absoluteContentPath
+			);
 		}
 	}
 
@@ -194,9 +200,7 @@ function normalizeWatchRoots(roots) {
 	const normalizedRoots = [];
 
 	for (const root of sortedRoots) {
-		if (
-			normalizedRoots.some((existingRoot) => root.startsWith(`${existingRoot}${path.sep}`))
-		) {
+		if (normalizedRoots.some((existingRoot) => root.startsWith(`${existingRoot}${path.sep}`))) {
 			continue;
 		}
 
@@ -396,10 +400,14 @@ async function watchNavigationManifest(projectRoot, flags) {
 	});
 	watcher.on('error', (error) => {
 		const timestamp = new Date().toLocaleTimeString();
-		console.error(`[${timestamp}] watch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		console.error(
+			`[${timestamp}] watch error: ${error instanceof Error ? error.message : 'Unknown error'}`
+		);
 	});
 	await waitForReady(watcher);
-	console.log(`Watching ${watchRoots.length} navigation source path${watchRoots.length === 1 ? '' : 's'}...`);
+	console.log(
+		`Watching ${watchRoots.length} navigation source path${watchRoots.length === 1 ? '' : 's'}...`
+	);
 	await logRun('initial run');
 
 	await new Promise(() => {});
@@ -467,8 +475,9 @@ async function run() {
 		console.log('\nNext steps:');
 		console.log('1. Edit component.json');
 		console.log('2. Edit render.njk');
-		console.log('3. Edit preview.njk');
-		console.log(`4. Use the ${created.name} marker in markdown`);
+		console.log('3. Edit preview.njk (sanitized presentational HTML only)');
+		console.log(`4. Optional: add preview.css for safe shadow-root-only preview styling`);
+		console.log(`5. Use the ${created.name} marker in markdown`);
 		return 0;
 	}
 
@@ -518,6 +527,19 @@ async function run() {
 		console.log(`component.json: ${component.componentJsonPath}`);
 		console.log(`render.njk: ${component.renderTemplatePath}`);
 		console.log(`preview.njk: ${component.previewTemplatePath}`);
+		console.log(`preview.css: ${component.previewCssPath ?? '(not present)'}`);
+		if (component.previewTemplateWarnings.length > 0) {
+			console.log('Preview warnings:');
+			for (const warning of component.previewTemplateWarnings) {
+				console.log(`- ${warning}`);
+			}
+		}
+		if (component.previewCssWarnings.length > 0) {
+			console.log('Preview CSS warnings:');
+			for (const warning of component.previewCssWarnings) {
+				console.log(`- ${warning}`);
+			}
+		}
 		console.log('Attributes:');
 		for (const [attributeName, definition] of Object.entries(component.attributes)) {
 			const parts = [definition.type];
@@ -553,7 +575,8 @@ async function run() {
 	}
 
 	if (command === 'assets' && subcommand === 'list') {
-		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const selector =
+			positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
 		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
 		const assets = await listTentmanAssets(project, selector);
 
@@ -582,7 +605,9 @@ async function run() {
 				continue;
 			}
 
-			console.log(`\n${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`);
+			console.log(
+				`\n${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`
+			);
 			for (const asset of item.assets) {
 				const status =
 					asset.matchesExpectedPath === false
@@ -598,7 +623,8 @@ async function run() {
 	}
 
 	if (command === 'assets' && subcommand === 'unused') {
-		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const selector =
+			positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
 		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
 		const unused = await findUnusedTentmanAssets(project, selector);
 
@@ -690,10 +716,9 @@ async function run() {
 	}
 
 	if (command === 'content' && subcommand === 'list') {
-		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
-		const project = await loadTentmanProject(
-			getProjectRoot(positional, selector ? 3 : 2)
-		);
+		const selector =
+			positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
 		const content = listTentmanContent(project, selector);
 
 		if (json) {
@@ -717,7 +742,9 @@ async function run() {
 		);
 
 		for (const item of content.items) {
-			console.log(`${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`);
+			console.log(
+				`${item.reference ?? `item-${item.index + 1}`}: ${item.label}${item.path ? ` (${item.path})` : ''}`
+			);
 		}
 
 		return 0;
@@ -732,9 +759,7 @@ async function run() {
 
 		const itemReference =
 			positional[3] && !looksLikeProjectRoot(positional[3]) ? positional[3] : undefined;
-		const project = await loadTentmanProject(
-			getProjectRoot(positional, itemReference ? 4 : 3)
-		);
+		const project = await loadTentmanProject(getProjectRoot(positional, itemReference ? 4 : 3));
 		const content = inspectTentmanContent(project, configReference, itemReference);
 
 		if (json) {
@@ -753,7 +778,8 @@ async function run() {
 	}
 
 	if (command === 'schema') {
-		const selector = positional[1] && !looksLikeProjectRoot(positional[1]) ? positional[1] : undefined;
+		const selector =
+			positional[1] && !looksLikeProjectRoot(positional[1]) ? positional[1] : undefined;
 		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 2 : 1));
 		const schema = getTentmanSchema(project, selector);
 
@@ -794,7 +820,9 @@ async function run() {
 				field.schemaKind === 'reusable-block'
 					? ` -> ${field.reusableBlock?.label ?? field.type}`
 					: '';
-			console.log(`${indent}${field.id ?? 'unknown'}: ${field.type ?? 'unknown'}${collection}${detail}`);
+			console.log(
+				`${indent}${field.id ?? 'unknown'}: ${field.type ?? 'unknown'}${collection}${detail}`
+			);
 
 			for (const nestedField of field.fields ?? []) {
 				printField(nestedField, `${indent}  `);
@@ -876,7 +904,8 @@ async function run() {
 	}
 
 	if (command === 'nav' && subcommand === 'print') {
-		const selector = positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
+		const selector =
+			positional[2] && !looksLikeProjectRoot(positional[2]) ? positional[2] : undefined;
 		const project = await loadTentmanProject(getProjectRoot(positional, selector ? 3 : 2));
 		const navigation = printTentmanNavigation(project, selector);
 
@@ -894,9 +923,7 @@ async function run() {
 			return 0;
 		}
 
-		console.log(
-			`${navigation.config.label} (${navigation.config.reference ?? 'no-reference'})`
-		);
+		console.log(`${navigation.config.label} (${navigation.config.reference ?? 'no-reference'})`);
 
 		for (const item of navigation.items) {
 			console.log(`${item.reference ?? `item-${item.index + 1}`}: ${item.label}`);
@@ -938,9 +965,7 @@ async function run() {
 		);
 
 		if (explanation.item) {
-			const groupText = explanation.item.group
-				? ` and group ${explanation.item.group.label}`
-				: '';
+			const groupText = explanation.item.group ? ` and group ${explanation.item.group.label}` : '';
 			console.log(
 				`${explanation.item.label} (${explanation.item.reference ?? 'no-reference'}) is at collection position ${explanation.item.index + 1} via ${explanation.item.orderSource}${groupText}.`
 			);
@@ -1001,7 +1026,9 @@ async function run() {
 	}
 
 	if (command === 'format' && (flags.has('--check') || subcommand === 'check')) {
-		const project = await loadTentmanProject(getProjectRoot(positional, subcommand === 'check' ? 2 : 1));
+		const project = await loadTentmanProject(
+			getProjectRoot(positional, subcommand === 'check' ? 2 : 1)
+		);
 		const rewrites = await checkTentmanFormat(project);
 		const summary = summarizeFormatCheck(rewrites);
 
@@ -1040,7 +1067,9 @@ async function run() {
 	}
 
 	if (command === 'format' && (flags.has('--write') || subcommand === 'write')) {
-		const project = await loadTentmanProject(getProjectRoot(positional, subcommand === 'write' ? 2 : 1));
+		const project = await loadTentmanProject(
+			getProjectRoot(positional, subcommand === 'write' ? 2 : 1)
+		);
 		const rewrites = await writeTentmanFormat(project);
 		const summary = summarizeFormatCheck(rewrites);
 

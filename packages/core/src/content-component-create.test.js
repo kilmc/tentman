@@ -30,7 +30,8 @@ test('creates a valid content component scaffold in the default components direc
 			'src/lib/content-components/buy-button/component.json',
 			'src/lib/content-components/buy-button/render.njk',
 			'src/lib/content-components/buy-button/preview.njk'
-		]
+		],
+		optionalFiles: ['src/lib/content-components/buy-button/preview.css']
 	});
 
 	const component = validateContentComponent(
@@ -45,6 +46,8 @@ test('creates a valid content component scaffold in the default components direc
 		renderContentComponent(component, instance, 'preview').trim(),
 		'<span class="tm-component-preview tm-component-preview--buy-button">Buy tickets</span>'
 	);
+	assert.equal(component.previewCssPath, null);
+	assert.equal(component.previewCssSource, null);
 });
 
 test('creates a valid content component scaffold in the configured components directory', async () => {

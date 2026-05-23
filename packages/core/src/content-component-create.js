@@ -126,6 +126,7 @@ export async function createContentComponentScaffold(projectRoot, name, options 
 			toPosixPath(getPathRelativeToRoot(rootDir, componentJsonPath)),
 			toPosixPath(getPathRelativeToRoot(rootDir, renderTemplatePath)),
 			toPosixPath(getPathRelativeToRoot(rootDir, previewTemplatePath))
-		]
+		],
+		optionalFiles: [toPosixPath(getPathRelativeToRoot(rootDir, path.join(componentDirPath, 'preview.css')))]
 	};
 }

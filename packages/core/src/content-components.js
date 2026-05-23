@@ -1,21 +1,34 @@
 // @ts-nocheck
 import * as nunjucksModule from 'nunjucks';
-import { assertPlainObject, parseJsonObject, readOptionalString, readRequiredString } from './json.js';
+import {
+	assertPlainObject,
+	parseJsonObject,
+	readOptionalString,
+	readRequiredString
+} from './json.js';
+export {
+	inspectContentComponentPreviewTemplateSource,
+	sanitizeContentComponentPreviewHtml
+} from './content-component-preview-sanitizer.js';
+export {
+	inspectContentComponentPreviewCssSource,
+	sanitizeContentComponentPreviewCss
+} from './content-component-preview-css-sanitizer.js';
 
 const COMPONENT_CONFIG_NAME = 'component.json';
 const RENDER_TEMPLATE_NAME = 'render.njk';
 const PREVIEW_TEMPLATE_NAME = 'preview.njk';
+const PREVIEW_STYLESHEET_NAME = 'preview.css';
 const VALID_COMPONENT_KINDS = new Set(['inline', 'block']);
 const VALID_ATTRIBUTE_TYPES = new Set(['string', 'enum']);
 const VALID_EDITOR_CONTROLS = new Set(['text', 'url', 'select']);
 const VALID_REFERENCE_SCOPES = new Set(['self', 'container', 'full']);
 const VALID_RENDER_MAPPING_ROOTS = new Set(['attributes', 'data']);
-const nunjucksRuntime =
-	nunjucksModule.Environment
-		? nunjucksModule
-		: nunjucksModule.default
-			? nunjucksModule.default
-			: globalThis.nunjucks;
+const nunjucksRuntime = nunjucksModule.Environment
+	? nunjucksModule
+	: nunjucksModule.default
+		? nunjucksModule.default
+		: globalThis.nunjucks;
 const { Environment } = nunjucksRuntime;
 const renderEnvironment = new Environment(undefined, {
 	autoescape: true,
@@ -162,9 +175,15 @@ function normalizeAttributeDefinition(attributeName, input, context) {
 		throw new Error(`${context}.${attributeName}.type must be "string" or "enum"`);
 	}
 
-	const reference = normalizeBooleanOption(input.reference, 'reference', `${context}.${attributeName}`);
+	const reference = normalizeBooleanOption(
+		input.reference,
+		'reference',
+		`${context}.${attributeName}`
+	);
 	if (reference === true && type !== 'string') {
-		throw new Error(`${context}.${attributeName}.reference is only supported for string attributes`);
+		throw new Error(
+			`${context}.${attributeName}.reference is only supported for string attributes`
+		);
 	}
 
 	if (reference !== true && input.referenceScope !== undefined) {
@@ -175,7 +194,8 @@ function normalizeAttributeDefinition(attributeName, input, context) {
 
 	const normalized = {
 		type,
-		required: normalizeBooleanOption(input.required, 'required', `${context}.${attributeName}`) === true,
+		required:
+			normalizeBooleanOption(input.required, 'required', `${context}.${attributeName}`) === true,
 		valueFromMarkdownLabel:
 			normalizeBooleanOption(
 				input.valueFromMarkdownLabel,
@@ -186,7 +206,9 @@ function normalizeAttributeDefinition(attributeName, input, context) {
 
 	if (reference === true) {
 		if (input.referenceScope === undefined) {
-			throw new Error(`${context}.${attributeName}.referenceScope is required when reference is true`);
+			throw new Error(
+				`${context}.${attributeName}.referenceScope is required when reference is true`
+			);
 		}
 
 		normalized.reference = true;
@@ -270,14 +292,21 @@ function normalizeRenderConfig(renderInput, componentJsonPath) {
 	for (const [targetName, targetInput] of Object.entries(renderInput)) {
 		assertPlainObject(targetInput, `${componentJsonPath}.render.${targetName} must be an object`);
 
-		const from = readRequiredString(targetInput, 'from', `${componentJsonPath}.render.${targetName}`);
+		const from = readRequiredString(
+			targetInput,
+			'from',
+			`${componentJsonPath}.render.${targetName}`
+		);
 		const component = readRequiredString(
 			targetInput,
 			'component',
 			`${componentJsonPath}.render.${targetName}`
 		);
 		const propsInput = targetInput.props ?? {};
-		assertPlainObject(propsInput, `${componentJsonPath}.render.${targetName}.props must be an object`);
+		assertPlainObject(
+			propsInput,
+			`${componentJsonPath}.render.${targetName}.props must be an object`
+		);
 
 		targets[targetName] = {
 			from,
@@ -330,11 +359,15 @@ function normalizeDefinition(definition, componentJsonPath) {
 	}
 
 	if (markdownLabelAttributeCount > 1) {
-		throw new Error(`${componentJsonPath}.attributes may only declare one valueFromMarkdownLabel attribute`);
+		throw new Error(
+			`${componentJsonPath}.attributes may only declare one valueFromMarkdownLabel attribute`
+		);
 	}
 
 	if (referenceAttributeCount > 1) {
-		throw new Error(`${componentJsonPath}.attributes may only declare one reference attribute in v1`);
+		throw new Error(
+			`${componentJsonPath}.attributes may only declare one reference attribute in v1`
+		);
 	}
 
 	let editor;
@@ -407,10 +440,7 @@ function filterUniqueComponents(components) {
 	const acceptedNames = new Set();
 
 	for (const component of components) {
-		if (
-			acceptedIds.has(component.definition.id) ||
-			acceptedNames.has(component.definition.name)
-		) {
+		if (acceptedIds.has(component.definition.id) || acceptedNames.has(component.definition.name)) {
 			continue;
 		}
 
@@ -538,20 +568,26 @@ export async function loadContentComponent(directory) {
 	const componentJsonPath = path.join(normalizedDirectory, COMPONENT_CONFIG_NAME);
 	const renderTemplatePath = path.join(normalizedDirectory, RENDER_TEMPLATE_NAME);
 	const previewTemplatePath = path.join(normalizedDirectory, PREVIEW_TEMPLATE_NAME);
+	const previewCssPath = path.join(normalizedDirectory, PREVIEW_STYLESHEET_NAME);
+	const hasPreviewCss = await pathExists(previewCssPath);
 
-	const [componentJsonSource, renderTemplateSource, previewTemplateSource] = await Promise.all([
-		readRequiredFile(componentJsonPath),
-		readRequiredFile(renderTemplatePath),
-		readRequiredFile(previewTemplatePath)
-	]);
+	const [componentJsonSource, renderTemplateSource, previewTemplateSource, previewCssSource] =
+		await Promise.all([
+			readRequiredFile(componentJsonPath),
+			readRequiredFile(renderTemplatePath),
+			readRequiredFile(previewTemplatePath),
+			hasPreviewCss ? readRequiredFile(previewCssPath) : Promise.resolve(null)
+		]);
 
 	return {
 		directory: normalizedDirectory,
 		componentJsonPath,
 		renderTemplatePath,
 		previewTemplatePath,
+		previewCssPath: hasPreviewCss ? previewCssPath : null,
 		renderTemplateSource,
 		previewTemplateSource,
+		previewCssSource,
 		definition: parseJsonObject(componentJsonSource, componentJsonPath)
 	};
 }
@@ -567,12 +603,27 @@ export function validateContentComponent(component) {
 			? component.componentJsonPath
 			: `${component.directory.replace(/\/+$/, '')}/${COMPONENT_CONFIG_NAME}`;
 
-	if (typeof component.renderTemplatePath !== 'string' || component.renderTemplatePath.length === 0) {
+	if (
+		typeof component.renderTemplatePath !== 'string' ||
+		component.renderTemplatePath.length === 0
+	) {
 		throw new Error('content component.renderTemplatePath must be a non-empty string');
 	}
 
-	if (typeof component.previewTemplatePath !== 'string' || component.previewTemplatePath.length === 0) {
+	if (
+		typeof component.previewTemplatePath !== 'string' ||
+		component.previewTemplatePath.length === 0
+	) {
 		throw new Error('content component.previewTemplatePath must be a non-empty string');
+	}
+
+	if (component.previewCssPath !== null && component.previewCssPath !== undefined) {
+		if (
+			typeof component.previewCssPath !== 'string' ||
+			component.previewCssPath.length === 0
+		) {
+			throw new Error('content component.previewCssPath must be null or a non-empty string');
+		}
 	}
 
 	if (typeof component.renderTemplateSource !== 'string') {
@@ -581,6 +632,16 @@ export function validateContentComponent(component) {
 
 	if (typeof component.previewTemplateSource !== 'string') {
 		throw new Error(`${component.previewTemplatePath} must be loaded as a string`);
+	}
+
+	if (component.previewCssSource !== null && component.previewCssSource !== undefined) {
+		if (typeof component.previewCssSource !== 'string') {
+			throw new Error('content component.previewCssSource must be null or a string');
+		}
+
+		if (component.previewCssPath === null || component.previewCssPath === undefined) {
+			throw new Error('content component.previewCssPath is required when previewCssSource is set');
+		}
 	}
 
 	assertPlainObject(component.definition, `${componentJsonPath} must be an object`);
@@ -668,7 +729,10 @@ export function normalizeContentComponentInstance(component, input = {}) {
 								throw new Error(`Content component attribute ${attributeName} must be a string`);
 							})();
 
-		if ((nextValue === undefined || nextValue.length === 0) && attributeDefinition.default !== undefined) {
+		if (
+			(nextValue === undefined || nextValue.length === 0) &&
+			attributeDefinition.default !== undefined
+		) {
 			nextValue = attributeDefinition.default;
 		}
 
@@ -829,14 +893,18 @@ export function collectContentComponentReferenceIndex(options) {
 					continue;
 				}
 
-				register(binding.binding, token, buildReferenceEntry({
-					binding: binding.binding,
+				register(
+					binding.binding,
 					token,
-					field: storageKey,
-					self: token,
-					container: value,
-					full: fullValue
-				}));
+					buildReferenceEntry({
+						binding: binding.binding,
+						token,
+						field: storageKey,
+						self: token,
+						container: value,
+						full: fullValue
+					})
+				);
 			}
 		}
 	}
@@ -980,6 +1048,8 @@ export function renderContentComponent(component, instance, mode, options = {}) 
 		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`Failed to render ${mode} template for ${component.definition.name}: ${message}`);
+		throw new Error(
+			`Failed to render ${mode} template for ${component.definition.name}: ${message}`
+		);
 	}
 }

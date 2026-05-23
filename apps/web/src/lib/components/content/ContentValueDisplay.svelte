@@ -1,14 +1,14 @@
 <script lang="ts">
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
+	import { tick } from 'svelte';
 	import { page } from '$app/state';
 	import { get } from 'svelte/store';
 	import AssetImage from '$lib/components/AssetImage.svelte';
-	import {
-		loadContentComponentRegistryForMode
-	} from '$lib/content-components/browser';
+	import { loadContentComponentRegistryForMode } from '$lib/content-components/browser';
 	import { getUnknownEnabledContentComponentErrors } from '$lib/content-components/availability';
 	import { filterContentComponentRegistry } from '$lib/content-components/registry';
 	import { applyPreviewContentComponentTransforms } from '$lib/content-components/preview';
+	import { enhanceSafePreviewHosts } from '$lib/content-components/safe-preview';
 	import { collectContentComponentReferenceState } from '$lib/content-components/references';
 	import { localContent } from '$lib/stores/local-content';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
@@ -33,10 +33,11 @@
 		rootBlocks = undefined,
 		rootContentItem = null
 	}: Props = $props();
-	let previewMarkdown = $state(typeof value === 'string' ? value : '');
+	let previewMarkdown = $state('');
 	let previewComponentError = $state<string | null>(null);
+	let previewMarkdownContainer = $state<HTMLDivElement | null>(null);
 
-	const structuredBlocks = getStructuredBlocksForUsage(block, blockRegistry);
+	const structuredBlocks = $derived(getStructuredBlocksForUsage(block, blockRegistry));
 
 	function getBlockLabel(target: BlockUsage): string {
 		return (
@@ -152,9 +153,7 @@
 				if (!cancelled) {
 					previewMarkdown = markdownValue;
 					previewComponentError =
-						error instanceof Error
-							? error.message
-							: 'Failed to load markdown preview components';
+						error instanceof Error ? error.message : 'Failed to load markdown preview components';
 				}
 			}
 		}
@@ -164,6 +163,19 @@
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	$effect(() => {
+		if (block.type !== 'markdown' || !previewMarkdownContainer) {
+			return;
+		}
+
+		void previewMarkdown;
+		void tick().then(() => {
+			if (previewMarkdownContainer) {
+				enhanceSafePreviewHosts(previewMarkdownContainer);
+			}
+		});
 	});
 </script>
 
@@ -230,6 +242,7 @@
 	{/if}
 {:else if block.type === 'markdown' && typeof value === 'string'}
 	<div
+		bind:this={previewMarkdownContainer}
 		class="markdown-content prose max-w-none text-sm prose-stone prose-headings:font-semibold prose-code:rounded prose-code:bg-stone-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:font-mono prose-pre:text-stone-800"
 	>
 		<SvelteMarkdown source={previewMarkdown} />
