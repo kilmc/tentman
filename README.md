@@ -72,6 +72,12 @@ SESSION_SECRET=your_random_session_secret_here
 - Homepage URL: `http://localhost:5173`
 - Authorization callback URL: `http://localhost:5173/auth/callback`
 
+Tentman now keeps the live GitHub OAuth bearer token on the server only. The browser session carries an opaque
+Tentman session id instead, so a copied browser cookie is not itself a reusable GitHub API token.
+
+Current limitation: the server-side GitHub session store is in-memory, so restarting the app signs GitHub-backed
+sessions out.
+
 5. Start the app:
 
 ```sh
