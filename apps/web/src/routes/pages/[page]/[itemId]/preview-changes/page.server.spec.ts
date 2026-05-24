@@ -33,6 +33,8 @@ vi.mock('$lib/stores/content-cache', () => ({
 }));
 
 import { actions } from './+page.server';
+import { saveContentDocument } from '$lib/content/service';
+import { InvalidDirectoryFilenameError } from '$lib/features/content-management/transforms';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateContent } from '$lib/stores/content-cache';
 
@@ -182,6 +184,58 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 		});
 
 		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
+	});
+
+	it('returns a validation error when a rename targets a path outside the managed directory', async () => {
+		vi.mocked(saveContentDocument).mockImplementation(async (_backend, _config, _path, _data, options) => {
+			if (options?.newFilename === '../outside') {
+				throw new InvalidDirectoryFilenameError(
+					'Filename cannot include path separators. Use a single file name only.'
+				);
+			}
+		});
+
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: {
+				slug: 'posts',
+				config: {
+					blocks: [],
+					content: {
+						mode: 'directory'
+					}
+				},
+				path: 'content/posts.tentman.json'
+			}
+		} as never);
+
+		const response = await actions.createPreview({
+			locals: {},
+			params: {
+				page: 'posts',
+				itemId: 'hello-world'
+			},
+			request: createRequest({
+				data: JSON.stringify({ title: 'Hello world' }),
+				filename: 'hello-world.md',
+				newFilename: '../outside'
+			}),
+			cookies: {
+				delete: vi.fn()
+			},
+			url: new URL('http://localhost/pages/posts/hello-world/preview-changes')
+		} as never);
+
+		expect(response.status).toBe(400);
+		expect(response.data).toMatchObject({
+			error: 'Filename cannot include path separators. Use a single file name only.'
+		});
 	});
 
 	it('preserves preview query params when auth expires during item draft save', async () => {

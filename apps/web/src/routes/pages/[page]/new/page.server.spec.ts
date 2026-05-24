@@ -22,6 +22,8 @@ vi.mock('$lib/github/pull-request', () => ({
 }));
 
 import { actions } from './+page.server';
+import { createContentDocument } from '$lib/content/service';
+import { InvalidDirectoryFilenameError } from '$lib/features/content-management/transforms';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
 function createRequest(form: Record<string, string>) {
@@ -78,6 +80,55 @@ describe('routes/pages/[page]/new/+page.server', () => {
 		).rejects.toMatchObject({
 			status: 303,
 			location: '/pages/posts/hello-world/edit?saved=true'
+		});
+	});
+
+	it('returns a validation error when a new filename escapes the managed directory', async () => {
+		vi.mocked(createContentDocument).mockImplementation(async (_backend, _config, _path, _data, options) => {
+			if (options?.filename === '../outside') {
+				throw new InvalidDirectoryFilenameError(
+					'Filename cannot include path separators. Use a single file name only.'
+				);
+			}
+		});
+
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				readRootConfig: vi.fn(async () => null)
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: {
+				path: 'content/posts.tentman.json',
+				config: {
+					idField: 'slug',
+					blocks: [],
+					content: {
+						mode: 'directory'
+					}
+				}
+			}
+		} as never);
+
+		const response = await actions.createToPreview({
+			locals: {},
+			params: {
+				page: 'posts'
+			},
+			request: createRequest({
+				data: JSON.stringify({ title: 'Hello world', slug: 'hello-world' }),
+				newFilename: '../outside'
+			}),
+			cookies: {
+				delete: vi.fn()
+			},
+			url: new URL('http://localhost/pages/posts/new')
+		} as never);
+
+		expect(response.status).toBe(400);
+		expect(response.data).toMatchObject({
+			error: 'Filename cannot include path separators. Use a single file name only.'
 		});
 	});
 

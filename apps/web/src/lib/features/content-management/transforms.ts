@@ -14,6 +14,13 @@ type DirectoryBackedConfig = ParsedContentConfig & {
 	};
 };
 
+export class InvalidDirectoryFilenameError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'InvalidDirectoryFilenameError';
+	}
+}
+
 export function detectJsonIndent(content: string): string | number {
 	const match = content.match(/^[ \t]+(?=")/m);
 	if (!match) {
@@ -219,8 +226,41 @@ export function processTemplate(template: string, data: ContentRecord): string {
 	});
 }
 
+export function validateDirectoryFilename(filename: string): string {
+	const normalized = filename.trim();
+
+	if (!normalized) {
+		throw new InvalidDirectoryFilenameError('Filename is required for directory-backed content.');
+	}
+
+	if (normalized === '.' || normalized === '..') {
+		throw new InvalidDirectoryFilenameError(
+			'Filename must be a single file name inside the managed content directory.'
+		);
+	}
+
+	if (normalized.includes('/') || normalized.includes('\\')) {
+		throw new InvalidDirectoryFilenameError(
+			'Filename cannot include path separators. Use a single file name only.'
+		);
+	}
+
+	if (normalized.includes('..')) {
+		throw new InvalidDirectoryFilenameError(
+			'Filename cannot include ".." path traversal segments.'
+		);
+	}
+
+	if (normalized.startsWith('.')) {
+		throw new InvalidDirectoryFilenameError('Filename cannot start with a dot.');
+	}
+
+	return normalized;
+}
+
 export function buildCollectionFilePath(templateDir: string, filename: string): string {
-	return templateDir ? `${templateDir}/${filename}` : filename;
+	const normalizedFilename = validateDirectoryFilename(filename);
+	return templateDir ? `${templateDir}/${normalizedFilename}` : normalizedFilename;
 }
 
 export function stripFileExtension(filename: string): string {

@@ -425,6 +425,83 @@ describe('content/service', () => {
 		expect(backend.files.has('content/templates/renamed-post.md')).toBe(false);
 	});
 
+	it('rejects path-like filenames for directory-mode mutations and previews', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/posts/hello-world.md': '---\nslug: hello-world\ntitle: Hello World\n---\nBody copy',
+			'content/templates/post.md': '---\nslug: "{{slug}}"\ntitle: "{{title}}"\n---\nTemplate body'
+		});
+
+		await expect(
+			createContentDocument(
+				backend,
+				directoryConfig,
+				'content/posts.tentman.json',
+				{ slug: 'new-post', title: 'New Post' },
+				{ filename: '../outside' }
+			)
+		).rejects.toThrow('Filename cannot include path separators.');
+
+		await expect(
+			saveContentDocument(
+				backend,
+				directoryConfig,
+				'content/posts.tentman.json',
+				{ slug: 'hello-world', title: 'Updated Title' },
+				{ filename: 'hello-world.md', newFilename: '../outside' }
+			)
+		).rejects.toThrow('Filename cannot include path separators.');
+
+		await expect(
+			deleteContentDocument(backend, directoryConfig, 'content/posts.tentman.json', {
+				filename: '../outside.md'
+			})
+		).rejects.toThrow('Filename cannot include path separators.');
+
+		await expect(
+			previewContentChanges(
+				backend,
+				directoryConfig,
+				'content/posts.tentman.json',
+				{ slug: 'preview-post', title: 'Preview Post' },
+				{ isNew: true, newFilename: '../outside' }
+			)
+		).rejects.toThrow('Filename cannot include path separators.');
+	});
+
+	it('rejects path-like filenames derived from directory-mode filename templates', async () => {
+		const backend = new MemoryRepositoryBackend({
+			'content/templates/post.md': '---\nslug: "{{slug}}"\ntitle: "{{title}}"\n---\nTemplate body'
+		});
+		const templatedDirectoryConfig = parseContentConfigFixture(
+			JSON.stringify({
+				type: 'content',
+				label: 'Posts',
+				itemLabel: 'Post',
+				collection: true,
+				idField: 'slug',
+				content: {
+					mode: 'directory',
+					path: './posts',
+					template: './templates/post.md',
+					filename: '{{slug}}'
+				},
+				blocks: [
+					{ id: 'slug', type: 'text', label: 'Slug' },
+					{ id: 'title', type: 'text', label: 'Title' }
+				]
+			})
+		);
+
+		await expect(
+			createContentDocument(
+				backend,
+				templatedDirectoryConfig,
+				'content/posts.tentman.json',
+				{ slug: 'nested/post', title: 'Bad Path' }
+			)
+		).rejects.toThrow('Filename cannot include path separators.');
+	});
+
 	it('previews file-mode collection updates through the service', async () => {
 		const backend = new MemoryRepositoryBackend({
 			'content/team.json': '{\n  "members": [\n    { "slug": "alice", "name": "Alice" }\n  ]\n}\n'
