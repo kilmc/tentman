@@ -2,6 +2,7 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { deleteContentDocument, saveContentDocument } from '$lib/content/service';
+import { InvalidDirectoryFilenameError } from '$lib/features/content-management/transforms';
 import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
@@ -72,6 +73,12 @@ export const actions: Actions = {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
 				throw err;
+			}
+
+			if (err instanceof InvalidDirectoryFilenameError) {
+				return fail(400, {
+					error: err.message
+				});
 			}
 
 			handleGitHubRouteError(requestContext, err, getRoutePath(url));
@@ -145,6 +152,12 @@ export const actions: Actions = {
 			// Handle redirects
 			if (err && typeof err === 'object' && 'status' in err && err.status === 303) {
 				throw err;
+			}
+
+			if (err instanceof InvalidDirectoryFilenameError) {
+				return fail(400, {
+					error: err.message
+				});
 			}
 
 			handleGitHubRouteError(requestContext, err, getRoutePath(url));
