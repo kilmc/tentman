@@ -728,11 +728,18 @@ pnpm run dev
 pnpm run check
 pnpm run test
 pnpm run build
+pnpm run verify:baseline
 ```
 
 ## Verification Baseline
 
 For private release confidence, the current baseline is:
+
+```sh
+pnpm run verify:baseline
+```
+
+`pnpm run verify:baseline` runs:
 
 ```sh
 pnpm run check
@@ -741,12 +748,45 @@ pnpm run test:core
 pnpm run test:unit -- --run
 ```
 
-Policy for those commands:
+The same baseline is available as `pnpm run prepush`.
+
+## Pre-push Hook
+
+Tentman now keeps the baseline wired to Git's `pre-push` hook through the checked-in
+[`/Users/kilmc/code/tentman/tentman/.githooks/pre-push`](/Users/kilmc/code/tentman/tentman/.githooks/pre-push).
+
+- `pnpm install` runs the repo `prepare` script, which configures `core.hooksPath` to `.githooks`
+  when this repo owns the Git checkout.
+- If you want to install hooks manually, run `pnpm run hooks:install`.
+- If you already use a custom `core.hooksPath`, Tentman leaves it alone and prints a message instead
+  of overwriting it.
+- Set `SKIP_GIT_HOOKS=1` to skip hook installation in local environments where you do not want it.
+
+## Warning Policy
+
+Policy for the baseline commands:
 
 - TypeScript, `svelte-check`, and thin-backend guardrail errors are forbidden.
 - Failing builds or failing tests are forbidden.
-- Current `state_referenced_locally` Svelte warnings are allowed for now while broader runes cleanup is still in progress.
-- Warning-only output does not block this baseline unless it reflects a new class of warning tied to a real behavior or teardown problem.
+- Svelte accessibility warnings are forbidden.
+- Runtime errors and architectural guard-rail failures are forbidden.
+
+Temporarily allowed warnings, with explicit rationale:
+
+- `gray-matter` direct `eval` build warning is temporarily allowed because it comes from the
+  dependency's parser engine, not Tentman source, and replacing that dependency is a larger change
+  than this baseline issue.
+- Vite/Rolldown large chunk warnings are temporarily allowed because the current markdown/editor
+  client bundle is still oversized and needs a dedicated code-splitting pass rather than a rushed
+  threshold tweak.
+- Rolldown `PLUGIN_TIMINGS` output is temporarily allowed because it is informational performance
+  telemetry rather than a correctness or runtime-safety signal.
+
+Policy for new warning classes:
+
+- New warning classes should be treated as forbidden by default until they are either fixed or
+  explicitly documented here with rationale.
+- Allowed warnings should stay narrow, named, and temporary.
 
 ## Notes
 

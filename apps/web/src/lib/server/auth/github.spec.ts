@@ -107,11 +107,13 @@ describe('server/auth/github', () => {
 		const cookies = createCookieStore();
 		const hookError = vi.fn();
 		OctokitMock.mockImplementationOnce(
-			(() => ({
-				hook: {
-					error: hookError
-				}
-			})) as any
+			(function MockOctokit() {
+				return {
+					hook: {
+						error: hookError
+					}
+				};
+			}) as any
 		);
 
 		createGitHubServerClient('secret-token', cookies);

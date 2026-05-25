@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverInstructions } from '$lib/features/instructions/discovery';
+import { clearNavigationManifestStateCache } from '$lib/features/content-management/navigation-manifest';
 import { planInstructionExecution, normalizeSlug } from '$lib/features/instructions/planner';
 import type { DiscoveredInstruction } from '$lib/features/instructions/types';
 import type {
@@ -30,7 +31,9 @@ function createBackend(files: Record<string, string>): RepositoryBackend {
 		async readTextFile(path: string, _options?: RepositoryReadOptions) {
 			const value = files[path];
 			if (value === undefined) {
-				throw new Error(`Missing file: ${path}`);
+				const error = new Error(`Missing file: ${path}`) as Error & { status?: number };
+				error.status = 404;
+				throw error;
 			}
 
 			return value;
@@ -154,6 +157,14 @@ const createPageInstruction: DiscoveredInstruction = {
 };
 
 describe('instruction planner', () => {
+	beforeEach(() => {
+		clearNavigationManifestStateCache();
+	});
+
+	afterEach(() => {
+		clearNavigationManifestStateCache();
+	});
+
 	it('normalizes slug input values', () => {
 		expect(normalizeSlug(' Press Kit ')).toBe('press-kit');
 	});
