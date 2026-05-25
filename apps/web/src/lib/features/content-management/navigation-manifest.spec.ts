@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	addContentConfigIdToSource,
 	addRootManualSortingToSource,
 	buildNavigationManifestFromRepository,
+	clearNavigationManifestStateCache,
 	detectCollectionGroupField,
 	getManualNavigationSetupState,
 	getMissingContentConfigIds,
@@ -35,7 +36,9 @@ function createBackend(files: Record<string, string>): RepositoryBackend {
 		async readTextFile(path: string, _options?: RepositoryReadOptions) {
 			const value = files[path];
 			if (value === undefined) {
-				throw new Error(`Missing file: ${path}`);
+				const error = new Error(`Missing file: ${path}`) as Error & { status?: number };
+				error.status = 404;
+				throw error;
 			}
 
 			return value;
@@ -59,6 +62,14 @@ function createBackend(files: Record<string, string>): RepositoryBackend {
 }
 
 describe('navigation manifest helpers', () => {
+	beforeEach(() => {
+		clearNavigationManifestStateCache();
+	});
+
+	afterEach(() => {
+		clearNavigationManifestStateCache();
+	});
+
 	it('parses the v1 JSON manifest schema', () => {
 		expect(
 			parseNavigationManifest(`{

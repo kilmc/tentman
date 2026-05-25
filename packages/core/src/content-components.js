@@ -35,8 +35,14 @@ const renderEnvironment = new Environment(undefined, {
 	throwOnUndefined: false
 });
 
+// Keep Node-only helpers out of browser bundle analysis. These code paths are only used when
+// reading content component files from disk, never when rendering already-loaded components.
+function importNodeModule(specifier) {
+	return Function(`return import(${JSON.stringify(specifier)})`)();
+}
+
 async function pathExists(absolutePath) {
-	const fs = await import('node:fs/promises');
+	const fs = await importNodeModule('node:fs/promises');
 
 	try {
 		await fs.access(absolutePath);
@@ -47,7 +53,7 @@ async function pathExists(absolutePath) {
 }
 
 async function readRequiredFile(filePath) {
-	const fs = await import('node:fs/promises');
+	const fs = await importNodeModule('node:fs/promises');
 
 	try {
 		return await fs.readFile(filePath, 'utf8');
@@ -563,7 +569,7 @@ export function collectContentComponents(components, options = {}) {
 }
 
 export async function loadContentComponent(directory) {
-	const path = await import('node:path');
+	const path = await importNodeModule('node:path');
 	const normalizedDirectory = path.resolve(directory);
 	const componentJsonPath = path.join(normalizedDirectory, COMPONENT_CONFIG_NAME);
 	const renderTemplatePath = path.join(normalizedDirectory, RENDER_TEMPLATE_NAME);
@@ -653,7 +659,7 @@ export function validateContentComponent(component) {
 }
 
 export async function discoverContentComponents(options = {}) {
-	const path = await import('node:path');
+	const path = await importNodeModule('node:path');
 	const componentsDir =
 		typeof options.componentsDir === 'string' && options.componentsDir.trim().length > 0
 			? path.resolve(options.componentsDir)
@@ -672,7 +678,7 @@ export async function discoverContentComponents(options = {}) {
 		throw new Error(`Content components directory does not exist: ${componentsDir}`);
 	}
 
-	const fs = await import('node:fs/promises');
+	const fs = await importNodeModule('node:fs/promises');
 	const entries = (await fs.readdir(componentsDir, { withFileTypes: true })).sort((a, b) =>
 		a.name.localeCompare(b.name)
 	);
