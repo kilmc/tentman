@@ -16,14 +16,15 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
+				await requireDiscoveredConfig(
 				requestContext,
 				params.page
-			);
+				);
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 			const newFilename = (formData.get('newFilename') as string | null) || undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -46,7 +47,7 @@ export const actions: Actions = {
 					branch: branchName
 				}
 			);
-			await ensureDraftPullRequest(octokit, owner, name, branchName);
+			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 
 			const itemId =
 				discoveredConfig.config.idField && contentData[discoveredConfig.config.idField]

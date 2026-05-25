@@ -718,6 +718,23 @@ function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig
 }
 
 function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
+	const supportedKeys = new Set([
+		'type',
+		'id',
+		'label',
+		'itemLabel',
+		'collection',
+		'blocks',
+		'editorLayout'
+	]);
+	const unsupportedKeys = Object.keys(input).filter((key) => !supportedKeys.has(key));
+
+	if (unsupportedKeys.length > 0) {
+		throw new Error(
+			`config has unsupported key${unsupportedKeys.length === 1 ? '' : 's'}: ${unsupportedKeys.join(', ')}`
+		);
+	}
+
 	const collection = readOptionalBoolean(input, 'collection', 'config');
 	const blocks = readBlocks(input, 'config');
 	const editorLayout = parseEditorLayout(input, blocks, 'config');
@@ -729,9 +746,6 @@ function parseBlockConfig(input: Record<string, unknown>): ParsedBlockConfig {
 			itemLabel: readOptionalString(input, 'itemLabel', 'config')
 		}),
 		...(collection !== undefined && { collection }),
-		...(readOptionalString(input, 'adapter', 'config') && {
-			adapter: readOptionalString(input, 'adapter', 'config')
-		}),
 		blocks: stripLegacyShowFromBlocks(blocks),
 		...(editorLayout ? { editorLayout } : {})
 	};

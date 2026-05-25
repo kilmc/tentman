@@ -38,7 +38,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	}
 
 	try {
-		const { octokit, owner, name } = requireGitHubRepository({ locals, cookies }, '/pages');
+		const { octokit, owner, name, defaultBranch } = requireGitHubRepository(
+			{ locals, cookies },
+			'/pages'
+		);
 		const draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
 
 		if (!draftBranch) {
@@ -52,6 +55,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 						octokit,
 						owner,
 						name,
+						defaultBranch,
 						config.config,
 						config.path,
 						draftBranch

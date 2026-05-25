@@ -109,7 +109,7 @@ function createOctokit(options?: {
 						};
 					}
 
-					if (branch === 'main') {
+					if (branch === 'trunk') {
 						return {
 							data: {
 								commit: {
@@ -200,6 +200,7 @@ describe('utils/draft-comparison', () => {
 			octokit as never,
 			'acme',
 			'docs',
+			'trunk',
 			singletonConfig,
 			'content/about.tentman.json',
 			'tentman-preview'
@@ -226,6 +227,7 @@ describe('utils/draft-comparison', () => {
 			octokit as never,
 			'acme',
 			'docs',
+			'trunk',
 			directoryConfig,
 			'content/posts.tentman.json',
 			'tentman-preview'
@@ -252,6 +254,7 @@ describe('utils/draft-comparison', () => {
 			octokit as never,
 			'acme',
 			'docs',
+			'trunk',
 			arrayConfig,
 			'content/posts.tentman.json',
 			'tentman-preview'

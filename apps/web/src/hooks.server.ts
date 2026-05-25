@@ -4,6 +4,7 @@ import {
 	readGitHubSession,
 	readSelectedGitHubRepositorySession
 } from '$lib/server/auth/github';
+import { buildSecurityHeaders } from '$lib/server/security-headers';
 import {
 	SELECTED_BACKEND_COOKIE,
 	SELECTED_LOCAL_REPO_COOKIE,
@@ -53,5 +54,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.rootConfig = githubRepoSession.rootConfig;
 	}
 
-	return resolve(event);
+	const response = await resolve(event);
+
+	for (const [name, value] of Object.entries(buildSecurityHeaders())) {
+		response.headers.set(name, value);
+	}
+
+	return response;
 };

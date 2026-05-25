@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { privateEnv } = vi.hoisted(() => ({
 	privateEnv: {
@@ -94,14 +94,25 @@ function setPrivateEnv(values: Partial<typeof privateEnv>) {
 }
 
 describe('server/auth/github', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-05-01T12:00:00.000Z'));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it('creates Octokit clients with explicit GitHub API version headers', () => {
 		const cookies = createCookieStore();
 		const hookError = vi.fn();
-		OctokitMock.mockReturnValueOnce({
-			hook: {
-				error: hookError
+		OctokitMock.mockImplementationOnce(
+			class {
+				hook = {
+					error: hookError
+				};
 			}
-		});
+		);
 
 		createGitHubServerClient('secret-token', cookies);
 
@@ -204,7 +215,8 @@ describe('server/auth/github', () => {
 			{
 				owner: 'acme',
 				name: 'docs',
-				full_name: 'acme/docs'
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
 			},
 			{
 				siteName: 'Acme Docs'
@@ -212,7 +224,7 @@ describe('server/auth/github', () => {
 		);
 
 		expect(cookies.values.get(SELECTED_REPO_COOKIE)).toBe(
-			'{"owner":"acme","name":"docs","full_name":"acme/docs"}'
+			'{"owner":"acme","name":"docs","full_name":"acme/docs","default_branch":"trunk"}'
 		);
 		expect(cookies.values.get(GITHUB_REPO_SESSION_COOKIE)).toBeTruthy();
 		expect(readRecentGitHubRepositories(cookies)).toEqual([
@@ -220,6 +232,7 @@ describe('server/auth/github', () => {
 				owner: 'acme',
 				name: 'docs',
 				full_name: 'acme/docs',
+				default_branch: 'trunk',
 				openedAt: expect.any(String)
 			}
 		]);
@@ -232,12 +245,14 @@ describe('server/auth/github', () => {
 					owner: 'acme',
 					name: 'blog',
 					full_name: 'acme/blog',
+					default_branch: 'main',
 					openedAt: '2026-04-08T10:00:00.000Z'
 				},
 				{
 					owner: 'acme',
 					name: 'docs',
 					full_name: 'acme/docs',
+					default_branch: 'trunk',
 					openedAt: '2026-04-07T10:00:00.000Z'
 				}
 			])
@@ -248,7 +263,8 @@ describe('server/auth/github', () => {
 			{
 				owner: 'acme',
 				name: 'docs',
-				full_name: 'acme/docs'
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
 			},
 			null
 		);
@@ -258,15 +274,59 @@ describe('server/auth/github', () => {
 				owner: 'acme',
 				name: 'docs',
 				full_name: 'acme/docs',
+				default_branch: 'trunk',
 				openedAt: expect.any(String)
 			},
 			{
 				owner: 'acme',
 				name: 'blog',
 				full_name: 'acme/blog',
+				default_branch: 'main',
 				openedAt: '2026-04-08T10:00:00.000Z'
 			}
 		]);
+	});
+
+	it('expires idle GitHub sessions server-side after 7 days and clears cookies', () => {
+		const cookies = createCookieStore();
+
+		persistGitHubSession(cookies, {
+			token: 'secret-token',
+			user: {
+				login: 'kilmc',
+				name: 'Kilian',
+				avatar_url: 'https://avatars.example/kilmc',
+				email: 'kilian@example.com'
+			}
+		});
+
+		vi.setSystemTime(new Date('2026-05-09T12:00:01.000Z'));
+
+		expect(readGitHubSession(cookies)).toEqual({});
+		expect(cookies.delete).toHaveBeenCalledWith(GITHUB_SESSION_COOKIE, { path: '/' });
+	});
+
+	it('expires active GitHub sessions server-side after 30 days absolute lifetime', () => {
+		const cookies = createCookieStore();
+
+		persistGitHubSession(cookies, {
+			token: 'secret-token',
+			user: {
+				login: 'kilmc',
+				name: 'Kilian',
+				avatar_url: 'https://avatars.example/kilmc',
+				email: 'kilian@example.com'
+			}
+		});
+
+		vi.setSystemTime(new Date('2026-05-07T12:00:00.000Z'));
+		expect(readGitHubSession(cookies)).toMatchObject({
+			token: 'secret-token'
+		});
+
+		vi.setSystemTime(new Date('2026-05-31T12:00:01.000Z'));
+		expect(readGitHubSession(cookies)).toEqual({});
+		expect(cookies.delete).toHaveBeenCalledWith(GITHUB_SESSION_COOKIE, { path: '/' });
 	});
 
 	it('clears auth and GitHub repo selection cookies together', () => {

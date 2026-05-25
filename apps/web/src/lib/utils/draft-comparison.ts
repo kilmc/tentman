@@ -76,6 +76,7 @@ export async function compareDraftToBranch(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
+	baseBranch: string,
 	config: ParsedContentConfig,
 	configPath: string,
 	draftBranch: string
@@ -85,6 +86,7 @@ export async function compareDraftToBranch(
 			octokit,
 			owner,
 			repo,
+			baseBranch,
 			draftBranch
 		);
 		const { metadata } = comparisonContext;
@@ -114,12 +116,13 @@ export async function compareDraftToBranch(
 		const backend = createGitHubRepositoryBackend(octokit, {
 			owner,
 			name: repo,
-			full_name: `${owner}/${repo}`
+			full_name: `${owner}/${repo}`,
+			default_branch: baseBranch
 		});
 
 		// Fetch content from both branches
 		const [mainContent, draftContent] = await Promise.all([
-			fetchContentDocument(backend, config, configPath, { branch: 'main' }),
+			fetchContentDocument(backend, config, configPath, { branch: baseBranch }),
 			fetchContentDocument(backend, config, configPath, { branch: draftBranch })
 		]);
 
@@ -133,23 +136,29 @@ export async function compareDraftToBranch(
 	}
 }
 
-function getDraftComparisonContextCacheKey(owner: string, repo: string, draftBranch: string): string {
-	return `${owner}/${repo}:${draftBranch}`;
+function getDraftComparisonContextCacheKey(
+	owner: string,
+	repo: string,
+	baseBranch: string,
+	draftBranch: string
+): string {
+	return `${owner}/${repo}:${baseBranch}:${draftBranch}`;
 }
 
 function isFreshDraftComparisonContext(
 	entry: CachedDraftComparisonContext | undefined
 ): entry is CachedDraftComparisonContext {
-	return Boolean(entry) && Date.now() - entry.timestamp < DRAFT_COMPARISON_CONTEXT_TTL;
+	return entry !== undefined && Date.now() - entry.timestamp < DRAFT_COMPARISON_CONTEXT_TTL;
 }
 
 async function getDraftComparisonContext(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
+	baseBranch: string,
 	draftBranch: string
 ): Promise<DraftComparisonContext> {
-	const cacheKey = getDraftComparisonContextCacheKey(owner, repo, draftBranch);
+	const cacheKey = getDraftComparisonContextCacheKey(owner, repo, baseBranch, draftBranch);
 	const cachedEntry = draftComparisonContextCache.get(cacheKey);
 	if (isFreshDraftComparisonContext(cachedEntry)) {
 		return cachedEntry.value;
@@ -160,7 +169,7 @@ async function getDraftComparisonContext(
 		return pending;
 	}
 
-	const fetchPromise = loadDraftComparisonContext(octokit, owner, repo, draftBranch)
+	const fetchPromise = loadDraftComparisonContext(octokit, owner, repo, baseBranch, draftBranch)
 		.then((value) => {
 			draftComparisonContextCache.set(cacheKey, {
 				value,
@@ -199,6 +208,7 @@ async function loadDraftComparisonContext(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
+	baseBranch: string,
 	draftBranch: string
 ): Promise<DraftComparisonContext> {
 	try {
@@ -213,7 +223,11 @@ async function loadDraftComparisonContext(
 
 		if (!committerDate) {
 			// Can't determine commit date, return minimal metadata
-			return { branchExists: true };
+			return {
+				metadata: { branchExists: true },
+				changedFiles: [],
+				canUseCheapComparison: false
+			};
 		}
 
 		const lastCommitDate = new Date(committerDate);
@@ -227,14 +241,14 @@ async function loadDraftComparisonContext(
 		const mainBranch = await octokit.rest.repos.getBranch({
 			owner,
 			repo,
-			branch: 'main'
+			branch: baseBranch
 		});
 		const mainHeadCommit = mainBranch.data.commit.sha;
 		const { files, mergeBaseCommit } = await listChangedFilesBetweenRefs(
 			octokit,
 			owner,
 			repo,
-			'main',
+			baseBranch,
 			draftBranch
 		);
 		const draftBaseCommit = mergeBaseCommit;

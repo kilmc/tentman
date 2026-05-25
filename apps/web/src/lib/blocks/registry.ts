@@ -1,8 +1,3 @@
-import {
-	loadLocalBlockAdapter,
-	type LoadedLocalBlockAdapter,
-	type LoadLocalBlockAdapterModule
-} from '$lib/blocks/adapter-files';
 import { createStructuredBlockAdapter } from '$lib/blocks/adapters/structured';
 import { BUILT_IN_BLOCKS, type BuiltInBlockDefinition } from '$lib/blocks/builtins';
 import {
@@ -21,7 +16,6 @@ export interface LocalBlockDefinition {
 	kind: 'local';
 	path: string;
 	config: DiscoveredBlockConfig['config'];
-	adapterPath?: string;
 	adapter?: BlockAdapter;
 }
 
@@ -46,12 +40,10 @@ export interface BlockRegistry {
 }
 
 interface CreateBlockRegistryOptions {
-	localAdapters?: Map<string, LoadedLocalBlockAdapter>;
 	packageBlocks?: LoadedPackageBlock[];
 }
 
 export interface LoadBlockRegistryOptions {
-	loadLocalAdapterModule?: LoadLocalBlockAdapterModule;
 	loadBlockPackageModule?: LoadBlockPackageModule;
 	blockPackages?: string[];
 }
@@ -131,22 +123,6 @@ function createStructuredBlockAdapterForEntry(
 	});
 }
 
-async function loadLocalBlockAdapters(
-	localBlocks: DiscoveredBlockConfig[],
-	loadModule: LoadLocalBlockAdapterModule
-): Promise<Map<string, LoadedLocalBlockAdapter>> {
-	const adapters = await Promise.all(
-		localBlocks.map(async (block) => {
-			const loadedAdapter = await loadLocalBlockAdapter(block, loadModule);
-			return loadedAdapter ? ([block.id, loadedAdapter] as const) : null;
-		})
-	);
-
-	return new Map(
-		adapters.filter((entry): entry is readonly [string, LoadedLocalBlockAdapter] => !!entry)
-	);
-}
-
 async function loadBlockPackages(
 	packageNames: string[],
 	loadModule: LoadBlockPackageModule
@@ -181,8 +157,7 @@ export function createBlockRegistry(
 			id: block.id,
 			kind: 'local',
 			path: block.path,
-			config: block.config,
-			adapterPath: options.localAdapters?.get(block.id)?.path
+			config: block.config
 		};
 
 		localEntries.push(entry);
@@ -231,9 +206,7 @@ export function createBlockRegistry(
 	};
 
 	for (const entry of localEntries) {
-		entry.adapter =
-			options.localAdapters?.get(entry.id)?.adapter ??
-			createStructuredBlockAdapterForEntry(entry, registry);
+		entry.adapter = createStructuredBlockAdapterForEntry(entry, registry);
 	}
 
 	for (const entry of packageEntries) {
@@ -247,9 +220,6 @@ export async function createLoadedBlockRegistry(
 	localBlocks: DiscoveredBlockConfig[],
 	options: LoadBlockRegistryOptions = {}
 ): Promise<BlockRegistry> {
-	const localAdapters = options.loadLocalAdapterModule
-		? await loadLocalBlockAdapters(localBlocks, options.loadLocalAdapterModule)
-		: undefined;
 	const hasBlockPackages = (options.blockPackages?.length ?? 0) > 0;
 
 	if (hasBlockPackages && !options.loadBlockPackageModule) {
@@ -263,7 +233,7 @@ export async function createLoadedBlockRegistry(
 			? await loadBlockPackages(options.blockPackages!, options.loadBlockPackageModule)
 			: undefined;
 
-	return createBlockRegistry(localBlocks, { localAdapters, packageBlocks });
+	return createBlockRegistry(localBlocks, { packageBlocks });
 }
 
 export async function loadBlockRegistry(
@@ -277,7 +247,6 @@ export async function loadBlockRegistry(
 
 	return createLoadedBlockRegistry(localBlocks, {
 		...options,
-		loadLocalAdapterModule: backend.kind === 'local' ? options.loadLocalAdapterModule : undefined,
 		blockPackages: rootConfig?.blockPackages
 	});
 }

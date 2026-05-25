@@ -7,7 +7,7 @@ Use this file after loading `SKILL.md`.
 Fetch these sources at the start of each task:
 
 - `https://tentman.netlify.app/docs`
-- `https://raw.githubusercontent.com/kilmc/tentman/main/README.md`
+- `https://raw.githubusercontent.com/kilmc/tentman/HEAD/README.md`
 
 Optional freshness check:
 
@@ -20,7 +20,6 @@ Use the published docs to confirm:
 - content modes
 - reusable block configs
 - package block limits
-- custom adapter limits
 - path resolution rules
 
 If the published docs are unavailable, or the user explicitly asks for unreleased behavior, inspect the local repo state and say that you are relying on unpublished behavior.
@@ -121,8 +120,6 @@ Other integration surfaces worth checking when relevant:
 - `tentman/navigation-manifest.json`
 - `src/lib/content-components/*/component.json`
 - template files referenced by directory-backed configs
-- custom adapter modules referenced by blocks
-
 ## Validate Before Finalizing
 
 Check for:
@@ -131,7 +128,7 @@ Check for:
 2. Template placeholders matching the chosen block ids.
 3. `collection`, `itemLabel`, and `idField` being coherent for multi-item content.
 4. Asset paths matching where the site actually serves images from.
-5. Local-mode limitations around `blockPackages` and adapter modules.
+5. Local-mode limitations around `blockPackages`.
 6. CLI diagnostics from `tentman doctor`, `tentman ci`, `tentman nav check`, `tentman assets check`, or `tentman format --check` when those commands are available in the repo.
 
 ## Report Like A Migration Guide

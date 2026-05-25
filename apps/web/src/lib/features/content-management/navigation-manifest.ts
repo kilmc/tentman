@@ -484,7 +484,7 @@ function getNavigationManifestCacheKey(
 function isFreshNavigationManifestState(
 	entry: CachedNavigationManifestStateEntry | undefined
 ): entry is CachedNavigationManifestStateEntry {
-	return Boolean(entry) && Date.now() - entry.timestamp < NAVIGATION_MANIFEST_CACHE_TTL;
+	return entry !== undefined && Date.now() - entry.timestamp < NAVIGATION_MANIFEST_CACHE_TTL;
 }
 
 async function readNavigationManifestState(

@@ -14,13 +14,14 @@ async function listOpenDraftPullRequests(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
-	headBranch: string
+	headBranch: string,
+	baseBranch: string
 ): Promise<DraftPullRequestSummary[]> {
 	const { data } = await octokit.rest.pulls.list({
 		owner,
 		repo,
 		state: 'open',
-		base: 'main',
+		base: baseBranch,
 		head: `${owner}:${headBranch}`,
 		per_page: 10
 	});
@@ -36,9 +37,10 @@ export async function ensureDraftPullRequest(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
-	headBranch: string
+	headBranch: string,
+	baseBranch: string
 ): Promise<DraftPullRequestSummary> {
-	const existing = await listOpenDraftPullRequests(octokit, owner, repo, headBranch);
+	const existing = await listOpenDraftPullRequests(octokit, owner, repo, headBranch, baseBranch);
 	if (existing[0]) {
 		return existing[0];
 	}
@@ -49,7 +51,7 @@ export async function ensureDraftPullRequest(
 		title: DRAFT_PULL_REQUEST_TITLE,
 		body: DRAFT_PULL_REQUEST_BODY,
 		head: headBranch,
-		base: 'main'
+		base: baseBranch
 	});
 
 	return {
@@ -63,9 +65,10 @@ export async function closeDraftPullRequest(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
-	headBranch: string
+	headBranch: string,
+	baseBranch: string
 ): Promise<void> {
-	const existing = await listOpenDraftPullRequests(octokit, owner, repo, headBranch);
+	const existing = await listOpenDraftPullRequests(octokit, owner, repo, headBranch, baseBranch);
 	if (!existing[0]) {
 		return;
 	}

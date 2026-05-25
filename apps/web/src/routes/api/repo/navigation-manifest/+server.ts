@@ -183,7 +183,9 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			loadNavigationManifestState(backend)
 		]);
 		const requiresDraftBranch = mutation.action !== undefined;
-		const draftBranch = requiresDraftBranch ? await ensureDraftBranch(octokit, owner, name) : null;
+		const draftBranch = requiresDraftBranch
+			? await ensureDraftBranch(octokit, owner, name, locals.selectedRepo.default_branch)
+			: null;
 		const writeOptions = draftBranch
 			? {
 					ref: draftBranch.branchName

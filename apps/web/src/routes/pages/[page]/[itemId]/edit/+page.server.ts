@@ -19,13 +19,14 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
+				await requireDiscoveredConfig(
 				requestContext,
 				params.page
-			);
+				);
 			const formData = await request.formData();
 			const itemId = params.itemId;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
 
 			// Delete the content - prepare options based on type
 			const deleteOptions: { itemId?: string; filename?: string; branch?: string } = {
@@ -93,17 +94,18 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
+				await requireDiscoveredConfig(
 				requestContext,
 				params.page
-			);
+				);
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 			const filename =
 				discoveredConfig.config.content.mode === 'directory'
 					? ((formData.get('filename') as string | null) ?? undefined)
 					: undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -140,7 +142,7 @@ export const actions: Actions = {
 			await syncCollectionItemGroupSelection(backend, discoveredConfig, materialized.content, undefined, {
 				ref: branchName
 			});
-			await ensureDraftPullRequest(octokit, owner, name, branchName);
+			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 
 			throw redirect(
 				303,

@@ -29,7 +29,7 @@ function getDraftBranchCacheKey(owner: string, repo: string): string {
 function isFreshDraftBranchEntry(
 	entry: CachedDraftBranchEntry | undefined
 ): entry is CachedDraftBranchEntry {
-	return Boolean(entry) && Date.now() - entry.timestamp < DRAFT_BRANCH_CACHE_TTL;
+	return entry !== undefined && Date.now() - entry.timestamp < DRAFT_BRANCH_CACHE_TTL;
 }
 
 export function invalidateDraftBranchCache(owner: string, repo: string): void {
@@ -100,7 +100,8 @@ export async function getTentmanDraftBranchName(
 export async function ensureDraftBranch(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
+	baseBranch: string
 ): Promise<{ branchName: string; created: boolean }> {
 	const existingBranchName = await getTentmanDraftBranchName(octokit, owner, repo);
 	if (existingBranchName) {
@@ -110,7 +111,7 @@ export async function ensureDraftBranch(
 		};
 	}
 
-	await createBranch(octokit, owner, repo, TENTMAN_DRAFT_BRANCH);
+	await createBranch(octokit, owner, repo, TENTMAN_DRAFT_BRANCH, baseBranch);
 	draftBranchCache.set(getDraftBranchCacheKey(owner, repo), {
 		value: TENTMAN_DRAFT_BRANCH,
 		timestamp: Date.now()
@@ -125,7 +126,8 @@ export async function ensureDraftBranch(
 export async function publishDraftBranch(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
+	baseBranch: string
 ): Promise<{ branchName: string }> {
 	const draftBranch = await getTentmanDraftBranchName(octokit, owner, repo);
 
@@ -133,7 +135,7 @@ export async function publishDraftBranch(
 		throw new MissingDraftBranchError();
 	}
 
-	const pullRequest = await ensureDraftPullRequest(octokit, owner, repo, draftBranch);
+	const pullRequest = await ensureDraftPullRequest(octokit, owner, repo, draftBranch, baseBranch);
 	await octokit.rest.pulls.merge({
 		owner,
 		repo,
@@ -149,7 +151,8 @@ export async function publishDraftBranch(
 export async function discardDraftBranch(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
+	baseBranch: string
 ): Promise<{ branchName: string }> {
 	const draftBranch = await getTentmanDraftBranchName(octokit, owner, repo);
 
@@ -157,7 +160,7 @@ export async function discardDraftBranch(
 		throw new MissingDraftBranchError();
 	}
 
-	await closeDraftPullRequest(octokit, owner, repo, draftBranch);
+	await closeDraftPullRequest(octokit, owner, repo, draftBranch, baseBranch);
 	await deleteBranch(octokit, owner, repo, draftBranch);
 	invalidateDraftBranchCache(owner, repo);
 

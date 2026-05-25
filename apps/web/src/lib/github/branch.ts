@@ -21,14 +21,14 @@ export interface Commit {
  * @param owner - Repository owner
  * @param repo - Repository name
  * @param branchName - Name of the new branch to create
- * @param fromBranch - Base branch to create from (defaults to 'main')
+ * @param fromBranch - Base branch to create from
  */
 export async function createBranch(
 	octokit: Octokit,
 	owner: string,
 	repo: string,
 	branchName: string,
-	fromBranch: string = 'main'
+	fromBranch: string
 ): Promise<void> {
 	try {
 		// Get the base branch reference to get its SHA

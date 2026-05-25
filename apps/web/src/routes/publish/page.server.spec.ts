@@ -29,6 +29,7 @@ describe('routes/publish/+page.server', () => {
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
+			defaultBranch: 'trunk',
 			backend: {
 				cacheKey: 'github:acme/docs'
 			}
@@ -52,7 +53,7 @@ describe('routes/publish/+page.server', () => {
 			location: '/pages?merged=true'
 		});
 
-		expect(publishDraftBranch).toHaveBeenCalledWith({}, 'acme', 'docs');
+		expect(publishDraftBranch).toHaveBeenCalledWith({}, 'acme', 'docs', 'trunk');
 		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
 	});
 
@@ -73,7 +74,7 @@ describe('routes/publish/+page.server', () => {
 			location: '/pages?cancelled=true'
 		});
 
-		expect(discardDraftBranch).toHaveBeenCalledWith({}, 'acme', 'docs');
+		expect(discardDraftBranch).toHaveBeenCalledWith({}, 'acme', 'docs', 'trunk');
 	});
 
 	it('routes publish auth failures back through the GitHub route handler', async () => {
