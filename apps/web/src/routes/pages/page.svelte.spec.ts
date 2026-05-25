@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 
 function createStoreState<T>(getValue: () => T) {
 	return {
@@ -130,25 +130,25 @@ describe('routes/pages/+page.svelte', () => {
 	});
 
 	it('hides the Add Page overview card when no instructions are available', async () => {
-		const screen = render(Page, {
+		const screen = await render(Page, {
 			data: baseData
 		});
 
-		await expect.element(screen.getByRole('heading', { name: 'Add a page' })).not.toBeInTheDocument();
-		await expect.element(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
-		await expect.element(screen.getByRole('heading', { name: 'No changes detected' })).toBeVisible();
+		await expectElement(screen.getByRole('heading', { name: 'Add a page' })).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('heading', { name: 'No changes detected' })).toBeVisible();
 	});
 
 	it('shows the Add Page overview card when instructions are available', async () => {
-		const screen = render(Page, {
+		const screen = await render(Page, {
 			data: {
 				...baseData,
 				canAddPage: true
 			}
 		});
 
-		await expect.element(screen.getByRole('heading', { name: 'Add a page' })).toBeVisible();
-		await expect.element(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
+		await expectElement(screen.getByRole('heading', { name: 'Add a page' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
 	});
 
 	it('shows a local discovery error instead of the empty config state', async () => {
@@ -159,7 +159,7 @@ describe('routes/pages/+page.svelte', () => {
 				'Failed to parse content config at tentman/configs/projects.tentman.json: collection.groups[0].label is required'
 		};
 
-		const screen = render(Page, {
+		const screen = await render(Page, {
 			data: {
 				...baseData,
 				selectedBackend: {
@@ -172,11 +172,9 @@ describe('routes/pages/+page.svelte', () => {
 			}
 		});
 
-		await expect
-			.element(screen.getByRole('heading', { name: 'Tentman couldn’t read this repo’s config' }))
+		await expectElement(screen.getByRole('heading', { name: 'Tentman couldn’t read this repo’s config' }))
 			.toBeVisible();
-		await expect
-			.element(screen.getByText(/tentman\/configs\/projects\.tentman\.json/i))
+		await expectElement(screen.getByText(/tentman\/configs\/projects\.tentman\.json/i))
 			.toBeVisible();
 	});
 });

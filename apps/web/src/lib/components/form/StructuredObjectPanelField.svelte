@@ -61,9 +61,11 @@
 		: fallbackPanelState;
 	const activeSidePanel = sidePanel.activePanel;
 
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		value = buildBlockFormData(blocks, {}, blockRegistry);
-	}
+	$effect(() => {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) {
+			value = buildBlockFormData(blocks, {}, blockRegistry);
+		}
+	});
 
 	const panelId = $derived(fieldPath ? `object:${fieldPath}` : `object:${label}`);
 	const isPanelOpen = $derived($activeSidePanel?.id === panelId && $activeSidePanel.kind === 'object');

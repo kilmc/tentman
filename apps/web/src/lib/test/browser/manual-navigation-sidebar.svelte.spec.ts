@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -303,30 +303,30 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 	});
 
 	it('renders site pages only in the sidebar and edits top-level page order', async () => {
-		const screen = render(PagesLayout, {
+		const screen = await render(PagesLayout, {
 			data: layoutData
 		});
 
-		await expect.element(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
-		await expect.element(screen.getByRole('link', { name: 'About Page' })).toBeVisible();
-		await expect.element(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
-		await expect.element(screen.getByText('Hello world')).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'About Page' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).not.toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Site settings' }).click();
 		await screen.getByText('Edit navigation').click();
 
-		await expect.element(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-		await expect.element(screen.getByText('About Page')).toBeVisible();
-		await expect.element(screen.getByText('Blog Posts')).toBeVisible();
-		await expect.element(screen.getByText('Ungrouped')).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+		await expectElement(screen.getByText('About Page')).toBeVisible();
+		await expectElement(screen.getByText('Blog Posts')).toBeVisible();
+		await expectElement(screen.getByText('Ungrouped')).not.toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Cancel' }).click();
 
-		await expect.element(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
 	});
 
 	it('shows local rescan feedback from discovered config and block counts', async () => {
-		const screen = render(PagesLayout, {
+		const screen = await render(PagesLayout, {
 			data: layoutData
 		});
 
@@ -348,7 +348,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			}
 		});
 
-		const screen = render(PagesLayout, {
+		const screen = await render(PagesLayout, {
 			data: {
 				...layoutData,
 				instructionDiscovery: {
@@ -358,7 +358,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			}
 		});
 
-		await expect.element(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
 	});
 
 	it('renders collection items in the collection panel beside the editor', async () => {
@@ -368,33 +368,33 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
 
-		const screen = render(PagesLayout, {
+		const screen = await render(PagesLayout, {
 			data: layoutData
 		});
 
-		await expect.element(screen.getByRole('link', { name: 'New Blog Post' })).toBeVisible();
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
-		await expect.element(screen.getByText('Second post')).toBeVisible();
-		await expect.element(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'New Blog Post' })).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByText('Second post')).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Customize order' }).click();
-		await expect.element(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
-		await expect.element(screen.getByText('Ungrouped')).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
+		await expectElement(screen.getByText('Ungrouped')).toBeVisible();
 		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();
 	});
 
 	it('opens and closes the mobile sidebar from the header', async () => {
 		setViewportMode('mobile');
 
-		const screen = render(PagesLayout, {
+		const screen = await render(PagesLayout, {
 			data: layoutData
 		});
 
 		await screen.getByRole('button', { name: 'Open site navigation' }).click();
-		await expect.element(screen.getByTestId('pages-mobile-sidebar')).toBeVisible();
+		await expectElement(screen.getByTestId('pages-mobile-sidebar')).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Close site navigation' }).click();
-		await expect.element(screen.getByTestId('pages-mobile-sidebar')).not.toBeInTheDocument();
+		await expectElement(screen.getByTestId('pages-mobile-sidebar')).not.toBeInTheDocument();
 	});
 
 	it('opens the collection panel as a mobile overlay from the header', async () => {
@@ -406,13 +406,13 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
 
-		const screen = render(PagesLayout, {
+		const screen = await render(PagesLayout, {
 			data: layoutData
 		});
 
 		await screen.getByRole('button', { name: 'Show items panel' }).click();
-		await expect.element(screen.getByTestId('pages-mobile-collection-panel')).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Done' })).toBeVisible();
+		await expectElement(screen.getByTestId('pages-mobile-collection-panel')).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Done' })).toBeVisible();
 	});
 
 	it('reopens the collection panel when selecting a collection from the sidebar', async () => {
@@ -421,20 +421,20 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog');
 
-		const screen = render(PagesLayoutCollectionLandingHarness, {
+		const screen = await render(PagesLayoutCollectionLandingHarness, {
 			data: layoutData
 		});
 
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
 		await screen.getByRole('button', { name: 'Hide collection panel' }).click();
 
-		await expect.element(screen.getByText('Hello world')).not.toBeInTheDocument();
-		await expect.element(screen.getByRole('link', { name: 'Open first item' })).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('link', { name: 'Open first item' })).toBeVisible();
 
 		await screen.getByRole('link', { name: 'Blog Posts' }).click();
 
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Hide collection panel' })).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Hide collection panel' })).toBeVisible();
 	});
 
 	it('renders the side panel as a sibling of the main panel', async () => {
@@ -444,14 +444,14 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
 
-		const screen = render(PagesLayoutRepeatableWorkspaceHarness, {
+		const screen = await render(PagesLayoutRepeatableWorkspaceHarness, {
 			data: layoutData
 		});
 
 		await screen.getByRole('button', { name: 'Edit Section 1: Opening' }).click();
 
-		await expect.element(screen.getByRole('heading', { name: 'Section 1: Opening' })).toBeVisible();
-		await expect.element(screen.getByTestId('pages-side-panel')).toBeInTheDocument();
+		await expectElement(screen.getByRole('heading', { name: 'Section 1: Opening' })).toBeVisible();
+		await expectElement(screen.getByTestId('pages-side-panel')).toBeInTheDocument();
 
 		const workspaceGrid = document.querySelector('[data-testid="pages-workspace-grid"]');
 		const mainPanel = document.querySelector('[data-testid="pages-main-panel"]');
@@ -472,19 +472,18 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages/projects/panorama-4/edit');
 
-		const screen = render(PagesLayoutObjectPanelWorkspaceHarness, {
+		const screen = await render(PagesLayoutObjectPanelWorkspaceHarness, {
 			data: layoutData
 		});
 
-		await expect.element(screen.getByRole('button', { name: 'Edit Gallery' })).toBeVisible();
-		await expect.element(screen.getByLabelText('Layout')).not.toBeInTheDocument();
+		await expectElement(screen.getByRole('button', { name: 'Edit Gallery' })).toBeVisible();
+		await expectElement(screen.getByLabelText('Layout')).not.toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Edit Gallery' }).click();
 
-		await expect.element(screen.getByRole('heading', { name: 'Gallery' })).toBeVisible();
-		await expect.element(screen.getByLabelText('Layout')).toHaveValue('grid');
-		await expect
-			.element(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
+		await expectElement(screen.getByRole('heading', { name: 'Gallery' })).toBeVisible();
+		await expectElement(screen.getByLabelText('Layout')).toHaveValue('grid');
+		await expectElement(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
 			.toBeVisible();
 	});
 });

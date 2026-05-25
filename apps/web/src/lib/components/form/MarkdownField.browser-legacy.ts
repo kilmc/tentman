@@ -2,7 +2,7 @@
 // Stable browser coverage now lives in tests/playwright/markdown-field.spec.ts.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import type { ContentComponentRegistry } from '$lib/content-components/registry';
 import FormGeneratorSubmitHarness from '$lib/test/fixtures/FormGeneratorSubmitHarness.svelte';
 
@@ -231,36 +231,33 @@ describe('components/form/MarkdownField.svelte', () => {
 	it('initializes rich content from markdown and preserves content when switching tabs', async () => {
 		draftAssetStoreMocks.resolveUrl.mockResolvedValue('blob:hero');
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '# Hello world\n\n![Hero](draft-asset:hero)',
 			storagePath: 'static/images/posts/',
 			assetsDir: 'static/images/posts/'
 		});
 
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
-		await expect
-			.element(screen.getByRole('img', { name: 'Hero' }))
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero' }))
 			.toHaveAttribute('src', 'blob:hero');
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 
-		await expect
-			.element(screen.getByLabelText('Body'))
+		await expectElement(screen.getByLabelText('Body'))
 			.toHaveValue('# Hello world\n\n![Hero](draft-asset:hero)');
 
 		await screen.getByRole('button', { name: 'Rich' }).click();
 
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
-		await expect
-			.element(screen.getByRole('img', { name: 'Hero' }))
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero' }))
 			.toHaveAttribute('src', 'blob:hero');
 	});
 
 	it('stages inline images from the toolbar, updates markdown, and cleans up removed refs', async () => {
 		draftAssetStoreMocks.create.mockResolvedValue(createDraftAssetResult('draft-asset:uploaded'));
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '',
 			storagePath: 'static/images/posts/',
@@ -291,27 +288,27 @@ describe('components/form/MarkdownField.svelte', () => {
 	});
 
 	it('keeps the length counter based on serialized markdown length', async () => {
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '**hi**',
 			maxLength: 8
 		});
 
-		await expect.element(screen.getByText('6/8')).toBeVisible();
+		await expectElement(screen.getByText('6/8')).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 		await screen.getByLabelText('Body').fill('**hello**!');
 
-		await expect.element(screen.getByText('10/8')).toBeVisible();
+		await expectElement(screen.getByText('10/8')).toBeVisible();
 	});
 
 	it('updates toolbar pressed states when toolbar actions toggle formatting', async () => {
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: 'Hello world'
 		});
 
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
 
 		const richEditor = document.querySelector('.ProseMirror');
 		if (!(richEditor instanceof HTMLElement)) {
@@ -333,25 +330,23 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByRole('button', { name: 'Bold' }).click();
 
-		await expect
-			.element(screen.getByRole('button', { name: 'Bold' }))
+		await expectElement(screen.getByRole('button', { name: 'Bold' }))
 			.toHaveAttribute('aria-pressed', 'true');
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expect.element(screen.getByLabelText('Body')).toHaveValue('**Hello world**');
+		await expectElement(screen.getByLabelText('Body')).toHaveValue('**Hello world**');
 	});
 
 	it('shows a link popover and updates existing links without using a browser prompt', async () => {
 		const promptSpy = vi.spyOn(window, 'prompt');
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '[Example](https://example.com/old)'
 		});
 
 		await screen.getByText('Example').click();
-		await expect
-			.element(screen.getByRole('textbox', { name: 'URL' }))
+		await expectElement(screen.getByRole('textbox', { name: 'URL' }))
 			.toHaveValue('https://example.com/old');
 
 		await screen.getByRole('textbox', { name: 'URL' }).fill('https://example.com/new');
@@ -359,14 +354,13 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expect.poll(() => document.querySelector('[aria-label="Link actions"]')).toBeNull();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 
-		await expect
-			.element(screen.getByLabelText('Body'))
+		await expectElement(screen.getByLabelText('Body'))
 			.toHaveValue('[Example](https://example.com/new)');
 		expect(promptSpy).not.toHaveBeenCalled();
 	});
 
 	it('closes the link editor when cancel is pressed', async () => {
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '[Example](https://example.com/old)'
 		});
@@ -378,7 +372,7 @@ describe('components/form/MarkdownField.svelte', () => {
 	});
 
 	it('reopens the link editor on the same selection after cancel', async () => {
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '[Example](https://example.com/old)'
 		});
@@ -388,15 +382,14 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expect.poll(() => document.querySelector('[aria-label="Link actions"]')).toBeNull();
 
 		await screen.getByRole('button', { name: 'Link' }).click();
-		await expect
-			.element(screen.getByRole('textbox', { name: 'URL' }))
+		await expectElement(screen.getByRole('textbox', { name: 'URL' }))
 			.toHaveValue('https://example.com/old');
 	});
 
 	it('opens native links on modifier click', async () => {
 		const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			label: 'Body',
 			value: '[Example](https://example.com/open)'
 		});
@@ -410,25 +403,23 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ''
 		});
 
 		await screen.getByRole('button', { name: 'Buy Button' }).click();
-		await expect.element(screen.getByText('Insert Buy Button')).toBeVisible();
+		await expectElement(screen.getByText('Insert Buy Button')).toBeVisible();
 		await screen.getByLabelText('URL *').fill('https://example.com/buy');
-		await expect
-			.element(
+		await expectElement(
 				screen.getByText(
 					':buy-button[Buy online]{href="https://example.com/buy" variant="default"}'
 				)
 			)
 			.toBeVisible();
 		await screen.getByLabelText('Label *').fill('Buy tickets');
-		await expect
-			.element(
+		await expectElement(
 				screen.getByText(
 					':buy-button[Buy tickets]{href="https://example.com/buy" variant="default"}'
 				)
@@ -441,8 +432,7 @@ describe('components/form/MarkdownField.svelte', () => {
 		}
 		variantSelect.value = 'secondary';
 		variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
-		await expect
-			.element(
+		await expectElement(
 				screen.getByText(
 					':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}'
 				)
@@ -450,11 +440,10 @@ describe('components/form/MarkdownField.svelte', () => {
 			.toBeVisible();
 
 		await screen.getByRole('button', { name: 'Save buy button' }).click();
-		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expect
-			.element(screen.getByLabelText('Body'))
+		await expectElement(screen.getByLabelText('Body'))
 			.toHaveValue(':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}');
 	});
 
@@ -463,21 +452,21 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ''
 		});
 
 		await screen.getByRole('button', { name: 'Buy Button' }).click();
-		await expect.element(screen.getByText('URL is required.')).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Save buy button' })).toBeDisabled();
+		await expectElement(screen.getByText('URL is required.')).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Save buy button' })).toBeDisabled();
 
 		await screen.getByLabelText('URL *').fill('https://example.com/buy');
 		await expect
 			.poll(() => document.querySelector('[role="alert"]')?.textContent ?? null)
 			.toBeNull();
-		await expect.element(screen.getByRole('button', { name: 'Save buy button' })).toBeEnabled();
+		await expectElement(screen.getByRole('button', { name: 'Save buy button' })).toBeEnabled();
 	});
 
 	it('focuses and dismisses content component dialogs from the keyboard', async () => {
@@ -485,7 +474,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ''
@@ -509,7 +498,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ':buy-button[Old label]{href="https://example.com/old" variant="default"}'
@@ -517,19 +506,18 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByText('Buy button: Old label').click();
 		await screen.getByRole('button', { name: 'Edit buy button' }).click();
-		await expect.element(screen.getByText('Edit Buy Button')).toBeVisible();
+		await expectElement(screen.getByText('Edit Buy Button')).toBeVisible();
 
-		await expect.element(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
-		await expect.element(screen.getByLabelText('Label *')).toHaveValue('Old label');
+		await expectElement(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
+		await expectElement(screen.getByLabelText('Label *')).toHaveValue('Old label');
 
 		await screen.getByLabelText('URL *').fill('https://example.com/new');
 		await screen.getByLabelText('Label *').fill('New label');
 		await screen.getByRole('button', { name: 'Save buy button' }).click();
 
-		await expect.element(screen.getByText('Buy button: New label')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: New label')).toBeVisible();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expect
-			.element(screen.getByLabelText('Body'))
+		await expectElement(screen.getByLabelText('Body'))
 			.toHaveValue(':buy-button[New label]{href="https://example.com/new" variant="default"}');
 	});
 
@@ -538,18 +526,18 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ':buy-button[Old label]{href="https://example.com/old"'
 		});
 
-		await expect.element(screen.getByText(/Could not parse directive attributes/i)).toBeVisible();
+		await expectElement(screen.getByText(/Could not parse directive attributes/i)).toBeVisible();
 
 		await screen.getByText(/Could not parse directive attributes/i).click();
-		await expect.element(screen.getByText('Edit Buy Button')).toBeVisible();
-		await expect.element(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
-		await expect.element(screen.getByLabelText('Label *')).toHaveValue('Old label');
+		await expectElement(screen.getByText('Edit Buy Button')).toBeVisible();
+		await expectElement(screen.getByLabelText('URL *')).toHaveValue('https://example.com/old');
+		await expectElement(screen.getByLabelText('Label *')).toHaveValue('Old label');
 
 		const variantSelect = document.querySelector('select');
 		if (!(variantSelect instanceof HTMLSelectElement)) {
@@ -559,10 +547,9 @@ describe('components/form/MarkdownField.svelte', () => {
 		variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
 		await screen.getByRole('button', { name: 'Save buy button' }).click();
 
-		await expect.element(screen.getByText('Buy button: Old label')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: Old label')).toBeVisible();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expect
-			.element(screen.getByLabelText('Body'))
+		await expectElement(screen.getByLabelText('Body'))
 			.toHaveValue(':buy-button[Old label]{href="https://example.com/old" variant="secondary"}');
 	});
 
@@ -571,22 +558,22 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ':buy-button[Buy now]{href="https://example.com/shop" variant="default"}'
 		});
 
 		await screen.getByText('Buy button: Buy now').click();
-		await expect.element(screen.getByText('https://example.com/shop')).toBeVisible();
+		await expectElement(screen.getByText('https://example.com/shop')).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Edit buy button' }).click();
-		await expect.element(screen.getByLabelText('URL *')).toHaveValue('https://example.com/shop');
-		await expect.element(screen.getByLabelText('Label *')).toHaveValue('Buy now');
+		await expectElement(screen.getByLabelText('URL *')).toHaveValue('https://example.com/shop');
+		await expectElement(screen.getByLabelText('Label *')).toHaveValue('Buy now');
 
 		await screen.getByLabelText('Label *').fill('Buy later');
 		await screen.getByRole('button', { name: 'Save buy button' }).click();
-		await expect.element(screen.getByText('Buy button: Buy later')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: Buy later')).toBeVisible();
 	});
 
 	it('opens content component links on modifier click', async () => {
@@ -595,7 +582,7 @@ describe('components/form/MarkdownField.svelte', () => {
 		);
 		const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
-		const screen = render(MarkdownField, {
+		const screen = await render(MarkdownField, {
 			fieldId: 'body',
 			label: 'Body',
 			value: ':buy-button[Buy now]{href="https://example.com/shop" variant="default"}'
@@ -610,7 +597,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			createProjectGalleryContentComponentRegistry()
 		);
 
-		const screen = render(FormGeneratorSubmitHarness, {
+		const screen = await render(FormGeneratorSubmitHarness, {
 			config: {
 				type: 'content',
 				label: 'Projects',
@@ -660,7 +647,7 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByText('Project gallery: City sketches').click();
-		await expect.element(screen.getByText('Edit Project Gallery')).toBeVisible();
+		await expectElement(screen.getByText('Edit Project Gallery')).toBeVisible();
 	});
 
 	it('shows reference attribute options from the current content item', async () => {
@@ -668,7 +655,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			createProjectGalleryContentComponentRegistry()
 		);
 
-		const screen = render(FormGeneratorSubmitHarness, {
+		const screen = await render(FormGeneratorSubmitHarness, {
 			config: {
 				type: 'content',
 				label: 'Projects',
@@ -743,7 +730,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			createProjectGalleryContentComponentRegistry()
 		);
 
-		const screen = render(FormGeneratorSubmitHarness, {
+		const screen = await render(FormGeneratorSubmitHarness, {
 			config: {
 				type: 'content',
 				label: 'Projects',
@@ -793,10 +780,9 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Prepare submit' }).click();
-		await expect
-			.element(screen.getByTestId('submit-error'))
+		await expectElement(screen.getByTestId('submit-error'))
 			.toHaveTextContent(/could not resolve token "missing-gallery"/);
-		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent('');
+		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent('');
 	});
 
 	it('blocks submit while markdown contains an incomplete content component marker', async () => {
@@ -804,7 +790,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			createBuyButtonContentComponentRegistry()
 		);
 
-		const screen = render(FormGeneratorSubmitHarness, {
+		const screen = await render(FormGeneratorSubmitHarness, {
 			config: {
 				type: 'content',
 				label: 'Body content',
@@ -827,9 +813,8 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Prepare submit' }).click();
-		await expect
-			.element(screen.getByTestId('submit-error'))
+		await expectElement(screen.getByTestId('submit-error'))
 			.toHaveTextContent(/could not parse directive attributes/i);
-		await expect.element(screen.getByTestId('prepared-data')).toHaveTextContent('');
+		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent('');
 	});
 });

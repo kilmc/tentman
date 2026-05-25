@@ -63,12 +63,40 @@
 
 	const isLocalMode = $derived(data.mode === 'local');
 
-	let discoveredConfig = $state(data.discoveredConfig);
-	let blockConfigs = $state(data.blockConfigs ?? []);
-	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
+	function getInitialDiscoveredConfig() {
+		return data.discoveredConfig;
+	}
+
+	function getInitialBlockConfigs() {
+		return data.blockConfigs ?? [];
+	}
+
+	function getInitialPackageBlocks(): SerializablePackageBlock[] {
+		return data.packageBlocks ?? [];
+	}
+
+	function getInitialItem() {
+		return data.item;
+	}
+
+	function getInitialContentError() {
+		return data.contentError;
+	}
+
+	function getInitialBlockRegistryError() {
+		return data.blockRegistryError ?? null;
+	}
+
+	function getInitialNavigationManifest() {
+		return data.navigationManifest ?? null;
+	}
+
+	let discoveredConfig = $state(getInitialDiscoveredConfig());
+	let blockConfigs = $state(getInitialBlockConfigs());
+	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
-	let item = $state(data.item);
-	let contentError = $state(data.contentError);
+	let item = $state(getInitialItem());
+	let contentError = $state(getInitialContentError());
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
@@ -76,8 +104,8 @@
 	let actionMenu = $state<HTMLDetailsElement | null>(null);
 	let showDeleteConfirm = $state(false);
 	let deleting = $state(false);
-	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
-	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
+	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
+	let navigationManifest = $state<NavigationManifestState | null>(getInitialNavigationManifest());
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
 	let recoveryState = $state<EditorRecoveryState>({ kind: 'none' });

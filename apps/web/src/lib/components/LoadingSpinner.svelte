@@ -22,7 +22,9 @@
 		gray: 'border-gray-300 border-t-gray-600'
 	};
 
-	const spinnerClass = `${sizeClasses[size]} ${variantClasses[variant]} animate-spin rounded-full`;
+	const spinnerClass = $derived(
+		`${sizeClasses[size]} ${variantClasses[variant]} animate-spin rounded-full`
+	);
 </script>
 
 <div class={inline ? 'inline-flex items-center gap-2' : 'flex flex-col items-center gap-3'}>

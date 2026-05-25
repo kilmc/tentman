@@ -27,12 +27,36 @@
 
 	const isLocalMode = $derived(data.mode === 'local');
 
-	let discoveredConfig = $state(data.discoveredConfig);
-	let blockConfigs = $state(data.blockConfigs ?? []);
-	let content = $state(data.content);
-	let contentError = $state(data.contentError);
-	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
-	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
+	function getInitialDiscoveredConfig() {
+		return data.discoveredConfig;
+	}
+
+	function getInitialBlockConfigs() {
+		return data.blockConfigs ?? [];
+	}
+
+	function getInitialContent() {
+		return data.content;
+	}
+
+	function getInitialContentError() {
+		return data.contentError;
+	}
+
+	function getInitialPackageBlocks(): SerializablePackageBlock[] {
+		return data.packageBlocks ?? [];
+	}
+
+	function getInitialBlockRegistryError() {
+		return data.blockRegistryError ?? null;
+	}
+
+	let discoveredConfig = $state(getInitialDiscoveredConfig());
+	let blockConfigs = $state(getInitialBlockConfigs());
+	let content = $state(getInitialContent());
+	let contentError = $state(getInitialContentError());
+	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
+	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
 	let draftBranch = $state<string | null>(null);
 	let draftChanges = $state<DraftComparison | null>(null);

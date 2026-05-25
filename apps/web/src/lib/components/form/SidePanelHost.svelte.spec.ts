@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import SidePanelHostHarness from '$lib/test/fixtures/SidePanelHostHarness.svelte';
 
 const blockRegistry = {
@@ -11,7 +11,7 @@ const blockRegistry = {
 
 describe('components/form/SidePanelHost.svelte', () => {
 	it('applies editorLayout to object-panel editing surfaces', async () => {
-		const screen = render(SidePanelHostHarness, {
+		const screen = await render(SidePanelHostHarness, {
 			width: 1100,
 			panel: {
 				id: 'object:meta',
@@ -46,8 +46,8 @@ describe('components/form/SidePanelHost.svelte', () => {
 			);
 		});
 
-		await expect.element(screen.getByLabelText('Summary')).toBeVisible();
-		await expect.element(screen.getByLabelText('Slug')).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: /Details/ })).toBeVisible();
+		await expectElement(screen.getByLabelText('Summary')).toBeVisible();
+		await expectElement(screen.getByLabelText('Slug')).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: /Details/ })).toBeVisible();
 	});
 });

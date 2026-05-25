@@ -47,9 +47,29 @@
 
 	const isLocalMode = $derived(data.mode === 'local');
 
-	let discoveredConfig = $state(data.discoveredConfig);
-	let blockConfigs = $state(data.blockConfigs ?? []);
-	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
+	function getInitialDiscoveredConfig() {
+		return data.discoveredConfig;
+	}
+
+	function getInitialBlockConfigs() {
+		return data.blockConfigs ?? [];
+	}
+
+	function getInitialPackageBlocks(): SerializablePackageBlock[] {
+		return data.packageBlocks ?? [];
+	}
+
+	function getInitialBlockRegistryError() {
+		return data.blockRegistryError ?? null;
+	}
+
+	function getInitialNavigationManifest() {
+		return data.navigationManifest ?? null;
+	}
+
+	let discoveredConfig = $state(getInitialDiscoveredConfig());
+	let blockConfigs = $state(getInitialBlockConfigs());
+	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
@@ -58,8 +78,8 @@
 	let filenameHasUnsavedChanges = $state(false);
 	let filename = $state('');
 	let filenameError = $state('');
-	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
-	let navigationManifest = $state<NavigationManifestState | null>(data.navigationManifest ?? null);
+	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
+	let navigationManifest = $state<NavigationManifestState | null>(getInitialNavigationManifest());
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
 	let recoveryState = $state<EditorRecoveryState>({ kind: 'none' });

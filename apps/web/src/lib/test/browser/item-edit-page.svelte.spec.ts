@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import { setMockFormGeneratorResult } from '$lib/test/mock-form-generator';
 
 function createStoreState<T>(initialValue: T) {
@@ -276,7 +276,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 	});
 
 	it('cleans up staged assets after a successful local item save', async () => {
-		const screen = render(ItemEditPage, {
+		const screen = await render(ItemEditPage, {
 			data: {
 				mode: 'local',
 				pageSlug: 'posts',
@@ -294,7 +294,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expect.element(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
+		await expectElement(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Save Changes' }).click();
 
@@ -345,7 +345,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			errors: []
 		});
 
-		const screen = render(ItemEditPage, {
+		const screen = await render(ItemEditPage, {
 			data: {
 				mode: 'local',
 				pageSlug: 'posts',
@@ -363,10 +363,9 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expect.element(screen.getByText('Local recovery available')).toBeVisible();
+		await expectElement(screen.getByText('Local recovery available')).toBeVisible();
 		await screen.getByRole('button', { name: 'Recover changes' }).click();
-		await expect
-			.element(screen.getByTestId('mock-form-data'))
+		await expectElement(screen.getByTestId('mock-form-data'))
 			.toHaveTextContent('Recovered hello world');
 	});
 });

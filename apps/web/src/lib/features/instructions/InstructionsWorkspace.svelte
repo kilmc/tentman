@@ -61,10 +61,11 @@
 		initialBackendKey?: string | null;
 	} = $props();
 
-	const initialInstruction =
-		initialDiscoveryResult && initialDiscoveryResult.instructions.length === 1
+	function getInitialInstruction() {
+		return initialDiscoveryResult && initialDiscoveryResult.instructions.length === 1
 			? initialDiscoveryResult.instructions[0]
 			: null;
+	}
 
 	type DiscoveryState = {
 		status: 'idle' | 'loading' | 'ready' | 'error';
@@ -80,23 +81,38 @@
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const isGitHubMode = $derived(data.selectedBackend?.kind === 'github');
 
-	let discovery = $state<DiscoveryState>({
-		status: initialDiscoveryResult ? 'ready' : 'idle',
-		instructions: initialDiscoveryResult?.instructions ?? [],
-		issues: initialDiscoveryResult?.issues ?? [],
-		error: null
-	});
-	let selectedInstructionId = $state<string | null>(initialInstruction?.definition.id ?? null);
-	let inputValues = $state<InstructionInputValues>(
-		initialInstruction ? createInstructionInputDefaults(initialInstruction) : {}
-	);
+	function createInitialDiscoveryState(): DiscoveryState {
+		return {
+			status: initialDiscoveryResult ? 'ready' : 'idle',
+			instructions: initialDiscoveryResult?.instructions ?? [],
+			issues: initialDiscoveryResult?.issues ?? [],
+			error: null
+		};
+	}
+
+	function createInitialSelectedInstructionId() {
+		return getInitialInstruction()?.definition.id ?? null;
+	}
+
+	function createInitialInputValues(): InstructionInputValues {
+		const instruction = getInitialInstruction();
+		return instruction ? createInstructionInputDefaults(instruction) : {};
+	}
+
+	let discovery = $state<DiscoveryState>(createInitialDiscoveryState());
+	let selectedInstructionId = $state<string | null>(createInitialSelectedInstructionId());
+	let inputValues = $state<InstructionInputValues>(createInitialInputValues());
 	let activePlan = $state<InstructionExecutionPlan | null>(null);
 	let planning = $state(false);
 	let applying = $state(false);
 	let planError = $state<string | null>(null);
 	let applyError = $state<string | null>(null);
 	let applyResult = $state<InstructionApplyResult | null>(null);
-	let lastLoadedBackendKey = $state<string | null>(initialBackendKey);
+	function getInitialLoadedBackendKey() {
+		return initialBackendKey;
+	}
+
+	let lastLoadedBackendKey = $state<string | null>(getInitialLoadedBackendKey());
 
 	function getPreferredInstruction(
 		instructions: DiscoveredInstruction[],

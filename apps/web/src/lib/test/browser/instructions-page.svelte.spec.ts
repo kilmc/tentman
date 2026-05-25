@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import { planInstructionExecution } from '$lib/features/instructions/planner';
 import { applyInstructionExecutionPlan } from '$lib/features/instructions/execution';
 import type {
@@ -283,7 +283,7 @@ describe('InstructionsWorkspace', () => {
 	});
 
 	it('previews and applies a local instruction with confirmation-first UX', async () => {
-		const screen = render(InstructionsWorkspace, {
+		const screen = await render(InstructionsWorkspace, {
 			data: {
 				isAuthenticated: false,
 				githubOAuthConfigured: true,
@@ -316,24 +316,23 @@ describe('InstructionsWorkspace', () => {
 			initialBackendKey: 'local:docs'
 		});
 
-		await expect.element(screen.getByText('Create page')).toBeVisible();
+		await expectElement(screen.getByText('Create page')).toBeVisible();
 
 		await screen.getByLabelText('Page title').fill('Press Kit');
 		await screen.getByLabelText('URL slug').fill('Press Kit');
 		await screen.getByRole('button', { name: 'Continue' }).click();
 
-		await expect.element(screen.getByRole('heading', { name: 'Create Press Kit' })).toBeVisible();
-		await expect.element(screen.getByText('Page title')).toBeVisible();
-		await expect.element(screen.getByText('Press Kit', { exact: true })).toBeVisible();
-		await expect.element(screen.getByText('URL slug')).toBeVisible();
-		await expect.element(screen.getByText('press-kit', { exact: true })).toBeVisible();
-		await expect
-			.element(screen.getByText('This page will be added to Tentman navigation.'))
+		await expectElement(screen.getByRole('heading', { name: 'Create Press Kit' })).toBeVisible();
+		await expectElement(screen.getByText('Page title')).toBeVisible();
+		await expectElement(screen.getByText('Press Kit', { exact: true })).toBeVisible();
+		await expectElement(screen.getByText('URL slug')).toBeVisible();
+		await expectElement(screen.getByText('press-kit', { exact: true })).toBeVisible();
+		await expectElement(screen.getByText('This page will be added to Tentman navigation.'))
 			.toBeVisible();
 
 		await screen.getByRole('button', { name: 'Create page' }).click();
 
-		await expect.element(screen.getByText('Created Press Kit')).toBeVisible();
+		await expectElement(screen.getByText('Created Press Kit')).toBeVisible();
 		expect(instructionsPageMocks.files['tentman/configs/press-kit.tentman.json']).toContain(
 			'"press-kit"'
 		);
