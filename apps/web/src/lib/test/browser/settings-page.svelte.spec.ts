@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import type { RepositoryBackend } from '$lib/repository/types';
 
 function createStoreState<T>(initialValue: T) {
@@ -185,9 +185,9 @@ describe('routes/pages/settings/+page.svelte', () => {
 	});
 
 	it('updates the local preview port from site settings', async () => {
-		const screen = render(SettingsPage, { data });
+		const screen = await render(SettingsPage, { data });
 
-		await expect.element(screen.getByLabelText('Preview port')).toHaveValue('5173');
+		await expectElement(screen.getByLabelText('Preview port')).toHaveValue('5173');
 
 		await screen.getByLabelText('Preview port').fill('4173');
 		await screen.getByRole('button', { name: 'Save port' }).click();
@@ -199,17 +199,16 @@ describe('routes/pages/settings/+page.svelte', () => {
 		});
 		expect(settingsPageMocks.refresh).toHaveBeenCalledWith({ force: true });
 		expect(settingsPageMocks.invalidate).toHaveBeenCalledWith('app:content');
-		await expect.element(screen.getByText('Local preview port updated.')).toBeVisible();
+		await expectElement(screen.getByText('Local preview port updated.')).toBeVisible();
 	});
 
 	it('rejects Tentman app port as the local preview port', async () => {
-		const screen = render(SettingsPage, { data });
+		const screen = await render(SettingsPage, { data });
 
 		await screen.getByLabelText('Preview port').fill('5174');
 		await screen.getByRole('button', { name: 'Save port' }).click();
 
-		await expect
-			.element(screen.getByText('Use the site preview port, not the Tentman app port.'))
+		await expectElement(screen.getByText('Use the site preview port, not the Tentman app port.'))
 			.toBeVisible();
 		expect(JSON.parse(settingsPageMocks.files['tentman.json'])).toMatchObject({
 			local: {

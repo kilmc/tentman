@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 
 const draftAssetStoreMocks = vi.hoisted(() => ({
 	create: vi.fn(),
@@ -82,23 +82,21 @@ describe('components/form/ImageField.svelte', () => {
 		});
 		draftAssetStoreMocks.delete.mockResolvedValue(undefined);
 
-		const screen = render(ImageField, {
+		const screen = await render(ImageField, {
 			label: 'Hero image',
 			value: 'draft-asset:existing-image',
 			storagePath: 'static/images/'
 		});
 
-		await expect
-			.element(screen.getByRole('img', { name: 'Hero image' }))
+		await expectElement(screen.getByRole('img', { name: 'Hero image' }))
 			.toHaveAttribute('src', 'data:image/png;base64,ZXhpc3Rpbmc=');
 
 		await screen
 			.getByLabelText('Hero image')
 			.upload(new File(['next-image'], 'hero.png', { type: 'image/png' }));
 
-		await expect.element(screen.getByText('draft-asset:new-image')).toBeVisible();
-		await expect
-			.element(screen.getByRole('img', { name: 'Hero image' }))
+		await expectElement(screen.getByText('draft-asset:new-image')).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero image' }))
 			.toHaveAttribute('src', 'data:image/png;base64,bmV3');
 		expect(draftAssetStoreMocks.create).toHaveBeenCalledWith(
 			expect.any(File),
@@ -112,8 +110,7 @@ describe('components/form/ImageField.svelte', () => {
 		await screen.getByRole('button', { name: 'Remove image' }).click();
 
 		expect(draftAssetStoreMocks.delete).toHaveBeenLastCalledWith('draft-asset:new-image');
-		await expect
-			.element(screen.getByRole('img', { name: 'Hero image' }))
+		await expectElement(screen.getByRole('img', { name: 'Hero image' }))
 			.not.toBeInTheDocument();
 	});
 });

@@ -70,7 +70,11 @@
 		}
 	}
 
-	const blockRegistry = providedBlockRegistry ?? createBlockRegistry(blockConfigs);
+	function createInitialBlockRegistry() {
+		return providedBlockRegistry ?? createBlockRegistry(blockConfigs);
+	}
+
+	const blockRegistry = createInitialBlockRegistry();
 	const parentSidePanel = hasContext(FORM_SIDE_PANEL)
 		? getContext<FormSidePanelContext>(FORM_SIDE_PANEL)
 		: null;
@@ -89,7 +93,11 @@
 		setContext<FormSidePanelContext>(FORM_SIDE_PANEL, sidePanel);
 	}
 
-	const initialFormData = buildFormData(config, cloneInitialData(initialData), blockRegistry);
+	function createInitialFormData() {
+		return buildFormData(config, cloneInitialData(initialData), blockRegistry);
+	}
+
+	const initialFormData = createInitialFormData();
 	const editSession = createFormEditSession(initialFormData, {
 		onChange(state) {
 			formData = editSession.getData();

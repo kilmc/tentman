@@ -77,7 +77,7 @@ export default defineConfig({
 								isolate: true,
 								browser: {
 									enabled: true,
-									provider: 'playwright',
+									provider: 'playwright' as never,
 									api: {
 										host: '127.0.0.1',
 										port: 0

@@ -39,9 +39,11 @@
 		onaddselectoption
 	}: Props = $props();
 
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		value = buildBlockFormData(blocks, {}, blockRegistry);
-	}
+	$effect(() => {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) {
+			value = buildBlockFormData(blocks, {}, blockRegistry);
+		}
+	});
 </script>
 
 <fieldset class="mb-4 rounded border border-gray-200 bg-gray-50 p-4">

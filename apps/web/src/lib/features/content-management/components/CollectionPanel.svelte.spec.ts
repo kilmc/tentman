@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import CollectionPanel from './CollectionPanel.svelte';
 
 vi.mock('$app/paths', () => ({
@@ -9,7 +9,7 @@ vi.mock('$app/paths', () => ({
 describe('CollectionPanel customize mode', () => {
 	it('keeps the current panel structure editable and saves the draft order payload', async () => {
 		const onsavecustomorder = vi.fn();
-		const screen = render(CollectionPanel, {
+		const screen = await render(CollectionPanel, {
 			slug: 'projects',
 			label: 'Projects',
 			itemLabel: 'Project',
@@ -30,11 +30,11 @@ describe('CollectionPanel customize mode', () => {
 			onsavecustomorder
 		});
 
-		await expect.element(screen.getByRole('button', { name: 'Customize order' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Customize order' })).toBeVisible();
 		await screen.getByRole('button', { name: 'Customize order' }).click();
-		await expect.element(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Drag Identity' })).toBeVisible();
-		await expect.element(screen.getByRole('button', { name: 'Drag Brand system' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Drag Identity' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Drag Brand system' })).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Save order' }).click();
 
@@ -49,7 +49,7 @@ describe('CollectionPanel customize mode', () => {
 
 	it('cancels unsaved customize changes', async () => {
 		const onsavecustomorder = vi.fn();
-		const screen = render(CollectionPanel, {
+		const screen = await render(CollectionPanel, {
 			slug: 'projects',
 			label: 'Projects',
 			itemLabel: 'Project',
@@ -62,12 +62,12 @@ describe('CollectionPanel customize mode', () => {
 		await screen.getByRole('button', { name: 'Customize order' }).click();
 		await screen.getByRole('button', { name: 'Cancel' }).click();
 
-		await expect.element(screen.getByRole('link', { name: 'Archive' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Archive' })).toBeVisible();
 		expect(onsavecustomorder).not.toHaveBeenCalled();
 	});
 
 	it('collapses grouped items while a group drag starts', async () => {
-		const screen = render(CollectionPanel, {
+		const screen = await render(CollectionPanel, {
 			slug: 'projects',
 			label: 'Projects',
 			itemLabel: 'Project',
@@ -83,7 +83,7 @@ describe('CollectionPanel customize mode', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Customize order' }).click();
-		await expect.element(screen.getByRole('button', { name: 'Drag Brand system' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Drag Brand system' })).toBeVisible();
 
 		screen
 			.getByRole('button', { name: 'Drag Identity' })
@@ -91,12 +91,12 @@ describe('CollectionPanel customize mode', () => {
 			.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 		await new Promise((resolve) => requestAnimationFrame(resolve));
 
-		await expect.element(screen.getByRole('button', { name: 'Drag Identity' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Drag Identity' })).toBeVisible();
 		expect(document.body.textContent).not.toContain('Brand system');
 	});
 
 	it('collapses and expands grouped items in the panel view', async () => {
-		const screen = render(CollectionPanel, {
+		const screen = await render(CollectionPanel, {
 			slug: 'projects',
 			label: 'Projects',
 			itemLabel: 'Project',
@@ -110,16 +110,16 @@ describe('CollectionPanel customize mode', () => {
 			]
 		});
 
-		await expect.element(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();
 
 		const toggle = screen.getByRole('button', { name: 'Collapse Identity' });
 		expect(toggle.element().parentElement?.className).toContain('sticky');
 		await toggle.click();
 
 		expect(document.body.textContent).not.toContain('Brand system');
-		await expect.element(screen.getByRole('button', { name: 'Expand Identity' })).toBeVisible();
+		await expectElement(screen.getByRole('button', { name: 'Expand Identity' })).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Expand Identity' }).click();
-		await expect.element(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();
+		await expectElement(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();
 	});
 });

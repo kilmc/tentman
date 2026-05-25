@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 
 const draftAssetClientMocks = vi.hoisted(() => ({
 	appendDraftAssetsToFormData: vi.fn(),
@@ -73,7 +73,7 @@ describe('routes/pages/[page]/preview-changes/+page.svelte', () => {
 			}
 		]);
 
-		const screen = render(PreviewChangesPage, {
+		const screen = await render(PreviewChangesPage, {
 			data: {
 				discoveredConfig: {
 					slug: 'about',
@@ -104,10 +104,9 @@ describe('routes/pages/[page]/preview-changes/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expect
-			.element(screen.getByRole('heading', { name: '2 files will be changed' }))
+		await expectElement(screen.getByRole('heading', { name: '2 files will be changed' }))
 			.toBeVisible();
-		await expect.element(screen.getByText('static/images/hero-asset.png')).toBeVisible();
-		await expect.element(screen.getByText('Size: 2.00 KB')).toBeVisible();
+		await expectElement(screen.getByText('static/images/hero-asset.png')).toBeVisible();
+		await expectElement(screen.getByText('Size: 2.00 KB')).toBeVisible();
 	});
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -105,17 +105,17 @@ describe('local rescan remount boundary', () => {
 	});
 
 	it('remounts stale local config snapshots after rescan', async () => {
-		const screen = render(LocalRescanBoundaryHarness);
+		const screen = await render(LocalRescanBoundaryHarness);
 
-		await expect.element(screen.getByText('Width')).toBeVisible();
-		await expect.element(screen.getByText('Height')).toBeVisible();
-		await expect.element(screen.getByText('Caption')).not.toBeInTheDocument();
+		await expectElement(screen.getByText('Width')).toBeVisible();
+		await expectElement(screen.getByText('Height')).toBeVisible();
+		await expectElement(screen.getByText('Caption')).not.toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Rescan repo' }).click();
 
 		expect(boundaryMocks.refresh).toHaveBeenCalledWith({ force: true });
-		await expect.element(screen.getByText('Caption')).toBeVisible();
-		await expect.element(screen.getByText('Width')).not.toBeInTheDocument();
-		await expect.element(screen.getByText('Height')).not.toBeInTheDocument();
+		await expectElement(screen.getByText('Caption')).toBeVisible();
+		await expectElement(screen.getByText('Width')).not.toBeInTheDocument();
+		await expectElement(screen.getByText('Height')).not.toBeInTheDocument();
 	});
 });

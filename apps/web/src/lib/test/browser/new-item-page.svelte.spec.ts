@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 import { setMockFormGeneratorResult } from '$lib/test/mock-form-generator';
 
 function createStoreState<T>(initialValue: T) {
@@ -256,7 +256,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 	});
 
 	it('cleans up staged assets after a successful local create flow', async () => {
-		const screen = render(NewItemPage, {
+		const screen = await render(NewItemPage, {
 			data: {
 				mode: 'local',
 				pageSlug: 'posts',
@@ -269,7 +269,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expect.element(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
+		await expectElement(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
 
 		await screen.getByRole('button', { name: 'Create Item' }).click();
 
@@ -300,7 +300,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 	});
 
 	it('shows dirty state from the form session and blocks navigation when discarded', async () => {
-		const screen = render(NewItemPage, {
+		const screen = await render(NewItemPage, {
 			data: {
 				mode: 'local',
 				pageSlug: 'posts',
@@ -313,11 +313,11 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expect.element(screen.getByText('Unsaved changes')).not.toBeInTheDocument();
+		await expectElement(screen.getByText('Unsaved changes')).not.toBeInTheDocument();
 
 		await screen.getByTestId('mock-form-dirty').click();
 
-		await expect.element(screen.getByText('Unsaved changes')).toBeVisible();
+		await expectElement(screen.getByText('Unsaved changes')).toBeVisible();
 
 		const cancel = vi.fn();
 		const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -353,7 +353,7 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			errors: []
 		});
 
-		const screen = render(NewItemPage, {
+		const screen = await render(NewItemPage, {
 			data: {
 				mode: 'local',
 				pageSlug: 'posts',
@@ -366,10 +366,9 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expect.element(screen.getByText('Local recovery available')).toBeVisible();
+		await expectElement(screen.getByText('Local recovery available')).toBeVisible();
 		await screen.getByRole('button', { name: 'Recover changes' }).click();
-		await expect
-			.element(screen.getByTestId('mock-form-data'))
+		await expectElement(screen.getByTestId('mock-form-data'))
 			.toHaveTextContent('Recovered hello world');
 	});
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { expectElement, render } from '$lib/test-support/browser-test';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -105,7 +105,7 @@ describe('shared draft asset rendering surfaces', () => {
 	});
 
 	it('renders staged draft refs in content display image blocks', async () => {
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'hero',
 				type: 'image',
@@ -116,12 +116,12 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByRole('img', { name: 'Hero' })).toBeVisible();
-		await expect.element(screen.getByText('draft-asset:hero')).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toBeVisible();
+		await expectElement(screen.getByText('draft-asset:hero')).toBeVisible();
 	});
 
 	it('renders markdown blocks as formatted content instead of raw markdown text', async () => {
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'body',
 				type: 'markdown',
@@ -131,9 +131,9 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByRole('heading', { name: 'Hello world' })).toBeVisible();
-		await expect.element(screen.getByText('bold')).toBeVisible();
-		await expect.element(screen.getByText('This is')).toBeVisible();
+		await expectElement(screen.getByRole('heading', { name: 'Hello world' })).toBeVisible();
+		await expectElement(screen.getByText('bold')).toBeVisible();
+		await expectElement(screen.getByText('This is')).toBeVisible();
 	});
 
 	it('renders discovered content component directives through preview.njk markup', async () => {
@@ -171,7 +171,7 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'body',
 				type: 'markdown',
@@ -182,7 +182,7 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
 		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
 		expect(host).not.toBeNull();
 		expect(host?.shadowRoot?.textContent).toContain('Buy button: Buy tickets');
@@ -223,7 +223,7 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'body',
 				type: 'markdown',
@@ -234,7 +234,7 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
 		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
 		expect(host?.shadowRoot?.querySelector('a')).toBeNull();
 		expect(host?.shadowRoot?.querySelector('img')?.getAttribute('src')).toBeNull();
@@ -279,7 +279,7 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'body',
 				type: 'markdown',
@@ -290,7 +290,7 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByText('Buy button: Buy tickets')).toBeVisible();
+		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
 		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
 		const preview = host?.shadowRoot?.querySelector('.buy-button-preview');
 		expect(preview).not.toBeNull();
@@ -336,7 +336,7 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'body',
 				type: 'markdown',
@@ -347,14 +347,13 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByText(':buy-button[Buy tickets]')).toBeVisible();
-		await expect
-			.element(screen.getByText(/Markdown preview failed for content component "buy-button"/))
+		await expectElement(screen.getByText(':buy-button[Buy tickets]')).toBeVisible();
+		await expectElement(screen.getByText(/Markdown preview failed for content component "buy-button"/))
 			.toBeVisible();
 	});
 
 	it('surfaces missing markdown content component errors without hiding the markdown', async () => {
-		const screen = render(ContentValueDisplay, {
+		const screen = await render(ContentValueDisplay, {
 			block: {
 				id: 'body',
 				type: 'markdown',
@@ -365,14 +364,13 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expect.element(screen.getByText('Buy online')).toBeVisible();
-		await expect
-			.element(screen.getByText('Markdown preview enables unknown content component "buy-button"'))
+		await expectElement(screen.getByText('Buy online')).toBeVisible();
+		await expectElement(screen.getByText('Markdown preview enables unknown content component "buy-button"'))
 			.toBeVisible();
 	});
 
 	it('renders staged draft refs in item cards', async () => {
-		const screen = render(ItemCard, {
+		const screen = await render(ItemCard, {
 			item: {
 				title: 'Hello world',
 				hero: 'draft-asset:hero'
@@ -397,7 +395,7 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 
-		await expect.element(screen.getByRole('img', { name: 'Hero' })).toBeVisible();
-		await expect.element(screen.getByText('Hello world')).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toBeVisible();
+		await expectElement(screen.getByText('Hello world')).toBeVisible();
 	});
 });

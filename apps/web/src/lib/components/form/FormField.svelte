@@ -64,16 +64,14 @@
 			.trim();
 	}
 
-	const label = block.label ?? getBlockLabel(block.id);
-	const required = block.required ?? false;
-	const minLength = block.minLength;
-	const maxLength = block.maxLength;
-	const structuredBlocks = getStructuredBlocksForUsage(block, blockRegistry);
-	const fieldType = structuredBlocks
-		? structuredBlocks.collection
-			? 'array'
-			: 'object'
-		: block.type;
+	const label = $derived(block.label ?? getBlockLabel(block.id));
+	const required = $derived(block.required ?? false);
+	const minLength = $derived(block.minLength);
+	const maxLength = $derived(block.maxLength);
+	const structuredBlocks = $derived(getStructuredBlocksForUsage(block, blockRegistry));
+	const fieldType = $derived(
+		structuredBlocks ? (structuredBlocks.collection ? 'array' : 'object') : block.type
+	);
 	const shouldUseObjectPanel = $derived(
 		fieldType === 'object' &&
 			!!structuredBlocks &&

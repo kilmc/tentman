@@ -38,10 +38,18 @@ const BLOCKED_PROPERTIES = new Set([
  * }} PreviewCssDiagnostic
  */
 
+/**
+ * @param {string} source
+ * @returns {string}
+ */
 function stripCssComments(source) {
 	return source.replaceAll(/\/\*[\s\S]*?\*\//g, '');
 }
 
+/**
+ * @param {string} atRule
+ * @returns {PreviewCssDiagnostic}
+ */
 function createAtRuleDiagnostic(atRule) {
 	return {
 		kind: 'at-rule',
@@ -50,6 +58,10 @@ function createAtRuleDiagnostic(atRule) {
 	};
 }
 
+/**
+ * @param {string} selector
+ * @returns {PreviewCssDiagnostic}
+ */
 function createSelectorDiagnostic(selector) {
 	return {
 		kind: 'selector',
@@ -58,6 +70,12 @@ function createSelectorDiagnostic(selector) {
 	};
 }
 
+/**
+ * @param {string} property
+ * @param {string} value
+ * @param {'declaration' | 'value'} [reason='declaration']
+ * @returns {PreviewCssDiagnostic}
+ */
 function createDeclarationDiagnostic(property, value, reason = 'declaration') {
 	return {
 		kind: 'declaration',
@@ -70,6 +88,11 @@ function createDeclarationDiagnostic(property, value, reason = 'declaration') {
 	};
 }
 
+/**
+ * @param {string} source
+ * @param {number} startIndex
+ * @returns {number}
+ */
 function readCssString(source, startIndex) {
 	const quote = source[startIndex];
 	let index = startIndex + 1;
@@ -90,6 +113,12 @@ function readCssString(source, startIndex) {
 	return source.length - 1;
 }
 
+/**
+ * @param {string} source
+ * @param {number} startIndex
+ * @param {Set<string>} delimiters
+ * @returns {number}
+ */
 function findTopLevelDelimiter(source, startIndex, delimiters) {
 	let parenthesesDepth = 0;
 	let bracketDepth = 0;
@@ -130,6 +159,11 @@ function findTopLevelDelimiter(source, startIndex, delimiters) {
 	return -1;
 }
 
+/**
+ * @param {string} source
+ * @param {number} startIndex
+ * @returns {number}
+ */
 function skipAtRule(source, startIndex) {
 	const blockStart = findTopLevelDelimiter(source, startIndex, new Set(['{', ';']));
 	if (blockStart === -1) {
@@ -164,6 +198,11 @@ function skipAtRule(source, startIndex) {
 	return source.length;
 }
 
+/**
+ * @param {string} source
+ * @param {string} delimiter
+ * @returns {string[]}
+ */
 function splitTopLevel(source, delimiter) {
 	const parts = [];
 	let start = 0;
@@ -208,6 +247,11 @@ function splitTopLevel(source, delimiter) {
 	return parts;
 }
 
+/**
+ * @param {string} selectorSource
+ * @param {PreviewCssDiagnostic[]} diagnostics
+ * @returns {string[]}
+ */
 function sanitizeSelectors(selectorSource, diagnostics) {
 	const selectors = [];
 
@@ -228,6 +272,11 @@ function sanitizeSelectors(selectorSource, diagnostics) {
 	return selectors;
 }
 
+/**
+ * @param {string} declarationSource
+ * @param {PreviewCssDiagnostic[]} diagnostics
+ * @returns {string[]}
+ */
 function sanitizeDeclarations(declarationSource, diagnostics) {
 	const declarations = [];
 

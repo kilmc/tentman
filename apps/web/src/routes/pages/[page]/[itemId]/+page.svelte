@@ -24,13 +24,37 @@
 
 	const isLocalMode = $derived(data.mode === 'local');
 
-	let discoveredConfig = $state(data.discoveredConfig);
-	let blockConfigs = $state(data.blockConfigs ?? []);
-	let packageBlocks = $state<SerializablePackageBlock[]>(data.packageBlocks ?? []);
-	let blockRegistryError = $state<string | null>(data.blockRegistryError ?? null);
+	function getInitialDiscoveredConfig() {
+		return data.discoveredConfig;
+	}
+
+	function getInitialBlockConfigs() {
+		return data.blockConfigs ?? [];
+	}
+
+	function getInitialPackageBlocks(): SerializablePackageBlock[] {
+		return data.packageBlocks ?? [];
+	}
+
+	function getInitialBlockRegistryError() {
+		return data.blockRegistryError ?? null;
+	}
+
+	function getInitialItem() {
+		return data.item;
+	}
+
+	function getInitialContentError() {
+		return data.contentError;
+	}
+
+	let discoveredConfig = $state(getInitialDiscoveredConfig());
+	let blockConfigs = $state(getInitialBlockConfigs());
+	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
+	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
-	let item = $state(data.item);
-	let contentError = $state(data.contentError);
+	let item = $state(getInitialItem());
+	let contentError = $state(getInitialContentError());
 	let localLoadRequest = 0;
 	const flashMessageKeys = ['published', 'deleted', 'branch'] as const;
 
