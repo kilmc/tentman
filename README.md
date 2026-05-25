@@ -64,7 +64,6 @@ cp apps/web/.env.example apps/web/.env
 ```env
 GITHUB_CLIENT_ID=your_github_oauth_client_id_here
 GITHUB_CLIENT_SECRET=your_github_oauth_client_secret_here
-SESSION_SECRET=your_random_session_secret_here
 ```
 
 4. For local development, create a GitHub OAuth App with:
@@ -76,7 +75,12 @@ Tentman now keeps the live GitHub OAuth bearer token on the server only. The bro
 Tentman session id instead, so a copied browser cookie is not itself a reusable GitHub API token.
 
 Current limitation: the server-side GitHub session store is in-memory, so restarting the app signs GitHub-backed
-sessions out.
+sessions out. Private release also assumes a single-instance deployment.
+
+Current timeout profile:
+
+- 7 day idle timeout on the server-side session store
+- 30 day absolute maximum session lifetime
 
 5. Start the app:
 
@@ -706,7 +710,6 @@ Path rules:
 
 - Root config paths resolve relative to `tentman.json`
 - Content paths resolve relative to the config file that declares them
-- Block adapter paths resolve relative to the block config that declares them
 - Files beginning with `_` are skipped during top-level content discovery
 
 ## Best Reference Repo
@@ -749,4 +752,4 @@ Policy for those commands:
 
 - The old `template` / `filename` / `fields`-only schema in the previous README is obsolete.
 - Package-distributed blocks currently work through the GitHub-backed/server path, not local browser-backed mode.
-- Custom local block adapters must be self-contained ESM `.js` or `.mjs` modules.
+- Reusable local blocks currently use the generated structured adapter only.

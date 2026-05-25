@@ -18,10 +18,11 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
+				await requireDiscoveredConfig(
 				requestContext,
 				params.page
-			);
+				);
 
 			// Parse form data
 			const formData = await request.formData();
@@ -31,7 +32,12 @@ export const actions: Actions = {
 			const newFilename = (formData.get('newFilename') as string) || undefined;
 
 			// Get or create draft branch
-			const { branchName, created } = await ensureDraftBranch(octokit, owner, name);
+			const { branchName, created } = await ensureDraftBranch(
+				octokit,
+				owner,
+				name,
+				defaultBranch
+			);
 			if (created) {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
@@ -90,7 +96,7 @@ export const actions: Actions = {
 					ref: branchName
 				});
 			}
-			await ensureDraftPullRequest(octokit, owner, name, branchName);
+			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 
 			console.log(`✅ Saved content to ${branchName}`);
 
@@ -123,10 +129,11 @@ export const actions: Actions = {
 		const requestContext = { locals, cookies };
 
 		try {
-			const { backend, octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
+				await requireDiscoveredConfig(
 				requestContext,
 				params.page
-			);
+				);
 
 			// Parse form data
 			const formData = await request.formData();
@@ -134,7 +141,7 @@ export const actions: Actions = {
 			const isNew = formData.get('isNew') === 'true';
 			const filename = (formData.get('filename') as string) || undefined;
 			const newFilename = (formData.get('newFilename') as string) || undefined;
-			const { branchName } = await ensureDraftBranch(octokit, owner, name);
+			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
 			const materialized = await materializeDraftAssetsFromFormData({
 				formData,
 				content: contentData,
@@ -186,7 +193,7 @@ export const actions: Actions = {
 					ref: branchName
 				});
 			}
-			await publishDraftBranch(octokit, owner, name);
+			await publishDraftBranch(octokit, owner, name, defaultBranch);
 
 			const { invalidateContent } = await import('$lib/stores/content-cache');
 			const { invalidateCache } = await import('$lib/stores/config-cache');

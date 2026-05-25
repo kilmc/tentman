@@ -154,14 +154,15 @@ describe('POST /api/repo/navigation-manifest', () => {
 				selectedRepo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'trunk'
 				}
 			},
 			cookies: createCookies()
 		} as never);
 
 		expect(writeMissingContentConfigIds).toHaveBeenCalled();
-		expect(ensureDraftBranch).toHaveBeenCalledWith(expect.anything(), 'acme', 'docs');
+		expect(ensureDraftBranch).toHaveBeenCalledWith(expect.anything(), 'acme', 'docs', 'trunk');
 		expect(reconcileManualNavigationSetup).toHaveBeenCalled();
 		expect(writeNavigationManifest).toHaveBeenCalled();
 		expect(await response.json()).toEqual({
@@ -197,7 +198,8 @@ describe('POST /api/repo/navigation-manifest', () => {
 				selectedRepo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'trunk'
 				}
 			},
 			cookies: createCookies()
@@ -264,7 +266,8 @@ describe('POST /api/repo/navigation-manifest', () => {
 				selectedRepo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'trunk'
 				}
 			},
 			cookies: createCookies()

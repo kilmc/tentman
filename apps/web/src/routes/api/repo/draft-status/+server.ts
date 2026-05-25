@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { octokit, owner, name, discoveredConfig } = await requireDiscoveredConfig(
+		const { octokit, owner, name, defaultBranch, discoveredConfig } = await requireDiscoveredConfig(
 			requestContext,
 			slug,
 			`/pages/${slug}`
@@ -31,6 +31,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					octokit,
 					owner,
 					name,
+					defaultBranch,
 					discoveredConfig.config,
 					discoveredConfig.path,
 					draftBranch

@@ -20,6 +20,7 @@ declare global {
 				owner: string;
 				name: string;
 				full_name: string;
+				default_branch: string;
 			};
 			selectedBackend?: SelectedBackend;
 		}

@@ -22,11 +22,12 @@ export const GITHUB_OAUTH_STATE_COOKIE = 'github_oauth_state';
 export const GITHUB_OAUTH_REDIRECT_COOKIE = 'github_oauth_redirect';
 
 const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+const GITHUB_SESSION_IDLE_TIMEOUT_MS = 1000 * 60 * 60 * 24 * 7;
+const GITHUB_SESSION_ABSOLUTE_TIMEOUT_MS = 1000 * 60 * 60 * 24 * 30;
 const MAX_RECENT_REPOS = 5;
 const LOGIN_COOLDOWN_MAX_AGE = 15;
 const OAUTH_REQUEST_MAX_AGE = 60 * 10;
 export const GITHUB_REST_API_VERSION = '2022-11-28';
-const GITHUB_SESSION_TTL_MS = SESSION_COOKIE_MAX_AGE * 1000;
 
 interface GitHubSessionPayload {
 	token: string;
@@ -43,7 +44,8 @@ interface CookieTarget {
 }
 
 interface StoredGitHubSession extends GitHubSessionPayload {
-	expiresAt: number;
+	createdAt: number;
+	lastActivityAt: number;
 }
 
 // Keep the live GitHub bearer token on the server only. Browsers get an opaque session id.
@@ -149,23 +151,34 @@ function createGitHubSessionId(): string {
 	return randomBytes(32).toString('hex');
 }
 
-function readStoredGitHubSession(sessionId: string | undefined): StoredGitHubSession | null {
+function readStoredGitHubSession(
+	sessionId: string | undefined
+): { session: StoredGitHubSession | null; expired: boolean } {
 	if (!sessionId) {
-		return null;
+		return { session: null, expired: false };
 	}
 
 	const session = githubSessions.get(sessionId);
 
 	if (!session) {
-		return null;
+		return { session: null, expired: false };
 	}
 
-	if (session.expiresAt <= Date.now()) {
+	const now = Date.now();
+	const isIdleExpired = now - session.lastActivityAt >= GITHUB_SESSION_IDLE_TIMEOUT_MS;
+	const isAbsoluteExpired = now - session.createdAt >= GITHUB_SESSION_ABSOLUTE_TIMEOUT_MS;
+
+	if (isIdleExpired || isAbsoluteExpired) {
 		githubSessions.delete(sessionId);
-		return null;
+		return { session: null, expired: true };
 	}
 
-	return session;
+	const refreshedSession: StoredGitHubSession = {
+		...session,
+		lastActivityAt: now
+	};
+	githubSessions.set(sessionId, refreshedSession);
+	return { session: refreshedSession, expired: false };
 }
 
 export function persistGitHubSession(
@@ -174,20 +187,26 @@ export function persistGitHubSession(
 ): void {
 	const options = getGitHubCookieOptions();
 	const sessionId = createGitHubSessionId();
+	const now = Date.now();
 
 	githubSessions.set(sessionId, {
 		...session,
-		expiresAt: Date.now() + GITHUB_SESSION_TTL_MS
+		createdAt: now,
+		lastActivityAt: now
 	});
 	cookies.set(GITHUB_SESSION_COOKIE, sessionId, options);
 	cookies.delete(GITHUB_TOKEN_COOKIE, { path: '/' });
 }
 
-export function readGitHubSession(cookies: Pick<Cookies, 'get'>): {
+export function readGitHubSession(cookies: Pick<Cookies, 'get' | 'delete'>): {
 	token?: string;
 	user?: GitHubUserSnapshot;
 } {
-	const session = readStoredGitHubSession(cookies.get(GITHUB_SESSION_COOKIE));
+	const { session, expired } = readStoredGitHubSession(cookies.get(GITHUB_SESSION_COOKIE));
+
+	if (expired) {
+		clearGitHubSession(cookies);
+	}
 
 	return {
 		...(session ? { token: session.token, user: session.user } : {})

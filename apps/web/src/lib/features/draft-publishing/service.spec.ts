@@ -73,7 +73,7 @@ describe('draft-publishing/service', () => {
 	});
 
 	it('caches draft branch lookups until the cache is cleared', async () => {
-		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]);
+		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]) as any;
 
 		await expect(getTentmanDraftBranchName(octokit, 'acme', 'docs')).resolves.toBe(
 			TENTMAN_DRAFT_BRANCH
@@ -94,7 +94,7 @@ describe('draft-publishing/service', () => {
 
 	it('reuses the canonical draft branch when it already exists', async () => {
 		await expect(
-			ensureDraftBranch(createOctokit([TENTMAN_DRAFT_BRANCH]), 'acme', 'docs')
+			ensureDraftBranch(createOctokit([TENTMAN_DRAFT_BRANCH]), 'acme', 'docs', 'trunk')
 		).resolves.toEqual({
 			branchName: TENTMAN_DRAFT_BRANCH,
 			created: false
@@ -104,7 +104,7 @@ describe('draft-publishing/service', () => {
 
 	it('creates the canonical draft branch when none exists yet', async () => {
 		await expect(
-			ensureDraftBranch(createOctokit([]), 'acme', 'docs')
+			ensureDraftBranch(createOctokit([]), 'acme', 'docs', 'trunk')
 		).resolves.toEqual({
 			branchName: TENTMAN_DRAFT_BRANCH,
 			created: true
@@ -114,17 +114,18 @@ describe('draft-publishing/service', () => {
 			expect.anything(),
 			'acme',
 			'docs',
-			TENTMAN_DRAFT_BRANCH
+			TENTMAN_DRAFT_BRANCH,
+			'trunk'
 		);
 	});
 
 	it('publishes the managed draft branch through the matching pull request and deletes the branch', async () => {
-		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]);
+		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]) as any;
 		vi.mocked(ensureDraftPullRequest).mockResolvedValue({
 			number: 42
 		} as never);
 
-		await expect(publishDraftBranch(octokit, 'acme', 'docs')).resolves.toEqual({
+		await expect(publishDraftBranch(octokit, 'acme', 'docs', 'trunk')).resolves.toEqual({
 			branchName: TENTMAN_DRAFT_BRANCH
 		});
 
@@ -132,7 +133,8 @@ describe('draft-publishing/service', () => {
 			octokit,
 			'acme',
 			'docs',
-			TENTMAN_DRAFT_BRANCH
+			TENTMAN_DRAFT_BRANCH,
+			'trunk'
 		);
 		expect(octokit.rest.pulls.merge).toHaveBeenCalledWith({
 			owner: 'acme',
@@ -146,7 +148,7 @@ describe('draft-publishing/service', () => {
 	it('discards the managed draft branch and closes its pull request before deleting it', async () => {
 		const octokit = createOctokit([TENTMAN_DRAFT_BRANCH]);
 
-		await expect(discardDraftBranch(octokit, 'acme', 'docs')).resolves.toEqual({
+		await expect(discardDraftBranch(octokit, 'acme', 'docs', 'trunk')).resolves.toEqual({
 			branchName: TENTMAN_DRAFT_BRANCH
 		});
 
@@ -154,7 +156,8 @@ describe('draft-publishing/service', () => {
 			octokit,
 			'acme',
 			'docs',
-			TENTMAN_DRAFT_BRANCH
+			TENTMAN_DRAFT_BRANCH,
+			'trunk'
 		);
 		expect(deleteBranch).toHaveBeenCalledWith(octokit, 'acme', 'docs', TENTMAN_DRAFT_BRANCH);
 	});

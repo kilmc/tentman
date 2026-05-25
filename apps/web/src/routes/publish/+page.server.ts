@@ -10,10 +10,10 @@ import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/pag
 export const actions = {
 	publish: async ({ locals, cookies }) => {
 		const requestContext = { locals, cookies };
-		const { octokit, owner, name, backend } = requireGitHubRepository(requestContext);
+		const { octokit, owner, name, backend, defaultBranch } = requireGitHubRepository(requestContext);
 
 		try {
-			const { branchName } = await publishDraftBranch(octokit, owner, name);
+			const { branchName } = await publishDraftBranch(octokit, owner, name, defaultBranch);
 
 			console.log(`✅ Published and deleted draft branch: ${branchName}`);
 
@@ -43,10 +43,10 @@ export const actions = {
 
 	discard: async ({ locals, cookies }) => {
 		const requestContext = { locals, cookies };
-		const { octokit, owner, name } = requireGitHubRepository(requestContext);
+		const { octokit, owner, name, defaultBranch } = requireGitHubRepository(requestContext);
 
 		try {
-			const { branchName } = await discardDraftBranch(octokit, owner, name);
+			const { branchName } = await discardDraftBranch(octokit, owner, name, defaultBranch);
 
 			console.log(`✅ Discarded draft branch: ${branchName}`);
 

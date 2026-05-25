@@ -22,6 +22,7 @@ interface GitHubRepositoryContext {
 	repo: NonNullable<AppLocals['selectedRepo']>;
 	owner: string;
 	name: string;
+	defaultBranch: string;
 	user?: GitHubUserSnapshot;
 }
 
@@ -54,6 +55,7 @@ export function requireGitHubRepository(
 		repo: locals.selectedRepo,
 		owner: locals.selectedRepo.owner,
 		name: locals.selectedRepo.name,
+		defaultBranch: locals.selectedRepo.default_branch,
 		user: locals.user
 	};
 }
@@ -94,6 +96,7 @@ export async function requireDiscoveredConfig(
 	repo: NonNullable<AppLocals['selectedRepo']>;
 	owner: string;
 	name: string;
+	defaultBranch: string;
 	discoveredConfig: DiscoveredConfig;
 }> {
 	const repository = requireGitHubRepository(context, redirectTo);

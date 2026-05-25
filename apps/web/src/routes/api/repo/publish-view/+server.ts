@@ -12,7 +12,10 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { octokit, owner, name, backend } = requireGitHubRepository(requestContext, '/publish');
+		const { octokit, owner, name, repo, backend } = requireGitHubRepository(
+			requestContext,
+			'/publish'
+		);
 		const draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
 		if (!draftBranch) {
 			throw error(404, 'No draft branch found');
@@ -26,6 +29,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 				octokit,
 				owner,
 				name,
+				repo.default_branch,
 				config.config,
 				config.path,
 				draftBranch
@@ -43,7 +47,13 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			}
 		}
 
-		const commits = await getCommitsSince(octokit, owner, name, 'main', draftBranch);
+		const commits = await getCommitsSince(
+			octokit,
+			owner,
+			name,
+			repo.default_branch,
+			draftBranch
+		);
 
 		return json({
 			draftBranch: {

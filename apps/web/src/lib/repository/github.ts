@@ -41,6 +41,7 @@ export interface GitHubRepositoryIdentity {
 	owner: string;
 	name: string;
 	full_name: string;
+	default_branch: string;
 }
 
 export interface GitHubRepositoryBackend extends RepositoryBackend {
@@ -131,7 +132,7 @@ async function instrumentGitHubRepositoryRequest<T>(
 }
 
 function isFresh<T>(entry: CachedMetadataEntry<T> | undefined): entry is CachedMetadataEntry<T> {
-	return Boolean(entry) && Date.now() - entry.timestamp < METADATA_CACHE_TTL;
+	return entry !== undefined && Date.now() - entry.timestamp < METADATA_CACHE_TTL;
 }
 
 function readCachedMetadata<T>(
@@ -206,8 +207,8 @@ export function createGitHubRepositoryBackend(
 	}
 ): GitHubRepositoryBackend {
 	const { owner, name, full_name } = repository;
-	const defaultRef = options?.defaultRef;
-	const repoKey = defaultRef ? `github:${owner}/${name}?ref=${defaultRef}` : `github:${owner}/${name}`;
+	const defaultRef = options?.defaultRef ?? repository.default_branch;
+	const repoKey = `github:${owner}/${name}?ref=${defaultRef}`;
 
 	function readRef(options?: RepositoryReadOptions): string | undefined {
 		return options?.ref ?? defaultRef;

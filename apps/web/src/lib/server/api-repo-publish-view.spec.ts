@@ -53,6 +53,12 @@ describe('GET /api/repo/publish-view', () => {
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
+			},
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
@@ -135,6 +141,12 @@ describe('GET /api/repo/publish-view', () => {
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
+			},
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockRejectedValue({ status: 401 });

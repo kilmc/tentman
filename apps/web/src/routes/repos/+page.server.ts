@@ -20,15 +20,17 @@ export const actions = {
 		const formData = await request.formData();
 		const owner = formData.get('owner');
 		const name = formData.get('name');
+		const defaultBranch = formData.get('default_branch');
 
-		if (!owner || !name) {
+		if (!owner || !name || !defaultBranch) {
 			throw error(400, 'Missing repository information');
 		}
 
 		const selectedRepo = {
 			owner: owner.toString(),
 			name: name.toString(),
-			full_name: `${owner}/${name}`
+			full_name: `${owner}/${name}`,
+			default_branch: defaultBranch.toString()
 		};
 		const redirectTarget = sanitizeAuthRedirectTarget(url.searchParams.get('returnTo'), '/pages');
 

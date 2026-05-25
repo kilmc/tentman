@@ -176,7 +176,6 @@ export interface BlockConfig {
 	label: string;
 	itemLabel?: string;
 	collection?: boolean;
-	adapter?: string;
 	blocks: BlockUsage[];
 	editorLayout?: EditorLayoutConfig;
 }

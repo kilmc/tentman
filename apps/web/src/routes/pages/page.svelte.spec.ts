@@ -70,14 +70,16 @@ const baseData = {
 	selectedRepo: {
 		owner: 'acme',
 		name: 'docs',
-		full_name: 'acme/docs'
+		full_name: 'acme/docs',
+		default_branch: 'trunk'
 	},
 	selectedBackend: {
 		kind: 'github' as const,
 		repo: {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		}
 	},
 	activeDraftBranch: null,

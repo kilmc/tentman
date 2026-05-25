@@ -106,3 +106,52 @@ Scope:
 
 - Redirect target sanitization and OAuth state checking looked reasonable in the current implementation.
 - Session invalidation on GitHub 401 responses is present, but it is local-cookie-only and should be revisited when the session model is rebuilt.
+
+## 2026-05-25 Hardening Branch Closeout
+
+The `issues-26-29-private-release-hardening` branch shipped the planned private-release hardening slice for issues `#26` through `#29`.
+
+Implemented in this branch:
+
+- Removed repo-provided local JavaScript reusable-block adapter loading in local mode.
+- Removed `adapter` from supported block config shape so it now falls through the normal unexpected-property validation path.
+- Kept the current opaque server-side GitHub session model and aligned the docs with the real implementation.
+- Added server-side in-memory session expiry enforcement with:
+  - 7 day idle timeout
+  - 30 day absolute timeout
+- Removed `SESSION_SECRET` from docs and env examples because the app does not use it.
+- Threaded each selected repository's `default_branch` through repo selection, draft creation, comparison, publish view, and PR flows.
+- Added a minimum browser hardening baseline in the app response layer:
+  - `Content-Security-Policy`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+
+Private-release deployment assumptions captured by this branch:
+
+- The current GitHub session store is in-memory and server-local.
+- Private release therefore assumes a single-instance deployment for authenticated GitHub mode.
+- The header baseline is applied in the app layer, so production traffic needs to be served through that layer rather than bypassing it.
+
+Dependency audit status after the branch updates:
+
+- The initial `pnpm audit --prod` run reported 11 findings total.
+- Safe direct upgrades in `apps/web` reduced that set to 5 remaining findings.
+- The remaining findings were not fully cleared in this branch because they appear to be transitive or ecosystem-level constraints rather than isolated app-code issues.
+
+Accepted/deferred follow-up items for private release:
+
+- Defer the remaining `cookie` finding while it is still pulled in through the current `bits-ui -> runed -> @sveltejs/kit -> cookie` chain. This should be revisited on the next framework upgrade pass.
+- Defer the remaining `rollup` finding on the `vite -> rollup` path until the Vite toolchain can move to a version that resolves `rollup` to `>=4.59.0`.
+- Re-check the remaining `picomatch` findings on the `vite -> picomatch` path on the next toolchain update pass. Local inspection suggested the installed version may already be newer than the vulnerable range, so this may be stale or nested audit reporting, but that was not proven conclusively in this branch.
+- Re-check the remaining `postcss` finding on the `vite -> postcss` path on the next toolchain update pass for the same reason: local inspection suggested a newer installed version than the vulnerable range, but the discrepancy was not fully resolved here.
+- Keep the unresolved findings visible as release-readiness follow-up work rather than treating them as silently fixed.
+
+Validation status for this branch:
+
+- Targeted tests for config parsing, local-mode block loading, session expiry, default-branch handling, and publish/draft flows passed.
+- Response-header tests passed.
+- The repo-wide web `check` command still does not pass cleanly, but the remaining failures are broader than issues `#26` through `#29`:
+  - pre-existing strict-JS typing errors in `packages/core/src/content-component-preview-css-sanitizer.js`
+  - a large existing set of Svelte `state_referenced_locally` warnings
+  - additional Vitest/browser typing fallout after the dependency upgrade

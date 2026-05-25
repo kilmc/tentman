@@ -121,9 +121,25 @@ export async function resolveTentmanProjectRoot(inputPath) {
 
 function parseBlockConfig(source, blockPath) {
 	const input = parseJsonObject(source, blockPath);
+	const supportedKeys = new Set([
+		'type',
+		'id',
+		'label',
+		'itemLabel',
+		'collection',
+		'blocks',
+		'editorLayout'
+	]);
+	const unsupportedKeys = Object.keys(input).filter((key) => !supportedKeys.has(key));
 
 	if (input.type !== 'block') {
 		throw new Error(`${blockPath}.type must be "block"`);
+	}
+
+	if (unsupportedKeys.length > 0) {
+		throw new Error(
+			`${blockPath} has unsupported key${unsupportedKeys.length === 1 ? '' : 's'}: ${unsupportedKeys.join(', ')}`
+		);
 	}
 
 	return {

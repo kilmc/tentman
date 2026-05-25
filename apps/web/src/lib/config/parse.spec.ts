@@ -166,6 +166,18 @@ describe('parseConfigFile', () => {
 		).toThrow('config.editorLayout.asideLabel must be a non-empty string');
 	});
 
+	it('treats adapter as an unsupported block-config key', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "block",
+				"id": "gallery",
+				"label": "Gallery",
+				"adapter": "./gallery.adapter.js",
+				"blocks": [{ "id": "image", "type": "image" }]
+			}`)
+		).toThrow('config has unsupported key: adapter');
+	});
+
 	it('parses manual collection behavior and config-backed groups', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",

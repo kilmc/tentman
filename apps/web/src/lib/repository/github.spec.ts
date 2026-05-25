@@ -56,7 +56,8 @@ describe('repository/github', () => {
 		const backend = createGitHubRepositoryBackend(octokit as never, {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		});
 
 		await expect(backend.readTextFile('/src/content/post.md')).resolves.toBe('hello');
@@ -75,7 +76,8 @@ describe('repository/github', () => {
 		const backend = createGitHubRepositoryBackend(octokit as never, {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		});
 
 		await backend.writeTextFile('/src/content/post.md', 'hello');
@@ -95,7 +97,8 @@ describe('repository/github', () => {
 		const backend = createGitHubRepositoryBackend(octokit as never, {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		});
 
 		await backend.listDirectory('/');
@@ -119,7 +122,8 @@ describe('repository/github', () => {
 		const backend = createGitHubRepositoryBackend(octokit as never, {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		});
 
 		await expect(backend.readRootConfig()).resolves.toEqual({ siteName: 'Acme Docs' });
@@ -148,7 +152,8 @@ describe('repository/github', () => {
 		const backend = createGitHubRepositoryBackend(createOctokit() as never, {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		});
 
 		await expect(backend.discoverBlockConfigs()).resolves.toHaveLength(1);
@@ -173,7 +178,8 @@ describe('repository/github', () => {
 		const backend = createGitHubRepositoryBackend(octokit as never, {
 			owner: 'acme',
 			name: 'docs',
-			full_name: 'acme/docs'
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
 		});
 
 		await backend.readTextFile('content/about.md');
@@ -181,10 +187,10 @@ describe('repository/github', () => {
 		expect(getGitHubRepositoryRequestStats()).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					repoKey: 'github:acme/docs',
+					repoKey: 'github:acme/docs?ref=trunk',
 					operation: 'readTextFile',
 					path: 'content/about.md',
-					ref: null,
+					ref: 'trunk',
 					count: 1
 				})
 			])

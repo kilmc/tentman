@@ -24,6 +24,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 				name: repo.name,
 				full_name: repo.full_name,
 				owner: repo.owner.login,
+				default_branch: repo.default_branch,
 				description: repo.description,
 				private: repo.private,
 				updated_at: repo.updated_at

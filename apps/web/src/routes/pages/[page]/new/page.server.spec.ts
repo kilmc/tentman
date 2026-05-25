@@ -111,7 +111,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 			}
 		} as never);
 
-		const response = await actions.createToPreview({
+		const response = (await actions.createToPreview({
 			locals: {},
 			params: {
 				page: 'posts'
@@ -124,7 +124,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 				delete: vi.fn()
 			},
 			url: new URL('http://localhost/pages/posts/new')
-		} as never);
+		} as never)) as any;
 
 		expect(response.status).toBe(400);
 		expect(response.data).toMatchObject({

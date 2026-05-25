@@ -14,7 +14,7 @@ Assume `tentman` may be directly available on `PATH` in a local development envi
 Refresh the public Tentman docs before giving advice or editing files:
 
 1. Fetch `https://tentman.netlify.app/docs`.
-2. Fetch `https://raw.githubusercontent.com/kilmc/tentman/main/README.md`.
+2. Fetch `https://raw.githubusercontent.com/kilmc/tentman/HEAD/README.md`.
 3. Optionally run `git ls-remote https://github.com/kilmc/tentman.git HEAD` if you need a freshness check.
 
 Treat the published docs as the default source of truth for integration guidance. If the docs and repo examples disagree, call that out and explain which source you are following.
@@ -57,10 +57,10 @@ If no CLI entrypoint is available, continue with careful file inspection and exp
 ## Important Current Constraints
 
 1. `blockPackages` work in GitHub-backed or server mode, not local browser-backed mode.
-2. In local mode, custom adapter files must be self-contained ESM `.js` or `.mjs` modules.
+2. Reusable local blocks currently use the generated structured adapter only.
 3. Root config paths resolve relative to `tentman.json`.
 4. Content paths resolve relative to the config file that declares them.
-5. Block adapter paths resolve relative to the block config that declares them.
+5. Reusable block configs do not support repo-provided adapter modules in local mode.
 
 ## Output Expectations
 

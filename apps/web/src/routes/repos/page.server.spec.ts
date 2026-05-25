@@ -43,7 +43,8 @@ describe('routes/repos/+page.server', () => {
 					method: 'POST',
 					body: new URLSearchParams({
 						owner: 'acme',
-						name: 'docs'
+						name: 'docs',
+						default_branch: 'trunk'
 					})
 				}),
 				cookies,
@@ -64,7 +65,8 @@ describe('routes/repos/+page.server', () => {
 			{
 				owner: 'acme',
 				name: 'docs',
-				full_name: 'acme/docs'
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
 			},
 			null
 		);
@@ -89,7 +91,8 @@ describe('routes/repos/+page.server', () => {
 					method: 'POST',
 					body: new URLSearchParams({
 						owner: 'acme',
-						name: 'docs'
+						name: 'docs',
+						default_branch: 'trunk'
 					})
 				}),
 				cookies,
@@ -116,7 +119,8 @@ describe('routes/repos/+page.server', () => {
 					method: 'POST',
 					body: new URLSearchParams({
 						owner: 'acme',
-						name: 'docs'
+						name: 'docs',
+						default_branch: 'trunk'
 					})
 				}),
 				cookies,

@@ -100,8 +100,7 @@ function areDiscoverySignaturesEqual(
 
 async function loadBlockRegistry(
 	blockConfigs: DiscoveredBlockConfig[],
-	rootConfig: RootConfig | null,
-	loadLocalAdapterModule: (path: string) => Promise<unknown>
+	rootConfig: RootConfig | null
 ): Promise<{ blockRegistry: BlockRegistry | null; blockRegistryError: string | null }> {
 	if ((rootConfig?.blockPackages?.length ?? 0) > 0) {
 		return {
@@ -113,16 +112,14 @@ async function loadBlockRegistry(
 
 	try {
 		return {
-			blockRegistry: await createLoadedBlockRegistry(blockConfigs, {
-				loadLocalAdapterModule
-			}),
+			blockRegistry: await createLoadedBlockRegistry(blockConfigs),
 			blockRegistryError: null
 		};
 	} catch (error) {
 		return {
 			blockRegistry: null,
 			blockRegistryError:
-				error instanceof Error ? error.message : 'Failed to load local block adapters'
+				error instanceof Error ? error.message : 'Failed to load local reusable blocks'
 		};
 	}
 }
@@ -274,8 +271,7 @@ function createStore() {
 				) {
 					const { blockRegistry, blockRegistryError } = await loadBlockRegistry(
 						persistedState.blockConfigs,
-						persistedState.rootConfig,
-						backend.loadLocalAdapterModule
+						persistedState.rootConfig
 					);
 
 					set({
@@ -313,8 +309,7 @@ function createStore() {
 
 					const { blockRegistry, blockRegistryError } = await loadBlockRegistry(
 						blockConfigs,
-						rootConfig,
-						backend.loadLocalAdapterModule
+						rootConfig
 					);
 
 					if (shouldUsePersistedCache) {

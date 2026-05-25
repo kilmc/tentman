@@ -663,7 +663,7 @@
 			{/if}
 			{#if blockRegistryError}
 				<div class="mb-5 rounded-md border border-red-200 bg-red-50 p-4">
-					<p class="text-sm font-medium text-red-800">Failed to load block adapters</p>
+					<p class="text-sm font-medium text-red-800">Failed to load reusable blocks</p>
 					<p class="mt-1 text-sm text-red-700">{blockRegistryError}</p>
 				</div>
 			{:else if !blockRegistry}

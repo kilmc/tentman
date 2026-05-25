@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	createBlockRegistry,
-	loadBlockRegistry,
-	type LoadBlockRegistryOptions
-} from '$lib/blocks/registry';
+import { createBlockRegistry, loadBlockRegistry, type LoadBlockRegistryOptions } from '$lib/blocks/registry';
 import { parseDiscoveredBlockConfig } from '$lib/config/discovery';
 import type { RepositoryBackend } from '$lib/repository/types';
 
@@ -114,42 +110,25 @@ describe('loadBlockRegistry', () => {
 		};
 	}
 
-	it('loads a custom adapter module relative to the declaring block config file', async () => {
+	it('builds structured adapters for reusable local blocks without module loading', async () => {
 		const backend = createBackend([
 			`{
 				"type": "block",
 				"id": "gallery",
 				"label": "Gallery",
-				"adapter": "./gallery.adapter.js",
 				"blocks": [{ "id": "image", "type": "image" }]
 			}`
 		]);
 
-		const loadLocalAdapterModule: NonNullable<LoadBlockRegistryOptions['loadLocalAdapterModule']> =
-			vi.fn().mockResolvedValue({
-				adapter: {
-					type: 'gallery',
-					getDefaultValue() {
-						return ['custom'];
-					},
-					validate() {
-						return [];
-					}
-				}
-			});
-
-		const registry = await loadBlockRegistry(backend, { loadLocalAdapterModule });
-
-		expect(loadLocalAdapterModule).toHaveBeenCalledWith('tentman/blocks/gallery.adapter.js');
+		const registry = await loadBlockRegistry(backend);
 		expect(registry.get('gallery')).toMatchObject({
 			id: 'gallery',
 			kind: 'local',
-			path: 'tentman/blocks/block-1.tentman.json',
-			adapterPath: 'tentman/blocks/gallery.adapter.js'
+			path: 'tentman/blocks/block-1.tentman.json'
 		});
 		expect(
 			registry.getAdapter('gallery')?.getDefaultValue({ id: 'gallery', type: 'gallery' })
-		).toEqual(['custom']);
+		).toEqual({ image: '' });
 	});
 
 	it('loads package blocks after local blocks when blockPackages are configured', async () => {
@@ -261,7 +240,7 @@ describe('loadBlockRegistry', () => {
 		).rejects.toThrow(/Duplicate block id "seo"/);
 	});
 
-	it('fails when a custom adapter module does not export a named adapter', async () => {
+	it('treats config.adapter as an unsupported key', async () => {
 		const backend = createBackend([
 			`{
 				"type": "block",
@@ -272,35 +251,6 @@ describe('loadBlockRegistry', () => {
 			}`
 		]);
 
-		await expect(
-			loadBlockRegistry(backend, {
-				loadLocalAdapterModule: vi.fn().mockResolvedValue({})
-			})
-		).rejects.toThrow(/must export a named "adapter"/);
-	});
-
-	it('fails when a custom adapter module exports the wrong block type', async () => {
-		const backend = createBackend([
-			`{
-				"type": "block",
-				"id": "gallery",
-				"label": "Gallery",
-				"adapter": "./gallery.adapter.js",
-				"blocks": [{ "id": "image", "type": "image" }]
-			}`
-		]);
-
-		await expect(
-			loadBlockRegistry(backend, {
-				loadLocalAdapterModule: vi.fn().mockResolvedValue({
-					adapter: {
-						type: 'seo',
-						getDefaultValue() {
-							return {};
-						}
-					}
-				})
-			})
-		).rejects.toThrow(/must use type "gallery"/);
+		await expect(loadBlockRegistry(backend)).rejects.toThrow(/unsupported key: adapter/);
 	});
 });

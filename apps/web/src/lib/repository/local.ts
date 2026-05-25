@@ -1,4 +1,3 @@
-import type { LoadLocalBlockAdapterModule } from '$lib/blocks/adapter-files';
 import {
 	type DiscoveredBlockConfig,
 	type DiscoveredConfig,
@@ -15,36 +14,6 @@ import type {
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
-
-interface LoadJavaScriptModuleOptions {
-	createObjectURL?: (blob: Blob) => string;
-	revokeObjectURL?: (url: string) => void;
-	importModule?: (moduleUrl: string) => Promise<unknown>;
-}
-
-function supportsLocalAdapterModulePath(path: string): boolean {
-	return path.endsWith('.js') || path.endsWith('.mjs');
-}
-
-export async function loadJavaScriptModuleFromText(
-	source: string,
-	path: string,
-	options: LoadJavaScriptModuleOptions = {}
-): Promise<unknown> {
-	const createObjectURL = options.createObjectURL ?? ((blob) => URL.createObjectURL(blob));
-	const revokeObjectURL = options.revokeObjectURL ?? ((url) => URL.revokeObjectURL(url));
-	const importModule =
-		options.importModule ?? ((moduleUrl: string) => import(/* @vite-ignore */ moduleUrl));
-	const moduleUrl = createObjectURL(
-		new Blob([`${source}\n//# sourceURL=${path}`], { type: 'text/javascript' })
-	);
-
-	try {
-		return await importModule(moduleUrl);
-	} finally {
-		revokeObjectURL(moduleUrl);
-	}
-}
 
 async function getPathHandle(
 	root: FileSystemDirectoryHandle,
@@ -304,7 +273,6 @@ export interface LocalRepositoryBackend extends RepositoryBackend {
 	repo: LocalRepositoryIdentity;
 	invalidateDiscoveryCache(): void;
 	getDiscoverySignature(): Promise<LocalDiscoverySignature>;
-	loadLocalAdapterModule(path: string): Promise<unknown>;
 }
 
 interface DiscoveryIssue {
@@ -537,16 +505,6 @@ export function createLocalRepositoryBackend(
 
 		readTextFile(path: string, _options?: RepositoryReadOptions) {
 			return readFileText(rootHandle, path);
-		},
-
-		async loadLocalAdapterModule(path: string) {
-			if (!supportsLocalAdapterModulePath(path)) {
-				throw new Error(
-					`Local block adapter files must use .js or .mjs in local repository mode, received "${path}"`
-				);
-			}
-
-			return loadJavaScriptModuleFromText(await readFileText(rootHandle, path), path);
 		},
 
 		async writeTextFile(path: string, content: string, _options?: RepositoryWriteOptions) {

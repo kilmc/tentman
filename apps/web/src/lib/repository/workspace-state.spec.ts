@@ -9,7 +9,8 @@ describe('resolveWorkspaceState', () => {
 				selectedRepo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'trunk'
 				},
 				rootConfig: {
 					siteName: 'Acme Docs'
@@ -46,7 +47,8 @@ describe('resolveWorkspaceState', () => {
 					repo: {
 						owner: 'acme',
 						name: 'docs',
-						full_name: 'acme/docs'
+						full_name: 'acme/docs',
+						default_branch: 'trunk'
 					}
 				},
 				rootConfig: {
@@ -61,13 +63,15 @@ describe('resolveWorkspaceState', () => {
 				repo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'trunk'
 				}
 			},
 			selectedRepo: {
 				owner: 'acme',
 				name: 'docs',
-				full_name: 'acme/docs'
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
 			},
 			rootConfig: {
 				siteName: 'Acme Docs'
@@ -82,7 +86,8 @@ describe('resolveWorkspaceState', () => {
 				selectedRepo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'trunk'
 				}
 			})
 		).toEqual({

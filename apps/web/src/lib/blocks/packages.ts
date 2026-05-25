@@ -3,7 +3,7 @@ import type { BlockAdapter } from '$lib/blocks/adapters/types';
 import { parseBlockConfigObject, type ParsedBlockConfig } from '$lib/config/parse';
 import type { BlockConfig } from '$lib/config/types';
 
-export type PackageBlockConfig = Omit<BlockConfig, 'adapter'>;
+export type PackageBlockConfig = BlockConfig;
 
 export interface TentmanPackageBlockDefinition {
 	config: PackageBlockConfig;
@@ -56,12 +56,6 @@ function validatePackageDefinition(
 	}
 
 	const config = parseBlockConfigObject(value.config);
-	if (config.adapter) {
-		throw new Error(
-			`${getPackageBlockContextLabel(packageName, config.id)} must not define config.adapter`
-		);
-	}
-
 	return {
 		packageName,
 		config,

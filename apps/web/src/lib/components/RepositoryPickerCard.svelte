@@ -3,6 +3,7 @@
 		owner: string;
 		name: string;
 		full_name: string;
+		default_branch: string;
 		description: string | null;
 		private: boolean;
 		updated_at: string;
@@ -14,6 +15,7 @@
 <form method="POST" action="?/select" class="block">
 	<input type="hidden" name="owner" value={repo.owner} />
 	<input type="hidden" name="name" value={repo.name} />
+	<input type="hidden" name="default_branch" value={repo.default_branch} />
 
 	<button
 		type="submit"

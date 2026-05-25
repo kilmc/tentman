@@ -463,11 +463,11 @@ const blockConfigRows = fiveColumnRows([
 		notes: 'Required when collection: true is explicitly set.'
 	},
 	{
-		field: 'adapter',
-		required: 'No',
-		type: 'string',
-		purpose: 'Path to a custom adapter module.',
-		notes: 'Only use this when the generated structured adapter is not enough.'
+		field: 'blocks',
+		required: 'Yes',
+		type: 'BlockUsage[]',
+		purpose: 'The reusable structured fields that make up the block.',
+		notes: 'Tentman derives reusable block behavior from this structured shape.'
 	}
 ]);
 
@@ -492,17 +492,6 @@ const contentModeRows = [
 		'n/a',
 		'n/a',
 		'Not supported for top-level type: "content" configs by the current parser.'
-	]
-];
-
-const adapterRows = [
-	['adapter.type', 'Yes', 'string', 'Must match the block config id exactly.'],
-	['adapter.getDefaultValue', 'Yes', 'function', 'Returns the initial value for the block.'],
-	[
-		'adapter.validate',
-		'No',
-		'function',
-		'Returns validation errors when custom validation is needed.'
 	]
 ];
 
@@ -591,7 +580,6 @@ const editorLayoutRows = [
 const pathRules = [
 	'Root config paths resolve relative to tentman.json.',
 	'Content storage paths resolve relative to the config file that declares them.',
-	'Custom adapter paths resolve relative to the reusable block config file that declares them.',
 	'If configsDir is set, Tentman only discovers top-level content configs inside that directory.',
 	'If blocksDir is set, Tentman discovers reusable block configs there and excludes them from top-level content discovery.',
 	'If componentsDir is set, Tentman only discovers content components inside that directory.',
@@ -601,7 +589,7 @@ const pathRules = [
 	'JSON is the only supported manual navigation manifest format in v1.',
 	'Package blocks come from installed packages listed in root.blockPackages.',
 	'Package blocks are not available in local browser-backed mode yet.',
-	'In local mode, custom adapter files must be self-contained ESM JavaScript modules with a .js or .mjs extension.'
+	'Reusable local blocks use the generated structured adapter only.'
 ];
 
 const rootConfigExample = `{
@@ -940,20 +928,6 @@ const navigationManifestExample = `{
   }
 }`;
 
-const customAdapterExample = `export const adapter = {
-  type: "imageGallery",
-  getDefaultValue() {
-    return [];
-  },
-  validate(value) {
-    if (value === undefined || value === null) {
-      return [];
-    }
-
-    return Array.isArray(value) ? [] : ["Image Gallery must be a list."];
-  }
-};`;
-
 const docsPages: DocsPage[] = [
 	{
 		id: 'getting-started-blog-posts',
@@ -1071,7 +1045,7 @@ const docsPages: DocsPage[] = [
 <li>Use one ${inlineCode('type: "content"')} config per editable domain.</li>
 <li>Keep the first version inline and simple.</li>
 <li>Extract a ${inlineCode('type: "block"')} only when a grouped structure repeats.</li>
-<li>Add a custom adapter only when the generated structured adapter is not enough.</li>
+<li>Reusable blocks use the generated structured adapter derived from their nested fields.</li>
 </ul>`
 					}
 				]
@@ -1200,7 +1174,7 @@ const docsPages: DocsPage[] = [
 						html: `<ul class="list-disc space-y-2 pl-5">
 <li>Extract when the same grouped structure appears in more than one config.</li>
 <li>Keep it inline when the shape is local and easier to understand in context.</li>
-<li>Reach for a custom adapter only when defaults or validation need behavior the generated adapter cannot express.</li>
+<li>Keep reusable blocks declarative and let Tentman derive defaults and validation from the nested field structure.</li>
 </ul>`
 					},
 					{
@@ -1782,7 +1756,6 @@ const docsPages: DocsPage[] = [
 		description: 'The reusable structured block config format.',
 		related: [
 			{ label: 'BlockUsage', href: docsHref('reference/block-usage') },
-			{ label: 'Custom adapters', href: docsHref('reference/custom-adapters') },
 			{ label: 'Guide / Blocks', href: docsHref('guides/blocks') }
 		],
 		sections: [
@@ -2171,8 +2144,7 @@ const docsPages: DocsPage[] = [
 		description: 'Reusable blocks shipped from installed packages.',
 		related: [
 			{ label: 'BlockConfig', href: docsHref('reference/block-config') },
-			{ label: 'Reusability guide', href: docsHref('guides/reusability') },
-			{ label: 'Custom adapters', href: docsHref('reference/custom-adapters') }
+			{ label: 'Reusability guide', href: docsHref('guides/reusability') }
 		],
 		sections: [
 			{
@@ -2202,50 +2174,12 @@ const docsPages: DocsPage[] = [
 						html: `<ul class="list-disc space-y-2 pl-5">
 <li>Each entry in ${inlineCode('blockPackage.blocks')} is a definition object, not a raw block config.</li>
 <li>The definition must include ${inlineCode('config')}, and that config must parse as ${inlineCode(
-							'type: "block"'
-						)}.</li>
-<li>Package configs must not declare ${inlineCode('config.adapter')} directly.</li>
+	'type: "block"'
+)}.</li>
 <li>An optional ${inlineCode('adapter')} export may sit next to ${inlineCode(
-							'config'
-						)}, and its ${inlineCode('type')} must match the block id.</li>
+	'config'
+)}, and its ${inlineCode('type')} must match the block id.</li>
 </ul>`
-					}
-				]
-			}
-		]
-	},
-	{
-		id: 'reference-custom-adapters',
-		section: 'reference',
-		slug: 'reference/custom-adapters',
-		href: docsHref('reference/custom-adapters'),
-		title: 'Custom adapters',
-		description: 'The escape hatch for reusable blocks that need custom defaults or validation.',
-		related: [
-			{ label: 'BlockConfig', href: docsHref('reference/block-config') },
-			{ label: 'Package blocks', href: docsHref('reference/package-blocks') },
-			{ label: 'Guide / Blocks', href: docsHref('guides/blocks') }
-		],
-		sections: [
-			{
-				id: 'fields',
-				title: 'Required exports',
-				blocks: [
-					{
-						kind: 'rich-text',
-						html: `<p>Most reusable block configs should use the generated structured adapter. Add a custom adapter only when you need custom defaults or validation.</p>`
-					},
-					table(['Export', 'Required', 'Type', 'Purpose'], adapterRows)
-				]
-			},
-			{
-				id: 'example',
-				title: 'Example',
-				blocks: [
-					{
-						kind: 'code',
-						code: customAdapterExample,
-						language: 'ts'
 					}
 				]
 			}
@@ -2682,11 +2616,6 @@ export const docsNavigation: DocsNavGroup[] = [
 				title: 'Package blocks',
 				href: docsHref('reference/package-blocks'),
 				pageId: 'reference-package-blocks'
-			},
-			{
-				title: 'Custom adapters',
-				href: docsHref('reference/custom-adapters'),
-				pageId: 'reference-custom-adapters'
 			},
 			{
 				title: 'Discovery and paths',
