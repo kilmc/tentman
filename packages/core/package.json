@@ -1,8 +1,31 @@
 {
 	"name": "@tentman/core",
-	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"description": "Core Tentman content, schema, navigation, and rendering utilities.",
+	"license": "UNLICENSED",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/kilmc/tentman.git",
+		"directory": "packages/core"
+	},
+	"homepage": "https://github.com/kilmc/tentman/tree/main/packages/core",
+	"bugs": {
+		"url": "https://github.com/kilmc/tentman/issues"
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"src/**/*.js",
+		"!src/**/*.test.js",
+		"!src/**/*.test-helper.js",
+		"!src/fixtures/**",
+		"README.md"
+	],
 	"scripts": {
 		"test": "node --test src/*.test.js"
 	},

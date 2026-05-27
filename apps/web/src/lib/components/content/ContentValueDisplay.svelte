@@ -15,6 +15,7 @@
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
+	import { resolveMarkdownAssetUrls } from '$lib/features/draft-assets/image-resolver';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 
@@ -74,6 +75,12 @@
 
 	function getActiveComponentsDir(): string | undefined {
 		return getActiveRootConfig()?.componentsDir;
+	}
+
+	function getPreviewBaseUrl(): string | null {
+		return page.data.selectedBackend?.kind === 'local'
+			? (get(localContent).rootConfig?.local?.previewUrl ?? null)
+			: null;
 	}
 
 	function getReferencePreviewOptions() {
@@ -144,6 +151,10 @@
 				);
 				nextMarkdown = componentPreview.markdown;
 				errors.push(...componentPreview.errors);
+				nextMarkdown = await resolveMarkdownAssetUrls(nextMarkdown, {
+					assetsDir: block.assetsDir,
+					previewBaseUrl: getPreviewBaseUrl()
+				});
 
 				if (!cancelled) {
 					previewMarkdown = nextMarkdown;

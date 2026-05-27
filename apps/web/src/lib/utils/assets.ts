@@ -3,7 +3,7 @@ interface ResolveAssetValueOptions {
 	previewBaseUrl?: string | null;
 }
 
-function isAbsoluteAssetUrl(value: string): boolean {
+export function isAbsoluteAssetUrl(value: string): boolean {
 	return /^(?:[a-z]+:)?\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:');
 }
 
@@ -13,6 +13,24 @@ function trimTrailingSlash(value: string): string {
 
 function trimLeadingSlash(value: string): string {
 	return value.replace(/^\/+/, '');
+}
+
+export function buildRepoAssetProxyUrl(
+	value: string,
+	options: {
+		assetsDir?: string;
+	} = {}
+): string {
+	const searchParams = new URLSearchParams({
+		value
+	});
+
+	const assetsDir = options.assetsDir?.trim();
+	if (assetsDir) {
+		searchParams.set('assetsDir', assetsDir);
+	}
+
+	return `/api/repo/asset?${searchParams.toString()}`;
 }
 
 export function getPublicPathFromAssetsDir(assetsDir?: string): string | null {

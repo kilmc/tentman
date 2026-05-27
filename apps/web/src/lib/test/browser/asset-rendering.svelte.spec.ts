@@ -136,6 +136,38 @@ describe('shared draft asset rendering surfaces', () => {
 		await expectElement(screen.getByText('This is')).toBeVisible();
 	});
 
+	it('routes saved GitHub-backed image blocks through the repo asset proxy', async () => {
+		const screen = await render(ContentValueDisplay, {
+			block: {
+				id: 'hero',
+				type: 'image',
+				label: 'Hero',
+				assetsDir: 'static/images/posts'
+			},
+			value: 'hero.jpg',
+			blockRegistry: new Map() as never
+		});
+
+		await expectElement(screen.getByRole('img', { name: 'Hero' }))
+			.toHaveAttribute('src', '/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts');
+	});
+
+	it('routes markdown image embeds through the repo asset proxy', async () => {
+		const screen = await render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body',
+				assetsDir: 'static/images/posts'
+			},
+			value: '![Hero](hero.jpg)',
+			blockRegistry: new Map() as never
+		});
+
+		await expectElement(screen.getByRole('img', { name: 'Hero' }))
+			.toHaveAttribute('src', '/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts');
+	});
+
 	it('renders discovered content component directives through preview.njk markup', async () => {
 		const buyButtonComponent = {
 			directory: 'src/lib/content-components/buy-button',
