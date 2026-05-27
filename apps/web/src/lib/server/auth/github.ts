@@ -1,5 +1,5 @@
 import { error as httpError, redirect, type Cookies } from '@sveltejs/kit';
-import { randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { Octokit } from 'octokit';
 import type { RootConfig } from '$lib/config/root-config';
@@ -22,7 +22,6 @@ export const GITHUB_OAUTH_STATE_COOKIE = 'github_oauth_state';
 export const GITHUB_OAUTH_REDIRECT_COOKIE = 'github_oauth_redirect';
 
 const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
-const GITHUB_SESSION_IDLE_TIMEOUT_MS = 1000 * 60 * 60 * 24 * 7;
 const GITHUB_SESSION_ABSOLUTE_TIMEOUT_MS = 1000 * 60 * 60 * 24 * 30;
 const MAX_RECENT_REPOS = 5;
 const LOGIN_COOLDOWN_MAX_AGE = 15;
@@ -45,11 +44,14 @@ interface CookieTarget {
 
 interface StoredGitHubSession extends GitHubSessionPayload {
 	createdAt: number;
-	lastActivityAt: number;
 }
 
-// Keep the live GitHub bearer token on the server only. Browsers get an opaque session id.
-const githubSessions = new Map<string, StoredGitHubSession>();
+interface EncodedGitHubSessionEnvelope {
+	v: 1;
+	iv: string;
+	tag: string;
+	payload: string;
+}
 
 function isGitHubRepositoryIdentity(value: unknown): value is GitHubRepositoryIdentity {
 	if (!value || typeof value !== 'object') {
@@ -147,38 +149,123 @@ function decodeRepoSessionSnapshot(value: string): GitHubRepoSessionSnapshot | n
 	}
 }
 
-function createGitHubSessionId(): string {
-	return randomBytes(32).toString('hex');
+function getGitHubSessionSecret(): string {
+	const configuredSecret = env.GITHUB_SESSION_SECRET?.trim();
+	if (configuredSecret) {
+		return configuredSecret;
+	}
+
+	const fallbackSecret = env.GITHUB_CLIENT_SECRET?.trim();
+	if (fallbackSecret) {
+		return fallbackSecret;
+	}
+
+	throw httpError(
+		503,
+		'GitHub session storage is not configured for this deployment. Set GITHUB_SESSION_SECRET or GITHUB_CLIENT_SECRET.'
+	);
+}
+
+function deriveGitHubSessionKey(): Buffer {
+	return createHash('sha256').update(getGitHubSessionSecret()).digest();
+}
+
+function encodeGitHubSessionEnvelope(envelope: EncodedGitHubSessionEnvelope): string {
+	return Buffer.from(JSON.stringify(envelope)).toString('base64url');
+}
+
+function decodeGitHubSessionEnvelope(value: string): EncodedGitHubSessionEnvelope | null {
+	try {
+		const parsed = JSON.parse(
+			Buffer.from(value, 'base64url').toString()
+		) as EncodedGitHubSessionEnvelope;
+		if (parsed?.v !== 1 || !parsed.iv || !parsed.tag || !parsed.payload) {
+			return null;
+		}
+
+		return parsed;
+	} catch {
+		return null;
+	}
+}
+
+function sealGitHubSession(session: StoredGitHubSession): string {
+	const iv = randomBytes(12);
+	const cipher = createCipheriv('aes-256-gcm', deriveGitHubSessionKey(), iv);
+	const ciphertext = Buffer.concat([
+		cipher.update(JSON.stringify(session), 'utf8'),
+		cipher.final()
+	]);
+	const tag = cipher.getAuthTag();
+
+	return encodeGitHubSessionEnvelope({
+		v: 1,
+		iv: iv.toString('base64url'),
+		tag: tag.toString('base64url'),
+		payload: ciphertext.toString('base64url')
+	});
+}
+
+function unsealGitHubSession(value: string | undefined): StoredGitHubSession | null {
+	if (!value) {
+		return null;
+	}
+
+	const envelope = decodeGitHubSessionEnvelope(value);
+	if (!envelope) {
+		return null;
+	}
+
+	try {
+		const decipher = createDecipheriv(
+			'aes-256-gcm',
+			deriveGitHubSessionKey(),
+			Buffer.from(envelope.iv, 'base64url')
+		);
+		decipher.setAuthTag(Buffer.from(envelope.tag, 'base64url'));
+		const plaintext = Buffer.concat([
+			decipher.update(Buffer.from(envelope.payload, 'base64url')),
+			decipher.final()
+		]);
+		const parsed = JSON.parse(plaintext.toString()) as StoredGitHubSession;
+
+		if (
+			!parsed ||
+			typeof parsed !== 'object' ||
+			typeof parsed.token !== 'string' ||
+			typeof parsed.createdAt !== 'number' ||
+			!parsed.user ||
+			typeof parsed.user !== 'object'
+		) {
+			return null;
+		}
+
+		return parsed;
+	} catch {
+		return null;
+	}
 }
 
 function readStoredGitHubSession(
-	sessionId: string | undefined
+	sessionValue: string | undefined
 ): { session: StoredGitHubSession | null; expired: boolean } {
-	if (!sessionId) {
+	if (!sessionValue) {
 		return { session: null, expired: false };
 	}
 
-	const session = githubSessions.get(sessionId);
-
+	const session = unsealGitHubSession(sessionValue);
 	if (!session) {
 		return { session: null, expired: false };
 	}
 
 	const now = Date.now();
-	const isIdleExpired = now - session.lastActivityAt >= GITHUB_SESSION_IDLE_TIMEOUT_MS;
 	const isAbsoluteExpired = now - session.createdAt >= GITHUB_SESSION_ABSOLUTE_TIMEOUT_MS;
 
-	if (isIdleExpired || isAbsoluteExpired) {
-		githubSessions.delete(sessionId);
+	if (isAbsoluteExpired) {
 		return { session: null, expired: true };
 	}
 
-	const refreshedSession: StoredGitHubSession = {
-		...session,
-		lastActivityAt: now
-	};
-	githubSessions.set(sessionId, refreshedSession);
-	return { session: refreshedSession, expired: false };
+	return { session, expired: false };
 }
 
 export function persistGitHubSession(
@@ -186,15 +273,12 @@ export function persistGitHubSession(
 	session: GitHubSessionPayload
 ): void {
 	const options = getGitHubCookieOptions();
-	const sessionId = createGitHubSessionId();
 	const now = Date.now();
-
-	githubSessions.set(sessionId, {
+	const sessionCookie = sealGitHubSession({
 		...session,
-		createdAt: now,
-		lastActivityAt: now
+		createdAt: now
 	});
-	cookies.set(GITHUB_SESSION_COOKIE, sessionId, options);
+	cookies.set(GITHUB_SESSION_COOKIE, sessionCookie, options);
 	cookies.delete(GITHUB_TOKEN_COOKIE, { path: '/' });
 }
 
@@ -290,12 +374,6 @@ export function readRecentGitHubRepositories(
 export function clearGitHubSession(
 	cookies: Pick<Cookies, 'delete'> & Partial<Pick<Cookies, 'get'>>
 ): void {
-	const sessionId = cookies.get?.(GITHUB_SESSION_COOKIE);
-
-	if (sessionId) {
-		githubSessions.delete(sessionId);
-	}
-
 	cookies.delete(GITHUB_TOKEN_COOKIE, { path: '/' });
 	cookies.delete(GITHUB_SESSION_COOKIE, { path: '/' });
 	cookies.delete(GITHUB_REPO_SESSION_COOKIE, { path: '/' });

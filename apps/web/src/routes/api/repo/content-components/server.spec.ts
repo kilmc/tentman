@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const pageContextMocks = vi.hoisted(() => ({
-	requireGitHubRepository: vi.fn(),
+	requireGitHubContentRepository: vi.fn(),
 	readRootConfig: vi.fn(),
 	fileExists: vi.fn(),
 	listDirectory: vi.fn(),
@@ -9,7 +9,7 @@ const pageContextMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$lib/server/page-context', () => ({
-	requireGitHubRepository: pageContextMocks.requireGitHubRepository
+	requireGitHubContentRepository: pageContextMocks.requireGitHubContentRepository
 }));
 
 import { GET } from './+server';
@@ -41,13 +41,14 @@ describe('GET /api/repo/content-components', () => {
 		pageContextMocks.fileExists.mockResolvedValue(true);
 		pageContextMocks.listDirectory.mockResolvedValue([]);
 		pageContextMocks.readTextFile.mockResolvedValue('{}');
-		pageContextMocks.requireGitHubRepository.mockReturnValue({
+		pageContextMocks.requireGitHubContentRepository.mockResolvedValue({
 			backend: {
 				readRootConfig: pageContextMocks.readRootConfig,
 				fileExists: pageContextMocks.fileExists,
 				listDirectory: pageContextMocks.listDirectory,
 				readTextFile: pageContextMocks.readTextFile
-			}
+			},
+			draftBranch: null
 		});
 	});
 
@@ -87,5 +88,24 @@ describe('GET /api/repo/content-components', () => {
 				message: 'Invalid content component path'
 			}
 		});
+	});
+
+	it('reads content components from the active draft branch when one exists', async () => {
+		pageContextMocks.requireGitHubContentRepository.mockResolvedValue({
+			backend: {
+				readRootConfig: pageContextMocks.readRootConfig,
+				fileExists: pageContextMocks.fileExists,
+				listDirectory: pageContextMocks.listDirectory,
+				readTextFile: pageContextMocks.readTextFile
+			},
+			draftBranch: 'tentman-preview'
+		});
+
+		await GET(createRequest('src/lib/content-components/project-gallery-embed/component.json', 'read') as never);
+
+		expect(pageContextMocks.requireGitHubContentRepository).toHaveBeenCalled();
+		expect(pageContextMocks.readTextFile).toHaveBeenCalledWith(
+			'src/lib/content-components/project-gallery-embed/component.json'
+		);
 	});
 });

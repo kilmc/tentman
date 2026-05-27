@@ -4,6 +4,7 @@ const { privateEnv } = vi.hoisted(() => ({
 	privateEnv: {
 		GITHUB_CLIENT_ID: '',
 		GITHUB_CLIENT_SECRET: '',
+		GITHUB_SESSION_SECRET: '',
 		NODE_ENV: 'test'
 	}
 }));
@@ -90,6 +91,7 @@ function createCookieStore(initial: Record<string, string> = {}) {
 function setPrivateEnv(values: Partial<typeof privateEnv>) {
 	privateEnv.GITHUB_CLIENT_ID = values.GITHUB_CLIENT_ID ?? '';
 	privateEnv.GITHUB_CLIENT_SECRET = values.GITHUB_CLIENT_SECRET ?? '';
+	privateEnv.GITHUB_SESSION_SECRET = values.GITHUB_SESSION_SECRET ?? '';
 	privateEnv.NODE_ENV = values.NODE_ENV ?? 'test';
 }
 
@@ -97,6 +99,12 @@ describe('server/auth/github', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-05-01T12:00:00.000Z'));
+		setPrivateEnv({
+			GITHUB_CLIENT_ID: '',
+			GITHUB_CLIENT_SECRET: '',
+			GITHUB_SESSION_SECRET: 'test-session-secret',
+			NODE_ENV: 'test'
+		});
 	});
 
 	afterEach(() => {
@@ -175,6 +183,9 @@ describe('server/auth/github', () => {
 
 	it('persists an opaque GitHub session cookie and keeps the token server-side', () => {
 		const cookies = createCookieStore();
+		setPrivateEnv({
+			GITHUB_SESSION_SECRET: 'test-session-secret'
+		});
 
 		persistGitHubSession(cookies, {
 			token: 'secret-token',
@@ -188,7 +199,7 @@ describe('server/auth/github', () => {
 
 		expect(cookies.set).toHaveBeenCalledTimes(1);
 		expect(cookies.values.get(GITHUB_TOKEN_COOKIE)).toBeUndefined();
-		expect(cookies.values.get(GITHUB_SESSION_COOKIE)).toMatch(/^[a-f0-9]{64}$/);
+		expect(cookies.values.get(GITHUB_SESSION_COOKIE)).toEqual(expect.any(String));
 		expect(cookies.values.get(GITHUB_SESSION_COOKIE)).not.toBe('secret-token');
 		expect(readGitHubSession(cookies)).toEqual({
 			token: 'secret-token',
@@ -202,6 +213,9 @@ describe('server/auth/github', () => {
 	});
 
 	it('treats an unknown session id as unauthenticated', () => {
+		setPrivateEnv({
+			GITHUB_SESSION_SECRET: 'test-session-secret'
+		});
 		const cookies = createCookieStore({
 			[GITHUB_SESSION_COOKIE]: 'missing-session'
 		});
@@ -238,6 +252,30 @@ describe('server/auth/github', () => {
 				openedAt: expect.any(String)
 			}
 		]);
+	});
+
+	it('falls back to the GitHub client secret for session encryption when no dedicated session secret is set', () => {
+		setPrivateEnv({
+			GITHUB_CLIENT_SECRET: 'github-client-secret'
+		});
+		const cookies = createCookieStore();
+
+		persistGitHubSession(cookies, {
+			token: 'secret-token',
+			user: {
+				login: 'kilmc',
+				name: 'Kilian',
+				avatar_url: 'https://avatars.example/kilmc',
+				email: 'kilian@example.com'
+			}
+		});
+
+		expect(readGitHubSession(cookies)).toMatchObject({
+			token: 'secret-token',
+			user: {
+				login: 'kilmc'
+			}
+		});
 	});
 
 	it('keeps recent repos ordered by last opened and deduplicated', () => {
@@ -289,7 +327,7 @@ describe('server/auth/github', () => {
 		]);
 	});
 
-	it('expires idle GitHub sessions server-side after 7 days and clears cookies', () => {
+	it('keeps cookie-backed GitHub sessions valid across shorter gaps between serverless invocations', () => {
 		const cookies = createCookieStore();
 
 		persistGitHubSession(cookies, {
@@ -304,8 +342,9 @@ describe('server/auth/github', () => {
 
 		vi.setSystemTime(new Date('2026-05-09T12:00:01.000Z'));
 
-		expect(readGitHubSession(cookies)).toEqual({});
-		expect(cookies.delete).toHaveBeenCalledWith(GITHUB_SESSION_COOKIE, { path: '/' });
+		expect(readGitHubSession(cookies)).toMatchObject({
+			token: 'secret-token'
+		});
 	});
 
 	it('expires active GitHub sessions server-side after 30 days absolute lifetime', () => {

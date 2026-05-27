@@ -2,7 +2,7 @@
 import { error, json, text } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
-import { requireGitHubRepository } from '$lib/server/page-context';
+import { requireGitHubContentRepository } from '$lib/server/page-context';
 
 const DEFAULT_COMPONENTS_DIR = 'src/lib/content-components';
 
@@ -33,7 +33,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const path = normalizeRequestedPath(rawPath);
 
 	try {
-		const { backend } = requireGitHubRepository({ locals, cookies });
+		const { backend } = await requireGitHubContentRepository({ locals, cookies });
 		const rootConfig = await backend.readRootConfig();
 		const componentsDir = resolveConfiguredComponentsDir(rootConfig?.componentsDir);
 
