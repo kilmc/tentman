@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$lib/server/page-context', () => ({
-	requireGitHubRepository: vi.fn()
+vi.mock('$lib/server/auth/github', () => ({
+	createGitHubServerClient: vi.fn(),
+	handleGitHubSessionError: vi.fn()
+}));
+
+vi.mock('$lib/repository/github', () => ({
+	createGitHubRepositoryBackend: vi.fn()
 }));
 
 vi.mock('$lib/features/draft-publishing/service', () => ({
@@ -10,7 +15,8 @@ vi.mock('$lib/features/draft-publishing/service', () => ({
 
 import { GET } from './+server';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
-import { requireGitHubRepository } from '$lib/server/page-context';
+import { createGitHubServerClient } from '$lib/server/auth/github';
+import { createGitHubRepositoryBackend } from '$lib/repository/github';
 
 const routeMocks = vi.hoisted(() => ({
 	readRootConfig: vi.fn(),
@@ -18,10 +24,25 @@ const routeMocks = vi.hoisted(() => ({
 	getBlob: vi.fn()
 }));
 
-function createRequest(search = '') {
+function createRequest(
+	search = '',
+	options: {
+		locals?: Record<string, unknown>;
+	} = {}
+) {
 	return {
 		url: new URL(`http://localhost/api/repo/asset${search}`),
-		locals: {},
+		locals: {
+			isAuthenticated: true,
+			githubToken: 'github-token',
+			selectedRepo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			...options.locals
+		},
 		cookies: {
 			delete: vi.fn()
 		}
@@ -48,23 +69,19 @@ describe('GET /api/repo/asset', () => {
 				encoding: 'base64'
 			}
 		});
-		vi.mocked(requireGitHubRepository).mockReturnValue({
-			octokit: {
-				rest: {
-					repos: {
-						getContent: routeMocks.getContent
-					},
-					git: {
-						getBlob: routeMocks.getBlob
-					}
+		const octokit = {
+			rest: {
+				repos: {
+					getContent: routeMocks.getContent
+				},
+				git: {
+					getBlob: routeMocks.getBlob
 				}
-			},
-			owner: 'acme',
-			name: 'docs',
-			defaultBranch: 'main',
-			backend: {
-				readRootConfig: routeMocks.readRootConfig
 			}
+		};
+		vi.mocked(createGitHubServerClient).mockReturnValue(octokit as never);
+		vi.mocked(createGitHubRepositoryBackend).mockReturnValue({
+			readRootConfig: routeMocks.readRootConfig
 		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue(undefined);
 	});
@@ -88,16 +105,16 @@ describe('GET /api/repo/asset', () => {
 
 	it('falls back to the default branch when the asset is missing on the draft branch', async () => {
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
-		routeMocks.getContent
-			.mockRejectedValueOnce({ status: 404 })
-			.mockResolvedValueOnce({
-				data: {
-					type: 'file',
-					content: Buffer.from('default-bytes').toString('base64')
-				}
-			});
+		routeMocks.getContent.mockRejectedValueOnce({ status: 404 }).mockResolvedValueOnce({
+			data: {
+				type: 'file',
+				content: Buffer.from('default-bytes').toString('base64')
+			}
+		});
 
-		const response = await GET(createRequest('?value=hero.jpg&assetsDir=static/images/posts') as never);
+		const response = await GET(
+			createRequest('?value=hero.jpg&assetsDir=static/images/posts') as never
+		);
 
 		expect(routeMocks.getContent).toHaveBeenNthCalledWith(1, {
 			owner: 'acme',
@@ -115,7 +132,9 @@ describe('GET /api/repo/asset', () => {
 	});
 
 	it('maps public asset paths back into the repo asset directory', async () => {
-		await GET(createRequest('?value=%2Fimages%2Fposts%2Fhero.jpg&assetsDir=static/images/posts') as never);
+		await GET(
+			createRequest('?value=%2Fimages%2Fposts%2Fhero.jpg&assetsDir=static/images/posts') as never
+		);
 
 		expect(routeMocks.getContent).toHaveBeenCalledWith({
 			owner: 'acme',
@@ -140,6 +159,56 @@ describe('GET /api/repo/asset', () => {
 		});
 	});
 
+	it('serves assets from explicit repository context instead of the selected repository', async () => {
+		await GET(
+			createRequest(
+				'?owner=other&repo=site&branch=trunk&value=hero.jpg&assetsDir=static/images'
+			) as never
+		);
+
+		expect(routeMocks.getContent).toHaveBeenCalledWith({
+			owner: 'other',
+			repo: 'site',
+			path: 'static/images/hero.jpg',
+			ref: 'trunk'
+		});
+		expect(getTentmanDraftBranchName).toHaveBeenCalledWith(expect.anything(), 'other', 'site');
+	});
+
+	it('returns an API error instead of redirecting when there is no GitHub session', async () => {
+		await expect(
+			GET(
+				createRequest(
+					'?owner=other&repo=site&branch=trunk&value=hero.jpg&assetsDir=static/images',
+					{
+						locals: {
+							isAuthenticated: false,
+							githubToken: undefined,
+							selectedRepo: undefined
+						}
+					}
+				) as never
+			)
+		).rejects.toMatchObject({
+			status: 401,
+			body: {
+				message: 'GitHub session required'
+			}
+		});
+		expect(createGitHubServerClient).not.toHaveBeenCalled();
+	});
+
+	it('rejects explicit repository context without a branch when it cannot use the selected repo branch', async () => {
+		await expect(
+			GET(createRequest('?owner=other&repo=site&value=hero.jpg&assetsDir=static/images') as never)
+		).rejects.toMatchObject({
+			status: 400,
+			body: {
+				message: 'Missing repository branch'
+			}
+		});
+	});
+
 	it('reads large asset bytes through the Git blob API when the contents API omits inline content', async () => {
 		routeMocks.getContent.mockResolvedValueOnce({
 			data: {
@@ -156,7 +225,9 @@ describe('GET /api/repo/asset', () => {
 			}
 		});
 
-		const response = await GET(createRequest('?value=large-map.png&assetsDir=static/images') as never);
+		const response = await GET(
+			createRequest('?value=large-map.png&assetsDir=static/images') as never
+		);
 
 		expect(routeMocks.getBlob).toHaveBeenCalledWith({
 			owner: 'acme',
@@ -179,7 +250,9 @@ describe('GET /api/repo/asset', () => {
 	});
 
 	it('rejects absolute external URLs and draft asset refs', async () => {
-		await expect(GET(createRequest('?value=https%3A%2F%2Fexample.com%2Fhero.jpg') as never)).rejects.toMatchObject({
+		await expect(
+			GET(createRequest('?value=https%3A%2F%2Fexample.com%2Fhero.jpg') as never)
+		).rejects.toMatchObject({
 			status: 400
 		});
 		await expect(GET(createRequest('?value=draft-asset%3Ahero') as never)).rejects.toMatchObject({

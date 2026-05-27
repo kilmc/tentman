@@ -43,13 +43,15 @@ vi.mock('$app/state', () => ({
 				repo: {
 					owner: 'acme',
 					name: 'docs',
-					full_name: 'acme/docs'
+					full_name: 'acme/docs',
+					default_branch: 'main'
 				}
 			},
 			selectedRepo: {
 				owner: 'acme',
 				name: 'docs',
-				full_name: 'acme/docs'
+				full_name: 'acme/docs',
+				default_branch: 'main'
 			},
 			rootConfig: null
 		}
@@ -148,8 +150,10 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByRole('img', { name: 'Hero' }))
-			.toHaveAttribute('src', '/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts');
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main'
+		);
 	});
 
 	it('routes markdown image embeds through the repo asset proxy', async () => {
@@ -164,8 +168,10 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByRole('img', { name: 'Hero' }))
-			.toHaveAttribute('src', '/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts');
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main'
+		);
 	});
 
 	it('renders discovered content component directives through preview.njk markup', async () => {
@@ -380,8 +386,9 @@ describe('shared draft asset rendering surfaces', () => {
 		});
 
 		await expectElement(screen.getByText(':buy-button[Buy tickets]')).toBeVisible();
-		await expectElement(screen.getByText(/Markdown preview failed for content component "buy-button"/))
-			.toBeVisible();
+		await expectElement(
+			screen.getByText(/Markdown preview failed for content component "buy-button"/)
+		).toBeVisible();
 	});
 
 	it('surfaces missing markdown content component errors without hiding the markdown', async () => {
@@ -397,8 +404,9 @@ describe('shared draft asset rendering surfaces', () => {
 		});
 
 		await expectElement(screen.getByText('Buy online')).toBeVisible();
-		await expectElement(screen.getByText('Markdown preview enables unknown content component "buy-button"'))
-			.toBeVisible();
+		await expectElement(
+			screen.getByText('Markdown preview enables unknown content component "buy-button"')
+		).toBeVisible();
 	});
 
 	it('renders staged draft refs in item cards', async () => {

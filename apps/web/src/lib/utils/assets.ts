@@ -19,6 +19,11 @@ export function buildRepoAssetProxyUrl(
 	value: string,
 	options: {
 		assetsDir?: string;
+		repository?: {
+			owner: string;
+			name: string;
+			defaultBranch: string;
+		} | null;
 	} = {}
 ): string {
 	const searchParams = new URLSearchParams({
@@ -28,6 +33,12 @@ export function buildRepoAssetProxyUrl(
 	const assetsDir = options.assetsDir?.trim();
 	if (assetsDir) {
 		searchParams.set('assetsDir', assetsDir);
+	}
+
+	if (options.repository) {
+		searchParams.set('owner', options.repository.owner);
+		searchParams.set('repo', options.repository.name);
+		searchParams.set('branch', options.repository.defaultBranch);
 	}
 
 	return `/api/repo/asset?${searchParams.toString()}`;

@@ -26,7 +26,14 @@ export async function resolveClientAssetUrl(
 
 	if (page.data.selectedBackend?.kind === 'github' && !isAbsoluteAssetUrl(value)) {
 		return buildRepoAssetProxyUrl(value, {
-			assetsDir: options.assetsDir
+			assetsDir: options.assetsDir,
+			repository: page.data.selectedRepo
+				? {
+						owner: page.data.selectedRepo.owner,
+						name: page.data.selectedRepo.name,
+						defaultBranch: page.data.selectedRepo.default_branch
+					}
+				: null
 		});
 	}
 
@@ -76,9 +83,7 @@ export async function resolveMarkdownAssetUrls(
 		HTML_IMAGE_PATTERN,
 		(match, beforeSrc, quote, assetValue, afterSrc) => {
 			const replacement = replacements.get(assetValue);
-			return replacement
-				? `<img${beforeSrc}src=${quote}${replacement}${quote}${afterSrc}>`
-				: match;
+			return replacement ? `<img${beforeSrc}src=${quote}${replacement}${quote}${afterSrc}>` : match;
 		}
 	);
 

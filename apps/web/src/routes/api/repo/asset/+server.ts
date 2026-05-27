@@ -3,13 +3,20 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { isDraftAssetRef } from '$lib/features/draft-assets/shared';
-import { handleGitHubSessionError } from '$lib/server/auth/github';
+import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { getAssetContentType, resolveGitHubAssetPath } from '$lib/server/repo-asset-proxy';
-import { requireGitHubRepository } from '$lib/server/page-context';
+import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { isAbsoluteAssetUrl } from '$lib/utils/assets';
 
+type AssetRepositoryContext = {
+	owner: string;
+	name: string;
+	fullName: string;
+	defaultBranch: string;
+};
+
 async function readGitHubAssetFile(input: {
-	octokit: ReturnType<typeof requireGitHubRepository>['octokit'];
+	octokit: ReturnType<typeof createGitHubServerClient>;
 	owner: string;
 	repo: string;
 	path: string;
@@ -39,6 +46,42 @@ async function readGitHubAssetFile(input: {
 	return Buffer.from(blob.content, blob.encoding === 'base64' ? 'base64' : 'utf-8');
 }
 
+function getAssetRepositoryContext(
+	url: URL,
+	selectedRepo: App.Locals['selectedRepo']
+): AssetRepositoryContext | null {
+	const owner = url.searchParams.get('owner')?.trim();
+	const name = url.searchParams.get('repo')?.trim();
+	const branch = url.searchParams.get('branch')?.trim();
+
+	if (owner && name) {
+		const selectedRepoMatches = selectedRepo?.owner === owner && selectedRepo.name === name;
+		const defaultBranch = branch || (selectedRepoMatches ? selectedRepo.default_branch : null);
+
+		if (!defaultBranch) {
+			throw error(400, 'Missing repository branch');
+		}
+
+		return {
+			owner,
+			name,
+			fullName: `${owner}/${name}`,
+			defaultBranch
+		};
+	}
+
+	if (!owner && !name && selectedRepo) {
+		return {
+			owner: selectedRepo.owner,
+			name: selectedRepo.name,
+			fullName: selectedRepo.full_name,
+			defaultBranch: selectedRepo.default_branch
+		};
+	}
+
+	return null;
+}
+
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const value = url.searchParams.get('value');
 	if (!value) {
@@ -49,12 +92,27 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		throw error(400, 'Unsupported asset value');
 	}
 
-	const requestContext = { locals, cookies };
+	if (!locals.isAuthenticated || !locals.githubToken) {
+		throw error(401, 'GitHub session required');
+	}
+
+	const repository = getAssetRepositoryContext(url, locals.selectedRepo);
+	if (!repository) {
+		throw error(400, 'Missing repository context');
+	}
+
+	const octokit = createGitHubServerClient(locals.githubToken, cookies);
 
 	try {
-		const repository = requireGitHubRepository(requestContext, url.pathname);
-		const rootConfig = await repository.backend.readRootConfig();
 		const assetsDir = url.searchParams.get('assetsDir');
+		const rootConfig = assetsDir
+			? null
+			: await createGitHubRepositoryBackend(octokit, {
+					owner: repository.owner,
+					name: repository.name,
+					full_name: repository.fullName,
+					default_branch: repository.defaultBranch
+				}).readRootConfig();
 		const allowedAssetDirs = [
 			...(assetsDir ? [assetsDir] : []),
 			...(rootConfig?.assetsDir ? [rootConfig.assetsDir] : [])
@@ -69,17 +127,13 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		}
 
 		const draftBranch =
-			(await getTentmanDraftBranchName(
-				repository.octokit,
-				repository.owner,
-				repository.name
-			)) ?? null;
+			(await getTentmanDraftBranchName(octokit, repository.owner, repository.name)) ?? null;
 		let bytes: Uint8Array | null = null;
 
 		if (draftBranch) {
 			try {
 				bytes = await readGitHubAssetFile({
-					octokit: repository.octokit,
+					octokit,
 					owner: repository.owner,
 					repo: repository.name,
 					path: assetPath,
@@ -94,7 +148,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 		if (!bytes) {
 			bytes = await readGitHubAssetFile({
-				octokit: repository.octokit,
+				octokit,
 				owner: repository.owner,
 				repo: repository.name,
 				path: assetPath,

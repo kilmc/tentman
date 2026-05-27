@@ -13,7 +13,8 @@ vi.mock('$app/state', () => ({
 			selectedRepo: {
 				owner: 'acme',
 				name: 'docs',
-				full_name: 'acme/docs'
+				full_name: 'acme/docs',
+				default_branch: 'main'
 			}
 		}
 	}
@@ -44,7 +45,9 @@ describe('draft-assets/image-resolver', () => {
 			resolveClientAssetUrl('hero.png', {
 				assetsDir: './static/images'
 			})
-		).resolves.toBe('/api/repo/asset?value=hero.png&assetsDir=.%2Fstatic%2Fimages');
+		).resolves.toBe(
+			'/api/repo/asset?value=hero.png&assetsDir=.%2Fstatic%2Fimages&owner=acme&repo=docs&branch=main'
+		);
 		expect(resolveUrl).not.toHaveBeenCalled();
 	});
 
@@ -53,7 +56,9 @@ describe('draft-assets/image-resolver', () => {
 			resolveClientAssetUrl('/images/projects/hero.jpg', {
 				previewBaseUrl: 'http://localhost:4173/'
 			})
-		).resolves.toBe('/api/repo/asset?value=%2Fimages%2Fprojects%2Fhero.jpg');
+		).resolves.toBe(
+			'/api/repo/asset?value=%2Fimages%2Fprojects%2Fhero.jpg&owner=acme&repo=docs&branch=main'
+		);
 		expect(resolveUrl).not.toHaveBeenCalled();
 	});
 
@@ -65,7 +70,7 @@ describe('draft-assets/image-resolver', () => {
 				assetsDir: 'static/images/posts'
 			})
 		).resolves.toBe(
-			'![Hero](/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts)\n\n<img src="blob:draft-hero" alt="Hero">'
+			'![Hero](/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)\n\n<img src="blob:draft-hero" alt="Hero">'
 		);
 		expect(resolveUrl).toHaveBeenCalledWith('draft-asset:hero');
 	});
