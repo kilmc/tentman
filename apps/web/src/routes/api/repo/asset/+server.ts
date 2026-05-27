@@ -26,7 +26,17 @@ async function readGitHubAssetFile(input: {
 		throw error(404, 'Asset not found');
 	}
 
-	return Buffer.from(data.content, 'base64');
+	if (data.content && (!data.encoding || data.encoding === 'base64')) {
+		return Buffer.from(data.content, 'base64');
+	}
+
+	const { data: blob } = await input.octokit.rest.git.getBlob({
+		owner: input.owner,
+		repo: input.repo,
+		file_sha: data.sha
+	});
+
+	return Buffer.from(blob.content, blob.encoding === 'base64' ? 'base64' : 'utf-8');
 }
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {

@@ -14,7 +14,8 @@ import { requireGitHubRepository } from '$lib/server/page-context';
 
 const routeMocks = vi.hoisted(() => ({
 	readRootConfig: vi.fn(),
-	getContent: vi.fn()
+	getContent: vi.fn(),
+	getBlob: vi.fn()
 }));
 
 function createRequest(search = '') {
@@ -36,7 +37,15 @@ describe('GET /api/repo/asset', () => {
 		routeMocks.getContent.mockResolvedValue({
 			data: {
 				type: 'file',
-				content: Buffer.from('asset-bytes').toString('base64')
+				content: Buffer.from('asset-bytes').toString('base64'),
+				encoding: 'base64',
+				sha: 'asset-sha'
+			}
+		});
+		routeMocks.getBlob.mockResolvedValue({
+			data: {
+				content: Buffer.from('blob-bytes').toString('base64'),
+				encoding: 'base64'
 			}
 		});
 		vi.mocked(requireGitHubRepository).mockReturnValue({
@@ -44,6 +53,9 @@ describe('GET /api/repo/asset', () => {
 				rest: {
 					repos: {
 						getContent: routeMocks.getContent
+					},
+					git: {
+						getBlob: routeMocks.getBlob
 					}
 				}
 			},
@@ -111,6 +123,48 @@ describe('GET /api/repo/asset', () => {
 			path: 'static/images/posts/hero.jpg',
 			ref: 'main'
 		});
+	});
+
+	it('maps public asset paths with trailing asset directories back into the repo asset directory', async () => {
+		await GET(
+			createRequest(
+				'?value=%2Fimages%2Fberlin-illustrated-map-theresa-grieben-a7340abb.png&assetsDir=static%2Fimages%2F'
+			) as never
+		);
+
+		expect(routeMocks.getContent).toHaveBeenCalledWith({
+			owner: 'acme',
+			repo: 'docs',
+			path: 'static/images/berlin-illustrated-map-theresa-grieben-a7340abb.png',
+			ref: 'main'
+		});
+	});
+
+	it('reads large asset bytes through the Git blob API when the contents API omits inline content', async () => {
+		routeMocks.getContent.mockResolvedValueOnce({
+			data: {
+				type: 'file',
+				content: '',
+				encoding: 'none',
+				sha: 'large-asset-sha'
+			}
+		});
+		routeMocks.getBlob.mockResolvedValueOnce({
+			data: {
+				content: Buffer.from('large-asset-bytes').toString('base64'),
+				encoding: 'base64'
+			}
+		});
+
+		const response = await GET(createRequest('?value=large-map.png&assetsDir=static/images') as never);
+
+		expect(routeMocks.getBlob).toHaveBeenCalledWith({
+			owner: 'acme',
+			repo: 'docs',
+			file_sha: 'large-asset-sha'
+		});
+		expect(response.headers.get('content-type')).toBe('image/png');
+		expect(await response.text()).toBe('large-asset-bytes');
 	});
 
 	it('rejects asset traversal outside configured public asset roots', async () => {
