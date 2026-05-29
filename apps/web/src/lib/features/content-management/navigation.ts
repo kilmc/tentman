@@ -68,6 +68,13 @@ export function getConfigItemLabel(config: ParsedContentConfig): string {
 }
 
 export function getContentItemTitle(config: ParsedContentConfig, item: ContentRecord): string {
+	return resolveContentItemTitle(config, item).title;
+}
+
+export function resolveContentItemTitle(
+	config: ParsedContentConfig,
+	item: ContentRecord
+): { title: string; usedFallback: boolean } {
 	const cardFields = getCardFields(config);
 	const seenFieldIds = new Set<string>();
 
@@ -88,10 +95,24 @@ export function getContentItemTitle(config: ParsedContentConfig, item: ContentRe
 			continue;
 		}
 
-		return formattedValue;
+		return {
+			title: formattedValue,
+			usedFallback: isIdentityTitleField(config, block.id)
+		};
 	}
 
-	return getItemRoute(config, item) ?? getItemId(item) ?? getConfigItemLabel(config);
+	return {
+		title: getItemRoute(config, item) ?? getItemId(item) ?? getConfigItemLabel(config),
+		usedFallback: true
+	};
+}
+
+function isIdentityTitleField(config: ParsedContentConfig, blockId: string): boolean {
+	if (config.idField === blockId) {
+		return true;
+	}
+
+	return ['slug', 'route', 'path', 'filename', '_filename'].includes(blockId);
 }
 
 export function getCollectionNavigationItems(

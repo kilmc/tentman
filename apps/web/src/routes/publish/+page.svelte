@@ -2,6 +2,7 @@
 	import type { PageData } from './$types';
 	import { enhance } from '$app/forms';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
+	import { formatAppTitle } from '$lib/utils/page-title';
 	import { createDiscardEnhanceHandler, createPublishEnhanceHandler } from './form-behavior';
 
 	let { data }: { data: PageData } = $props();
@@ -10,7 +11,13 @@
 
 	const confirmDiscard = () =>
 		confirm('Are you sure you want to discard all draft changes? This cannot be undone.');
+
+	const siteName = $derived(data.rootConfig?.siteName ?? data.selectedRepo?.name ?? null);
 </script>
+
+<svelte:head>
+	<title>{formatAppTitle('Review Draft', siteName)}</title>
+</svelte:head>
 
 <div class="mx-auto max-w-5xl">
 	<h1 class="mb-2 text-3xl font-bold tracking-[-0.03em] text-stone-950">Review Draft</h1>

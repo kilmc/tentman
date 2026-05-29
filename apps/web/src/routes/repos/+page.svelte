@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
 	import RepositoryPickerCard from '$lib/components/RepositoryPickerCard.svelte';
+	import { formatAppTitle } from '$lib/utils/page-title';
 	import { readLastRoutingFailure } from '$lib/utils/dev-routing-browser';
 	import { buildPathWithQuery, sanitizeAuthRedirectTarget } from '$lib/utils/routing';
 	import { logDevRouting } from '$lib/utils/dev-routing-log';
@@ -85,6 +86,10 @@
 		logDevRouting('repos-page:state', devDiagnostics);
 	});
 </script>
+
+<svelte:head>
+	<title>{formatAppTitle('Open a site repo')}</title>
+</svelte:head>
 
 <div class="mx-auto max-w-5xl">
 	<div class="border border-stone-200 bg-white p-6 sm:p-8">

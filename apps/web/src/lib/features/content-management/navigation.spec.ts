@@ -4,7 +4,8 @@ import {
 	getConfigItemLabel,
 	getContentItemTitle,
 	getOrderedCollectionNavigation,
-	orderDiscoveredConfigs
+	orderDiscoveredConfigs,
+	resolveContentItemTitle
 } from '$lib/features/content-management/navigation';
 import type { ParsedContentConfig } from '$lib/config/parse';
 
@@ -60,6 +61,18 @@ describe('content navigation helpers', () => {
 				slug: 'hello-world'
 			})
 		).toBe('Hello World');
+	});
+
+	it('reports when an item title came from fallback data', () => {
+		expect(
+			resolveContentItemTitle(collectionConfig, {
+				_tentmanId: 'post-1',
+				slug: 'hello-world'
+			})
+		).toEqual({
+			title: 'hello-world',
+			usedFallback: true
+		});
 	});
 
 	it('falls back to the item route when a visible title is missing', () => {

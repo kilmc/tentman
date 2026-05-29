@@ -58,6 +58,7 @@
 		addCollectionGroupToConfigSource,
 		addNavigationGroupToManifest
 	} from '$lib/features/content-management/navigation-group-options';
+	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -152,6 +153,25 @@
 			config,
 			item as ContentRecord,
 			isLocalMode ? $localContent.rootConfig : (data.rootConfig ?? null)
+		);
+	});
+	const siteName = $derived.by(() =>
+		isLocalMode
+			? ($localContent.rootConfig?.siteName ?? data.selectedBackend?.repo.name ?? 'Tentman')
+			: (data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman')
+	);
+	const documentTitle = $derived.by(() => {
+		if (!config) {
+			return formatAppTitle(`Edit ${data.itemId}`, siteName);
+		}
+
+		return formatAppTitle(
+			buildContentTitleContext({
+				kind: 'edit-item',
+				config,
+				item: (item as ContentRecord | null) ?? null
+			}),
+			siteName
 		);
 	});
 
@@ -563,6 +583,10 @@
 		return data.itemId;
 	}
 </script>
+
+<svelte:head>
+	<title>{documentTitle}</title>
+</svelte:head>
 
 <div class="min-w-0">
 	<div class="mb-5">

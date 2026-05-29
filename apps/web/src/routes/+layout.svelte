@@ -12,6 +12,7 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { formatAppTitle } from '$lib/utils/page-title';
 	import { traceRouting } from '$lib/utils/routing-trace';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
@@ -91,6 +92,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
+	<title>{formatAppTitle()}</title>
 </svelte:head>
 
 {#if isPagesWorkspace}

@@ -10,6 +10,7 @@
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { TENTMAN_DRAFT_BRANCH } from '$lib/features/draft-publishing/service';
 	import { draftBranch } from '$lib/stores/draft-branch';
+	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -20,6 +21,16 @@
 	const contentDataString = $derived(JSON.stringify(data.contentData));
 	const displayedChangesSummary = $derived(
 		mergeChangesSummaryWithDraftAssets(data.changesSummary, draftAssetChanges)
+	);
+	const siteName = $derived(data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman');
+	const documentTitle = $derived(
+		formatAppTitle(
+			buildContentTitleContext({
+				kind: 'preview-page',
+				config: data.discoveredConfig.config
+			}),
+			siteName
+		)
 	);
 
 	$effect(() => {
@@ -53,6 +64,10 @@
 		await Promise.all(refs.map((ref) => draftAssetStore.delete(ref)));
 	}
 </script>
+
+<svelte:head>
+	<title>{documentTitle}</title>
+</svelte:head>
 
 <div class="mx-auto max-w-4xl">
 	<div class="mb-6">

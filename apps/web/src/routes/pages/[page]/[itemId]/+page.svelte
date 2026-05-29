@@ -19,6 +19,7 @@
 	import { toasts } from '$lib/stores/toasts';
 	import { fetchContentDocument } from '$lib/content/service';
 	import { findContentItemByRoute } from '$lib/features/content-management/item';
+	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 
 	let { data }: { data: PageData } = $props();
 
@@ -70,6 +71,25 @@
 	const itemTitle = $derived(
 		config && item ? getContentItemTitle(config, item as ContentRecord) : data.itemId
 	);
+	const siteName = $derived.by(() =>
+		isLocalMode
+			? ($localContent.rootConfig?.siteName ?? data.selectedBackend?.repo.name ?? 'Tentman')
+			: (data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman')
+	);
+	const documentTitle = $derived.by(() => {
+		if (!config) {
+			return formatAppTitle(data.itemId, siteName);
+		}
+
+		return formatAppTitle(
+			buildContentTitleContext({
+				kind: 'view-item',
+				config,
+				item: (item as ContentRecord | null) ?? null
+			}),
+			siteName
+		);
+	});
 	const resolvedItemState = $derived.by(() => {
 		if (!config || !item) {
 			return null;
@@ -215,6 +235,10 @@
 		handleUrlMessages();
 	});
 </script>
+
+<svelte:head>
+	<title>{documentTitle}</title>
+</svelte:head>
 
 <div class="max-w-4xl">
 	{#if isDraftView}

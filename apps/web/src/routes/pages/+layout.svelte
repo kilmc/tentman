@@ -50,6 +50,7 @@
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
+	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { traceRouting } from '$lib/utils/routing-trace';
 	import { toasts } from '$lib/stores/toasts';
 	import { buildReposRedirect } from '$lib/utils/routing';
@@ -207,6 +208,93 @@
 		}
 
 		return currentConfig?.config.label ?? siteName;
+	});
+	const documentTitle = $derived.by(() => {
+		const path = page.url.pathname;
+
+		if (path === '/pages' || path === '/pages/') {
+			return formatAppTitle('Overview', siteName);
+		}
+
+		if (path === '/pages/new' || path === '/pages/instructions') {
+			return formatAppTitle('Add Page', siteName);
+		}
+
+		if (path.endsWith('/settings')) {
+			return formatAppTitle('Settings', siteName);
+		}
+
+		if (!currentConfig) {
+			return formatAppTitle(workspaceTitle, siteName);
+		}
+
+		if (currentItemId) {
+			if (path.endsWith('/preview-changes')) {
+				return formatAppTitle(
+					buildContentTitleContext({
+						kind: 'preview-item',
+						config: currentConfig.config
+					}),
+					siteName
+				);
+			}
+
+			if (path.endsWith('/edit')) {
+				return formatAppTitle(
+					buildContentTitleContext({
+						kind: 'edit-item',
+						config: currentConfig.config
+					}),
+					siteName
+				);
+			}
+
+			return formatAppTitle(
+				buildContentTitleContext({
+					kind: 'view-item',
+					config: currentConfig.config
+				}),
+				siteName
+			);
+		}
+
+		if (path.endsWith('/preview-changes')) {
+			return formatAppTitle(
+				buildContentTitleContext({
+					kind: 'preview-page',
+					config: currentConfig.config
+				}),
+				siteName
+			);
+		}
+
+		if (path.endsWith('/edit')) {
+			return formatAppTitle(
+				buildContentTitleContext({
+					kind: 'edit-page',
+					config: currentConfig.config
+				}),
+				siteName
+			);
+		}
+
+		if (path.endsWith('/new')) {
+			return formatAppTitle(
+				buildContentTitleContext({
+					kind: 'new-item',
+					config: currentConfig.config
+				}),
+				siteName
+			);
+		}
+
+		return formatAppTitle(
+			buildContentTitleContext({
+				kind: 'view-page',
+				config: currentConfig.config
+			}),
+			siteName
+		);
 	});
 	const localWorkspaceSurfaceKey = $derived(
 		isLocalMode ? `local-rescan:${localRescanVersion}` : 'shared-workspace'
@@ -803,6 +891,10 @@
 		isMobileCollectionOpen = false;
 	});
 </script>
+
+<svelte:head>
+	<title>{documentTitle}</title>
+</svelte:head>
 
 <div
 	class="grid h-dvh overflow-hidden bg-white text-stone-950 lg:grid-cols-[15.5rem_minmax(0,1fr)]"

@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
+	import { formatAppTitle } from '$lib/utils/page-title';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -13,6 +14,10 @@
 		page.url.searchParams.get('github_oauth') === 'retry_later'
 	);
 </script>
+
+<svelte:head>
+	<title>{formatAppTitle()}</title>
+</svelte:head>
 
 <section class="flex min-h-screen items-center px-6 py-16 sm:px-10">
 	<div class="mx-auto w-full max-w-4xl border border-stone-200 bg-white p-8 sm:p-12 lg:p-16">
