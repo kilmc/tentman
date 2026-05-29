@@ -4,7 +4,9 @@ import { loadContentComponentRegistryFromRepository } from './registry';
 function createRepository(files: Record<string, string>) {
 	return {
 		async fileExists(path: string) {
-			return Object.keys(files).some((filePath) => filePath === path || filePath.startsWith(`${path}/`));
+			return Object.keys(files).some(
+				(filePath) => filePath === path || filePath.startsWith(`${path}/`)
+			);
 		},
 		async listDirectory(path: string) {
 			const childDirectories = new Set<string>();
@@ -22,11 +24,13 @@ function createRepository(files: Record<string, string>) {
 				}
 			}
 
-			return Array.from(childDirectories).sort().map((directory) => ({
-				name: directory,
-				path: `${path}/${directory}`,
-				kind: 'directory' as const
-			}));
+			return Array.from(childDirectories)
+				.sort()
+				.map((directory) => ({
+					name: directory,
+					path: `${path}/${directory}`,
+					kind: 'directory' as const
+				}));
 		},
 		async readTextFile(path: string) {
 			const file = files[path];
@@ -54,8 +58,7 @@ describe('loadContentComponentRegistryFromRepository', () => {
 					}
 				}),
 				'src/lib/content-components/buy-button/render.njk': '<a>{{ label }}</a>',
-				'src/lib/content-components/buy-button/preview.njk':
-					'<span>Buy button: {{ label }}</span>'
+				'src/lib/content-components/buy-button/preview.njk': '<span>Buy button: {{ label }}</span>'
 			})
 		);
 
@@ -66,7 +69,7 @@ describe('loadContentComponentRegistryFromRepository', () => {
 		expect(registry.errors).toEqual([]);
 	});
 
-	it('loads optional preview.css alongside preview.njk', async () => {
+	it('ignores preview.css alongside preview.njk', async () => {
 		const registry = await loadContentComponentRegistryFromRepository(
 			createRepository({
 				'src/lib/content-components/buy-button/component.json': JSON.stringify({
@@ -79,18 +82,13 @@ describe('loadContentComponentRegistryFromRepository', () => {
 					}
 				}),
 				'src/lib/content-components/buy-button/render.njk': '<a>{{ label }}</a>',
-				'src/lib/content-components/buy-button/preview.njk':
-					'<span>Buy button: {{ label }}</span>',
+				'src/lib/content-components/buy-button/preview.njk': '<span>Buy button: {{ label }}</span>',
 				'src/lib/content-components/buy-button/preview.css': '.tm-component-preview { color: red; }'
 			})
 		);
 
-		expect(registry.getByName('buy-button')?.previewCssPath).toBe(
-			'src/lib/content-components/buy-button/preview.css'
-		);
-		expect(registry.getByName('buy-button')?.previewCssSource).toBe(
-			'.tm-component-preview { color: red; }'
-		);
+		expect(registry.getByName('buy-button')?.previewCssPath).toBeNull();
+		expect(registry.getByName('buy-button')?.previewCssSource).toBeNull();
 	});
 
 	it('returns empty registry when the components directory is missing', async () => {

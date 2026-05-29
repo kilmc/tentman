@@ -5,7 +5,6 @@ import {
 } from '@tentman/core/content-components';
 import {
 	createSafePreviewHostMarkup,
-	sanitizeRenderedPreviewCss,
 	sanitizeRenderedPreviewHtml
 } from '$lib/content-components/safe-preview';
 import { parseContentDirectiveMatchesSafe } from './directives';
@@ -93,12 +92,8 @@ function applyDirectiveMatches(
 				referenceIndex: options.referenceIndex
 			}).trim();
 			const sanitizedPreview = sanitizeRenderedPreviewHtml(previewHtml);
-			const sanitizedPreviewCss = component.previewCssSource
-				? sanitizeRenderedPreviewCss(component.previewCssSource)
-				: null;
 			transformed += createSafePreviewHostMarkup({
 				html: sanitizedPreview.html,
-				css: sanitizedPreviewCss?.css,
 				kind: component.definition.kind
 			});
 		} catch (error) {

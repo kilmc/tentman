@@ -72,31 +72,27 @@ function isDirectory(entry: RepoEntry): boolean {
 }
 
 async function loadComponentFiles(
-	backend: Pick<RepositoryBackend, 'fileExists' | 'readTextFile'>,
+	backend: Pick<RepositoryBackend, 'readTextFile'>,
 	directory: string
 ): Promise<LoadedContentComponentFileSet> {
 	const componentJsonPath = joinPath(directory, 'component.json');
 	const renderTemplatePath = joinPath(directory, 'render.njk');
 	const previewTemplatePath = joinPath(directory, 'preview.njk');
-	const previewCssPath = joinPath(directory, 'preview.css');
-	const hasPreviewCss = await backend.fileExists(previewCssPath);
-	const [componentSource, renderTemplateSource, previewTemplateSource, previewCssSource] =
-		await Promise.all([
-			backend.readTextFile(componentJsonPath),
-			backend.readTextFile(renderTemplatePath),
-			backend.readTextFile(previewTemplatePath),
-			hasPreviewCss ? backend.readTextFile(previewCssPath) : Promise.resolve(null)
-		]);
+	const [componentSource, renderTemplateSource, previewTemplateSource] = await Promise.all([
+		backend.readTextFile(componentJsonPath),
+		backend.readTextFile(renderTemplatePath),
+		backend.readTextFile(previewTemplatePath)
+	]);
 
 	return {
 		directory,
 		componentJsonPath,
 		renderTemplatePath,
 		previewTemplatePath,
-		previewCssPath: hasPreviewCss ? previewCssPath : null,
+		previewCssPath: null,
 		renderTemplateSource,
 		previewTemplateSource,
-		previewCssSource,
+		previewCssSource: null,
 		definition: JSON.parse(componentSource)
 	};
 }
@@ -133,7 +129,9 @@ export async function loadContentComponentRegistryFromRepository(
 			loadedComponents.push(await loadComponentFiles(backend, directory.path));
 		} catch (error) {
 			const message =
-				error instanceof Error ? error.message : `Failed to load content component at ${directory.path}`;
+				error instanceof Error
+					? error.message
+					: `Failed to load content component at ${directory.path}`;
 
 			if (onError === 'warn') {
 				errors.push(message);

@@ -279,7 +279,7 @@ describe('shared draft asset rendering surfaces', () => {
 		expect(host?.shadowRoot?.textContent).toContain('Buy button: Buy tickets');
 	});
 
-	it('applies safe preview css inside the shadow host only', async () => {
+	it('ignores preview css when mounting preview.njk markup', async () => {
 		const buyButtonComponent = {
 			directory: 'src/lib/content-components/buy-button',
 			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
@@ -332,10 +332,8 @@ describe('shared draft asset rendering surfaces', () => {
 		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
 		const preview = host?.shadowRoot?.querySelector('.buy-button-preview');
 		expect(preview).not.toBeNull();
-		expect(host?.shadowRoot?.querySelector('style:last-of-type')?.textContent).not.toContain(
-			'z-index'
-		);
-		expect(getComputedStyle(preview as Element).color).toBe('rgb(255, 0, 0)');
+		expect(host?.shadowRoot?.querySelector('style')).toBeNull();
+		expect(getComputedStyle(preview as Element).color).not.toBe('rgb(255, 0, 0)');
 		expect(getComputedStyle(document.body).color).not.toBe('rgb(0, 0, 255)');
 	});
 
