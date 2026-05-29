@@ -34,10 +34,6 @@ async function createReferenceComponentFixture() {
 		fs.writeFile(
 			path.join(componentDir, 'render.njk'),
 			'<section class="project-gallery"><h3>{{ data.gallery.title }}</h3><p>{{ data.gallery.summary }}</p></section>\n'
-		),
-		fs.writeFile(
-			path.join(componentDir, 'preview.njk'),
-			'<section>Project gallery: {{ data.gallery.title }}</section>\n'
 		)
 	]);
 

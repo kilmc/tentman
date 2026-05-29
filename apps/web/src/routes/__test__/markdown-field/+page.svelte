@@ -23,11 +23,8 @@
 			directory: 'src/lib/content-components/buy-button',
 			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 			renderTemplateSource:
 				'<a class="buy-button buy-button--{{ variant }}" href="{{ href | escape }}">{{ label | escape }}</a>',
-			previewTemplateSource:
-				'<a class="tm-component-preview tm-component-preview--buy-button" href="{{ href | escape }}">Buy button: {{ label | escape }}</a>',
 			definition: {
 				id: 'buy-button',
 				name: 'buy-button',
@@ -66,10 +63,7 @@
 			directory: 'src/lib/content-components/project-gallery',
 			componentJsonPath: 'src/lib/content-components/project-gallery/component.json',
 			renderTemplatePath: 'src/lib/content-components/project-gallery/render.njk',
-			previewTemplatePath: 'src/lib/content-components/project-gallery/preview.njk',
 			renderTemplateSource: '<div>Gallery</div>',
-			previewTemplateSource:
-				'<div class="tm-component-preview tm-component-preview--project-gallery">{% if data %}Project gallery: {{ data.title | escape }}{% else %}Missing gallery reference{% endif %}</div>',
 			definition: {
 				id: 'project-gallery',
 				name: 'project-gallery',
@@ -79,10 +73,7 @@
 						type: 'string' as const,
 						required: true,
 						reference: true,
-						referenceScope: {
-							preview: 'container' as const,
-							render: 'container' as const
-						},
+						referenceScope: 'container' as const,
 						editor: {
 							label: 'Gallery'
 						}
@@ -105,10 +96,7 @@
 			directory: 'src/lib/content-components/gallery-embed',
 			componentJsonPath: 'src/lib/content-components/gallery-embed/component.json',
 			renderTemplatePath: 'src/lib/content-components/gallery-embed/render.njk',
-			previewTemplatePath: 'src/lib/content-components/gallery-embed/preview.njk',
 			renderTemplateSource: '<div>{{ data.gallery.title }}</div>',
-			previewTemplateSource:
-				'<div class="tm-component-preview tm-component-preview--gallery-embed">{% if data and data.title %}Gallery embed: {{ data.title | escape }}{% else %}Missing gallery reference{% endif %}</div>',
 			definition: {
 				id: 'gallery-embed',
 				name: 'gallery-embed',
@@ -118,10 +106,7 @@
 						type: 'string' as const,
 						default: 'main',
 						reference: true,
-						referenceScope: {
-							preview: 'container' as const,
-							render: 'full' as const
-						},
+						referenceScope: 'container' as const,
 						editor: {
 							hidden: true
 						}
@@ -144,10 +129,7 @@
 			directory: 'src/lib/content-components/hero-embed',
 			componentJsonPath: 'src/lib/content-components/hero-embed/component.json',
 			renderTemplatePath: 'src/lib/content-components/hero-embed/render.njk',
-			previewTemplatePath: 'src/lib/content-components/hero-embed/preview.njk',
 			renderTemplateSource: '<div>{{ data.title }}</div>',
-			previewTemplateSource:
-				'<div class="tm-component-preview tm-component-preview--hero-embed">{% if data and data.title %}Hero embed: {{ data.title | escape }}{% else %}Missing hero reference{% endif %}</div>',
 			definition: {
 				id: 'hero-embed',
 				name: 'hero-embed',
@@ -157,10 +139,7 @@
 						type: 'string' as const,
 						required: true,
 						reference: true,
-						referenceScope: {
-							preview: 'container' as const,
-							render: 'full' as const
-						},
+						referenceScope: 'container' as const,
 						editor: {
 							label: 'Hero'
 						}
@@ -183,10 +162,7 @@
 			directory: 'src/lib/content-components/social-card-embed',
 			componentJsonPath: 'src/lib/content-components/social-card-embed/component.json',
 			renderTemplatePath: 'src/lib/content-components/social-card-embed/render.njk',
-			previewTemplatePath: 'src/lib/content-components/social-card-embed/preview.njk',
 			renderTemplateSource: '<div>{{ data.title }}</div>',
-			previewTemplateSource:
-				'<div class="tm-component-preview tm-component-preview--social-card-embed">{% if data and data.title %}Social card: {{ data.title | escape }}{% else %}Missing social card reference{% endif %}</div>',
 			definition: {
 				id: 'social-card-embed',
 				name: 'social-card-embed',
@@ -196,10 +172,7 @@
 						type: 'string' as const,
 						required: true,
 						reference: true,
-						referenceScope: {
-							preview: 'container' as const,
-							render: 'full' as const
-						},
+						referenceScope: 'container' as const,
 						editor: {
 							label: 'Card'
 						}
@@ -222,10 +195,7 @@
 			directory: 'src/lib/content-components/static-marker',
 			componentJsonPath: 'src/lib/content-components/static-marker/component.json',
 			renderTemplatePath: 'src/lib/content-components/static-marker/render.njk',
-			previewTemplatePath: 'src/lib/content-components/static-marker/preview.njk',
 			renderTemplateSource: '<div>Static marker</div>',
-			previewTemplateSource:
-				'<div class="tm-component-preview tm-component-preview--static-marker">Static marker preview</div>',
 			definition: {
 				id: 'static-marker',
 				name: 'static-marker',

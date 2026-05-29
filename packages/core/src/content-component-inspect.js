@@ -1,8 +1,4 @@
-import {
-	discoverContentComponents,
-	inspectContentComponentPreviewCssSource,
-	inspectContentComponentPreviewTemplateSource
-} from './content-components.js';
+import { discoverContentComponents } from './content-components.js';
 import { getPathRelativeToRoot, resolveProjectPath, toPosixPath } from './paths.js';
 
 async function pathExists(candidatePath) {
@@ -52,20 +48,6 @@ export async function inspectTentmanContentComponent(project, reference) {
 		renderTemplatePath: toPosixPath(
 			getPathRelativeToRoot(project.rootDir, component.renderTemplatePath)
 		),
-		previewTemplatePath: toPosixPath(
-			getPathRelativeToRoot(project.rootDir, component.previewTemplatePath)
-		),
-		previewCssPath: component.previewCssPath
-			? toPosixPath(getPathRelativeToRoot(project.rootDir, component.previewCssPath))
-			: null,
-		previewTemplateWarnings: inspectContentComponentPreviewTemplateSource(
-			component.previewTemplateSource
-		).diagnostics.map((diagnostic) => diagnostic.message),
-		previewCssWarnings: component.previewCssSource
-			? inspectContentComponentPreviewCssSource(component.previewCssSource).diagnostics.map(
-					(diagnostic) => diagnostic.message
-				)
-			: [],
 		attributes: component.definition.attributes
 	};
 }

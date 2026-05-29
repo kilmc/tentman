@@ -154,7 +154,6 @@ async function createAutoContextFixture() {
 			)
 		),
 		fs.writeFile(path.join(componentsDir, 'gallery-embed/render.njk'), '<div>{{ data.title }}</div>\n'),
-		fs.writeFile(path.join(componentsDir, 'gallery-embed/preview.njk'), '<div>{{ data.title }}</div>\n'),
 		fs.writeFile(
 			path.join(componentsDir, 'project-gallery/component.json'),
 			JSON.stringify(
@@ -167,11 +166,7 @@ async function createAutoContextFixture() {
 							type: 'string',
 							required: true,
 							reference: true,
-							referenceScope: {
-								mdsvex: 'full',
-								render: 'full',
-								preview: 'full'
-							}
+							referenceScope: 'full'
 						}
 					},
 					render: {
@@ -189,7 +184,6 @@ async function createAutoContextFixture() {
 			)
 		),
 		fs.writeFile(path.join(componentsDir, 'project-gallery/render.njk'), '<div>{{ data.gallery.title }}</div>\n'),
-		fs.writeFile(path.join(componentsDir, 'project-gallery/preview.njk'), '<div>{{ data.gallery.title }}</div>\n'),
 		fs.writeFile(
 			aboutFilePath,
 			`---
@@ -330,8 +324,7 @@ test('renders mdsvex target components with imports when configured', async () =
 				'\t'
 			)
 		),
-		fs.writeFile(path.join(componentDir, 'render.njk'), '<div>{{ title }}</div>\n'),
-		fs.writeFile(path.join(componentDir, 'preview.njk'), '<div>{{ title }}</div>\n')
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<div>{{ title }}</div>\n')
 	]);
 
 	const code = await renderMarkdown('::gallery-embed{title="City sketches"}', {
@@ -360,10 +353,7 @@ test('resolves mdsvex target props from shared reference data when render contex
 							type: 'string',
 							default: 'main',
 							reference: true,
-							referenceScope: {
-								preview: 'container',
-								render: 'full'
-							}
+							referenceScope: 'container'
 						}
 					},
 					render: {
@@ -380,8 +370,7 @@ test('resolves mdsvex target props from shared reference data when render contex
 				'\t'
 			)
 		),
-		fs.writeFile(path.join(componentDir, 'render.njk'), '<div>{{ data.gallery.title }}</div>\n'),
-		fs.writeFile(path.join(componentDir, 'preview.njk'), '<div>{{ data.title }}</div>\n')
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<div>{{ data.gallery.title }}</div>\n')
 	]);
 
 	const contentItem = {
@@ -440,10 +429,7 @@ test('resolves mdsvex target props from shared reference data when render contex
 	}
 
 	assert.match(rendered.code, /import GalleryEmbed from '\$lib\/components\/GalleryEmbed\.svelte';/);
-	assert.match(
-		rendered.code,
-		/<GalleryEmbed gallery=\{\{"referenceToken":"main","title":"Homepage gallery"\}\} \/>/
-	);
+	assert.match(rendered.code, /<GalleryEmbed gallery=\{undefined\} \/>/);
 });
 
 test('auto mode resolves marker-only component data for a markdown singleton', async () => {

@@ -384,8 +384,7 @@ describe('createLocalRepositoryBackend', () => {
 									"label": { "type": "string", "valueFromMarkdownLabel": true, "required": true }
 								}
 							}`),
-							'render.njk': createFileHandle(() => renderTemplate),
-							'preview.njk': createFileHandle('<span>{{ label | escape }}</span>')
+							'render.njk': createFileHandle(() => renderTemplate)
 						})
 					})
 				})

@@ -2,17 +2,19 @@ import { Node, type Extensions, type NodeViewRendererProps } from '@tiptap/core'
 import {
 	getContentComponentReferenceAttribute,
 	normalizeContentComponentInstance,
-	renderContentComponent,
 	validateContentComponentInstance
 } from '@tentman/core/content-components';
 import type { MarkdownToolbarItemContribution } from '$lib/features/markdown-editor/types';
+import {
+	getContentComponentChipLabel,
+	renderContentComponentChipNode
+} from '$lib/content-components/label-chip';
 import {
 	getMarkdownLabelAttributeName,
 	parseDirectiveAttributes,
 	serializeContentComponentDirective
 } from './directives';
 import type { ContentComponentRegistry } from './registry';
-import { mountSafePreviewHost, sanitizeRenderedPreviewHtml } from './safe-preview';
 
 const BROKEN_ATTRIBUTE_NAME = '__tentmanBroken';
 const BROKEN_ERROR_ATTRIBUTE_NAME = '__tentmanBrokenError';
@@ -27,14 +29,7 @@ function toNodeName(componentName: string): string {
 }
 
 function toButtonLabel(component: ContentComponentRegistry['components'][number]): string {
-	return (
-		component.definition.editor?.toolbarLabel ??
-		component.definition.name
-			.split('-')
-			.filter(Boolean)
-			.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-			.join(' ')
-	);
+	return getContentComponentChipLabel(component);
 }
 
 function toFieldLabel(
@@ -329,15 +324,7 @@ function buildComponentNodeView(
 					throw new Error(brokenState.error || 'Content component marker needs repair.');
 				}
 
-				const previewHtml = renderContentComponent(component, instance, 'preview', {
-					contentItem: previewRenderOptions?.contentItem ?? null,
-					referenceIndex: previewRenderOptions?.referenceIndex ?? new Map()
-				}).trim();
-				const sanitizedPreview = sanitizeRenderedPreviewHtml(previewHtml);
-				mountSafePreviewHost(dom, {
-					html: sanitizedPreview.html,
-					kind: component.definition.kind
-				});
+					renderContentComponentChipNode(dom, component);
 			} catch (error) {
 				dom.dataset.tentmanContentComponentBroken = 'true';
 				dom.className =

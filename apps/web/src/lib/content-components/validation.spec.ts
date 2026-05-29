@@ -7,9 +7,7 @@ function createRegistry(): ContentComponentRegistry {
 		directory: 'src/lib/content-components/buy-button',
 		componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 		renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-		previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 		renderTemplateSource: '<a>{{ label }}</a>',
-		previewTemplateSource: '<span>{{ label }}</span>',
 		definition: {
 			id: 'buy-button',
 			name: 'buy-button',
@@ -42,9 +40,7 @@ function createBlockRegistry(): ContentComponentRegistry {
 		directory: 'src/lib/content-components/project-gallery',
 		componentJsonPath: 'src/lib/content-components/project-gallery/component.json',
 		renderTemplatePath: 'src/lib/content-components/project-gallery/render.njk',
-		previewTemplatePath: 'src/lib/content-components/project-gallery/preview.njk',
 		renderTemplateSource: '<div>{{ galleryId }}</div>',
-		previewTemplateSource: '<div>{{ galleryId }}</div>',
 		definition: {
 			id: 'project-gallery',
 			name: 'project-gallery',

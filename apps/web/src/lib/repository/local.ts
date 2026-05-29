@@ -217,7 +217,7 @@ async function collectContentComponentFiles(
 			entries
 				.filter((entry) => entry.kind === 'directory')
 				.map(async (entry) => {
-					const componentFiles = ['component.json', 'render.njk', 'preview.njk'];
+					const componentFiles = ['component.json', 'render.njk'];
 					const resolvedFiles = await Promise.all(
 						componentFiles.map(async (fileName) => {
 							const filePath = `${entry.path}/${fileName}`;

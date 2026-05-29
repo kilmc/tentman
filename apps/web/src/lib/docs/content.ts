@@ -835,9 +835,6 @@ const contentComponentRenderExample = `<a class="buy-button buy-button--{{ varia
   {{ label }}
 </a>`;
 
-const contentComponentPreviewExample = `<span class="tm-component-preview tm-component-preview--buy-button">
-  Buy button: {{ label }}
-</span>`;
 
 const contentComponentMdsvexExample = `import adapter from '@sveltejs/adapter-auto';
 import { mdsvex } from 'mdsvex';
@@ -2012,8 +2009,7 @@ const docsPages: DocsPage[] = [
 								code: `src/lib/content-components/
   buy-button/
     component.json
-    render.njk
-    preview.njk`,
+    render.njk`,
 								language: 'text'
 							},
 							{
@@ -2039,10 +2035,10 @@ const docsPages: DocsPage[] = [
 								language: 'html'
 							},
 							{
-								title: 'preview.njk',
+								title: 'Authoring chip',
 								description:
-									'Produces the safe authoring preview shown inside Tentman. Preview HTML is sanitized to a presentational subset before Tentman mounts it in an isolated preview host.',
-								code: contentComponentPreviewExample,
+									'Tentman shows a fixed grey label chip in authoring surfaces using editor.toolbarLabel or a humanized component name fallback.',
+								code: `<span class="tm-content-component-chip tm-content-component-chip--inline">Buy Button</span>`,
 								language: 'html'
 							}
 						]

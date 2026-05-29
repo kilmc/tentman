@@ -50,9 +50,6 @@ test('loads and validates a content component from disk', async () => {
 	});
 	assert.equal(component.definition.editor, undefined);
 	assert.match(component.renderTemplatePath, /render\.njk$/);
-	assert.match(component.previewTemplatePath, /preview\.njk$/);
-	assert.equal(component.previewCssPath, null);
-	assert.equal(component.previewCssSource, null);
 });
 
 test('discovers, normalizes, and renders a buy-button component end to end', async () => {
@@ -82,12 +79,8 @@ test('discovers, normalizes, and renders a buy-button component end to end', asy
 	});
 
 	assert.equal(
-		renderContentComponent(component, instance, 'render').trim(),
+		renderContentComponent(component, instance).trim(),
 		'<a class="buy-button buy-button--secondary" href="/tickets?x=&lt;y&gt;" data-buy-button data-variant="secondary">Buy &lt;Tickets&gt;</a>'
-	);
-	assert.equal(
-		renderContentComponent(component, instance, 'preview').trim(),
-		'<span class="tm-component-preview tm-component-preview--buy-button tm-component-preview--secondary" data-tm-component="buy-button">Buy button: Buy &lt;Tickets&gt;</span>'
 	);
 });
 
@@ -115,7 +108,7 @@ test('throws when a required template is missing', async () => {
 		discoverContentComponents({
 			componentsDir: getFixtureRoot('invalid-missing-template')
 		}),
-		/Missing required content component file: .*preview\.njk/
+		/Missing required content component file: .*render\.njk/
 	);
 });
 
@@ -196,10 +189,7 @@ test('normalizes reference metadata and resolves shared preview/render context',
 		directory: 'src/lib/content-components/gallery-embed',
 		componentJsonPath: 'src/lib/content-components/gallery-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/gallery-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/gallery-embed/preview.njk',
 		renderTemplateSource: '<div>{{ attributes.variant }} {{ data.title }}</div>',
-		previewTemplateSource:
-			'<div class="tm-component-preview">{% if data %}{{ data.title }}{% else %}Missing{% endif %}</div>',
 		definition: {
 			id: 'gallery-embed',
 			name: 'gallery-embed',
@@ -208,10 +198,7 @@ test('normalizes reference metadata and resolves shared preview/render context',
 				galleryId: {
 					type: 'string',
 					reference: true,
-					referenceScope: {
-						preview: 'container',
-						render: 'full'
-					},
+					referenceScope: 'container',
 					required: true
 				},
 				variant: {
@@ -281,8 +268,7 @@ test('normalizes reference metadata and resolves shared preview/render context',
 		definition: component.definition.attributes.galleryId,
 		binding: 'gallery-embed:galleryId'
 	});
-	assert.equal(getContentComponentReferenceScope(component, 'preview'), 'container');
-	assert.equal(getContentComponentReferenceScope(component, 'render'), 'full');
+	assert.equal(getContentComponentReferenceScope(component), 'container');
 	assert.deepEqual(getContentComponentRenderTarget(component, 'mdsvex'), {
 		from: '$lib/components/GalleryEmbed.svelte',
 		component: 'GalleryEmbed',
@@ -291,7 +277,7 @@ test('normalizes reference metadata and resolves shared preview/render context',
 			variant: 'attributes.variant'
 		}
 	});
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {
 			galleryId: 'city-sketches',
 			variant: 'compact'
@@ -305,18 +291,13 @@ test('normalizes reference metadata and resolves shared preview/render context',
 		from: '$lib/components/GalleryEmbed.svelte',
 		component: 'GalleryEmbed',
 		props: {
-			images: [
-				{
-					id: 'city-sketches',
-					title: 'City sketches'
-				}
-			],
+			images: undefined,
 			variant: 'compact'
 		}
 	});
 	assert.equal(
-		renderContentComponent(component, instance, 'preview', { referenceIndex }).trim(),
-		'<div class="tm-component-preview">City sketches</div>'
+		renderContentComponent(component, instance, { referenceIndex }).trim(),
+		'<div>compact City sketches</div>'
 	);
 });
 
@@ -325,9 +306,7 @@ test('flags duplicate and unresolved reference tokens', () => {
 		directory: 'src/lib/content-components/project-gallery',
 		componentJsonPath: 'src/lib/content-components/project-gallery/component.json',
 		renderTemplatePath: 'src/lib/content-components/project-gallery/render.njk',
-		previewTemplatePath: 'src/lib/content-components/project-gallery/preview.njk',
 		renderTemplateSource: '<div>{{ data.title }}</div>',
-		previewTemplateSource: '<div>{{ data.title }}</div>',
 		definition: {
 			id: 'project-gallery',
 			name: 'project-gallery',
@@ -382,9 +361,7 @@ test('resolves marker-only bindings from a single explicit structured source', (
 		directory: 'src/lib/content-components/project-gallery-embed',
 		componentJsonPath: 'src/lib/content-components/project-gallery-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/project-gallery-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/project-gallery-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.layout }}</div>',
-		previewTemplateSource: '<div>{{ data.layout }}</div>',
 		definition: {
 			id: 'project-gallery-embed',
 			name: 'project-gallery-embed',
@@ -430,7 +407,7 @@ test('resolves marker-only bindings from a single explicit structured source', (
 	});
 
 	assert.deepEqual(errors, []);
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {},
 		data: {
 			layout: 'inline',
@@ -445,9 +422,7 @@ test('reports unresolved and ambiguous marker-only bindings', () => {
 		directory: 'src/lib/content-components/project-gallery-embed',
 		componentJsonPath: 'src/lib/content-components/project-gallery-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/project-gallery-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/project-gallery-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.layout }}</div>',
-		previewTemplateSource: '<div>{{ data.layout }}</div>',
 		definition: {
 			id: 'project-gallery-embed',
 			name: 'project-gallery-embed',
@@ -515,9 +490,7 @@ test('resolves sibling object references when the marker relies on a default ref
 		directory: 'src/lib/content-components/gallery-embed',
 		componentJsonPath: 'src/lib/content-components/gallery-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/gallery-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/gallery-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.gallery.title }}</div>',
-		previewTemplateSource: '<div>{{ data.title }}</div>',
 		definition: {
 			id: 'gallery-embed',
 			name: 'gallery-embed',
@@ -527,10 +500,7 @@ test('resolves sibling object references when the marker relies on a default ref
 					type: 'string',
 					default: 'main',
 					reference: true,
-					referenceScope: {
-						preview: 'container',
-						render: 'full'
-					}
+					referenceScope: 'container'
 				}
 			},
 			render: {
@@ -585,7 +555,7 @@ test('resolves sibling object references when the marker relies on a default ref
 	assert.deepEqual(instance.attributes, {
 		galleryRef: 'main'
 	});
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {
 			galleryRef: 'main'
 		},
@@ -598,16 +568,13 @@ test('resolves sibling object references when the marker relies on a default ref
 		from: '$lib/components/GalleryEmbed.svelte',
 		component: 'GalleryEmbed',
 		props: {
-			gallery: {
-				referenceToken: 'main',
-				title: 'Homepage gallery'
-			}
+			gallery: undefined
 		}
 	});
 	assert.deepEqual(validateContentComponentInstance(component, instance, { referenceIndex }), []);
 	assert.equal(
-		renderContentComponent(component, instance, 'preview', { referenceIndex }).trim(),
-		'<div>Homepage gallery</div>'
+		renderContentComponent(component, instance, { referenceIndex }).trim(),
+		'<div></div>'
 	);
 });
 
@@ -616,9 +583,7 @@ test('treats top-level primitive reference sources as first-class runtime bindin
 		directory: 'src/lib/content-components/hero-embed',
 		componentJsonPath: 'src/lib/content-components/hero-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/hero-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/hero-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.title }}</div>',
-		previewTemplateSource: '<div>{{ data.title }}</div>',
 		definition: {
 			id: 'hero-embed',
 			name: 'hero-embed',
@@ -627,10 +592,7 @@ test('treats top-level primitive reference sources as first-class runtime bindin
 				heroRef: {
 					type: 'string',
 					reference: true,
-					referenceScope: {
-						preview: 'container',
-						render: 'full'
-					},
+					referenceScope: 'container',
 					required: true
 				}
 			},
@@ -679,7 +641,7 @@ test('treats top-level primitive reference sources as first-class runtime bindin
 	});
 
 	assert.deepEqual(errors, []);
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {
 			heroRef: 'main-hero'
 		},
@@ -699,7 +661,7 @@ test('treats top-level primitive reference sources as first-class runtime bindin
 	});
 	assert.deepEqual(validateContentComponentInstance(component, instance, { referenceIndex }), []);
 	assert.equal(
-		renderContentComponent(component, instance, 'preview', { referenceIndex }).trim(),
+		renderContentComponent(component, instance, { referenceIndex }).trim(),
 		'<div>Homepage hero</div>'
 	);
 });
@@ -709,9 +671,7 @@ test('resolves string-form self reference scopes to the token value itself', () 
 		directory: 'src/lib/content-components/tag-pill',
 		componentJsonPath: 'src/lib/content-components/tag-pill/component.json',
 		renderTemplatePath: 'src/lib/content-components/tag-pill/render.njk',
-		previewTemplatePath: 'src/lib/content-components/tag-pill/preview.njk',
 		renderTemplateSource: '<span>{{ data }}</span>',
-		previewTemplateSource: '<span>{{ data }}</span>',
 		definition: {
 			id: 'tag-pill',
 			name: 'tag-pill',
@@ -748,7 +708,7 @@ test('resolves string-form self reference scopes to the token value itself', () 
 	});
 
 	assert.deepEqual(errors, []);
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {
 			tagRef: 'featured'
 		},
@@ -761,9 +721,7 @@ test('resolves string-form full reference scopes to the full content item', () =
 		directory: 'src/lib/content-components/hero-embed',
 		componentJsonPath: 'src/lib/content-components/hero-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/hero-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/hero-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.title }}</div>',
-		previewTemplateSource: '<div>{{ data.title }}</div>',
 		definition: {
 			id: 'hero-embed',
 			name: 'hero-embed',
@@ -806,7 +764,7 @@ test('resolves string-form full reference scopes to the full content item', () =
 	});
 
 	assert.deepEqual(errors, []);
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {
 			heroRef: 'main-hero'
 		},
@@ -819,9 +777,7 @@ test('treats nested non-collection object reference sources as first-class runti
 		directory: 'src/lib/content-components/social-card-embed',
 		componentJsonPath: 'src/lib/content-components/social-card-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/social-card-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/social-card-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.seo.twitterCard.title }}</div>',
-		previewTemplateSource: '<div>{{ data.title }}</div>',
 		definition: {
 			id: 'social-card-embed',
 			name: 'social-card-embed',
@@ -830,10 +786,7 @@ test('treats nested non-collection object reference sources as first-class runti
 				cardRef: {
 					type: 'string',
 					reference: true,
-					referenceScope: {
-						preview: 'container',
-						render: 'full'
-					},
+					referenceScope: 'container',
 					required: true
 				}
 			},
@@ -916,7 +869,7 @@ test('treats nested non-collection object reference sources as first-class runti
 	});
 
 	assert.deepEqual(errors, []);
-	assert.deepEqual(resolveContentComponentInstance(component, instance, 'preview', { referenceIndex }), {
+	assert.deepEqual(resolveContentComponentInstance(component, instance, { referenceIndex }), {
 		attributes: {
 			cardRef: 'twitter-cover'
 		},
@@ -929,15 +882,12 @@ test('treats nested non-collection object reference sources as first-class runti
 		from: '$lib/components/SocialCardEmbed.svelte',
 		component: 'SocialCardEmbed',
 		props: {
-			card: {
-				imageToken: 'twitter-cover',
-				title: 'Twitter card cover'
-			}
+			card: undefined
 		}
 	});
 	assert.deepEqual(validateContentComponentInstance(component, instance, { referenceIndex }), []);
 	assert.equal(
-		renderContentComponent(component, instance, 'preview', { referenceIndex }).trim(),
-		'<div>Twitter card cover</div>'
+		renderContentComponent(component, instance, { referenceIndex }).trim(),
+		'<div></div>'
 	);
 });

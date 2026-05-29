@@ -383,7 +383,7 @@ export function tentmanComponents(options = {}) {
 						node.type = 'html';
 						node.value =
 							mdsvexTarget?.markup ??
-							renderContentComponent(component, instance, 'render', renderOptions);
+							renderContentComponent(component, instance, renderOptions);
 						if (mdsvexTarget) {
 							addMdsvexImport(file, mdsvexTarget.importName, mdsvexTarget.importPath);
 						}
@@ -467,7 +467,7 @@ export function tentmanComponents(options = {}) {
 
 						return (
 							mdsvexTarget?.markup ??
-							renderContentComponent(component, instance, 'render', renderOptions)
+							renderContentComponent(component, instance, renderOptions)
 						);
 					});
 				} catch (error) {

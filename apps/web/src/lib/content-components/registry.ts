@@ -10,11 +10,7 @@ interface LoadedContentComponentFileSet {
 	directory: string;
 	componentJsonPath: string;
 	renderTemplatePath: string;
-	previewTemplatePath: string;
-	previewCssPath: string | null;
 	renderTemplateSource: string;
-	previewTemplateSource: string;
-	previewCssSource: string | null;
 	definition: unknown;
 }
 
@@ -77,22 +73,16 @@ async function loadComponentFiles(
 ): Promise<LoadedContentComponentFileSet> {
 	const componentJsonPath = joinPath(directory, 'component.json');
 	const renderTemplatePath = joinPath(directory, 'render.njk');
-	const previewTemplatePath = joinPath(directory, 'preview.njk');
-	const [componentSource, renderTemplateSource, previewTemplateSource] = await Promise.all([
+	const [componentSource, renderTemplateSource] = await Promise.all([
 		backend.readTextFile(componentJsonPath),
-		backend.readTextFile(renderTemplatePath),
-		backend.readTextFile(previewTemplatePath)
+		backend.readTextFile(renderTemplatePath)
 	]);
 
 	return {
 		directory,
 		componentJsonPath,
 		renderTemplatePath,
-		previewTemplatePath,
-		previewCssPath: null,
 		renderTemplateSource,
-		previewTemplateSource,
-		previewCssSource: null,
 		definition: JSON.parse(componentSource)
 	};
 }

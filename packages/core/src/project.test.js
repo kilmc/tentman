@@ -31,8 +31,7 @@ async function writeReferenceComponent(projectRoot) {
 				}
 			})
 		),
-		fs.writeFile(path.join(componentDir, 'render.njk'), '<section>{{ data.gallery.title }}</section>\n'),
-		fs.writeFile(path.join(componentDir, 'preview.njk'), '<section>{{ data.gallery.title }}</section>\n')
+		fs.writeFile(path.join(componentDir, 'render.njk'), '<section>{{ data.gallery.title }}</section>\n')
 	]);
 }
 

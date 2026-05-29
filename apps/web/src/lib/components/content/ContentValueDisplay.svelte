@@ -1,14 +1,12 @@
 <script lang="ts">
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
-	import { tick } from 'svelte';
 	import { page } from '$app/state';
 	import { get } from 'svelte/store';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 	import { loadContentComponentRegistryForMode } from '$lib/content-components/browser';
 	import { getUnknownEnabledContentComponentErrors } from '$lib/content-components/availability';
 	import { filterContentComponentRegistry } from '$lib/content-components/registry';
-	import { applyPreviewContentComponentTransforms } from '$lib/content-components/preview';
-	import { enhanceSafePreviewHosts } from '$lib/content-components/safe-preview';
+	import { applyAuthoringContentComponentTransforms } from '$lib/content-components/authoring';
 	import { collectContentComponentReferenceState } from '$lib/content-components/references';
 	import { localContent } from '$lib/stores/local-content';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
@@ -34,9 +32,8 @@
 		rootBlocks = undefined,
 		rootContentItem = null
 	}: Props = $props();
-	let previewMarkdown = $state('');
-	let previewComponentError = $state<string | null>(null);
-	let previewMarkdownContainer = $state<HTMLDivElement | null>(null);
+	let renderedMarkdown = $state('');
+	let contentComponentIssue = $state<string | null>(null);
 
 	const structuredBlocks = $derived(getStructuredBlocksForUsage(block, blockRegistry));
 
@@ -107,15 +104,17 @@
 
 	$effect(() => {
 		if (block.type !== 'markdown' || typeof value !== 'string') {
-			previewMarkdown = typeof value === 'string' ? value : '';
-			previewComponentError = null;
+			renderedMarkdown = typeof value === 'string' ? value : '';
+			contentComponentIssue = null;
 			return;
 		}
 
 		let cancelled = false;
 		const markdownValue = value;
+		renderedMarkdown = markdownValue;
+		contentComponentIssue = null;
 
-		async function loadPreviewMarkdown() {
+		async function loadRenderedMarkdown() {
 			try {
 				const errors: string[] = [];
 				let nextMarkdown = markdownValue;
@@ -136,11 +135,11 @@
 					...getUnknownEnabledContentComponentErrors(
 						block.components,
 						discoveredNames,
-						'Markdown preview enables'
+						'Markdown field enables'
 					)
 				);
 				errors.push(...referencePreviewOptions.errors);
-				const componentPreview = applyPreviewContentComponentTransforms(
+				const componentMarkup = applyAuthoringContentComponentTransforms(
 					nextMarkdown,
 					enabledComponentRegistry,
 					{
@@ -149,45 +148,33 @@
 						referenceIndex: referencePreviewOptions.referenceIndex
 					}
 				);
-				nextMarkdown = componentPreview.markdown;
-				errors.push(...componentPreview.errors);
+				nextMarkdown = componentMarkup.markdown;
+				errors.push(...componentMarkup.errors);
 				nextMarkdown = await resolveMarkdownAssetUrls(nextMarkdown, {
 					assetsDir: block.assetsDir,
 					previewBaseUrl: getPreviewBaseUrl()
 				});
 
 				if (!cancelled) {
-					previewMarkdown = nextMarkdown;
-					previewComponentError = errors.length > 0 ? errors.join(' ') : null;
+					renderedMarkdown = nextMarkdown;
+					contentComponentIssue = errors.length > 0 ? errors.join(' ') : null;
 				}
 			} catch (error) {
 				if (!cancelled) {
-					previewMarkdown = markdownValue;
-					previewComponentError =
-						error instanceof Error ? error.message : 'Failed to load markdown preview components';
+					renderedMarkdown = markdownValue;
+					contentComponentIssue =
+						error instanceof Error ? error.message : 'Failed to process markdown content components';
 				}
 			}
 		}
 
-		void loadPreviewMarkdown();
+		void loadRenderedMarkdown();
 
 		return () => {
 			cancelled = true;
 		};
 	});
 
-	$effect(() => {
-		if (block.type !== 'markdown' || !previewMarkdownContainer) {
-			return;
-		}
-
-		void previewMarkdown;
-		void tick().then(() => {
-			if (previewMarkdownContainer) {
-				enhanceSafePreviewHosts(previewMarkdownContainer);
-			}
-		});
-	});
 </script>
 
 {#if structuredBlocks}
@@ -253,15 +240,16 @@
 	{/if}
 {:else if block.type === 'markdown' && typeof value === 'string'}
 	<div
-		bind:this={previewMarkdownContainer}
 		class="markdown-content prose max-w-none text-sm prose-stone prose-headings:font-semibold prose-code:rounded prose-code:bg-stone-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:font-mono prose-pre:text-stone-800"
 	>
-		<SvelteMarkdown source={previewMarkdown} />
+		{#key renderedMarkdown}
+			<SvelteMarkdown source={renderedMarkdown} />
+		{/key}
 	</div>
-	{#if previewComponentError}
+	{#if contentComponentIssue}
 		<div class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-			<p class="font-medium">Preview component issue</p>
-			<p class="mt-1 text-amber-800">{previewComponentError}</p>
+			<p class="font-medium">Content component issue</p>
+			<p class="mt-1 text-amber-800">{contentComponentIssue}</p>
 		</div>
 	{/if}
 {:else if block.type === 'image' && typeof value === 'string' && value}

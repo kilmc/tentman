@@ -42,21 +42,17 @@ export {
 	collectContentComponents,
 	collectContentComponentReferenceIndex,
 	discoverContentComponents,
-	inspectContentComponentPreviewCssSource,
 	getContentComponentReferenceAttribute,
 	getContentComponentReferenceScope,
 	getContentComponentRenderTarget,
-	inspectContentComponentPreviewTemplateSource,
 	loadContentComponent,
 	normalizeContentComponentInstance,
 	resolveContentComponentInstance,
 	resolveContentComponentRenderTarget,
-	renderContentComponent,
-	sanitizeContentComponentPreviewCss,
-	sanitizeContentComponentPreviewHtml,
 	validateContentComponentInstance,
 	validateContentComponent
 } from './content-components.js';
+export { renderContentComponent } from './content-component-render.js';
 export { resolveTentmanMarkdownFileRenderContext } from './markdown-render-context.js';
 export { validateContentComponentReferenceBindings } from './content-component-reference-validation.js';
 export { createContentComponentScaffold } from './content-component-create.js';

@@ -28,10 +28,8 @@ test('creates a valid content component scaffold in the default components direc
 		componentsDir: 'src/lib/content-components',
 		files: [
 			'src/lib/content-components/buy-button/component.json',
-			'src/lib/content-components/buy-button/render.njk',
-			'src/lib/content-components/buy-button/preview.njk'
-		],
-		optionalFiles: ['src/lib/content-components/buy-button/preview.css']
+			'src/lib/content-components/buy-button/render.njk'
+		]
 	});
 
 	const component = validateContentComponent(
@@ -41,13 +39,10 @@ test('creates a valid content component scaffold in the default components direc
 		markdownLabel: 'Buy tickets'
 	});
 
-	assert.equal(renderContentComponent(component, instance, 'render').trim(), '<span class="content-component content-component--buy-button">Buy tickets</span>');
 	assert.equal(
-		renderContentComponent(component, instance, 'preview').trim(),
-		'<span class="tm-component-preview tm-component-preview--buy-button">Buy tickets</span>'
+		renderContentComponent(component, instance).trim(),
+		'<span class="content-component content-component--buy-button">Buy tickets</span>'
 	);
-	assert.equal(component.previewCssPath, null);
-	assert.equal(component.previewCssSource, null);
 });
 
 test('creates a valid content component scaffold in the configured components directory', async () => {
@@ -81,12 +76,8 @@ test('creates a valid block content component scaffold when requested', async ()
 
 	assert.equal(component.definition.kind, 'block');
 	assert.equal(
-		renderContentComponent(component, instance, 'render').trim(),
+		renderContentComponent(component, instance).trim(),
 		'<div class="content-component content-component--image-gallery">Gallery</div>'
-	);
-	assert.equal(
-		renderContentComponent(component, instance, 'preview').trim(),
-		'<div class="tm-component-preview tm-component-preview--image-gallery">Gallery</div>'
 	);
 });
 

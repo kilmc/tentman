@@ -130,11 +130,8 @@ function createBuyButtonContentComponentRegistry(): ContentComponentRegistry {
 		directory: 'src/lib/content-components/buy-button',
 		componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 		renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-		previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 		renderTemplateSource:
 			'<a class="buy-button buy-button--{{ variant }}" href="{{ href | escape }}">{{ label | escape }}</a>',
-		previewTemplateSource:
-			'<a class="tm-component-preview tm-component-preview--buy-button" href="{{ href | escape }}">Buy button: {{ label | escape }}</a>',
 		definition: {
 			id: 'buy-button',
 			name: 'buy-button',
@@ -173,10 +170,7 @@ function createProjectGalleryContentComponentRegistry(): ContentComponentRegistr
 		directory: 'src/lib/content-components/project-gallery',
 		componentJsonPath: 'src/lib/content-components/project-gallery/component.json',
 		renderTemplatePath: 'src/lib/content-components/project-gallery/render.njk',
-		previewTemplatePath: 'src/lib/content-components/project-gallery/preview.njk',
 		renderTemplateSource: '<div>Gallery</div>',
-		previewTemplateSource:
-			'<div class="tm-component-preview tm-component-preview--project-gallery">{% if data %}Project gallery: {{ data.title | escape }}{% else %}Missing gallery reference{% endif %}</div>',
 		definition: {
 			id: 'project-gallery',
 			name: 'project-gallery',
@@ -186,10 +180,7 @@ function createProjectGalleryContentComponentRegistry(): ContentComponentRegistr
 					type: 'string' as const,
 					required: true,
 					reference: true,
-					referenceScope: {
-						preview: 'container' as const,
-						render: 'container' as const
-					},
+					referenceScope: 'container' as const,
 					editor: {
 						label: 'Gallery'
 					}
@@ -553,7 +544,7 @@ describe('components/form/MarkdownField.svelte', () => {
 			.toHaveValue(':buy-button[Old label]{href="https://example.com/old" variant="secondary"}');
 	});
 
-	it('re-renders content component previews after edits and opens the editor from the popover', async () => {
+	it('re-renders content component chips after edits and opens the editor from the popover', async () => {
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue(
 			createBuyButtonContentComponentRegistry()
 		);

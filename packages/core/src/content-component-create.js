@@ -3,9 +3,9 @@ import path from 'node:path';
 import {
 	loadContentComponent,
 	normalizeContentComponentInstance,
-	renderContentComponent,
 	validateContentComponent
 } from './content-components.js';
+import { renderContentComponent } from './content-component-render.js';
 import { serializeJson } from './json.js';
 import { ROOT_CONFIG_PATH, parseRootConfig, resolveTentmanProjectRoot } from './project.js';
 import { getPathRelativeToRoot, resolveProjectPath, toPosixPath } from './paths.js';
@@ -73,14 +73,6 @@ function getRenderTemplateSource(name, kind) {
 	return `<span class="content-component content-component--${name}">{{ label }}</span>\n`;
 }
 
-function getPreviewTemplateSource(name, kind) {
-	if (kind === 'block') {
-		return `<div class="tm-component-preview tm-component-preview--${name}">{{ label }}</div>\n`;
-	}
-
-	return `<span class="tm-component-preview tm-component-preview--${name}">{{ label }}</span>\n`;
-}
-
 export async function createContentComponentScaffold(projectRoot, name, options = {}) {
 	const rootDir = await resolveTentmanProjectRoot(projectRoot);
 	const normalizedName = validateComponentName(name);
@@ -102,20 +94,16 @@ export async function createContentComponentScaffold(projectRoot, name, options 
 
 	const componentJsonPath = path.join(componentDirPath, 'component.json');
 	const renderTemplatePath = path.join(componentDirPath, 'render.njk');
-	const previewTemplatePath = path.join(componentDirPath, 'preview.njk');
-
 	await Promise.all([
 		fs.writeFile(componentJsonPath, serializeJson(getScaffoldDefinition(normalizedName, normalizedKind))),
-		fs.writeFile(renderTemplatePath, getRenderTemplateSource(normalizedName, normalizedKind)),
-		fs.writeFile(previewTemplatePath, getPreviewTemplateSource(normalizedName, normalizedKind))
+		fs.writeFile(renderTemplatePath, getRenderTemplateSource(normalizedName, normalizedKind))
 	]);
 
 	const loadedComponent = validateContentComponent(await loadContentComponent(componentDirPath));
 	const instance = normalizeContentComponentInstance(loadedComponent, {
 		markdownLabel: 'Example label'
 	});
-	renderContentComponent(loadedComponent, instance, 'render');
-	renderContentComponent(loadedComponent, instance, 'preview');
+	renderContentComponent(loadedComponent, instance);
 
 	return {
 		name: normalizedName,
@@ -124,9 +112,7 @@ export async function createContentComponentScaffold(projectRoot, name, options 
 		componentsDir: toPosixPath(getPathRelativeToRoot(rootDir, componentsDirPath)),
 		files: [
 			toPosixPath(getPathRelativeToRoot(rootDir, componentJsonPath)),
-			toPosixPath(getPathRelativeToRoot(rootDir, renderTemplatePath)),
-			toPosixPath(getPathRelativeToRoot(rootDir, previewTemplatePath))
-		],
-		optionalFiles: [toPosixPath(getPathRelativeToRoot(rootDir, path.join(componentDirPath, 'preview.css')))]
+			toPosixPath(getPathRelativeToRoot(rootDir, renderTemplatePath))
+		]
 	};
 }

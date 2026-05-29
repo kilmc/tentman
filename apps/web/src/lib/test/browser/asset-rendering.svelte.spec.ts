@@ -118,7 +118,10 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByRole('img', { name: 'Hero' })).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'data:image/png;base64,cmVuZGVyZWQ='
+		);
 		await expectElement(screen.getByText('draft-asset:hero')).toBeVisible();
 	});
 
@@ -168,21 +171,19 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
-			'src',
-			'/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main'
-		);
+		await expect
+			.poll(() => screen.container.querySelector('img')?.getAttribute('data-src') ?? null)
+			.toBe(
+				'/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main'
+			);
 	});
 
-	it('renders discovered content component directives through preview.njk markup', async () => {
+	it('renders discovered content component directives through fixed authoring chips', async () => {
 		const buyButtonComponent = {
 			directory: 'src/lib/content-components/buy-button',
 			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 			renderTemplateSource: '<a>{{ label }}</a>',
-			previewTemplateSource:
-				'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>',
 			definition: {
 				id: 'buy-button',
 				name: 'buy-button',
@@ -220,21 +221,24 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
-		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
+		await expect.poll(() => screen.container.textContent ?? '').toContain('Buy Button');
+		await expect
+			.poll(
+				() =>
+					screen.container.querySelector('[data-tentman-content-component-chip="inline"]')
+						?.textContent ?? null
+			)
+			.toBe('Buy Button');
+		const host = screen.container.querySelector('[data-tentman-content-component-chip="inline"]');
 		expect(host).not.toBeNull();
-		expect(host?.shadowRoot?.textContent).toContain('Buy button: Buy tickets');
 	});
 
-	it('renders hostile preview html inside a shadow host after sanitization', async () => {
+	it('renders the fixed authoring chip for discovered content component directives', async () => {
 		const buyButtonComponent = {
 			directory: 'src/lib/content-components/buy-button',
 			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 			renderTemplateSource: '<a>{{ label }}</a>',
-			previewTemplateSource:
-				'<a href="{{ href | escape }}" onclick="alert(1)"><span class="safe">Buy button: {{ label | escape }}</span></a><img src="javascript:alert(1)" alt="Bad">',
 			definition: {
 				id: 'buy-button',
 				name: 'buy-button',
@@ -272,25 +276,25 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
-		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
-		expect(host?.shadowRoot?.querySelector('a')).toBeNull();
-		expect(host?.shadowRoot?.querySelector('img')?.getAttribute('src')).toBeNull();
-		expect(host?.shadowRoot?.textContent).toContain('Buy button: Buy tickets');
+		await expect.poll(() => screen.container.textContent ?? '').toContain('Buy Button');
+		await expect
+			.poll(
+				() =>
+					screen.container.querySelector('[data-tentman-content-component-chip="inline"]')
+						?.textContent ?? null
+			)
+			.toBe('Buy Button');
+		const host = screen.container.querySelector('[data-tentman-content-component-chip="inline"]');
+		expect(host?.querySelector('a')).toBeNull();
+		expect(host?.querySelector('img')).toBeNull();
 	});
 
-	it('ignores preview css when mounting preview.njk markup', async () => {
+	it('renders plain chip text instead of component template markup in markdown fields', async () => {
 		const buyButtonComponent = {
 			directory: 'src/lib/content-components/buy-button',
 			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
-			previewCssPath: 'src/lib/content-components/buy-button/preview.css',
 			renderTemplateSource: '<a>{{ label }}</a>',
-			previewTemplateSource:
-				'<span class="safe buy-button-preview">Buy button: {{ label | escape }}</span>',
-			previewCssSource:
-				'.buy-button-preview { color: rgb(255, 0, 0); z-index: 20; } body { color: rgb(0, 0, 255); }',
 			definition: {
 				id: 'buy-button',
 				name: 'buy-button',
@@ -328,24 +332,26 @@ describe('shared draft asset rendering surfaces', () => {
 			blockRegistry: new Map() as never
 		});
 
-		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
-		const host = screen.container.querySelector('[data-tentman-safe-preview-host="inline"]');
-		const preview = host?.shadowRoot?.querySelector('.buy-button-preview');
-		expect(preview).not.toBeNull();
-		expect(host?.shadowRoot?.querySelector('style')).toBeNull();
-		expect(getComputedStyle(preview as Element).color).not.toBe('rgb(255, 0, 0)');
-		expect(getComputedStyle(document.body).color).not.toBe('rgb(0, 0, 255)');
+		await expect.poll(() => screen.container.textContent ?? '').toContain('Buy Button');
+		await expect
+			.poll(
+				() =>
+					screen.container.querySelector('[data-tentman-content-component-chip="inline"]')
+						?.textContent ?? null
+			)
+			.toBe('Buy Button');
+		const host = screen.container.querySelector('[data-tentman-content-component-chip="inline"]');
+		expect(host).not.toBeNull();
+		expect(host?.textContent).toContain('Buy Button');
+		expect(screen.container.textContent).not.toContain('Buy button: Buy tickets');
 	});
 
-	it('surfaces content component preview errors without hiding the markdown', async () => {
+	it('surfaces content component errors without hiding the markdown', async () => {
 		const buyButtonComponent = {
 			directory: 'src/lib/content-components/buy-button',
 			componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 			renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-			previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 			renderTemplateSource: '<a>{{ label }}</a>',
-			previewTemplateSource:
-				'<span class="tm-component-preview tm-component-preview--buy-button">Buy button: {{ label | escape }}</span>',
 			definition: {
 				id: 'buy-button',
 				name: 'buy-button',
@@ -385,7 +391,7 @@ describe('shared draft asset rendering surfaces', () => {
 
 		await expectElement(screen.getByText(':buy-button[Buy tickets]')).toBeVisible();
 		await expectElement(
-			screen.getByText(/Markdown preview failed for content component "buy-button"/)
+			screen.getByText(/Markdown content component handling failed for "buy-button"/)
 		).toBeVisible();
 	});
 
@@ -403,7 +409,7 @@ describe('shared draft asset rendering surfaces', () => {
 
 		await expectElement(screen.getByText('Buy online')).toBeVisible();
 		await expectElement(
-			screen.getByText('Markdown preview enables unknown content component "buy-button"')
+			screen.getByText('Markdown field enables unknown content component "buy-button"')
 		).toBeVisible();
 	});
 
@@ -433,7 +439,10 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 
-		await expectElement(screen.getByRole('img', { name: 'Hero' })).toBeVisible();
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'data:image/png;base64,cmVuZGVyZWQ='
+		);
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
 	});
 });

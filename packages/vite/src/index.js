@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 const DEFAULT_COMPONENTS_DIR = 'src/lib/content-components';
-const DEFAULT_WATCHED_FILES = new Set(['component.json', 'render.njk', 'preview.njk']);
+const DEFAULT_WATCHED_FILES = new Set(['component.json', 'render.njk']);
 
 /**
  * Trigger a full Vite reload when Tentman content component source files change.

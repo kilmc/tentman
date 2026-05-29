@@ -1,16 +1,12 @@
 import {
 	normalizeContentComponentInstance,
-	renderContentComponent,
 	validateContentComponentInstance
 } from '@tentman/core/content-components';
-import {
-	createSafePreviewHostMarkup,
-	sanitizeRenderedPreviewHtml
-} from '$lib/content-components/safe-preview';
+import { createContentComponentChipMarkup } from '$lib/content-components/label-chip';
 import { parseContentDirectiveMatchesSafe } from './directives';
 import type { ContentComponentRegistry } from './registry';
 
-export interface ContentComponentPreviewTransformResult {
+export interface ContentComponentAuthoringTransformResult {
 	markdown: string;
 	errors: string[];
 }
@@ -40,7 +36,7 @@ function applyDirectiveMatches(
 		for (const issue of issues) {
 			const location = getLineAndColumn(markdown, issue.offset);
 			errors.push(
-				`Markdown preview failed for content component "${issue.name}" at ${location.line}:${location.column}: ${issue.error}`
+				`Markdown content component handling failed for "${issue.name}" at ${location.line}:${location.column}: ${issue.error}`
 			);
 		}
 		return markdown;
@@ -60,8 +56,8 @@ function applyDirectiveMatches(
 			const unavailableComponent = availableRegistry?.getByName(match.name);
 			errors.push(
 				unavailableComponent
-					? `Markdown preview content component "${match.name}" is not enabled on this markdown field at ${location.line}:${location.column}`
-					: `Markdown preview unknown content component "${match.name}" at ${location.line}:${location.column}`
+					? `Markdown content component "${match.name}" is not enabled on this field at ${location.line}:${location.column}`
+					: `Unknown markdown content component "${match.name}" at ${location.line}:${location.column}`
 			);
 			transformed += match.raw;
 			continue;
@@ -69,7 +65,7 @@ function applyDirectiveMatches(
 
 		if (component.definition.kind !== kind) {
 			errors.push(
-				`Markdown preview cannot render ${component.definition.kind} content component "${match.name}" as ${kind} at ${location.line}:${location.column}`
+				`Markdown cannot place ${component.definition.kind} content component "${match.name}" as ${kind} at ${location.line}:${location.column}`
 			);
 			transformed += match.raw;
 			continue;
@@ -87,19 +83,11 @@ function applyDirectiveMatches(
 				throw new Error(validationErrors.join(' '));
 			}
 
-			const previewHtml = renderContentComponent(component, instance, 'preview', {
-				contentItem: options.contentItem,
-				referenceIndex: options.referenceIndex
-			}).trim();
-			const sanitizedPreview = sanitizeRenderedPreviewHtml(previewHtml);
-			transformed += createSafePreviewHostMarkup({
-				html: sanitizedPreview.html,
-				kind: component.definition.kind
-			});
+			transformed += createContentComponentChipMarkup(component);
 		} catch (error) {
 			errors.push(
-				`Markdown preview failed for content component "${match.name}" at ${location.line}:${location.column}: ${
-					error instanceof Error ? error.message : 'Unknown preview rendering error'
+				`Markdown content component handling failed for "${match.name}" at ${location.line}:${location.column}: ${
+					error instanceof Error ? error.message : 'Unknown content component handling error'
 				}`
 			);
 			transformed += match.raw;
@@ -109,7 +97,7 @@ function applyDirectiveMatches(
 	for (const issue of issues) {
 		const location = getLineAndColumn(markdown, issue.offset);
 		errors.push(
-			`Markdown preview failed for content component "${issue.name}" at ${location.line}:${location.column}: ${issue.error}`
+			`Markdown content component handling failed for "${issue.name}" at ${location.line}:${location.column}: ${issue.error}`
 		);
 	}
 
@@ -117,7 +105,7 @@ function applyDirectiveMatches(
 	return transformed;
 }
 
-export function applyPreviewContentComponentTransforms(
+export function applyAuthoringContentComponentTransforms(
 	markdown: string,
 	registry: ContentComponentRegistry,
 	options: {
@@ -125,7 +113,7 @@ export function applyPreviewContentComponentTransforms(
 		contentItem?: object | null;
 		referenceIndex?: Map<string, Map<string, unknown>>;
 	} = {}
-): ContentComponentPreviewTransformResult {
+): ContentComponentAuthoringTransformResult {
 	const errors = [...registry.errors];
 	let transformed = markdown;
 

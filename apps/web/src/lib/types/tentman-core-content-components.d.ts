@@ -6,10 +6,7 @@ declare module '@tentman/core/content-components' {
 		options?: string[];
 		valueFromMarkdownLabel?: boolean;
 		reference?: boolean;
-		referenceScope?: {
-			preview: 'self' | 'container' | 'full';
-			render: 'self' | 'container' | 'full';
-		};
+		referenceScope?: 'self' | 'container' | 'full';
 		editor?: {
 			label?: string;
 			control?: 'text' | 'url' | 'select';
@@ -21,11 +18,7 @@ declare module '@tentman/core/content-components' {
 		directory: string;
 		componentJsonPath: string;
 		renderTemplatePath: string;
-		previewTemplatePath: string;
-		previewCssPath?: string | null;
 		renderTemplateSource: string;
-		previewTemplateSource: string;
-		previewCssSource?: string | null;
 		definition: {
 			id: string;
 			name: string;
@@ -63,23 +56,6 @@ declare module '@tentman/core/content-components' {
 		full: unknown;
 	}
 
-	export interface CoreContentComponentPreviewDiagnostic {
-		kind: 'tag' | 'attribute' | 'img-src';
-		tagName: string;
-		attributeName?: string;
-		value?: string;
-		message: string;
-	}
-
-	export interface CoreContentComponentPreviewCssDiagnostic {
-		kind: 'at-rule' | 'selector' | 'declaration';
-		atRule?: string;
-		selector?: string;
-		property?: string;
-		value?: string;
-		message: string;
-	}
-
 	export function collectContentComponents(
 		components: Array<
 			Omit<CoreLoadedContentComponent, 'definition'> & {
@@ -100,32 +76,11 @@ declare module '@tentman/core/content-components' {
 	export function renderContentComponent(
 		component: CoreLoadedContentComponent,
 		instance: CoreNormalizedContentComponentInstance,
-		mode: 'render' | 'preview',
 		options?: {
 			contentItem?: object | null;
 			referenceIndex?: Map<string, Map<string, unknown>>;
 		}
 	): string;
-
-	export function sanitizeContentComponentPreviewHtml(html: string): {
-		html: string;
-		diagnostics: CoreContentComponentPreviewDiagnostic[];
-	};
-
-	export function sanitizeContentComponentPreviewCss(css: string): {
-		css: string;
-		diagnostics: CoreContentComponentPreviewCssDiagnostic[];
-	};
-
-	export function inspectContentComponentPreviewTemplateSource(source: string): {
-		html: string;
-		diagnostics: CoreContentComponentPreviewDiagnostic[];
-	};
-
-	export function inspectContentComponentPreviewCssSource(source: string): {
-		css: string;
-		diagnostics: CoreContentComponentPreviewCssDiagnostic[];
-	};
 
 	export function getContentComponentReferenceAttribute(component: CoreLoadedContentComponent): {
 		attributeId: string;
@@ -134,8 +89,7 @@ declare module '@tentman/core/content-components' {
 	} | null;
 
 	export function getContentComponentReferenceScope(
-		component: CoreLoadedContentComponent,
-		mode: 'preview' | 'render'
+		component: CoreLoadedContentComponent
 	): 'self' | 'container' | 'full' | null;
 
 	export function getContentComponentRenderTarget(
@@ -165,7 +119,6 @@ declare module '@tentman/core/content-components' {
 	export function resolveContentComponentInstance(
 		component: CoreLoadedContentComponent,
 		instance: CoreNormalizedContentComponentInstance,
-		mode: 'preview' | 'render',
 		options?: {
 			contentItem?: object | null;
 			referenceIndex?: Map<string, Map<string, unknown>>;

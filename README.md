@@ -285,7 +285,6 @@ src/lib/content-components/
   buy-button/
     component.json
     render.njk
-    preview.njk
 ```
 
 `component.json` defines the component contract:
@@ -326,10 +325,9 @@ Supported schema rules:
 - attribute `options`: required for `enum` attributes
 - attribute `valueFromMarkdownLabel`: optional boolean; only one attribute may use it
 
-`render.njk` produces final site output. `preview.njk` produces the safe authoring representation
-shown inside Tentman. Tentman sanitizes `preview.njk` down to presentational HTML before mounting it
-inside an isolated preview host, so repo-defined previews cannot add app-level interactivity. Both
-templates receive the normalized attribute map.
+`render.njk` produces final site output. Inside Tentman, content components render as app-owned grey
+label previews using `editor.toolbarLabel` or a humanized component name fallback. `render.njk`
+receives the normalized attribute map plus resolved `data`.
 
 Example `render.njk`:
 
@@ -337,14 +335,6 @@ Example `render.njk`:
 <a class="buy-button buy-button--{{ variant }}" href="{{ href }}">
 	{{ label }}
 </a>
-```
-
-Example `preview.njk`:
-
-```njk
-<span class="tm-component-preview tm-component-preview--buy-button">
-	Buy button: {{ label }}
-</span>
 ```
 
 Enable components on individual markdown fields:
@@ -431,9 +421,9 @@ tentman component validate
 `create` scaffolds a working component folder, `list` shows discovered components, `inspect` shows
 the resolved files and attribute definitions, and `validate` reports schema or registry problems.
 
-This keeps source representation semantic and deterministic. When you change `render.njk` or
-`preview.njk`, all existing component instances pick up the new output on the next site rebuild or
-Tentman preview refresh because the stored content only contains the component marker and values.
+This keeps source representation semantic and deterministic. When you change `render.njk`, all
+existing component instances pick up the new output on the next site rebuild because the stored
+content only contains the component marker and values.
 
 ### Directory-Backed Collection Example
 

@@ -10,9 +10,7 @@ function createComponent(definition) {
 		directory: `src/lib/content-components/${definition.id}`,
 		componentJsonPath: `src/lib/content-components/${definition.id}/component.json`,
 		renderTemplatePath: `src/lib/content-components/${definition.id}/render.njk`,
-		previewTemplatePath: `src/lib/content-components/${definition.id}/preview.njk`,
 		renderTemplateSource: '<div></div>',
-		previewTemplateSource: '<div></div>',
 		definition
 	});
 }

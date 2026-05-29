@@ -1,5 +1,6 @@
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 
@@ -12,16 +13,6 @@ export default defineConfig({
 		}
 	},
 	plugins: [
-		{
-			name: 'tentman-nunjucks-browser-shim',
-			resolveId(source, _importer, options) {
-				if (source === 'nunjucks' && !options?.ssr) {
-					return path.resolve('./src/lib/test-support/nunjucks-browser-shim.ts');
-				}
-
-				return null;
-			}
-		},
 		tailwindcss(),
 		sveltekit()
 	],
@@ -78,17 +69,16 @@ export default defineConfig({
 							extends: true as const,
 							test: {
 								name: 'client',
-								environment: 'browser',
 								isolate: true,
 								browser: {
 									enabled: true,
-									provider: 'playwright' as never,
+									provider: playwright(),
 									api: {
 										host: '127.0.0.1',
 										port: 0
 									},
 									headless: true,
-									instances: [{ browser: 'chromium' }]
+									instances: [{ browser: 'chromium' as const }]
 								},
 								include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 								exclude: ['src/lib/server/**'],

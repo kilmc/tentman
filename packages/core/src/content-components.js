@@ -1,39 +1,18 @@
 // @ts-nocheck
-import * as nunjucksModule from 'nunjucks';
 import {
 	assertPlainObject,
 	parseJsonObject,
 	readOptionalString,
 	readRequiredString
 } from './json.js';
-export {
-	inspectContentComponentPreviewTemplateSource,
-	sanitizeContentComponentPreviewHtml
-} from './content-component-preview-sanitizer.js';
-export {
-	inspectContentComponentPreviewCssSource,
-	sanitizeContentComponentPreviewCss
-} from './content-component-preview-css-sanitizer.js';
 
 const COMPONENT_CONFIG_NAME = 'component.json';
 const RENDER_TEMPLATE_NAME = 'render.njk';
-const PREVIEW_TEMPLATE_NAME = 'preview.njk';
-const PREVIEW_STYLESHEET_NAME = 'preview.css';
 const VALID_COMPONENT_KINDS = new Set(['inline', 'block']);
 const VALID_ATTRIBUTE_TYPES = new Set(['string', 'enum']);
 const VALID_EDITOR_CONTROLS = new Set(['text', 'url', 'select']);
 const VALID_REFERENCE_SCOPES = new Set(['self', 'container', 'full']);
 const VALID_RENDER_MAPPING_ROOTS = new Set(['attributes', 'data']);
-const nunjucksRuntime = nunjucksModule.Environment
-	? nunjucksModule
-	: nunjucksModule.default
-		? nunjucksModule.default
-		: globalThis.nunjucks;
-const { Environment } = nunjucksRuntime;
-const renderEnvironment = new Environment(undefined, {
-	autoescape: true,
-	throwOnUndefined: false
-});
 
 // Keep Node-only helpers out of browser bundle analysis. These code paths are only used when
 // reading content component files from disk, never when rendering already-loaded components.
@@ -87,19 +66,7 @@ function normalizeReferenceScopeValue(value, context) {
 }
 
 function normalizeReferenceScope(input, context) {
-	if (typeof input === 'string') {
-		const scope = normalizeReferenceScopeValue(input, context);
-		return {
-			preview: scope,
-			render: scope
-		};
-	}
-
-	assertPlainObject(input, `${context} must be a string or an object`);
-	return {
-		preview: normalizeReferenceScopeValue(input.preview, `${context}.preview`),
-		render: normalizeReferenceScopeValue(input.render, `${context}.render`)
-	};
+	return normalizeReferenceScopeValue(input, context);
 }
 
 function normalizeRenderMappingPath(value, context) {
@@ -153,24 +120,6 @@ function cloneReferenceValue(value) {
 	}
 
 	return JSON.parse(JSON.stringify(value));
-}
-
-function getTemplateSource(component, mode) {
-	if (mode === 'render') {
-		return {
-			path: component.renderTemplatePath,
-			source: component.renderTemplateSource
-		};
-	}
-
-	if (mode === 'preview') {
-		return {
-			path: component.previewTemplatePath,
-			source: component.previewTemplateSource
-		};
-	}
-
-	throw new Error(`Unsupported content component render mode: ${mode}`);
 }
 
 function normalizeAttributeDefinition(attributeName, input, context) {
@@ -573,27 +522,16 @@ export async function loadContentComponent(directory) {
 	const normalizedDirectory = path.resolve(directory);
 	const componentJsonPath = path.join(normalizedDirectory, COMPONENT_CONFIG_NAME);
 	const renderTemplatePath = path.join(normalizedDirectory, RENDER_TEMPLATE_NAME);
-	const previewTemplatePath = path.join(normalizedDirectory, PREVIEW_TEMPLATE_NAME);
-	const previewCssPath = path.join(normalizedDirectory, PREVIEW_STYLESHEET_NAME);
-	const hasPreviewCss = await pathExists(previewCssPath);
-
-	const [componentJsonSource, renderTemplateSource, previewTemplateSource, previewCssSource] =
-		await Promise.all([
-			readRequiredFile(componentJsonPath),
-			readRequiredFile(renderTemplatePath),
-			readRequiredFile(previewTemplatePath),
-			hasPreviewCss ? readRequiredFile(previewCssPath) : Promise.resolve(null)
-		]);
+	const [componentJsonSource, renderTemplateSource] = await Promise.all([
+		readRequiredFile(componentJsonPath),
+		readRequiredFile(renderTemplatePath)
+	]);
 
 	return {
 		directory: normalizedDirectory,
 		componentJsonPath,
 		renderTemplatePath,
-		previewTemplatePath,
-		previewCssPath: hasPreviewCss ? previewCssPath : null,
 		renderTemplateSource,
-		previewTemplateSource,
-		previewCssSource,
 		definition: parseJsonObject(componentJsonSource, componentJsonPath)
 	};
 }
@@ -616,38 +554,8 @@ export function validateContentComponent(component) {
 		throw new Error('content component.renderTemplatePath must be a non-empty string');
 	}
 
-	if (
-		typeof component.previewTemplatePath !== 'string' ||
-		component.previewTemplatePath.length === 0
-	) {
-		throw new Error('content component.previewTemplatePath must be a non-empty string');
-	}
-
-	if (component.previewCssPath !== null && component.previewCssPath !== undefined) {
-		if (
-			typeof component.previewCssPath !== 'string' ||
-			component.previewCssPath.length === 0
-		) {
-			throw new Error('content component.previewCssPath must be null or a non-empty string');
-		}
-	}
-
 	if (typeof component.renderTemplateSource !== 'string') {
 		throw new Error(`${component.renderTemplatePath} must be loaded as a string`);
-	}
-
-	if (typeof component.previewTemplateSource !== 'string') {
-		throw new Error(`${component.previewTemplatePath} must be loaded as a string`);
-	}
-
-	if (component.previewCssSource !== null && component.previewCssSource !== undefined) {
-		if (typeof component.previewCssSource !== 'string') {
-			throw new Error('content component.previewCssSource must be null or a string');
-		}
-
-		if (component.previewCssPath === null || component.previewCssPath === undefined) {
-			throw new Error('content component.previewCssPath is required when previewCssSource is set');
-		}
 	}
 
 	assertPlainObject(component.definition, `${componentJsonPath} must be an object`);
@@ -781,13 +689,13 @@ export function getContentComponentReferenceAttribute(component) {
 	return null;
 }
 
-export function getContentComponentReferenceScope(component, mode) {
+export function getContentComponentReferenceScope(component) {
 	const referenceAttribute = getContentComponentReferenceAttribute(component);
 	if (!referenceAttribute) {
 		return null;
 	}
 
-	return referenceAttribute.definition.referenceScope?.[mode] ?? null;
+	return referenceAttribute.definition.referenceScope ?? null;
 }
 
 export function getContentComponentRenderTarget(component, target) {
@@ -923,7 +831,7 @@ export function collectContentComponentReferenceIndex(options) {
 	};
 }
 
-export function resolveContentComponentInstance(component, instance, mode, options = {}) {
+export function resolveContentComponentInstance(component, instance, options = {}) {
 	if (instance.componentId !== component.definition.id) {
 		throw new Error(
 			`Content component instance ${instance.componentId} does not match component ${component.definition.id}`
@@ -965,7 +873,7 @@ export function resolveContentComponentInstance(component, instance, mode, optio
 		return resolved;
 	}
 
-	const scope = referenceAttribute.definition.referenceScope?.[mode] ?? 'self';
+	const scope = referenceAttribute.definition.referenceScope ?? 'self';
 	resolved.data =
 		scope === 'self' ? match.self : scope === 'container' ? match.container : match.full;
 
@@ -978,7 +886,7 @@ export function resolveContentComponentRenderTarget(component, instance, target,
 		return null;
 	}
 
-	const resolvedInstance = resolveContentComponentInstance(component, instance, 'render', options);
+	const resolvedInstance = resolveContentComponentInstance(component, instance, options);
 
 	return {
 		...renderTarget,
@@ -995,7 +903,7 @@ export function validateContentComponentInstance(component, instance, options = 
 	const errors = [];
 
 	try {
-		resolveContentComponentInstance(component, instance, 'preview', options);
+		resolveContentComponentInstance(component, instance, options);
 	} catch (error) {
 		errors.push(error instanceof Error ? error.message : 'Invalid content component instance');
 		return errors;
@@ -1026,7 +934,7 @@ export function validateContentComponentInstance(component, instance, options = 
 		return errors;
 	}
 
-	const resolvedInstance = resolveContentComponentInstance(component, instance, 'preview', options);
+	const resolvedInstance = resolveContentComponentInstance(component, instance, options);
 	if (resolvedInstance.data === null) {
 		errors.push(
 			`Content component reference "${referenceAttribute.binding}" could not resolve token "${token}"`
@@ -1036,26 +944,16 @@ export function validateContentComponentInstance(component, instance, options = 
 	return errors;
 }
 
-export function renderContentComponent(component, instance, mode, options = {}) {
-	const template = getTemplateSource(component, mode);
-	const resolvedInstance = resolveContentComponentInstance(component, instance, mode, options);
+export function createContentComponentRenderContext(component, instance, options = {}) {
+	const resolvedInstance = resolveContentComponentInstance(component, instance, options);
 
-	try {
-		return renderEnvironment.renderString(
-			template.source,
-			{
-				...resolvedInstance.attributes,
-				attributes: resolvedInstance.attributes,
-				data: cloneReferenceValue(resolvedInstance.data)
-			},
-			{
-				path: template.path
-			}
-		);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(
-			`Failed to render ${mode} template for ${component.definition.name}: ${message}`
-		);
-	}
+	return {
+		path: component.renderTemplatePath,
+		source: component.renderTemplateSource,
+		context: {
+			...resolvedInstance.attributes,
+			attributes: resolvedInstance.attributes,
+			data: cloneReferenceValue(resolvedInstance.data)
+		}
+	};
 }

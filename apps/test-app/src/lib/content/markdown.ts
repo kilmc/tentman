@@ -330,7 +330,7 @@ async function renderResolvedDirective(
 		throw new Error(validationErrors.join(' '));
 	}
 
-	return renderContentComponent(component, instance, 'render', {
+	return renderContentComponent(component, instance, {
 		contentItem: renderOptions.contentItem,
 		referenceIndex: renderOptions.referenceIndex
 	});

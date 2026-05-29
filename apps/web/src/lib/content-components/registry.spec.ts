@@ -57,38 +57,13 @@ describe('loadContentComponentRegistryFromRepository', () => {
 						label: { type: 'string', required: true, valueFromMarkdownLabel: true }
 					}
 				}),
-				'src/lib/content-components/buy-button/render.njk': '<a>{{ label }}</a>',
-				'src/lib/content-components/buy-button/preview.njk': '<span>Buy button: {{ label }}</span>'
+				'src/lib/content-components/buy-button/render.njk': '<a>{{ label }}</a>'
 			})
 		);
 
 		expect(registry.components).toHaveLength(1);
 		expect(registry.getByName('buy-button')?.definition.id).toBe('buy-button');
-		expect(registry.getByName('buy-button')?.previewCssPath).toBeNull();
-		expect(registry.getByName('buy-button')?.previewCssSource).toBeNull();
 		expect(registry.errors).toEqual([]);
-	});
-
-	it('ignores preview.css alongside preview.njk', async () => {
-		const registry = await loadContentComponentRegistryFromRepository(
-			createRepository({
-				'src/lib/content-components/buy-button/component.json': JSON.stringify({
-					id: 'buy-button',
-					name: 'buy-button',
-					kind: 'inline',
-					attributes: {
-						href: { type: 'string', required: true },
-						label: { type: 'string', required: true, valueFromMarkdownLabel: true }
-					}
-				}),
-				'src/lib/content-components/buy-button/render.njk': '<a>{{ label }}</a>',
-				'src/lib/content-components/buy-button/preview.njk': '<span>Buy button: {{ label }}</span>',
-				'src/lib/content-components/buy-button/preview.css': '.tm-component-preview { color: red; }'
-			})
-		);
-
-		expect(registry.getByName('buy-button')?.previewCssPath).toBeNull();
-		expect(registry.getByName('buy-button')?.previewCssSource).toBeNull();
 	});
 
 	it('returns empty registry when the components directory is missing', async () => {
@@ -110,8 +85,7 @@ describe('loadContentComponentRegistryFromRepository', () => {
 						label: { type: 'string', required: true, valueFromMarkdownLabel: true }
 					}
 				}),
-				'cms/components/buy-button/render.njk': '<a>{{ label }}</a>',
-				'cms/components/buy-button/preview.njk': '<span>Buy button: {{ label }}</span>'
+				'cms/components/buy-button/render.njk': '<a>{{ label }}</a>'
 			}),
 			{
 				componentsDir: './cms/components'

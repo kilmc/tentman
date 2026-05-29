@@ -8,11 +8,8 @@ function createRegistry(): ContentComponentRegistry {
 		directory: 'src/lib/content-components/buy-button',
 		componentJsonPath: 'src/lib/content-components/buy-button/component.json',
 		renderTemplatePath: 'src/lib/content-components/buy-button/render.njk',
-		previewTemplatePath: 'src/lib/content-components/buy-button/preview.njk',
 		renderTemplateSource:
 			'<a class="buy-button buy-button--{{ variant }}" href="{{ href | escape }}">{{ label | escape }}</a>',
-		previewTemplateSource:
-			'<a class="tm-component-preview tm-component-preview--buy-button" href="{{ href | escape }}">Buy button: {{ label | escape }}</a>',
 		definition: {
 			id: 'buy-button',
 			name: 'buy-button',
@@ -60,9 +57,7 @@ function createMarkerOnlyRegistry(): ContentComponentRegistry {
 		directory: 'src/lib/content-components/project-gallery-embed',
 		componentJsonPath: 'src/lib/content-components/project-gallery-embed/component.json',
 		renderTemplatePath: 'src/lib/content-components/project-gallery-embed/render.njk',
-		previewTemplatePath: 'src/lib/content-components/project-gallery-embed/preview.njk',
 		renderTemplateSource: '<div>{{ data.layout }}</div>',
-		previewTemplateSource: '<div>{{ data.layout }}</div>',
 		definition: {
 			id: 'project-gallery-embed',
 			name: 'project-gallery-embed',
