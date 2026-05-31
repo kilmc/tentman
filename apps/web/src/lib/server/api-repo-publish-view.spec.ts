@@ -4,31 +4,22 @@ vi.mock('$lib/server/page-context', () => ({
 	requireGitHubRepository: vi.fn()
 }));
 
-vi.mock('$lib/github/branch', () => ({
-	getCommitsSince: vi.fn()
-}));
-
 vi.mock('$lib/features/draft-publishing/service', () => ({
 	getTentmanDraftBranchName: vi.fn()
-}));
-
-vi.mock('$lib/github/pull-request', () => ({
-	ensureDraftPullRequest: vi.fn()
 }));
 
 vi.mock('$lib/stores/config-cache', () => ({
 	getCachedConfigs: vi.fn()
 }));
 
-vi.mock('$lib/utils/draft-comparison', () => ({
-	compareDraftToBranch: vi.fn()
+vi.mock('$lib/features/review-draft/build-review-model', () => ({
+	buildPublishReviewModel: vi.fn()
 }));
 
 import { GET } from '../../routes/api/repo/publish-view/+server';
-import { getCommitsSince } from '$lib/github/branch';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
+import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
 import { getCachedConfigs } from '$lib/stores/config-cache';
-import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { requireGitHubRepository } from '$lib/server/page-context';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
@@ -88,29 +79,28 @@ describe('GET /api/repo/publish-view', () => {
 				}
 			}
 		] as never);
-		vi.mocked(compareDraftToBranch)
-			.mockResolvedValueOnce({
-				modified: [{ path: 'content/posts/hello-world.md' }],
-				created: [],
-				deleted: []
-			} as never)
-			.mockResolvedValueOnce({
-				modified: [],
-				created: [],
-				deleted: []
-			} as never);
-		vi.mocked(getCommitsSince).mockResolvedValue([
-			{
-				sha: 'abc123',
-				message: 'Update content',
-				author: {
-					name: 'Kilian',
-					email: 'kilian@example.com',
-					date: '2026-04-05T12:00:00.000Z'
-				},
-				url: 'https://github.com/acme/docs/commit/abc123'
-			}
-		]);
+		vi.mocked(buildPublishReviewModel).mockResolvedValue({
+			topLevelOrderChange: {
+				title: 'Top-level content order',
+				href: '/pages',
+				before: [{ id: 'about', label: 'About', position: 1 }],
+				after: [{ id: 'posts', label: 'Posts', position: 1 }]
+			},
+			sections: [
+				{
+					configSlug: 'posts',
+					configLabel: 'Posts',
+					isCollection: true,
+					badges: [{ label: 'Edited', tone: 'neutral' }],
+					defaultExpanded: true,
+					navigationHref: '/pages/posts',
+					collectionOrderChange: null,
+					items: []
+				}
+			],
+			otherSiteChanges: null,
+			hasHiddenUnreviewedChanges: false
+		});
 
 		const response = await GET({
 			locals: {},
@@ -121,18 +111,16 @@ describe('GET /api/repo/publish-view', () => {
 			draftBranch: {
 				name: 'tentman-preview'
 			},
-			configsWithChanges: [
-				{
-					config: {
-						slug: 'posts'
+			reviewModel: {
+				topLevelOrderChange: {
+					title: 'Top-level content order'
+				},
+				sections: [
+					{
+						configSlug: 'posts'
 					}
-				}
-			],
-			commits: [
-				{
-					sha: 'abc123'
-				}
-			]
+				]
+			}
 		});
 	});
 

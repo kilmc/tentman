@@ -14,6 +14,12 @@ export interface Commit {
 	url: string;
 }
 
+export interface BranchChangedFile {
+	filename: string;
+	status: string;
+	previous_filename?: string;
+}
+
 /**
  * Creates a new branch from a base branch
  *
@@ -122,4 +128,42 @@ export async function getCommitsSince(
 			`Failed to get commits between ${baseBranch} and ${headBranch}: ${errorMessage}`
 		);
 	}
+}
+
+export async function listChangedFilesBetweenRefs(
+	octokit: Octokit,
+	owner: string,
+	repo: string,
+	baseBranch: string,
+	headBranch: string
+): Promise<BranchChangedFile[]> {
+	const files: BranchChangedFile[] = [];
+	let page = 1;
+
+	while (true) {
+		const response = await octokit.rest.repos.compareCommits({
+			owner,
+			repo,
+			base: baseBranch,
+			head: headBranch,
+			per_page: 100,
+			page
+		});
+
+		for (const file of response.data.files ?? []) {
+			files.push({
+				filename: file.filename,
+				status: file.status,
+				...(file.previous_filename ? { previous_filename: file.previous_filename } : {})
+			});
+		}
+
+		if ((response.data.files?.length ?? 0) < 100) {
+			break;
+		}
+
+		page += 1;
+	}
+
+	return files;
 }

@@ -23,8 +23,12 @@ describe('routes/publish/+page', () => {
 				new Response(
 					JSON.stringify({
 						draftBranch: { name: 'tentman-preview' },
-						configsWithChanges: [],
-						commits: []
+						reviewModel: {
+							topLevelOrderChange: null,
+							sections: [],
+							otherSiteChanges: null,
+							hasHiddenUnreviewedChanges: false
+						}
 					}),
 					{
 						status: 200,
@@ -58,8 +62,12 @@ describe('routes/publish/+page', () => {
 			} as never)
 		).resolves.toEqual({
 			draftBranch: { name: 'tentman-preview' },
-			configsWithChanges: [],
-			commits: []
+			reviewModel: {
+				topLevelOrderChange: null,
+				sections: [],
+				otherSiteChanges: null,
+				hasHiddenUnreviewedChanges: false
+			}
 		});
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/publish-view');

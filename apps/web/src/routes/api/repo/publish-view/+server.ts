@@ -1,10 +1,9 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getCommitsSince } from '$lib/github/branch';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
+import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
 import { getCachedConfigs } from '$lib/stores/config-cache';
-import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubRepository } from '$lib/server/page-context';
 
@@ -22,45 +21,21 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 		}
 
 		const configs = await getCachedConfigs(backend);
-		const configsWithChanges = [];
-
-		for (const config of configs) {
-			const changes = await compareDraftToBranch(
-				octokit,
-				owner,
-				name,
-				repo.default_branch,
-				config.config,
-				config.path,
-				draftBranch
-			);
-
-			if (
-				changes.modified.length > 0 ||
-				changes.created.length > 0 ||
-				changes.deleted.length > 0
-			) {
-				configsWithChanges.push({
-					config,
-					changes
-				});
-			}
-		}
-
-		const commits = await getCommitsSince(
+		const reviewModel = await buildPublishReviewModel({
 			octokit,
 			owner,
-			name,
-			repo.default_branch,
+			repo,
+			backend,
+			configs,
+			baseBranch: repo.default_branch,
 			draftBranch
-		);
+		});
 
 		return json({
 			draftBranch: {
 				name: draftBranch
 			},
-			configsWithChanges,
-			commits
+			reviewModel
 		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
