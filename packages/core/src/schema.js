@@ -69,6 +69,14 @@ function summarizeField(block, blockDefinitions) {
 		summary.itemLabel = block.itemLabel;
 	}
 
+	if (block.isItemLabel === true) {
+		summary.isItemLabel = true;
+	}
+
+	if (block.itemLabelFormat && typeof block.itemLabelFormat === 'object') {
+		summary.itemLabelFormat = { ...block.itemLabelFormat };
+	}
+
 	if (typeof block.assetsDir === 'string' && block.assetsDir.length > 0) {
 		summary.assetsDir = block.assetsDir;
 	}

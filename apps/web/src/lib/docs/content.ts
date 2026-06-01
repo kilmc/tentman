@@ -348,6 +348,22 @@ const blockUsageRows = fiveColumnRows([
 		notes: 'Helpful when collection: true.'
 	},
 	{
+		field: 'isItemLabel',
+		required: 'No',
+		type: 'boolean',
+		purpose: 'Marks one text or date field as the human-facing label source for its local item-like schema unit.',
+		notes:
+			'V1 applies only to collections, repeatable structured items, and reusable repeatable block configs. Singleton pages are out of scope.'
+	},
+	{
+		field: 'itemLabelFormat',
+		required: 'No',
+		type: 'Intl.DateTimeFormatOptions',
+		purpose: 'Formats the human-facing label for a date field that also sets isItemLabel: true.',
+		notes:
+			'Ignored unless the same block is a date field with isItemLabel: true. Tentman prefers the browser locale when available and falls back to en-US.'
+	},
+	{
 		field: 'minLength / maxLength',
 		required: 'No',
 		type: 'number',
@@ -790,6 +806,59 @@ const blockConfigExample = `{
   "blocks": [
     { "id": "metaTitle", "type": "text", "label": "Meta Title" },
     { "id": "metaDescription", "type": "textarea", "label": "Meta Description" }
+  ]
+}`;
+
+const itemLabelSourceCollectionExample = `{
+  "type": "content",
+  "label": "Projects",
+  "itemLabel": "Project",
+  "collection": true,
+  "content": {
+    "mode": "file",
+    "path": "./src/content/projects.json"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title" },
+    { "id": "client", "type": "text", "label": "Client", "isItemLabel": true },
+    { "id": "summary", "type": "textarea", "label": "Summary" }
+  ]
+}`;
+
+const itemLabelSourceRepeatableExample = `{
+  "type": "block",
+  "id": "faqSection",
+  "label": "FAQ Section",
+  "itemLabel": "Question",
+  "collection": true,
+  "blocks": [
+    { "id": "question", "type": "text", "label": "Question", "isItemLabel": true },
+    { "id": "answer", "type": "markdown", "label": "Answer" }
+  ]
+}`;
+
+const itemLabelSourceDateExample = `{
+  "type": "content",
+  "label": "Events",
+  "itemLabel": "Event",
+  "collection": true,
+  "content": {
+    "mode": "file",
+    "path": "./src/content/events.json"
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title" },
+    {
+      "id": "startsOn",
+      "type": "date",
+      "label": "Starts on",
+      "isItemLabel": true,
+      "itemLabelFormat": {
+        "weekday": "short",
+        "month": "short",
+        "day": "numeric"
+      }
+    }
   ]
 }`;
 
@@ -1741,6 +1810,42 @@ const docsPages: DocsPage[] = [
 				id: 'fields',
 				title: 'Common fields',
 				blocks: [table(['Field', 'Required', 'Type', 'Purpose', 'Notes'], blockUsageRows)]
+			},
+			{
+				id: 'item-label-sources',
+				title: 'Item label sources',
+				blocks: [
+					{
+						kind: 'rich-text',
+						html: `<p>Use ${inlineCode('isItemLabel: true')} to pick one human-facing label source inside a local item-like schema unit. In v1 that means top-level collections, inline repeatable structured items, and reusable repeatable block configs. Singleton pages are intentionally out of scope.</p>
+<p>Only ${inlineCode('text')} and ${inlineCode('date')} are supported in v1. Tentman uses the explicit field when it resolves to a real value, then falls back to the existing title heuristic when it does not. ${inlineCode('isItemLabel')} never changes ids, routes, filenames, ${inlineCode('_tentmanId')}, ${inlineCode('idField')}, or any persistence identity behavior.</p>
+<p>Validation is local to one schema unit. Parent and child repeatables can each choose their own label source. If a unit declares more than one ${inlineCode('isItemLabel: true')}, or uses an unsupported field type, Tentman warns and ignores the explicit declarations for that unit.</p>`
+					},
+					{
+						kind: 'code-grid',
+						items: [
+							{
+								title: 'Collection example',
+								code: itemLabelSourceCollectionExample,
+								language: 'json'
+							},
+							{
+								title: 'Reusable repeatable block example',
+								code: itemLabelSourceRepeatableExample,
+								language: 'json'
+							},
+							{
+								title: 'Date formatting example',
+								code: itemLabelSourceDateExample,
+								language: 'json'
+							}
+						]
+					},
+					{
+						kind: 'rich-text',
+						html: `<p>${inlineCode('itemLabelFormat')} only applies to date fields that also set ${inlineCode('isItemLabel: true')}. Tentman passes those options through to ${inlineCode('Intl.DateTimeFormat')}, prefers the browser locale when available, and falls back to ${inlineCode('en-US')} for stable output. If formatting fails, Tentman falls back to the default date label formatting for that field instead of the broader title heuristic.</p>`
+					}
+				]
 			}
 		]
 	},

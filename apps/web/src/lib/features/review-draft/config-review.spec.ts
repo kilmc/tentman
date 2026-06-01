@@ -131,4 +131,53 @@ describe('review draft config review', () => {
 		);
 		expect(section?.items.filter((item) => item.itemId === 'a')).toHaveLength(1);
 	});
+
+	it('uses resolved explicit item labels in collection order reviews', () => {
+		const section = buildConfigReviewSection({
+			config: {
+				...collectionConfig,
+				config: {
+					...collectionConfig.config,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'summary', type: 'text', label: 'Summary', isItemLabel: true }
+					]
+				}
+			} as never,
+			beforeContent: [{ _tentmanId: 'a', slug: 'a', title: 'A', summary: 'Alpha' }],
+			afterContent: [{ _tentmanId: 'a', slug: 'a', title: 'A', summary: 'Beta' }],
+			baseManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: true,
+				manifest: {
+					version: 1,
+					collections: {
+						posts: {
+							items: ['a']
+						}
+					}
+				},
+				error: null
+			},
+			draftManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: true,
+				manifest: {
+					version: 1,
+					collections: {
+						posts: {
+							items: ['a']
+						}
+					}
+				},
+				error: null
+			},
+			baseRootConfig: null,
+			draftRootConfig: null,
+			fieldOptions,
+			singleConfigVisible: false
+		});
+
+		expect(section?.items[0]?.title).toBe('Beta');
+	});
 });

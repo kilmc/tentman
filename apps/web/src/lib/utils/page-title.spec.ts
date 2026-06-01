@@ -48,6 +48,25 @@ describe('page title helpers', () => {
 		).toBe('Edit Hello World | Blog Posts');
 	});
 
+	it('uses explicit item label fields for page titles', () => {
+		expect(
+			buildContentTitleContext({
+				kind: 'view-item',
+				config: {
+					...blogConfig,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'summary', type: 'text', label: 'Summary', isItemLabel: true }
+					]
+				},
+				item: {
+					title: 'Hello World',
+					summary: 'Launch update'
+				}
+			})
+		).toBe('Launch update | Blog Posts');
+	});
+
 	it('falls back to generic item labels when no real item title exists', () => {
 		expect(
 			buildContentTitleContext({

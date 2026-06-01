@@ -34,6 +34,8 @@ type LegacyFieldInput =
 			label?: unknown;
 			required?: unknown;
 			generated?: unknown;
+			isItemLabel?: unknown;
+			itemLabelFormat?: unknown;
 			show?: unknown;
 			fields?: unknown;
 			editorLayout?: unknown;
@@ -51,6 +53,8 @@ type LegacyFieldArrayItem = {
 	label?: unknown;
 	required?: unknown;
 	generated?: unknown;
+	isItemLabel?: unknown;
+	itemLabelFormat?: unknown;
 	show?: unknown;
 	fields?: unknown;
 	editorLayout?: unknown;
@@ -103,6 +107,36 @@ function readOptionalBoolean(
 	}
 
 	return candidate;
+}
+
+function readOptionalDateTimeFormatOptions(
+	value: Record<string, unknown>,
+	key: string,
+	context: string
+): Intl.DateTimeFormatOptions | undefined {
+	const candidate = value[key];
+
+	if (candidate === undefined) {
+		return undefined;
+	}
+
+	if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+		throw new Error(`${context}.${key} must be an object`);
+	}
+
+	for (const [optionKey, optionValue] of Object.entries(candidate)) {
+		if (
+			typeof optionValue !== 'string' &&
+			typeof optionValue !== 'number' &&
+			typeof optionValue !== 'boolean'
+		) {
+			throw new Error(
+				`${context}.${key}.${optionKey} must be a string, number, or boolean`
+			);
+		}
+	}
+
+	return candidate as Intl.DateTimeFormatOptions;
 }
 
 function readOptionalStringArray(
@@ -508,6 +542,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		const assetsDir = readOptionalString(input, 'assetsDir', context);
 		const components = readOptionalStringArray(input, 'components', context);
 		const generated = readOptionalBoolean(input, 'generated', context);
+		const isItemLabel = readOptionalBoolean(input, 'isItemLabel', context);
+		const itemLabelFormat = readOptionalDateTimeFormatOptions(input, 'itemLabelFormat', context);
 		const show = input.show;
 		const minLength = input.minLength;
 		const maxLength = input.maxLength;
@@ -552,6 +588,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(required !== undefined && { required }),
 			collection: options.collection,
 			...(options.addOption !== undefined && { addOption: options.addOption }),
+			...(isItemLabel !== undefined && { isItemLabel }),
+			...(itemLabelFormat && { itemLabelFormat }),
 			...(show && { show })
 		};
 	}
@@ -564,6 +602,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 	const assetsDir = readOptionalString(input, 'assetsDir', context);
 	const components = readOptionalStringArray(input, 'components', context);
 	const generated = readOptionalBoolean(input, 'generated', context);
+	const isItemLabel = readOptionalBoolean(input, 'isItemLabel', context);
+	const itemLabelFormat = readOptionalDateTimeFormatOptions(input, 'itemLabelFormat', context);
 	const show = input.show;
 	const minLength = input.minLength;
 	const maxLength = input.maxLength;
@@ -602,6 +642,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(required !== undefined && { required }),
 			...(collection !== undefined && { collection }),
 			...(itemLabel && { itemLabel }),
+			...(isItemLabel !== undefined && { isItemLabel }),
+			...(itemLabelFormat && { itemLabelFormat }),
 			...(assetsDir && { assetsDir }),
 			...(generated !== undefined && { generated }),
 			...(show && { show }),
@@ -629,6 +671,8 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 		...(required !== undefined && { required }),
 		...(collection !== undefined && { collection }),
 		...(itemLabel && { itemLabel }),
+		...(isItemLabel !== undefined && { isItemLabel }),
+		...(itemLabelFormat && { itemLabelFormat }),
 		...(assetsDir && { assetsDir }),
 		...(components && { components }),
 		...(generated !== undefined && { generated }),
@@ -801,6 +845,12 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	const label = readOptionalString(rawField as Record<string, unknown>, 'label', context);
 	const required = readOptionalBoolean(rawField as Record<string, unknown>, 'required', context);
 	const generated = readOptionalBoolean(rawField as Record<string, unknown>, 'generated', context);
+	const isItemLabel = readOptionalBoolean(rawField as Record<string, unknown>, 'isItemLabel', context);
+	const itemLabelFormat = readOptionalDateTimeFormatOptions(
+		rawField as Record<string, unknown>,
+		'itemLabelFormat',
+		context
+	);
 	const show = rawField.show;
 	const minLength = rawField.minLength;
 	const maxLength = rawField.maxLength;
@@ -839,6 +889,8 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 			...(label && { label }),
 			...(required !== undefined && { required }),
 			...(generated !== undefined && { generated }),
+			...(isItemLabel !== undefined && { isItemLabel }),
+			...(itemLabelFormat && { itemLabelFormat }),
 			...(show && { show }),
 			...(minLength !== undefined && { minLength }),
 			...(maxLength !== undefined && { maxLength }),
@@ -858,6 +910,8 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 		...(label && { label }),
 		...(required !== undefined && { required }),
 		...(generated !== undefined && { generated }),
+		...(isItemLabel !== undefined && { isItemLabel }),
+		...(itemLabelFormat && { itemLabelFormat }),
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),
@@ -888,6 +942,8 @@ function parseLegacyFieldObjectEntry(
 	const label = readOptionalString(input, 'label', context);
 	const required = readOptionalBoolean(input, 'required', context);
 	const generated = readOptionalBoolean(input, 'generated', context);
+	const isItemLabel = readOptionalBoolean(input, 'isItemLabel', context);
+	const itemLabelFormat = readOptionalDateTimeFormatOptions(input, 'itemLabelFormat', context);
 	const show = input.show;
 	const minLength = input.minLength;
 	const maxLength = input.maxLength;
@@ -919,6 +975,8 @@ function parseLegacyFieldObjectEntry(
 			...(label && { label }),
 			...(required !== undefined && { required }),
 			...(generated !== undefined && { generated }),
+			...(isItemLabel !== undefined && { isItemLabel }),
+			...(itemLabelFormat && { itemLabelFormat }),
 			...(show && { show }),
 			...(minLength !== undefined && { minLength }),
 			...(maxLength !== undefined && { maxLength }),
@@ -938,6 +996,8 @@ function parseLegacyFieldObjectEntry(
 		...(label && { label }),
 		...(required !== undefined && { required }),
 		...(generated !== undefined && { generated }),
+		...(isItemLabel !== undefined && { isItemLabel }),
+		...(itemLabelFormat && { itemLabelFormat }),
 		...(show && { show }),
 		...(minLength !== undefined && { minLength }),
 		...(maxLength !== undefined && { maxLength }),

@@ -85,7 +85,7 @@
 			state && state.visibility.navigation !== false ? `, ${state.label}` : '';
 		const issueLabel =
 			(config.issues?.length ?? 0) > 0
-				? `, ${config.issues?.length} compatibility warning${config.issues?.length === 1 ? '' : 's'}`
+				? `, ${config.issues?.length} config warning${config.issues?.length === 1 ? '' : 's'}`
 				: '';
 		return `${config.config.label}${stateLabel}${issueLabel}`;
 	}

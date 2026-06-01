@@ -1,12 +1,15 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { RootConfig } from '$lib/config/root-config';
-import { getCardFields } from '$lib/features/forms/helpers';
 import {
 	getCollectionGroups,
 	isCollectionManualSortingEnabled
 } from '$lib/features/content-management/config';
-import { formatContentValue, getItemId, getItemRoute } from '$lib/features/content-management/item';
+import { getItemId, getItemRoute } from '$lib/features/content-management/item';
+import {
+	getConfigItemLabel,
+	resolveContentItemTitle
+} from '$lib/features/content-management/item-labels';
 import {
 	resolveCollectionItemState,
 	type ResolvedContentState
@@ -16,6 +19,8 @@ import type {
 	NavigationManifestCollection
 } from '$lib/features/content-management/navigation-manifest';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
+
+export { getConfigItemLabel, resolveContentItemTitle } from '$lib/features/content-management/item-labels';
 
 export interface CollectionNavigationItem {
 	itemId: string;
@@ -54,65 +59,8 @@ export interface OrderedCollectionRecords {
 	groups: OrderedCollectionRecordGroup[];
 }
 
-export function getConfigItemLabel(config: ParsedContentConfig): string {
-	if (config.itemLabel?.trim()) {
-		return config.itemLabel.trim();
-	}
-
-	const label = config.label.trim();
-	if (!label) {
-		return 'Item';
-	}
-
-	return label.endsWith('s') && label.length > 1 ? label.slice(0, -1) : label;
-}
-
 export function getContentItemTitle(config: ParsedContentConfig, item: ContentRecord): string {
 	return resolveContentItemTitle(config, item).title;
-}
-
-export function resolveContentItemTitle(
-	config: ParsedContentConfig,
-	item: ContentRecord
-): { title: string; usedFallback: boolean } {
-	const cardFields = getCardFields(config);
-	const seenFieldIds = new Set<string>();
-
-	for (const block of [...cardFields.primary, ...cardFields.secondary, ...config.blocks]) {
-		if (seenFieldIds.has(block.id)) {
-			continue;
-		}
-
-		seenFieldIds.add(block.id);
-
-		const value = item[block.id];
-		if (value === undefined || value === null || value === '') {
-			continue;
-		}
-
-		const formattedValue = formatContentValue(value);
-		if (formattedValue === '—' || formattedValue === '[Object]') {
-			continue;
-		}
-
-		return {
-			title: formattedValue,
-			usedFallback: isIdentityTitleField(config, block.id)
-		};
-	}
-
-	return {
-		title: getItemRoute(config, item) ?? getItemId(item) ?? getConfigItemLabel(config),
-		usedFallback: true
-	};
-}
-
-function isIdentityTitleField(config: ParsedContentConfig, blockId: string): boolean {
-	if (config.idField === blockId) {
-		return true;
-	}
-
-	return ['slug', 'route', 'path', 'filename', '_filename'].includes(blockId);
 }
 
 export function getCollectionNavigationItems(

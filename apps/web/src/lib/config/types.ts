@@ -47,6 +47,8 @@ export interface BaseBlockUsage {
 	required?: boolean;
 	collection?: boolean;
 	itemLabel?: string;
+	isItemLabel?: boolean;
+	itemLabelFormat?: Intl.DateTimeFormatOptions;
 	assetsDir?: string;
 	components?: string[];
 	generated?: boolean;

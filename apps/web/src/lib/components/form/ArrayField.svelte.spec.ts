@@ -212,6 +212,7 @@ describe('components/form/ArrayField.svelte', () => {
 		await expectElement(screen.getByTestId('repeatable-preview-0')).toBeInTheDocument();
 	});
 
+
 	it('focuses nested repeatable items instead of reopening their parent editor', async () => {
 		const screen = await render(FormGenerator, {
 			config: {
@@ -704,6 +705,7 @@ describe('components/form/ArrayField.svelte', () => {
 		await expectElement(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
 			.toBeVisible();
 	});
+
 
 	it('keeps nested collection changes inside an object panel staged until page submit', async () => {
 		const screen = await render(FormGeneratorSubmitHarness, {

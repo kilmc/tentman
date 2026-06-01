@@ -1026,7 +1026,7 @@
 					{#if currentConfigIssues.length > 0}
 						<section class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
 							<h2 class="text-sm font-semibold text-amber-950">
-								Compatibility warnings for {currentConfig?.config.label}
+								Configuration warnings for {currentConfig?.config.label}
 							</h2>
 							<ul class="mt-2 space-y-1 text-sm text-amber-900">
 								{#each currentConfigIssues as issue (`${issue.code}:${issue.blockId ?? 'config'}:${issue.binding ?? issue.message}`)}

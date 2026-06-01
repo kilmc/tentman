@@ -180,4 +180,65 @@ describe('buildPublishReviewModel', () => {
 			defaultExpanded: true
 		});
 	});
+
+	it('uses explicit item labels in review cards', async () => {
+		vi.mocked(createGitHubRepositoryBackend).mockImplementation((_octokit, _repo, options) => {
+			const ref = options?.defaultRef;
+
+			return {
+				discoverConfigs: vi.fn(async () => [
+					baseConfigs[0],
+					{
+						...baseConfigs[1],
+						config: {
+							...baseConfigs[1].config,
+							blocks: [
+								{ id: 'title', type: 'text', label: 'Title' },
+								{ id: 'summary', type: 'text', label: 'Summary', isItemLabel: true }
+							]
+						}
+					}
+				]),
+				readRootConfig: vi.fn(async () => ({
+					content: {
+						sorting: 'manual'
+					}
+				}))
+			} as never;
+		});
+
+		vi.mocked(listChangedFilesBetweenRefs).mockResolvedValue([
+			{
+				filename: 'src/content/posts/hello-world.md',
+				status: 'modified'
+			}
+		] as never);
+
+		vi.mocked(fetchContentDocument).mockImplementation(async (_backend, config, _path, options) => {
+			if (config._tentmanId === 'posts') {
+				return options?.branch === 'tentman-preview'
+					? [{ _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello world', summary: 'Launch update' }]
+					: [{ _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello world', summary: 'Original summary' }];
+			}
+
+			return options?.branch === 'tentman-preview' ? { title: 'About us' } : { title: 'About' };
+		});
+
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview'
+		});
+
+		expect(reviewModel.sections[0]?.items[0]?.title).toBe('Launch update');
+	});
 });

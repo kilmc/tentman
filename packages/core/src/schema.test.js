@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import test from 'node:test';
 import { getTentmanSchema, loadTentmanProject } from './index.js';
 import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
@@ -65,6 +67,25 @@ test('includes collection metadata in selected config schema', async () => {
 	assert.equal(schema.fields[4]?.type, 'image');
 	assert.equal(schema.fields[4]?.assetsDir, '../../static/images/posts');
 	assert.deepEqual(schema.fields[6]?.components, undefined);
+});
+
+test('preserves item label source metadata in schema summaries', async () => {
+	const rootDir = await copyTestAppToTempGitRepo('tentman-core-schema-');
+	const configPath = path.join(rootDir, 'tentman/configs/blog.tentman.json');
+	const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+	config.blocks[0].isItemLabel = true;
+	config.blocks[1].itemLabelFormat = { month: 'short', day: 'numeric', year: 'numeric' };
+	await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+
+	const project = await loadTentmanProject(rootDir);
+	const schema = getTentmanSchema(project, 'blog');
+
+	assert.equal(schema.fields[0]?.isItemLabel, true);
+	assert.deepEqual(schema.fields[1]?.itemLabelFormat, {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric'
+	});
 });
 
 test('throws when exporting schema for an unknown config reference', async () => {

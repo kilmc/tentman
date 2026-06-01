@@ -151,6 +151,68 @@ describe('GET /api/repo/collection-items', () => {
 		});
 	});
 
+	it('returns explicit item labels from supported schema fields', async () => {
+		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue(
+			createBootstrapContext([
+				{
+					...collectionConfig,
+					config: {
+						...collectionConfig.config,
+						blocks: [
+							{
+								id: 'publishedOn',
+								type: 'date',
+								label: 'Published on',
+								isItemLabel: true,
+								itemLabelFormat: {
+									month: 'short',
+									day: 'numeric',
+									year: 'numeric'
+								}
+							},
+							{
+								id: 'title',
+								type: 'text'
+							}
+						]
+					}
+				}
+			]) as never
+		);
+		vi.mocked(getCachedContent).mockResolvedValue([
+			{
+				_filename: 'latest-news.md',
+				title: 'Latest news',
+				publishedOn: '2026-04-03'
+			}
+		]);
+
+		const response = await GET({
+			url: new URL('http://localhost/api/repo/collection-items?slug=posts'),
+			locals: {
+				isAuthenticated: true,
+				githubToken: 'secret-token',
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				}
+			},
+			cookies: createCookies()
+		} as never);
+
+		expect(await response.json()).toEqual({
+			items: [
+				{
+					itemId: 'latest-news',
+					title: 'Apr 3, 2026',
+					sortDate: new Date('2026-04-03').getTime()
+				}
+			],
+			groups: []
+		});
+	});
+
 	it('clears the session and returns 401 when GitHub rejects the request', async () => {
 		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue(
 			createBootstrapContext([collectionConfig]) as never

@@ -63,6 +63,140 @@ describe('content navigation helpers', () => {
 		).toBe('Hello World');
 	});
 
+	it('uses an explicit text item label before the existing title heuristic', () => {
+		expect(
+			resolveContentItemTitle(
+				{
+					...collectionConfig,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'summary', type: 'text', label: 'Summary', isItemLabel: true }
+					]
+				},
+				{
+					_tentmanId: 'post-1',
+					title: 'Hello World',
+					summary: '  Launch   update \n now '
+				}
+			)
+		).toEqual({
+			title: 'Launch update now',
+			usedFallback: false,
+			sourceBlockId: 'summary',
+			sourceType: 'text'
+		});
+	});
+
+	it('falls back to the existing heuristic when an explicit text label is blank', () => {
+		expect(
+			resolveContentItemTitle(
+				{
+					...collectionConfig,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'summary', type: 'text', label: 'Summary', isItemLabel: true }
+					]
+				},
+				{
+					_tentmanId: 'post-1',
+					title: 'Hello World',
+					summary: '   '
+				}
+			)
+		).toEqual({
+			title: 'Hello World',
+			usedFallback: false
+		});
+	});
+
+	it('formats explicit date item labels with the requested locale and format', () => {
+		expect(
+			resolveContentItemTitle(
+				{
+					...collectionConfig,
+					blocks: [
+						{
+							id: 'publishedOn',
+							type: 'date',
+							label: 'Published On',
+							isItemLabel: true,
+							itemLabelFormat: {
+								month: 'short',
+								day: 'numeric',
+								year: 'numeric'
+							}
+						}
+					]
+				},
+				{
+					_tentmanId: 'post-1',
+					publishedOn: '2026-04-03'
+				},
+				{ locales: 'en-US' }
+			)
+		).toEqual({
+			title: 'Apr 3, 2026',
+			usedFallback: false,
+			sourceBlockId: 'publishedOn',
+			sourceType: 'date'
+		});
+	});
+
+	it('falls back to default date formatting when itemLabelFormat is invalid', () => {
+		expect(
+			resolveContentItemTitle(
+				{
+					...collectionConfig,
+					blocks: [
+						{
+							id: 'publishedOn',
+							type: 'date',
+							label: 'Published On',
+							isItemLabel: true,
+							itemLabelFormat: { month: 'not-a-real-month' } as never
+						},
+						{ id: 'title', type: 'text', label: 'Title' }
+					]
+				},
+				{
+					_tentmanId: 'post-1',
+					title: 'Hello World',
+					publishedOn: '2026-04-03'
+				},
+				{ locales: 'en-US' }
+			)
+		).toEqual({
+			title: 'April 3, 2026',
+			usedFallback: false,
+			sourceBlockId: 'publishedOn',
+			sourceType: 'date'
+		});
+	});
+
+	it('ignores explicit item labels when a schema unit declares more than one', () => {
+		expect(
+			resolveContentItemTitle(
+				{
+					...collectionConfig,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'summary', type: 'text', label: 'Summary', isItemLabel: true },
+						{ id: 'publishedOn', type: 'date', label: 'Published On', isItemLabel: true }
+					]
+				},
+				{
+					_tentmanId: 'post-1',
+					title: 'Hello World',
+					summary: 'Should be ignored',
+					publishedOn: '2026-04-03'
+				}
+			)
+		).toEqual({
+			title: 'Hello World',
+			usedFallback: false
+		});
+	});
+
 	it('reports when an item title came from fallback data', () => {
 		expect(
 			resolveContentItemTitle(collectionConfig, {

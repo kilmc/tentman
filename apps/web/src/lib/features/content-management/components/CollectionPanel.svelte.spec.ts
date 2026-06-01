@@ -7,6 +7,41 @@ vi.mock('$app/paths', () => ({
 }));
 
 describe('CollectionPanel customize mode', () => {
+	it('sorts by the resolved title values shown in the panel', async () => {
+		const screen = await render(CollectionPanel, {
+			slug: 'projects',
+			label: 'Projects',
+			itemLabel: 'Project',
+			items: [
+				{ itemId: 'c', title: 'Zulu', sortDate: null },
+				{ itemId: 'a', title: 'Alpha', sortDate: null },
+				{ itemId: 'm', title: 'Middle', sortDate: null }
+			],
+			groups: []
+		});
+
+		document.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await screen.getByRole('button', { name: 'Alphabetical' }).click();
+
+		const itemLinks = Array.from(
+			document.querySelectorAll('a[href^="/pages/projects/"] .truncate.font-medium')
+		).map((node) => node.textContent?.trim());
+
+		expect(itemLinks).toEqual(['Alpha', 'Middle', 'Zulu']);
+	});
+
+	it('shows visible date-style labels exactly as provided by shared resolution', async () => {
+		const screen = await render(CollectionPanel, {
+			slug: 'events',
+			label: 'Events',
+			itemLabel: 'Event',
+			items: [{ itemId: 'event-1', title: 'Apr 3, 2026', sortDate: new Date('2026-04-03').getTime() }],
+			groups: []
+		});
+
+		await expectElement(screen.getByRole('link', { name: 'Apr 3, 2026' })).toBeVisible();
+	});
+
 	it('keeps the current panel structure editable and saves the draft order payload', async () => {
 		const onsavecustomorder = vi.fn();
 		const screen = await render(CollectionPanel, {

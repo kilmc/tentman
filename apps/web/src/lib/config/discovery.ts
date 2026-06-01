@@ -6,6 +6,7 @@ import {
 	type ParsedBlockConfig,
 	type ParsedContentConfig
 } from '$lib/config/parse';
+import { analyzeItemLabelSchemaUnit } from '$lib/features/content-management/item-labels';
 import { normalizeRuntimeDiscoveredConfigIdentity } from '$lib/features/content-management/stable-identity';
 import { parseRootConfig } from '$lib/config/root-config';
 import type { RootConfig } from '$lib/config/root-config';
@@ -109,6 +110,38 @@ function collectConfigCompatibilityIssues(
 	return issues;
 }
 
+function collectItemLabelIssues(
+	path: string,
+	blocks: BlockUsage[],
+	unitLabel: string
+): DiscoveryIssue[] {
+	const analysis = analyzeItemLabelSchemaUnit(blocks);
+	const issues: DiscoveryIssue[] = analysis.issues.map((issue) => ({
+		code: issue.code,
+		message: `${unitLabel}: ${issue.message}`,
+		severity: 'warning' as const,
+		category: 'structural' as const,
+		path,
+		blockId: issue.blockId
+	}));
+
+	for (const block of blocks) {
+		if (block.type !== 'block' || !block.blocks) {
+			continue;
+		}
+
+		issues.push(
+			...collectItemLabelIssues(
+				path,
+				block.blocks,
+				`${unitLabel} > inline block "${block.id}"`
+			)
+		);
+	}
+
+	return issues;
+}
+
 function normalizeDir(dir: string | undefined): string | undefined {
 	if (!dir) {
 		return undefined;
@@ -183,7 +216,10 @@ export function parseDiscoveredConfig(path: string, content: string): Discovered
 		path,
 		slug: slugify(parsed.label),
 		config: parsed,
-		issues: collectConfigCompatibilityIssues(path, parsed.blocks)
+		issues: [
+			...collectConfigCompatibilityIssues(path, parsed.blocks),
+			...collectItemLabelIssues(path, parsed.blocks, `Config at ${path}`)
+		]
 	};
 }
 
@@ -198,7 +234,10 @@ export function parseDiscoveredBlockConfig(path: string, content: string): Disco
 		path,
 		id: parsed.id,
 		config: parsed,
-		issues: collectConfigCompatibilityIssues(path, parsed.blocks)
+		issues: [
+			...collectConfigCompatibilityIssues(path, parsed.blocks),
+			...collectItemLabelIssues(path, parsed.blocks, `Reusable block config at ${path}`)
+		]
 	};
 }
 

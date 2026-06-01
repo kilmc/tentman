@@ -124,6 +124,132 @@ describe('parseDiscoveredConfig', () => {
 			})
 		]);
 	});
+
+	it('warns and ignores unsupported explicit item label sources', () => {
+		const discovered = parseDiscoveredConfig(
+			'tentman/configs/projects.tentman.json',
+			`{
+				"type": "content",
+				"label": "Projects",
+				"content": {
+					"mode": "file",
+					"path": "./src/content/projects.json"
+				},
+				"blocks": [
+					{ "id": "body", "type": "markdown", "label": "Body", "isItemLabel": true }
+				]
+			}`
+		);
+
+		expect(discovered.issues).toEqual([
+			expect.objectContaining({
+				code: 'item-label.unsupported-source-type',
+				severity: 'warning',
+				category: 'structural',
+				blockId: 'body'
+			})
+		]);
+	});
+
+	it('treats parent and child schema units as independent for explicit item labels', () => {
+		const discovered = parseDiscoveredConfig(
+			'tentman/configs/faq.tentman.json',
+			`{
+				"type": "content",
+				"label": "FAQ",
+				"content": {
+					"mode": "file",
+					"path": "./src/content/faq.json"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title", "isItemLabel": true },
+					{
+						"id": "sections",
+						"type": "block",
+						"label": "Sections",
+						"collection": true,
+						"blocks": [
+							{ "id": "heading", "type": "text", "label": "Heading", "isItemLabel": true }
+						]
+					}
+				]
+			}`
+		);
+
+		expect(discovered.issues).toEqual([]);
+	});
+
+	it('warns once per schema unit when multiple explicit item labels are declared', () => {
+		const discovered = parseDiscoveredBlockConfig(
+			'tentman/blocks/gallery.tentman.json',
+			`{
+				"type": "block",
+				"id": "gallery",
+				"label": "Gallery",
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title", "isItemLabel": true },
+					{ "id": "caption", "type": "text", "label": "Caption", "isItemLabel": true },
+					{
+						"id": "images",
+						"type": "block",
+						"label": "Images",
+						"collection": true,
+						"blocks": [
+							{ "id": "alt", "type": "text", "label": "Alt", "isItemLabel": true },
+							{ "id": "takenOn", "type": "date", "label": "Taken on", "isItemLabel": true }
+						]
+					}
+				]
+			}`
+		);
+
+		expect(discovered.issues).toEqual([
+			expect.objectContaining({
+				code: 'item-label.multiple-explicit-sources',
+				severity: 'warning',
+				category: 'structural',
+				blockId: 'title'
+			}),
+			expect.objectContaining({
+				code: 'item-label.multiple-explicit-sources',
+				severity: 'warning',
+				category: 'structural',
+				blockId: 'alt'
+			})
+		]);
+	});
+
+	it('warns when itemLabelFormat is used outside a date item label source', () => {
+		const discovered = parseDiscoveredConfig(
+			'tentman/configs/events.tentman.json',
+			`{
+				"type": "content",
+				"label": "Events",
+				"content": {
+					"mode": "file",
+					"path": "./src/content/events.json"
+				},
+				"blocks": [
+					{
+						"id": "title",
+						"type": "text",
+						"label": "Title",
+						"isItemLabel": true,
+						"itemLabelFormat": { "month": "short" }
+					}
+				]
+			}`
+		);
+
+		expect(discovered.issues).toEqual([
+			expect.objectContaining({
+				code: 'item-label.invalid-format-target',
+				severity: 'warning',
+				category: 'structural',
+				blockId: 'title'
+			})
+		]);
+	});
 });
 
 describe('parseDiscoveredBlockConfig', () => {
