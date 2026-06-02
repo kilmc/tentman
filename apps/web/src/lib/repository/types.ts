@@ -15,6 +15,22 @@ export interface RepositoryWriteOptions extends RepositoryReadOptions {
 	message?: string;
 }
 
+export type RepositoryFileChange =
+	| {
+			type: 'writeText';
+			path: string;
+			content: string;
+	  }
+	| {
+			type: 'writeBinary';
+			path: string;
+			content: Uint8Array;
+	  }
+	| {
+			type: 'delete';
+			path: string;
+	  };
+
 export interface RepositoryBackend {
 	kind: 'github' | 'local';
 	cacheKey: string;
@@ -31,6 +47,7 @@ export interface RepositoryBackend {
 		options?: RepositoryWriteOptions
 	): Promise<void>;
 	deleteFile(path: string, options?: RepositoryWriteOptions): Promise<void>;
+	commitChanges?(changes: RepositoryFileChange[], options?: RepositoryWriteOptions): Promise<void>;
 	listDirectory(path: string, options?: RepositoryReadOptions): Promise<RepoEntry[]>;
 	fileExists(path: string, options?: RepositoryReadOptions): Promise<boolean>;
 }

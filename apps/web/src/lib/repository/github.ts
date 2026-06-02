@@ -9,6 +9,7 @@ import { writeGitHubImage } from '$lib/github/image';
 import type {
 	RepoEntry,
 	RepositoryBackend,
+	RepositoryFileChange,
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
@@ -58,6 +59,19 @@ function decodeGitHubContent(content: string): string {
 
 function sanitizeRepositoryPath(path: string): string {
 	return normalizeGitHubPath(path);
+}
+
+function dedupeChanges(changes: RepositoryFileChange[]): RepositoryFileChange[] {
+	const changesByPath = new Map<string, RepositoryFileChange>();
+
+	for (const change of changes) {
+		changesByPath.set(sanitizeRepositoryPath(change.path), {
+			...change,
+			path: sanitizeRepositoryPath(change.path)
+		});
+	}
+
+	return [...changesByPath.values()];
 }
 
 function isGitHubRequestInstrumentationEnabled(): boolean {
@@ -411,6 +425,121 @@ export function createGitHubRepositoryBackend(
 						message: options?.message || `Delete ${normalizedPath} via Tentman CMS`,
 						sha: data.sha,
 						...(ref && { branch: ref })
+					})
+			);
+		},
+
+		async commitChanges(
+			changes: RepositoryFileChange[],
+			options?: RepositoryWriteOptions
+		): Promise<void> {
+			const ref = readRef(options) ?? repository.default_branch;
+			const normalizedChanges = dedupeChanges(changes);
+			if (normalizedChanges.length === 0) {
+				return;
+			}
+
+			const { data: headRef } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'getBatchCommitRef',
+				'<ref>',
+				ref ?? null,
+				() =>
+					octokit.rest.git.getRef({
+						owner,
+						repo: name,
+						ref: `heads/${ref}`
+					})
+			);
+			const headSha = headRef.object.sha;
+			const { data: headCommit } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'getBatchCommit',
+				'<commit>',
+				ref ?? null,
+				() =>
+					octokit.rest.git.getCommit({
+						owner,
+						repo: name,
+						commit_sha: headSha
+					})
+			);
+			const tree = await Promise.all(
+				normalizedChanges.map(async (change) => {
+					if (change.type === 'delete') {
+						return {
+							path: change.path,
+							mode: '100644' as const,
+							type: 'blob' as const,
+							sha: null
+						};
+					}
+
+					const isBinary = change.type === 'writeBinary';
+					const content = isBinary
+						? Buffer.from(change.content).toString('base64')
+						: change.content;
+					const { data: blob } = await instrumentGitHubRepositoryRequest(
+						repoKey,
+						'createBatchBlob',
+						change.path,
+						ref ?? null,
+						() =>
+							octokit.rest.git.createBlob({
+								owner,
+								repo: name,
+								content,
+								encoding: isBinary ? 'base64' : 'utf-8'
+							})
+					);
+
+					return {
+						path: change.path,
+						mode: '100644' as const,
+						type: 'blob' as const,
+						sha: blob.sha
+					};
+				})
+			);
+			const { data: nextTree } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'createBatchTree',
+				'<tree>',
+				ref ?? null,
+				() =>
+					octokit.rest.git.createTree({
+						owner,
+						repo: name,
+						base_tree: headCommit.tree.sha,
+						tree
+					})
+			);
+			const { data: nextCommit } = await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'createBatchCommit',
+				'<commit>',
+				ref ?? null,
+				() =>
+					octokit.rest.git.createCommit({
+						owner,
+						repo: name,
+						message: options?.message || 'Update files via Tentman CMS',
+						tree: nextTree.sha,
+						parents: [headSha]
+					})
+			);
+
+			await instrumentGitHubRepositoryRequest(
+				repoKey,
+				'updateBatchRef',
+				'<ref>',
+				ref ?? null,
+				() =>
+					octokit.rest.git.updateRef({
+						owner,
+						repo: name,
+						ref: `heads/${ref}`,
+						sha: nextCommit.sha
 					})
 			);
 		},

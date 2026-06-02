@@ -6,6 +6,7 @@ import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/s
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch, publishDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
+import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import type { ContentRecord } from '$lib/features/content-management/types';
@@ -36,28 +37,35 @@ export const actions: Actions = {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
 
-			const materialized = await materializeDraftAssetsFromFormData({
-				formData,
-				content: contentData,
-				configPath: discoveredConfig.path,
-				blocks: discoveredConfig.config.blocks,
-				backend,
-				defaultStoragePath: (await backend.readRootConfig())?.assetsDir,
-				writeOptions: {
-					ref: branchName
-				}
-			});
+			const writeOptions = {
+				message: `Update ${discoveredConfig.config.label} via Tentman CMS`,
+				ref: branchName
+			};
 
 			// Save the content to the draft branch
-			await saveContentDocument(
-				backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				materialized.content,
-				{
-					branch: branchName
-				}
-			);
+			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
+				const materialized = await materializeDraftAssetsFromFormData({
+					formData,
+					content: contentData,
+					configPath: discoveredConfig.path,
+					blocks: discoveredConfig.config.blocks,
+					backend: batchBackend,
+					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+					writeOptions: {
+						ref: branchName
+					}
+				});
+
+				await saveContentDocument(
+					batchBackend,
+					discoveredConfig.config,
+					discoveredConfig.path,
+					materialized.content,
+					{
+						branch: branchName
+					}
+				);
+			});
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 
 			console.log(`✅ Saved content to ${branchName}`);
@@ -92,27 +100,34 @@ export const actions: Actions = {
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
-			const materialized = await materializeDraftAssetsFromFormData({
-				formData,
-				content: contentData,
-				configPath: discoveredConfig.path,
-				blocks: discoveredConfig.config.blocks,
-				backend,
-				defaultStoragePath: (await backend.readRootConfig())?.assetsDir,
-				writeOptions: {
-					ref: branchName
-				}
-			});
+			const writeOptions = {
+				message: `Update ${discoveredConfig.config.label} via Tentman CMS`,
+				ref: branchName
+			};
 
-			await saveContentDocument(
-				backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				materialized.content,
-				{
-					branch: branchName
-				}
-			);
+			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
+				const materialized = await materializeDraftAssetsFromFormData({
+					formData,
+					content: contentData,
+					configPath: discoveredConfig.path,
+					blocks: discoveredConfig.config.blocks,
+					backend: batchBackend,
+					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+					writeOptions: {
+						ref: branchName
+					}
+				});
+
+				await saveContentDocument(
+					batchBackend,
+					discoveredConfig.config,
+					discoveredConfig.path,
+					materialized.content,
+					{
+						branch: branchName
+					}
+				);
+			});
 			await publishDraftBranch(octokit, owner, name, defaultBranch);
 
 			const { invalidateContent } = await import('$lib/stores/content-cache');

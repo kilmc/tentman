@@ -17,6 +17,8 @@ import {
 	addNavigationGroupToManifest
 } from '$lib/features/content-management/navigation-group-options';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
+import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import {
 	createGitHubRepositoryBackend,
 	invalidateGitHubRepositoryMetadataCache
@@ -203,118 +205,140 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			}
 		}));
 
-		if (
-			mutation.action === 'add-missing-config-ids' ||
-			mutation.action === 'enable' ||
-			mutation.action === 'repair'
-		) {
-			const writtenConfigIds = await writeMissingContentConfigIds(backend, configs, {
-				message: CONFIG_ID_COMMIT_MESSAGE,
+		await withBatchedRepositoryWrites(
+			backend,
+			{
+				message:
+					mutation.action === 'add-missing-config-ids'
+						? CONFIG_ID_COMMIT_MESSAGE
+						: MANIFEST_COMMIT_MESSAGE,
 				...writeOptions
-			});
-			for (const writtenConfig of writtenConfigIds) {
-				const matchingConfig = nextConfigs.find((config) => config.path === writtenConfig.path);
-				if (matchingConfig) {
-					matchingConfig.config._tentmanId = writtenConfig.suggestedId;
-				}
-			}
-			if (mutation.action === 'enable') {
-				await writeRootManualSorting(backend, {
-					message: CONFIG_ID_COMMIT_MESSAGE,
-					...writeOptions
-				});
-			}
-		}
-
-		const nextRootConfig =
-			mutation.action === 'enable'
-				? {
-						...(rootConfig ?? {}),
-						content: {
-							...(rootConfig?.content ?? {}),
-							sorting: 'manual' as const
+			},
+			async (batchBackend) => {
+				if (
+					mutation.action === 'add-missing-config-ids' ||
+					mutation.action === 'enable' ||
+					mutation.action === 'repair'
+				) {
+					const writtenConfigIds = await writeMissingContentConfigIds(batchBackend, configs, {
+						message: CONFIG_ID_COMMIT_MESSAGE,
+						...writeOptions
+					});
+					for (const writtenConfig of writtenConfigIds) {
+						const matchingConfig = nextConfigs.find((config) => config.path === writtenConfig.path);
+						if (matchingConfig) {
+							matchingConfig.config._tentmanId = writtenConfig.suggestedId;
 						}
 					}
-				: rootConfig;
-
-		if (mutation.action === 'enable' || mutation.action === 'repair') {
-			const manifest = await reconcileManualNavigationSetup(
-				backend,
-				nextConfigs,
-				nextRootConfig,
-				manifestState.manifest,
-				{
-					message: CONFIG_ID_COMMIT_MESSAGE,
-					...writeOptions
+					if (mutation.action === 'enable') {
+						await writeRootManualSorting(batchBackend, {
+							message: CONFIG_ID_COMMIT_MESSAGE,
+							...writeOptions
+						});
+					}
 				}
-			);
-			await writeNavigationManifest(backend, manifest, {
-				message: MANIFEST_COMMIT_MESSAGE,
-				...writeOptions
-			});
-		}
 
-		if (mutation.action === 'save-manifest') {
-			const manifest = parseNavigationManifest(JSON.stringify(mutation.manifest));
-			await writeNavigationManifest(backend, manifest, {
-				message: MANIFEST_COMMIT_MESSAGE,
-				...writeOptions
-			});
-		}
+				const nextRootConfig =
+					mutation.action === 'enable'
+						? {
+								...(rootConfig ?? {}),
+								content: {
+									...(rootConfig?.content ?? {}),
+									sorting: 'manual' as const
+								}
+							}
+						: rootConfig;
 
-		if (mutation.action === 'add-collection-group') {
-			const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
-			if (!collectionConfig) {
-				throw error(404, 'Collection config not found');
-			}
-
-			const configSource = await backend.readTextFile(collectionConfig.path);
-			await backend.writeTextFile(
-				collectionConfig.path,
-				addCollectionGroupToConfigSource(configSource, {
-					collection: mutation.collection,
-					id: mutation.id,
-					value: mutation.value,
-					label: mutation.label
-				}),
-				{
-					message: MANIFEST_COMMIT_MESSAGE,
-					...writeOptions
+				if (mutation.action === 'enable' || mutation.action === 'repair') {
+					const manifest = await reconcileManualNavigationSetup(
+						batchBackend,
+						nextConfigs,
+						nextRootConfig,
+						manifestState.manifest,
+						{
+							message: CONFIG_ID_COMMIT_MESSAGE,
+							...writeOptions
+						}
+					);
+					await writeNavigationManifest(batchBackend, manifest, {
+						message: MANIFEST_COMMIT_MESSAGE,
+						...writeOptions
+					});
 				}
-			);
 
-			const manifestState = await loadNavigationManifestState(backend, writeOptions);
-			if (manifestState.error) {
-				throw error(400, `Could not parse navigation manifest: ${manifestState.error}`);
-			}
-
-			const manifest = addNavigationGroupToManifest(manifestState.manifest, {
-				collection: mutation.collection,
-				id: mutation.id,
-				value: mutation.value,
-				label: mutation.label
-			});
-			await writeNavigationManifest(backend, manifest, {
-				message: MANIFEST_COMMIT_MESSAGE,
-				...writeOptions
-			});
-		}
-
-		if (mutation.action === 'save-collection-order') {
-			const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
-			if (!collectionConfig) {
-				throw error(404, 'Collection config not found');
-			}
-
-			await saveCollectionOrder(
-				backend,
-				collectionConfig,
-				assertCollectionOrder(mutation.order),
-				manifestState.manifest,
-				{
-					message: MANIFEST_COMMIT_MESSAGE,
-					...writeOptions
+				if (mutation.action === 'save-manifest') {
+					const manifest = parseNavigationManifest(JSON.stringify(mutation.manifest));
+					await writeNavigationManifest(batchBackend, manifest, {
+						message: MANIFEST_COMMIT_MESSAGE,
+						...writeOptions
+					});
 				}
+
+				if (mutation.action === 'add-collection-group') {
+					const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
+					if (!collectionConfig) {
+						throw error(404, 'Collection config not found');
+					}
+
+					const configSource = await batchBackend.readTextFile(collectionConfig.path);
+					await batchBackend.writeTextFile(
+						collectionConfig.path,
+						addCollectionGroupToConfigSource(configSource, {
+							collection: mutation.collection,
+							id: mutation.id,
+							value: mutation.value,
+							label: mutation.label
+						}),
+						{
+							message: MANIFEST_COMMIT_MESSAGE,
+							...writeOptions
+						}
+					);
+
+					const manifestState = await loadNavigationManifestState(batchBackend, writeOptions);
+					if (manifestState.error) {
+						throw error(400, `Could not parse navigation manifest: ${manifestState.error}`);
+					}
+
+					const manifest = addNavigationGroupToManifest(manifestState.manifest, {
+						collection: mutation.collection,
+						id: mutation.id,
+						value: mutation.value,
+						label: mutation.label
+					});
+					await writeNavigationManifest(batchBackend, manifest, {
+						message: MANIFEST_COMMIT_MESSAGE,
+						...writeOptions
+					});
+				}
+
+				if (mutation.action === 'save-collection-order') {
+					const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
+					if (!collectionConfig) {
+						throw error(404, 'Collection config not found');
+					}
+
+					await saveCollectionOrder(
+						batchBackend,
+						collectionConfig,
+						assertCollectionOrder(mutation.order),
+						manifestState.manifest,
+						{
+							message: MANIFEST_COMMIT_MESSAGE,
+							...writeOptions
+						}
+					);
+				}
+			}
+		);
+
+		if (draftBranch) {
+			await ensureDraftPullRequest(
+				octokit,
+				owner,
+				name,
+				draftBranch.branchName,
+				locals.selectedRepo.default_branch
 			);
 		}
 

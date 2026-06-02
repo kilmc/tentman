@@ -84,6 +84,14 @@ vi.mock('$lib/features/draft-publishing/service', () => ({
 	getTentmanDraftBranchName: vi.fn(async () => 'tentman-preview')
 }));
 
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn(async () => ({
+		number: 42,
+		url: 'https://github.com/acme/docs/pull/42',
+		title: 'Tentman draft changes'
+	}))
+}));
+
 import { POST } from '../../routes/api/repo/navigation-manifest/+server';
 import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
 import {
@@ -94,6 +102,7 @@ import {
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 
 function createCookies() {
 	return {
@@ -163,6 +172,13 @@ describe('POST /api/repo/navigation-manifest', () => {
 
 		expect(writeMissingContentConfigIds).toHaveBeenCalled();
 		expect(ensureDraftBranch).toHaveBeenCalledWith(expect.anything(), 'acme', 'docs', 'trunk');
+		expect(ensureDraftPullRequest).toHaveBeenCalledWith(
+			expect.anything(),
+			'acme',
+			'docs',
+			'tentman-preview',
+			'trunk'
+		);
 		expect(reconcileManualNavigationSetup).toHaveBeenCalled();
 		expect(writeNavigationManifest).toHaveBeenCalled();
 		expect(await response.json()).toEqual({

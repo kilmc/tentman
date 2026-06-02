@@ -10,6 +10,7 @@ import { findContentItemByRoute } from '$lib/features/content-management/item';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
+import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { getExistingItemMutationOptions } from '$lib/server/preview';
 import type { ContentRecord } from '$lib/features/content-management/types';
@@ -27,6 +28,10 @@ export const actions: Actions = {
 			const formData = await request.formData();
 			const itemId = params.itemId;
 			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
+			const writeOptions = {
+				message: `Delete ${discoveredConfig.config.label} via Tentman CMS`,
+				ref: branchName
+			};
 
 			// Delete the content - prepare options based on type
 			const deleteOptions: { itemId?: string; filename?: string; branch?: string } = {
@@ -56,12 +61,15 @@ export const actions: Actions = {
 				deleteOptions.itemId = itemId;
 			}
 
-			await deleteContentDocument(
-				backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				deleteOptions
+			await withBatchedRepositoryWrites(backend, writeOptions, (batchBackend) =>
+				deleteContentDocument(
+					batchBackend,
+					discoveredConfig.config,
+					discoveredConfig.path,
+					deleteOptions
+				)
 			);
+			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 
 			// Redirect back to list view with success message
 			throw redirect(
@@ -106,17 +114,10 @@ export const actions: Actions = {
 					? ((formData.get('filename') as string | null) ?? undefined)
 					: undefined;
 			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
-			const materialized = await materializeDraftAssetsFromFormData({
-				formData,
-				content: contentData,
-				configPath: discoveredConfig.path,
-				blocks: discoveredConfig.config.blocks,
-				backend,
-				defaultStoragePath: (await backend.readRootConfig())?.assetsDir,
-				writeOptions: {
-					ref: branchName
-				}
-			});
+			const writeOptions = {
+				message: `Update ${discoveredConfig.config.label} via Tentman CMS`,
+				ref: branchName
+			};
 			const saveOptions = getExistingItemMutationOptions(
 				discoveredConfig.config.content.mode,
 				params.itemId,
@@ -129,18 +130,38 @@ export const actions: Actions = {
 				});
 			}
 
-			await saveContentDocument(
-				backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				materialized.content,
-				{
-					branch: branchName,
-					...saveOptions
-				}
-			);
-			await syncCollectionItemGroupSelection(backend, discoveredConfig, materialized.content, undefined, {
-				ref: branchName
+			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
+				const materialized = await materializeDraftAssetsFromFormData({
+					formData,
+					content: contentData,
+					configPath: discoveredConfig.path,
+					blocks: discoveredConfig.config.blocks,
+					backend: batchBackend,
+					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+					writeOptions: {
+						ref: branchName
+					}
+				});
+
+				await saveContentDocument(
+					batchBackend,
+					discoveredConfig.config,
+					discoveredConfig.path,
+					materialized.content,
+					{
+						branch: branchName,
+						...saveOptions
+					}
+				);
+				await syncCollectionItemGroupSelection(
+					batchBackend,
+					discoveredConfig,
+					materialized.content,
+					undefined,
+					{
+						ref: branchName
+					}
+				);
 			});
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 

@@ -33,10 +33,27 @@ vi.mock('$lib/server/auth/github', async () => {
 	};
 });
 
+vi.mock('$lib/features/draft-publishing/service', () => ({
+	ensureDraftBranch: vi.fn(async () => ({
+		branchName: 'tentman-preview',
+		created: false
+	}))
+}));
+
+vi.mock('$lib/github/pull-request', () => ({
+	ensureDraftPullRequest: vi.fn(async () => ({
+		number: 42,
+		url: 'https://github.com/acme/docs/pull/42',
+		title: 'Tentman draft changes'
+	}))
+}));
+
 import { GET, POST } from './+server';
 import { discoverInstructions } from '$lib/features/instructions/discovery';
 import { planInstructionExecution } from '$lib/features/instructions/planner';
 import { applyInstructionExecutionPlan } from '$lib/features/instructions/execution';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { invalidateCache } from '$lib/stores/config-cache';
 import {
 	createGitHubServerClient,
@@ -58,7 +75,8 @@ const repoLocals = {
 	selectedRepo: {
 		owner: 'acme',
 		name: 'docs',
-		full_name: 'acme/docs'
+		full_name: 'acme/docs',
+		default_branch: 'trunk'
 	}
 };
 
@@ -178,8 +196,17 @@ describe('/api/repo/instructions', () => {
 				navigationUpdated: false,
 				navigationStatus: null
 			},
-			plan
+			plan,
+			branchName: 'tentman-preview'
 		});
+		expect(ensureDraftBranch).toHaveBeenCalledWith(expect.anything(), 'acme', 'docs', 'trunk');
+		expect(ensureDraftPullRequest).toHaveBeenCalledWith(
+			expect.anything(),
+			'acme',
+			'docs',
+			'tentman-preview',
+			'trunk'
+		);
 		expect(invalidateCache).toHaveBeenCalledWith('github:acme/docs');
 	});
 

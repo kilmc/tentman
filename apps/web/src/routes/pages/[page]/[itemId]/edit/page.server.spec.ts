@@ -145,7 +145,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			'tentman-preview'
 		);
 		expect(deleteContentDocument).toHaveBeenCalledWith(
-			{ cacheKey: 'github:acme/docs' },
+			expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			collectionConfig.config,
 			collectionConfig.path,
 			{

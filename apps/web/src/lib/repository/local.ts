@@ -11,6 +11,7 @@ import { parseRootConfig, type RootConfig } from '$lib/config/root-config';
 import type {
 	RepoEntry,
 	RepositoryBackend,
+	RepositoryFileChange,
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
@@ -525,6 +526,22 @@ export function createLocalRepositoryBackend(
 			await deletePath(rootHandle, path);
 			if (shouldInvalidateDiscovery(path)) {
 				discoveryCache = null;
+			}
+		},
+
+		async commitChanges(changes: RepositoryFileChange[], _options?: RepositoryWriteOptions) {
+			for (const change of changes) {
+				if (change.type === 'writeText') {
+					await writeFileText(rootHandle, change.path, change.content);
+				} else if (change.type === 'writeBinary') {
+					await writeFileBytes(rootHandle, change.path, change.content);
+				} else {
+					await deletePath(rootHandle, change.path);
+				}
+
+				if (shouldInvalidateDiscovery(change.path)) {
+					discoveryCache = null;
+				}
 			}
 		},
 

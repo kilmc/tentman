@@ -8,6 +8,9 @@ import type {
 	InstructionExecutionPlan,
 	InstructionInputValues
 } from '$lib/features/instructions/types';
+import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
+import { ensureDraftPullRequest } from '$lib/github/pull-request';
+import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { invalidateNavigationManifestStateCache } from '$lib/features/content-management/navigation-manifest';
 import {
@@ -69,7 +72,11 @@ function ensureGitHubRepositoryContext(
 	}
 
 	const octokit = createGitHubServerClient(locals.githubToken, cookies);
-	return createGitHubRepositoryBackend(octokit, locals.selectedRepo);
+	return {
+		backend: createGitHubRepositoryBackend(octokit, locals.selectedRepo),
+		octokit,
+		repo: locals.selectedRepo
+	};
 }
 
 function plansMatch(left: InstructionExecutionPlan, right: InstructionExecutionPlan) {
@@ -99,7 +106,7 @@ function instructionErrorResponse(value: unknown, fallbackMessage: string) {
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {
 	try {
-		const backend = ensureGitHubRepositoryContext(locals, cookies);
+		const { backend } = ensureGitHubRepositoryContext(locals, cookies);
 		return json(await discoverInstructions(backend));
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
@@ -121,7 +128,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 
 export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 	try {
-		const backend = ensureGitHubRepositoryContext(locals, cookies);
+		const { backend, octokit, repo } = ensureGitHubRepositoryContext(locals, cookies);
 		const mutation = assertApplyInstructionRequest(await request.json());
 		const discovery = await discoverInstructions(backend);
 		const instruction = discovery.instructions.find(
@@ -145,16 +152,28 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			);
 		}
 
-		const result = await applyInstructionExecutionPlan(backend, validatedPlan, {
-			message: `Apply instruction ${validatedPlan.instructionId} via Tentman`
-		});
+		const { branchName } = await ensureDraftBranch(
+			octokit,
+			repo.owner,
+			repo.name,
+			repo.default_branch
+		);
+		const writeOptions = {
+			message: `Apply instruction ${validatedPlan.instructionId} via Tentman`,
+			ref: branchName
+		};
+		const result = await withBatchedRepositoryWrites(backend, writeOptions, (batchBackend) =>
+			applyInstructionExecutionPlan(batchBackend, validatedPlan, writeOptions)
+		);
+		await ensureDraftPullRequest(octokit, repo.owner, repo.name, branchName, repo.default_branch);
 		invalidateCache(backend.cacheKey);
 		invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
 		invalidateNavigationManifestStateCache(backend);
 
 		return json({
 			result,
-			plan: validatedPlan
+			plan: validatedPlan,
+			branchName
 		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);

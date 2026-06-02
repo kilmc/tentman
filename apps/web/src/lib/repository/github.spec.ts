@@ -28,6 +28,14 @@ import {
 function createOctokit() {
 	return {
 		rest: {
+			git: {
+				getRef: vi.fn(),
+				getCommit: vi.fn(),
+				createBlob: vi.fn(),
+				createTree: vi.fn(),
+				createCommit: vi.fn(),
+				updateRef: vi.fn()
+			},
 			repos: {
 				getContent: vi.fn(),
 				createOrUpdateFileContents: vi.fn(),
@@ -86,6 +94,117 @@ describe('repository/github', () => {
 			expect.objectContaining({
 				path: 'src/content/post.md',
 				message: 'Update src/content/post.md via Tentman CMS'
+			})
+		);
+	});
+
+	it('commits multiple file changes through one GitHub commit', async () => {
+		const octokit = createOctokit();
+		octokit.rest.git.getRef.mockResolvedValue({
+			data: {
+				object: {
+					sha: 'base-commit'
+				}
+			}
+		});
+		octokit.rest.git.getCommit.mockResolvedValue({
+			data: {
+				tree: {
+					sha: 'base-tree'
+				}
+			}
+		});
+		octokit.rest.git.createBlob
+			.mockResolvedValueOnce({
+				data: {
+					sha: 'text-blob'
+				}
+			})
+			.mockResolvedValueOnce({
+				data: {
+					sha: 'binary-blob'
+				}
+			});
+		octokit.rest.git.createTree.mockResolvedValue({
+			data: {
+				sha: 'next-tree'
+			}
+		});
+		octokit.rest.git.createCommit.mockResolvedValue({
+			data: {
+				sha: 'next-commit'
+			}
+		});
+		octokit.rest.git.updateRef.mockResolvedValue({});
+
+		const backend = createGitHubRepositoryBackend(octokit as never, {
+			owner: 'acme',
+			name: 'docs',
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
+		});
+
+		await backend.commitChanges?.(
+			[
+				{
+					type: 'writeText',
+					path: '/src/content/post.md',
+					content: 'hello'
+				},
+				{
+					type: 'writeBinary',
+					path: 'static/image.png',
+					content: new Uint8Array([1, 2, 3])
+				},
+				{
+					type: 'delete',
+					path: 'src/content/old.md'
+				}
+			],
+			{
+				message: 'Update draft',
+				ref: 'tentman-preview'
+			}
+		);
+
+		expect(octokit.rest.repos.createOrUpdateFileContents).not.toHaveBeenCalled();
+		expect(octokit.rest.git.createCommit).toHaveBeenCalledTimes(1);
+		expect(octokit.rest.git.createCommit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: 'Update draft',
+				tree: 'next-tree',
+				parents: ['base-commit']
+			})
+		);
+		expect(octokit.rest.git.createTree).toHaveBeenCalledWith(
+			expect.objectContaining({
+				base_tree: 'base-tree',
+				tree: [
+					{
+						path: 'src/content/post.md',
+						mode: '100644',
+						type: 'blob',
+						sha: 'text-blob'
+					},
+					{
+						path: 'static/image.png',
+						mode: '100644',
+						type: 'blob',
+						sha: 'binary-blob'
+					},
+					{
+						path: 'src/content/old.md',
+						mode: '100644',
+						type: 'blob',
+						sha: null
+					}
+				]
+			})
+		);
+		expect(octokit.rest.git.updateRef).toHaveBeenCalledWith(
+			expect.objectContaining({
+				ref: 'heads/tentman-preview',
+				sha: 'next-commit'
 			})
 		);
 	});
