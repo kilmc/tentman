@@ -8,6 +8,7 @@ import {
 	type PagesOverviewSummaryRequest
 } from '$lib/features/content-management/overview-summary';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
+import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
 function isPagesOverviewSummaryRequest(value: unknown): value is PagesOverviewSummaryRequest {
@@ -38,53 +39,69 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	}
 
 	try {
-		const { octokit, owner, name, defaultBranch } = requireGitHubRepository(
-			{ locals, cookies },
-			'/pages'
+		return await timeAsync(
+			'api.repo.pages-summary',
+			{
+				repo: locals.selectedRepo?.full_name ?? null,
+				configCount: orderedConfigs.length
+			},
+			async () => {
+				const { octokit, owner, name, defaultBranch } = requireGitHubRepository(
+					{ locals, cookies },
+					'/pages'
+				);
+				const draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
+
+				if (!draftBranch) {
+					return json(createEmptyPagesOverviewSummary(true));
+				}
+
+				const changedPages = (
+					await Promise.all(
+						orderedConfigs.map(async (config) => {
+							const draftChanges = await compareDraftToBranch(
+								octokit,
+								owner,
+								name,
+								defaultBranch,
+								config.config,
+								config.path,
+								draftBranch
+							);
+							const changeCount =
+								draftChanges.modified.length +
+								draftChanges.created.length +
+								draftChanges.deleted.length;
+
+							if (changeCount === 0) {
+								return null;
+							}
+
+							return {
+								slug: config.slug,
+								label: config.config.label,
+								changeCount,
+								isCollection: !!config.config.collection
+							};
+						})
+					)
+				).filter((value) => value !== null);
+
+				logTiming('api.repo.pages-summary.result', {
+					repo: locals.selectedRepo?.full_name ?? null,
+					configCount: orderedConfigs.length,
+					changedPageCount: changedPages.length,
+					totalChanges: changedPages.reduce((total, page) => total + page.changeCount, 0)
+				});
+
+				return json({
+					draftBranch,
+					changedPages,
+					totalChanges: changedPages.reduce((total, page) => total + page.changeCount, 0),
+					hasConfigs: true
+				});
+			}
 		);
-		const draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
-
-		if (!draftBranch) {
-			return json(createEmptyPagesOverviewSummary(true));
-		}
-
-		const changedPages = (
-			await Promise.all(
-				orderedConfigs.map(async (config) => {
-					const draftChanges = await compareDraftToBranch(
-						octokit,
-						owner,
-						name,
-						defaultBranch,
-						config.config,
-						config.path,
-						draftBranch
-					);
-					const changeCount =
-						draftChanges.modified.length +
-						draftChanges.created.length +
-						draftChanges.deleted.length;
-
-					if (changeCount === 0) {
-						return null;
-					}
-
-					return {
-						slug: config.slug,
-						label: config.config.label,
-						changeCount,
-						isCollection: !!config.config.collection
-					};
-				})
-			)
-		).filter((value) => value !== null);
-
-		return json({
-			draftBranch,
-			changedPages,
-			totalChanges: changedPages.reduce((total, page) => total + page.changeCount, 0),
-			hasConfigs: true
-		});
 	} catch (err) {
 		handleGitHubRouteError({ locals, cookies }, err, '/pages');
 		console.error('Failed to load pages overview summary:', err);

@@ -3,6 +3,7 @@ import { error, json } from '@sveltejs/kit';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { loadSelectedGitHubRepoConfigs } from '$lib/server/repo-config-bootstrap';
 import { logDevRouting } from '$lib/utils/dev-routing-log';
+import { timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {
@@ -27,7 +28,14 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 	});
 
 	try {
-		return json(await loadSelectedGitHubRepoConfigs(locals, cookies));
+		const configs = await timeAsync(
+			'api.repo.configs',
+			{
+				repo: locals.selectedRepo.full_name
+			},
+			() => loadSelectedGitHubRepoConfigs(locals, cookies)
+		);
+		return json(configs);
 	} catch (err) {
 		logDevRouting('api:repo-configs:error', {
 			selectedRepo: locals.selectedRepo.full_name,

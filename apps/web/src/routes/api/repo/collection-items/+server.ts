@@ -4,6 +4,7 @@ import { getOrderedCollectionNavigation } from '$lib/features/content-management
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
+import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
@@ -15,32 +16,47 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { backend, configs, navigationManifest, rootConfig } =
-			await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
-		const discoveredConfig = configs.find((config) => config.slug === slug);
+		return await timeAsync(
+			'api.repo.collection-items',
+			{
+				repo: locals.selectedRepo?.full_name ?? null,
+				slug
+			},
+			async () => {
+				const { backend, configs, navigationManifest, rootConfig } =
+					await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
+				const discoveredConfig = configs.find((config) => config.slug === slug);
 
-		if (!discoveredConfig) {
-			throw error(404, 'Configuration not found');
-		}
+				if (!discoveredConfig) {
+					throw error(404, 'Configuration not found');
+				}
 
-		if (!discoveredConfig.config.collection) {
-			return json({ items: [] });
-		}
+				if (!discoveredConfig.config.collection) {
+					return json({ items: [] });
+				}
 
-		const content = await getCachedContent(
-			backend,
-			discoveredConfig.config,
-			discoveredConfig.path,
-			discoveredConfig.slug
-		);
+				const content = await getCachedContent(
+					backend,
+					discoveredConfig.config,
+					discoveredConfig.path,
+					discoveredConfig.slug
+				);
+				const navigation = getOrderedCollectionNavigation(
+					discoveredConfig.config,
+					content,
+					navigationManifest.manifest,
+					rootConfig
+				);
 
-		return json(
-			getOrderedCollectionNavigation(
-				discoveredConfig.config,
-				content,
-				navigationManifest.manifest,
-				rootConfig
-			)
+				logTiming('api.repo.collection-items.result', {
+					repo: locals.selectedRepo?.full_name ?? null,
+					slug,
+					itemCount: navigation.items.length,
+					groupCount: navigation.groups.length
+				});
+
+				return json(navigation);
+			}
 		);
 	} catch (err) {
 		handleGitHubSessionError(requestContext, err);

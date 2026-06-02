@@ -7,6 +7,7 @@ import { getCachedConfigs } from '$lib/stores/config-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
+import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const slug = url.searchParams.get('slug');
@@ -17,46 +18,66 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const requestContext = { locals, cookies };
 
 	try {
-		const { backend, draftBranch } = await requireGitHubContentRepository(
-			requestContext,
-			`/pages/${slug}`
+		return await timeAsync(
+			'api.repo.page-view',
+			{
+				repo: locals.selectedRepo?.full_name ?? null,
+				slug
+			},
+			async () => {
+				const { backend, draftBranch } = await requireGitHubContentRepository(
+					requestContext,
+					`/pages/${slug}`
+				);
+				const discoveredConfig = (await getCachedConfigs(backend)).find(
+					(config) => config.slug === slug
+				);
+
+				if (!discoveredConfig) {
+					throw error(404, 'Configuration not found');
+				}
+
+				let content = null;
+				let contentError = null;
+
+				try {
+					content = await getCachedContent(
+						backend,
+						discoveredConfig.config,
+						discoveredConfig.path,
+						discoveredConfig.slug
+					);
+				} catch (err) {
+					handleGitHubSessionError({ cookies }, err);
+					logError(err, 'Fetch content');
+					contentError = formatErrorMessage(err);
+				}
+
+				const { blockConfigs, packageBlocks, blockRegistryError } =
+					await loadGitHubBlockRegistryData(backend);
+
+				logTiming('api.repo.page-view.result', {
+					repo: locals.selectedRepo?.full_name ?? null,
+					slug,
+					hasContent: content !== null,
+					hasContentError: contentError !== null,
+					blockConfigCount: blockConfigs.length,
+					packageBlockCount: packageBlocks.length
+				});
+
+				return json({
+					discoveredConfig,
+					blockConfigs,
+					packageBlocks,
+					blockRegistryError,
+					content,
+					contentError,
+					branch: draftBranch,
+					pageSlug: slug,
+					mode: 'github' as const
+				});
+			}
 		);
-		const discoveredConfig = (await getCachedConfigs(backend)).find((config) => config.slug === slug);
-
-		if (!discoveredConfig) {
-			throw error(404, 'Configuration not found');
-		}
-
-		let content = null;
-		let contentError = null;
-
-		try {
-			content = await getCachedContent(
-				backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				discoveredConfig.slug
-			);
-		} catch (err) {
-			handleGitHubSessionError({ cookies }, err);
-			logError(err, 'Fetch content');
-			contentError = formatErrorMessage(err);
-		}
-
-		const { blockConfigs, packageBlocks, blockRegistryError } =
-			await loadGitHubBlockRegistryData(backend);
-
-		return json({
-			discoveredConfig,
-			blockConfigs,
-			packageBlocks,
-			blockRegistryError,
-			content,
-			contentError,
-			branch: draftBranch,
-			pageSlug: slug,
-			mode: 'github' as const
-		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);
 

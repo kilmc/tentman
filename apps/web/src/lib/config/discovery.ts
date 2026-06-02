@@ -12,6 +12,7 @@ import { parseRootConfig } from '$lib/config/root-config';
 import type { RootConfig } from '$lib/config/root-config';
 import type { BlockUsage } from '$lib/config/types';
 import { slugify } from '$lib/utils';
+import { logTiming } from '$lib/utils/performance-logging';
 
 export interface DiscoveryIssue {
 	code: string;
@@ -61,7 +62,10 @@ function isQualifiedReferenceBinding(binding: string): boolean {
 	return binding.includes(':');
 }
 
-function walkBlocks(blocks: BlockUsage[], visit: (block: BlockUsage, structured: boolean) => void): void {
+function walkBlocks(
+	blocks: BlockUsage[],
+	visit: (block: BlockUsage, structured: boolean) => void
+): void {
 	for (const block of blocks) {
 		const structured = Array.isArray((block as { blocks?: BlockUsage[] }).blocks);
 		visit(block, structured);
@@ -72,10 +76,7 @@ function walkBlocks(blocks: BlockUsage[], visit: (block: BlockUsage, structured:
 	}
 }
 
-function collectConfigCompatibilityIssues(
-	path: string,
-	blocks: BlockUsage[]
-): DiscoveryIssue[] {
+function collectConfigCompatibilityIssues(path: string, blocks: BlockUsage[]): DiscoveryIssue[] {
 	const issues: DiscoveryIssue[] = [];
 
 	walkBlocks(blocks, (block, structured) => {
@@ -131,11 +132,7 @@ function collectItemLabelIssues(
 		}
 
 		issues.push(
-			...collectItemLabelIssues(
-				path,
-				block.blocks,
-				`${unitLabel} > inline block "${block.id}"`
-			)
+			...collectItemLabelIssues(path, block.blocks, `${unitLabel} > inline block "${block.id}"`)
 		);
 	}
 
@@ -274,6 +271,7 @@ export async function discoverGitHubConfigs(
 	repo: string,
 	ref?: string
 ): Promise<DiscoveredConfig[]> {
+	const start = performance.now();
 	try {
 		const rootConfig = await readGitHubRootConfig(octokit, owner, repo, ref);
 		const treeRef =
@@ -301,6 +299,12 @@ export async function discoverGitHubConfigs(
 				.map((item) => item.path!),
 			rootConfig
 		);
+		logTiming('github.config-discovery.tree', {
+			repo: `${owner}/${repo}`,
+			ref: ref ?? null,
+			treeEntryCount: treeData.tree.length,
+			configPathCount: configPaths.length
+		});
 
 		// Fetch and parse each config file
 		const configs = await Promise.all(
@@ -327,10 +331,18 @@ export async function discoverGitHubConfigs(
 			})
 		);
 
-		return normalizeRuntimeDiscoveredConfigIdentity(
+		const discoveredConfigs = normalizeRuntimeDiscoveredConfigIdentity(
 			configs.filter((c): c is DiscoveredConfig => c !== null),
 			rootConfig
 		);
+		logTiming('github.config-discovery.result', {
+			repo: `${owner}/${repo}`,
+			ref: ref ?? null,
+			configPathCount: configPaths.length,
+			discoveredConfigCount: discoveredConfigs.length,
+			durationMs: performance.now() - start
+		});
+		return discoveredConfigs;
 	} catch (err) {
 		console.error('Failed to discover configs:', err);
 		throw new Error('Failed to discover configuration files in repository');
@@ -343,6 +355,7 @@ export async function discoverGitHubBlockConfigs(
 	repo: string,
 	ref?: string
 ): Promise<DiscoveredBlockConfig[]> {
+	const start = performance.now();
 	try {
 		const rootConfig = await readGitHubRootConfig(octokit, owner, repo, ref);
 		const treeRef =
@@ -369,6 +382,12 @@ export async function discoverGitHubBlockConfigs(
 				.map((item) => item.path!),
 			rootConfig
 		);
+		logTiming('github.block-config-discovery.tree', {
+			repo: `${owner}/${repo}`,
+			ref: ref ?? null,
+			treeEntryCount: treeData.tree.length,
+			blockConfigPathCount: blockPaths.length
+		});
 
 		const configs = await Promise.all(
 			blockPaths.map(async (path) => {
@@ -393,7 +412,15 @@ export async function discoverGitHubBlockConfigs(
 			})
 		);
 
-		return configs.filter((c): c is DiscoveredBlockConfig => c !== null);
+		const discoveredConfigs = configs.filter((c): c is DiscoveredBlockConfig => c !== null);
+		logTiming('github.block-config-discovery.result', {
+			repo: `${owner}/${repo}`,
+			ref: ref ?? null,
+			blockConfigPathCount: blockPaths.length,
+			discoveredBlockConfigCount: discoveredConfigs.length,
+			durationMs: performance.now() - start
+		});
+		return discoveredConfigs;
 	} catch (err) {
 		console.error('Failed to discover block configs:', err);
 		throw new Error('Failed to discover block configuration files in repository');

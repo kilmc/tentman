@@ -13,6 +13,7 @@ import type {
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
+import { isPerformanceLoggingEnabled, logTiming } from '$lib/utils/performance-logging';
 import { normalizeGitHubPath } from '$lib/utils/validation';
 
 interface CachedMetadataEntry<T> {
@@ -75,7 +76,7 @@ function dedupeChanges(changes: RepositoryFileChange[]): RepositoryFileChange[] 
 }
 
 function isGitHubRequestInstrumentationEnabled(): boolean {
-	return Boolean(import.meta.env?.DEV);
+	return isPerformanceLoggingEnabled();
 }
 
 function getGitHubRepositoryRequestStatKey(
@@ -120,12 +121,12 @@ function recordGitHubRepositoryRequestStat(
 			};
 
 	githubRepositoryRequestStats.set(statKey, nextStat);
-	console.log('[GITHUB REPO REQUEST]', {
+	logTiming('github.repository.request', {
 		repoKey,
 		operation,
 		path,
 		ref,
-		durationMs: Number(durationMs.toFixed(1)),
+		durationMs,
 		count: nextStat.count
 	});
 }
@@ -529,18 +530,13 @@ export function createGitHubRepositoryBackend(
 					})
 			);
 
-			await instrumentGitHubRepositoryRequest(
-				repoKey,
-				'updateBatchRef',
-				'<ref>',
-				ref ?? null,
-				() =>
-					octokit.rest.git.updateRef({
-						owner,
-						repo: name,
-						ref: `heads/${ref}`,
-						sha: nextCommit.sha
-					})
+			await instrumentGitHubRepositoryRequest(repoKey, 'updateBatchRef', '<ref>', ref ?? null, () =>
+				octokit.rest.git.updateRef({
+					owner,
+					repo: name,
+					ref: `heads/${ref}`,
+					sha: nextCommit.sha
+				})
 			);
 		},
 
