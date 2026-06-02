@@ -3,7 +3,8 @@ type TimingDetail = Record<string, unknown>;
 const ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 
 function readEnvFlag(name: string): boolean {
-	const value = import.meta.env?.[name];
+	const processValue = typeof process !== 'undefined' ? process.env?.[name] : undefined;
+	const value = processValue ?? import.meta.env?.[name];
 	return typeof value === 'string' && ENABLED_VALUES.has(value.toLowerCase());
 }
 
