@@ -24,7 +24,8 @@ import type {
 	CollectionIndex,
 	CollectionIndexItem,
 	RepositorySnapshot,
-	RepositoryTreeEntry
+	RepositoryTreeEntry,
+	ResolvedCollectionItem
 } from './types';
 
 type DirectoryBackedConfig = ParsedContentConfig & {
@@ -479,6 +480,31 @@ function toFileCollectionIndexItems(input: {
 	});
 }
 
+function getCollectionIndexItemFromContent(input: {
+	config: ParsedContentConfig;
+	content: ContentRecord;
+	path: string;
+	blobSha: string;
+	index?: number;
+}): CollectionIndexItem | null {
+	const route = getItemRoute(input.config, input.content);
+	const itemId = getItemId(input.content) ?? route;
+	if (!itemId || !route) {
+		return null;
+	}
+
+	return {
+		itemId,
+		route,
+		path: input.path,
+		filename: getFilename(input.path),
+		blobSha: input.blobSha,
+		...(typeof input.index === 'number' ? { index: input.index } : {}),
+		title: route,
+		sortDate: null
+	};
+}
+
 async function buildDirectoryCollectionIndex(
 	input: CollectionNavigationInput,
 	snapshot: RepositorySnapshot,
@@ -719,9 +745,9 @@ export async function getCollectionNavigation(
 	return promise;
 }
 
-export async function resolveCollectionItem(
+export async function resolveCollectionItemDocument(
 	input: ResolveCollectionItemInput
-): Promise<ContentRecord | null> {
+): Promise<ResolvedCollectionItem | null> {
 	if (!canUseGitHubSource(input.backend)) {
 		return null;
 	}
@@ -731,7 +757,46 @@ export async function resolveCollectionItem(
 		ref: input.ref
 	});
 	const discoveredConfig = snapshot.configIndex.bySlug.get(input.slug);
-	if (!discoveredConfig?.config.collection || !isDirectoryBackedConfig(discoveredConfig.config)) {
+	if (!discoveredConfig?.config.collection) {
+		return null;
+	}
+
+	if (isFileCollectionConfig(discoveredConfig.config)) {
+		const index = await getCollectionIndex(input);
+		const indexItem =
+			index?.byRoute.get(input.itemId) ??
+			index?.byId.get(input.itemId) ??
+			(/^\d+$/.test(input.itemId)
+				? index?.items[Number.parseInt(input.itemId, 10)]
+				: undefined);
+		if (!indexItem || typeof indexItem.index !== 'number') {
+			return null;
+		}
+
+		const contentPath = resolveConfigPath(discoveredConfig.path, discoveredConfig.config.content.path);
+		const entry = findBlobEntry(snapshot, contentPath);
+		if (!entry) {
+			return null;
+		}
+
+		const content = parseFileCollectionItems(
+			discoveredConfig.config,
+			await readGitHubTextBlob(input.backend, entry.sha)
+		);
+		const normalizedContent = normalizeRuntimeCollectionItemIds(discoveredConfig.config, content);
+		const item = normalizedContent[indexItem.index];
+		if (!item) {
+			return null;
+		}
+
+		return {
+			config: discoveredConfig,
+			indexItem,
+			content: item
+		};
+	}
+
+	if (!isDirectoryBackedConfig(discoveredConfig.config)) {
 		return null;
 	}
 
@@ -756,7 +821,31 @@ export async function resolveCollectionItem(
 		getFilename(path)
 	);
 	const normalized = normalizeRuntimeCollectionItemIds(discoveredConfig.config, [item]);
-	return normalized[0] ?? item;
+	const content = normalized[0] ?? item;
+	const resolvedIndexItem =
+		indexItem ??
+		getCollectionIndexItemFromContent({
+			config: discoveredConfig.config,
+			content,
+			path,
+			blobSha
+		});
+	if (!resolvedIndexItem) {
+		return null;
+	}
+
+	return {
+		config: discoveredConfig,
+		indexItem: resolvedIndexItem,
+		content
+	};
+}
+
+export async function resolveCollectionItem(
+	input: ResolveCollectionItemInput
+): Promise<ContentRecord | null> {
+	const resolved = await resolveCollectionItemDocument(input);
+	return resolved?.content ?? null;
 }
 
 export function clearCollectionNavigationCache(): void {

@@ -4,7 +4,8 @@ import type { RepositoryBackend } from '$lib/repository/types';
 import {
 	clearCollectionNavigationCache,
 	clearRepositorySnapshotCache,
-	getCollectionNavigation
+	getCollectionNavigation,
+	resolveCollectionItemDocument
 } from './index';
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
@@ -318,5 +319,113 @@ describe('collection navigation repository data layer', () => {
 		expect(backend.octokit.rest.git.getBlob).toHaveBeenCalledWith(
 			expect.objectContaining({ file_sha: 'sha:src/content/posts.json' })
 		);
+	});
+
+	it('resolves a directory-backed item with path and blob identity', async () => {
+		const backend = createGitHubBackend({
+			'tentman.json': `{
+				"configsDir": "tentman/configs"
+			}`,
+			'tentman/configs/posts.tentman.json': `{
+				"type": "content",
+				"label": "Posts",
+				"collection": true,
+				"itemLabel": "title",
+				"content": {
+					"mode": "directory",
+					"path": "../../src/content/posts",
+					"template": "../../src/content/posts/_template.md"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" }
+				]
+			}`,
+			'src/content/posts/_template.md': `---\ntitle: ""\n---\n`,
+			'src/content/posts/hello-world.md': `---\ntitle: "Hello world"\n---\nBody`
+		});
+
+		const result = await resolveCollectionItemDocument({
+			backend,
+			slug: 'posts',
+			itemId: 'hello-world'
+		});
+
+		expect(result).toMatchObject({
+			config: {
+				slug: 'posts'
+			},
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'sha:src/content/posts/hello-world.md'
+			},
+			content: {
+				_filename: 'hello-world.md',
+				title: 'Hello world',
+				body: 'Body'
+			}
+		});
+	});
+
+	it('resolves a file-backed item with container path, blob, and item index', async () => {
+		const backend = createGitHubBackend({
+			'tentman.json': `{
+				"configsDir": "tentman/configs"
+			}`,
+			'tentman/configs/posts.tentman.json': `{
+				"type": "content",
+				"label": "Posts",
+				"collection": true,
+				"itemLabel": "title",
+				"idField": "slug",
+				"content": {
+					"mode": "file",
+					"path": "../../src/content/posts.json",
+					"itemsPath": "$.posts"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" }
+				]
+			}`,
+			'src/content/posts.json': JSON.stringify({
+				posts: [
+					{
+						_tentmanId: 'post-1',
+						slug: 'first',
+						title: 'First'
+					},
+					{
+						_tentmanId: 'post-2',
+						slug: 'second',
+						title: 'Second'
+					}
+				]
+			})
+		});
+
+		const result = await resolveCollectionItemDocument({
+			backend,
+			slug: 'posts',
+			itemId: 'second'
+		});
+
+		expect(result).toMatchObject({
+			indexItem: {
+				itemId: 'post-2',
+				route: 'second',
+				path: 'src/content/posts.json',
+				filename: 'posts.json',
+				blobSha: 'sha:src/content/posts.json',
+				index: 1
+			},
+			content: {
+				_tentmanId: 'post-2',
+				slug: 'second',
+				title: 'Second'
+			}
+		});
+		expect(backend.readTextFile).not.toHaveBeenCalled();
 	});
 });

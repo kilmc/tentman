@@ -3,6 +3,7 @@ import type { DraftMetadata } from '$lib/utils/draft-comparison';
 import type { RootConfig } from '$lib/config/root-config';
 import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import type { ResolvedContentState } from '$lib/features/content-management/state';
+import type { ContentRecord } from '$lib/features/content-management/types';
 import type { RepositoryBackend } from '$lib/repository/types';
 
 export type RepositoryMode = RepositoryBackend['kind'];
@@ -91,6 +92,12 @@ export interface CollectionIndex {
 	byId: Map<string, CollectionIndexItem>;
 	byRoute: Map<string, CollectionIndexItem>;
 	byPath: Map<string, CollectionIndexItem>;
+}
+
+export interface ResolvedCollectionItem {
+	config: DiscoveredConfig;
+	indexItem: CollectionIndexItem;
+	content: ContentRecord;
 }
 
 export interface DraftChangedFile {

@@ -3,7 +3,8 @@ export {
 	clearCollectionNavigationCache,
 	getCollectionIndex,
 	getCollectionNavigation,
-	resolveCollectionItem
+	resolveCollectionItem,
+	resolveCollectionItemDocument
 } from './collections';
 export { clearSingletonDocumentCache, getSingletonDocument } from './documents';
 export { clearDraftChangeIndexCache, getDraftChangeIndex } from './drafts';
@@ -21,6 +22,7 @@ export type {
 	DraftChangeIndex,
 	RepositoryMode,
 	RepositoryRefIdentity,
+	ResolvedCollectionItem,
 	RepositorySnapshot,
 	RepositorySnapshotInput,
 	RepositorySourceIdentity,
