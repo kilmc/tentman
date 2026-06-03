@@ -216,4 +216,107 @@ describe('collection navigation repository data layer', () => {
 		});
 		expect(backend.readTextFile).not.toHaveBeenCalled();
 	});
+
+	it('builds file-backed collection navigation from the container blob SHA', async () => {
+		const backend = createGitHubBackend({
+			'tentman.json': `{
+				"configsDir": "tentman/configs",
+				"statePresets": {
+					"publishing": {
+						"cases": [
+							{ "value": "draft", "label": "Draft", "variant": "warning" },
+							{ "value": "published", "label": "Published", "variant": "success" }
+						]
+					}
+				}
+			}`,
+			'tentman/configs/posts.tentman.json': `{
+				"type": "content",
+				"label": "Posts",
+				"collection": {
+					"state": {
+						"blockId": "status",
+						"preset": "publishing"
+					}
+				},
+				"itemLabel": "title",
+				"content": {
+					"mode": "file",
+					"path": "../../src/content/posts.json",
+					"itemsPath": "$.posts"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" },
+					{ "id": "date", "type": "date", "label": "Date" },
+					{ "id": "status", "type": "text", "label": "Status" }
+				]
+			}`,
+			'src/content/posts.json': JSON.stringify({
+				posts: [
+					{
+						_tentmanId: 'post-1',
+						slug: 'first',
+						title: 'First',
+						date: '2026-05-01',
+						status: 'published'
+					},
+					{
+						_tentmanId: 'post-2',
+						slug: 'second',
+						title: 'Second',
+						date: '2026-05-02',
+						status: 'draft'
+					}
+				]
+			})
+		});
+
+		const navigation = await getCollectionNavigation({
+			backend,
+			slug: 'posts'
+		});
+
+		expect(navigation).toEqual({
+			items: [
+				{
+					itemId: 'post-1',
+					title: 'First',
+					sortDate: new Date('2026-05-01').getTime(),
+					state: {
+						value: 'published',
+						label: 'Published',
+						variant: 'success',
+						icon: null,
+						visibility: {
+							navigation: true,
+							header: true,
+							card: true
+						}
+					}
+				},
+				{
+					itemId: 'post-2',
+					title: 'Second',
+					sortDate: new Date('2026-05-02').getTime(),
+					state: {
+						value: 'draft',
+						label: 'Draft',
+						variant: 'warning',
+						icon: null,
+						visibility: {
+							navigation: true,
+							header: true,
+							card: true
+						}
+					}
+				}
+			],
+			groups: []
+		});
+		expect(backend.listDirectory).not.toHaveBeenCalled();
+		expect(backend.readTextFile).not.toHaveBeenCalled();
+		expect(backend.octokit.rest.git.getBlob).toHaveBeenCalledWith(
+			expect.objectContaining({ file_sha: 'sha:src/content/posts.json' })
+		);
+	});
 });

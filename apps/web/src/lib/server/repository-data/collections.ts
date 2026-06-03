@@ -1,4 +1,5 @@
 import matter from 'gray-matter';
+import { JSONPath } from 'jsonpath-plus';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import {
@@ -7,7 +8,12 @@ import {
 } from '$lib/features/content-management/navigation';
 import type { OrderedCollectionNavigation } from '$lib/features/content-management/navigation';
 import { normalizeRuntimeCollectionItemIds } from '$lib/features/content-management/stable-identity';
-import { getTemplateInfo, parseCollectionItem } from '$lib/features/content-management/transforms';
+import {
+	getTemplateInfo,
+	isMarkdownContentPath,
+	parseCollectionItem,
+	parseMarkdownContentRecord
+} from '$lib/features/content-management/transforms';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 import type { RepositoryBackend } from '$lib/repository/types';
 import { logTiming } from '$lib/utils/performance-logging';
@@ -29,6 +35,15 @@ type DirectoryBackedConfig = ParsedContentConfig & {
 		filename?: string;
 	};
 };
+
+type FileCollectionConfig = ParsedContentConfig & {
+	content: {
+		mode: 'file';
+		path: string;
+		itemsPath: string;
+	};
+};
+type JsonContainer = Record<string, unknown> | unknown[];
 
 interface CollectionNavigationInput {
 	backend: RepositoryBackend;
@@ -52,6 +67,16 @@ function isDirectoryBackedConfig(config: ParsedContentConfig): config is Directo
 	}
 
 	return config.content.mode === 'directory';
+}
+
+function isFileCollectionConfig(config: ParsedContentConfig): config is FileCollectionConfig {
+	return (
+		Boolean(config.collection) &&
+		config.content.mode === 'file' &&
+		typeof config.content.path === 'string' &&
+		typeof config.content.itemsPath === 'string' &&
+		config.content.itemsPath.length > 0
+	);
 }
 
 function getFilename(path: string): string {
@@ -103,6 +128,10 @@ function getCandidateItemEntries(
 
 		return filename.endsWith(info.templateExt);
 	});
+}
+
+function findBlobEntry(snapshot: RepositorySnapshot, path: string): RepositoryTreeEntry | null {
+	return snapshot.tree?.entries.find((entry) => entry.type === 'blob' && entry.path === path) ?? null;
 }
 
 function collectProjectionFieldIds(config: ParsedContentConfig): Set<string> {
@@ -266,6 +295,39 @@ function getCollectionNavigationCacheKey(index: CollectionIndex): string {
 	].join(':');
 }
 
+function getFileCollectionIndexCacheKey(
+	snapshot: RepositorySnapshot,
+	config: FileCollectionConfig,
+	configPath: string,
+	slug: string,
+	blobSha: string
+): string {
+	const contentPath = resolveConfigPath(configPath, config.content.path);
+	const fieldIds = collectProjectionFieldIds(config);
+	return [
+		'collection-index',
+		snapshot.identity.repoKey,
+		snapshot.identity.ref,
+		snapshot.identity.headSha,
+		snapshot.identity.treeSha,
+		slug,
+		configPath,
+		contentPath,
+		blobSha,
+		config.content.itemsPath,
+		getProjectionSchemaIdentity(config, fieldIds)
+	].join(':');
+}
+
+function getFileCollectionEntry(input: {
+	snapshot: RepositorySnapshot;
+	config: FileCollectionConfig;
+	configPath: string;
+}): RepositoryTreeEntry | null {
+	const path = resolveConfigPath(input.configPath, input.config.content.path);
+	return findBlobEntry(input.snapshot, path);
+}
+
 function toCollectionIndexItems(
 	config: DirectoryBackedConfig,
 	entries: RepositoryTreeEntry[],
@@ -336,6 +398,87 @@ function createCollectionIndex(
 	};
 }
 
+function createFileCollectionIndex(input: {
+	snapshot: RepositorySnapshot;
+	config: FileCollectionConfig;
+	configPath: string;
+	slug: string;
+	path: string;
+	blobSha: string;
+	items: CollectionIndexItem[];
+	schemaIdentity: string;
+}): CollectionIndex {
+	const identity = {
+		repoKey: input.snapshot.identity.repoKey,
+		ref: input.snapshot.identity.ref,
+		headSha: input.snapshot.identity.headSha,
+		treeSha: input.snapshot.identity.treeSha,
+		configSlug: input.slug,
+		configPath: input.configPath,
+		contentIdentity: `${input.path}:${input.blobSha}:${input.config.content.itemsPath}`,
+		schemaIdentity: input.schemaIdentity
+	};
+
+	return {
+		identity,
+		configSlug: input.slug,
+		mode: 'file',
+		items: input.items,
+		byId: new Map(input.items.map((item) => [item.itemId, item])),
+		byRoute: new Map(input.items.map((item) => [item.route, item])),
+		byPath: new Map(input.items.map((item) => [item.path, item]))
+	};
+}
+
+function parseFileCollectionItems(config: FileCollectionConfig, raw: string): ContentRecord[] {
+	const container: JsonContainer = isMarkdownContentPath(config.content.path)
+		? parseMarkdownContentRecord(raw)
+		: (JSON.parse(raw) as JsonContainer);
+	const items = JSONPath({ path: config.content.itemsPath, json: container, wrap: false });
+
+	if (!Array.isArray(items)) {
+		throw new Error('content.itemsPath did not resolve to an array');
+	}
+
+	return items as ContentRecord[];
+}
+
+function toFileCollectionIndexItems(input: {
+	config: FileCollectionConfig;
+	content: ContentRecord[];
+	path: string;
+	blobSha: string;
+	rootConfig: RepositorySnapshot['rootConfig'];
+}): CollectionIndexItem[] {
+	const content = normalizeRuntimeCollectionItemIds(input.config, input.content);
+	const navigation = getOrderedCollectionNavigation(input.config, content, null, input.rootConfig);
+	const navigationByItemId = new Map(navigation.items.map((item) => [item.itemId, item]));
+	const filename = getFilename(input.path);
+
+	return content.flatMap((item, index) => {
+		const route = getItemRoute(input.config, item);
+		const fallbackId = getItemId(item) ?? route ?? String(index);
+		if (!route && fallbackId === String(index)) {
+			return [];
+		}
+
+		const navigationItem = navigationByItemId.get(fallbackId);
+		return [
+			{
+				itemId: fallbackId,
+				route: route ?? fallbackId,
+				path: input.path,
+				filename,
+				blobSha: input.blobSha,
+				index,
+				title: navigationItem?.title ?? route ?? fallbackId,
+				sortDate: navigationItem?.sortDate ?? null,
+				...(navigationItem?.state ? { state: navigationItem.state } : {})
+			}
+		];
+	});
+}
+
 async function buildDirectoryCollectionIndex(
 	input: CollectionNavigationInput,
 	snapshot: RepositorySnapshot,
@@ -375,38 +518,111 @@ async function buildDirectoryCollectionIndex(
 	);
 }
 
+async function buildFileCollectionIndex(input: {
+	backend: Parameters<typeof readGitHubTextBlob>[0];
+	snapshot: RepositorySnapshot;
+	config: FileCollectionConfig;
+	configPath: string;
+	slug: string;
+	entry: RepositoryTreeEntry;
+}): Promise<CollectionIndex | null> {
+	try {
+		const fieldIds = collectProjectionFieldIds(input.config);
+		const schemaIdentity = getProjectionSchemaIdentity(input.config, fieldIds);
+		const content = parseFileCollectionItems(
+			input.config,
+			await readGitHubTextBlob(input.backend, input.entry.sha)
+		);
+
+		return createFileCollectionIndex({
+			snapshot: input.snapshot,
+			config: input.config,
+			configPath: input.configPath,
+			slug: input.slug,
+			path: input.entry.path,
+			blobSha: input.entry.sha,
+			items: toFileCollectionIndexItems({
+				config: input.config,
+				content,
+				path: input.entry.path,
+				blobSha: input.entry.sha,
+				rootConfig: input.snapshot.rootConfig
+			}),
+			schemaIdentity
+		});
+	} catch (err) {
+		console.error(`Failed to build file collection index for ${input.entry.path}:`, err);
+		return null;
+	}
+}
+
 async function loadCollectionIndex(input: CollectionNavigationInput): Promise<CollectionIndex | null> {
 	if (!canUseGitHubSource(input.backend)) {
 		return null;
 	}
 
+	const backend = input.backend;
 	const start = performance.now();
 	const snapshot = await getRepositorySnapshot({
-		backend: input.backend,
+		backend,
 		ref: input.ref
 	});
 	const discoveredConfig = snapshot.configIndex.bySlug.get(input.slug);
-	if (!discoveredConfig?.config.collection || !isDirectoryBackedConfig(discoveredConfig.config)) {
+	if (!discoveredConfig?.config.collection) {
 		return null;
 	}
 
-	const cacheKey = getCollectionIndexCacheKey(
-		snapshot,
-		discoveredConfig.config,
-		discoveredConfig.path,
-		input.slug
-	);
+	let fileCollectionEntry: RepositoryTreeEntry | null = null;
+	let cacheKey: string | null = null;
+	if (isDirectoryBackedConfig(discoveredConfig.config)) {
+		cacheKey = getCollectionIndexCacheKey(
+			snapshot,
+			discoveredConfig.config,
+			discoveredConfig.path,
+			input.slug
+		);
+	} else if (isFileCollectionConfig(discoveredConfig.config)) {
+		fileCollectionEntry = getFileCollectionEntry({
+			snapshot,
+			config: discoveredConfig.config,
+			configPath: discoveredConfig.path
+		});
+		cacheKey = fileCollectionEntry
+			? getFileCollectionIndexCacheKey(
+					snapshot,
+					discoveredConfig.config,
+					discoveredConfig.path,
+					input.slug,
+					fileCollectionEntry.sha
+				)
+			: null;
+	}
+
+	if (!cacheKey) {
+		return null;
+	}
 	const cached = collectionIndexCache.get(cacheKey);
 	if (cached) {
 		return cached;
 	}
 
-	const index = await buildDirectoryCollectionIndex(
-		input,
-		snapshot,
-		discoveredConfig.config,
-		discoveredConfig.path
-	);
+	const index = isDirectoryBackedConfig(discoveredConfig.config)
+		? await buildDirectoryCollectionIndex(
+				input,
+				snapshot,
+				discoveredConfig.config,
+				discoveredConfig.path
+			)
+		: isFileCollectionConfig(discoveredConfig.config) && fileCollectionEntry
+			? await buildFileCollectionIndex({
+					backend,
+					snapshot,
+					config: discoveredConfig.config,
+					configPath: discoveredConfig.path,
+					slug: input.slug,
+					entry: fileCollectionEntry
+				})
+			: null;
 	if (!index) {
 		return null;
 	}
@@ -453,7 +669,7 @@ async function loadCollectionNavigation(
 		ref: input.ref
 	});
 	const discoveredConfig = snapshot.configIndex.bySlug.get(input.slug);
-	if (!discoveredConfig?.config.collection || !isDirectoryBackedConfig(discoveredConfig.config)) {
+	if (!discoveredConfig?.config.collection) {
 		return null;
 	}
 

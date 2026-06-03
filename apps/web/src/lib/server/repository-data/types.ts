@@ -77,6 +77,7 @@ export interface CollectionIndexItem {
 	path: string;
 	filename: string;
 	blobSha: string;
+	index?: number;
 	title: string;
 	sortDate?: number | null;
 	state?: ResolvedContentState | null;
@@ -85,7 +86,7 @@ export interface CollectionIndexItem {
 export interface CollectionIndex {
 	identity: CollectionIndexIdentity;
 	configSlug: string;
-	mode: 'directory';
+	mode: 'directory' | 'file';
 	items: CollectionIndexItem[];
 	byId: Map<string, CollectionIndexItem>;
 	byRoute: Map<string, CollectionIndexItem>;
