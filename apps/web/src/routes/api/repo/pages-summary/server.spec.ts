@@ -13,10 +13,15 @@ vi.mock('$lib/utils/draft-comparison', () => ({
 	compareDraftToBranch: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	getDraftChangeIndex: vi.fn()
+}));
+
 import { POST } from './+server';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { requireGitHubRepository } from '$lib/server/page-context';
+import { getDraftChangeIndex } from '$lib/server/repository-data';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 function createRequest(body: unknown) {
@@ -37,7 +42,8 @@ describe('POST /api/repo/pages-summary', () => {
 		vi.mocked(requireGitHubRepository).mockReturnValue({
 			octokit: {},
 			owner: 'acme',
-			name: 'docs'
+			name: 'docs',
+			defaultBranch: 'main'
 		} as never);
 	});
 
@@ -101,17 +107,38 @@ describe('POST /api/repo/pages-summary', () => {
 
 	it('summarizes changed pages for the overview screen', async () => {
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
-		vi.mocked(compareDraftToBranch)
-			.mockResolvedValueOnce({
-				modified: [],
-				created: [],
-				deleted: []
-			})
-			.mockResolvedValueOnce({
-				modified: [{ itemId: 'hello-world' }],
-				created: [{ itemId: 'second-post' }],
-				deleted: []
-			});
+		vi.mocked(getDraftChangeIndex).mockResolvedValue({
+			owner: 'acme',
+			repo: 'docs',
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			metadata: {
+				branchExists: true
+			},
+			files: [],
+			byConfigSlug: new Map([
+				[
+					'about',
+					{
+						slug: 'about',
+						modified: [],
+						created: [],
+						deleted: [],
+						requiresFullFetch: false
+					}
+				],
+				[
+					'posts',
+					{
+						slug: 'posts',
+						modified: ['hello-world'],
+						created: ['second-post'],
+						deleted: [],
+						requiresFullFetch: false
+					}
+				]
+			])
+		});
 
 		const response = await POST(
 			createRequest({
@@ -160,5 +187,73 @@ describe('POST /api/repo/pages-summary', () => {
 			totalChanges: 2,
 			hasConfigs: true
 		});
+		expect(compareDraftToBranch).not.toHaveBeenCalled();
+	});
+
+	it('falls back to full comparison for ambiguous indexed changes', async () => {
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
+		vi.mocked(getDraftChangeIndex).mockResolvedValue({
+			owner: 'acme',
+			repo: 'docs',
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			metadata: {
+				branchExists: true
+			},
+			files: [],
+			byConfigSlug: new Map([
+				[
+					'posts',
+					{
+						slug: 'posts',
+						modified: [],
+						created: [],
+						deleted: [],
+						requiresFullFetch: true
+					}
+				]
+			])
+		});
+		vi.mocked(compareDraftToBranch).mockResolvedValue({
+			modified: [{ itemId: 'hello-world' }],
+			created: [],
+			deleted: [{ itemId: 'old-post' }]
+		});
+
+		const response = await POST(
+			createRequest({
+				configs: [
+					{
+						slug: 'posts',
+						path: 'content/posts.tentman.json',
+						config: {
+							id: 'posts',
+							label: 'Posts',
+							collection: true,
+							content: {
+								mode: 'file'
+							},
+							blocks: []
+						}
+					}
+				],
+				navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+			}) as never
+		);
+
+		expect(await response.json()).toEqual({
+			draftBranch: 'tentman-preview',
+			changedPages: [
+				{
+					slug: 'posts',
+					label: 'Posts',
+					changeCount: 2,
+					isCollection: true
+				}
+			],
+			totalChanges: 2,
+			hasConfigs: true
+		});
+		expect(compareDraftToBranch).toHaveBeenCalledTimes(1);
 	});
 });

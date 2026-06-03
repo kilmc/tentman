@@ -28,6 +28,10 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 import { GET } from '../../routes/api/repo/item-view/+server';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
+import {
+	clearCollectionNavigationCache,
+	clearRepositorySnapshotCache
+} from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import {
@@ -40,6 +44,89 @@ import {
 function createCookies() {
 	return {
 		delete: vi.fn()
+	};
+}
+
+function encodeBlob(value: string): string {
+	return Buffer.from(value, 'utf-8').toString('base64');
+}
+
+function createGitHubBackend(files: Record<string, string>) {
+	const shasByPath = new Map(Object.keys(files).map((path) => [path, `sha:${path}`]));
+	const contentBySha = new Map(
+		Object.entries(files).map(([path, content]) => [`sha:${path}`, content])
+	);
+	const octokit = {
+		rest: {
+			repos: {
+				getBranch: vi.fn(async () => ({
+					data: {
+						commit: {
+							sha: 'commit-main'
+						}
+					}
+				}))
+			},
+			git: {
+				getCommit: vi.fn(async () => ({
+					data: {
+						tree: {
+							sha: 'tree-main'
+						}
+					}
+				})),
+				getTree: vi.fn(async () => ({
+					data: {
+						truncated: false,
+						tree: [...shasByPath.entries()].map(([path, sha]) => ({
+							path,
+							sha,
+							type: 'blob',
+							size: contentBySha.get(sha)?.length
+						}))
+					}
+				})),
+				getBlob: vi.fn(async ({ file_sha }: { file_sha: string }) => ({
+					data: {
+						content: encodeBlob(contentBySha.get(file_sha) ?? '')
+					}
+				}))
+			}
+		}
+	};
+
+	return {
+		kind: 'github',
+		cacheKey: 'github:acme/docs?ref=main',
+		label: 'acme/docs',
+		supportsDraftBranches: true,
+		owner: 'acme',
+		repo: 'docs',
+		fullName: 'acme/docs',
+		octokit,
+		discoverConfigs: vi.fn(async () => []),
+		discoverBlockConfigs: vi.fn(async () => []),
+		readRootConfig: vi.fn(async () => null),
+		readTextFile: vi.fn(async () => {
+			throw new Error('legacy text reads should not run');
+		}),
+		writeTextFile: vi.fn(async () => undefined),
+		writeBinaryFile: vi.fn(async () => undefined),
+		deleteFile: vi.fn(async () => undefined),
+		listDirectory: vi.fn(async () => {
+			throw new Error('legacy directory listing should not run');
+		}),
+		fileExists: vi.fn(async () => false)
+	};
+}
+
+function createSnapshotFallbackBackend(cacheKey = 'github:acme/docs') {
+	return {
+		kind: 'github',
+		cacheKey,
+		label: 'acme/docs',
+		discoverBlockConfigs: vi.fn(async () => []),
+		readRootConfig: vi.fn(async () => null)
 	};
 }
 
@@ -64,11 +151,13 @@ const collectionConfig = {
 describe('GET /api/repo/item-view', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearRepositorySnapshotCache();
+		clearCollectionNavigationCache();
 	});
 
 	it('returns the selected collection item payload', async () => {
 		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: createSnapshotFallbackBackend(),
 			draftBranch: null
 		} as never);
 		vi.mocked(getCachedConfigs).mockResolvedValue([collectionConfig] as never);
@@ -103,7 +192,7 @@ describe('GET /api/repo/item-view', () => {
 			pageSlug: 'posts'
 		});
 		expect(getCachedContent).toHaveBeenCalledWith(
-			{ cacheKey: 'github:acme/docs' },
+			expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			collectionConfig.config,
 			collectionConfig.path,
 			collectionConfig.slug
@@ -112,7 +201,7 @@ describe('GET /api/repo/item-view', () => {
 
 	it('returns the active managed draft branch when content loads from the draft by default', async () => {
 		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs?ref=tentman-preview' },
+			backend: createSnapshotFallbackBackend('github:acme/docs?ref=tentman-preview'),
 			draftBranch: 'tentman-preview'
 		} as never);
 		vi.mocked(getCachedConfigs).mockResolvedValue([collectionConfig] as never);
@@ -141,16 +230,89 @@ describe('GET /api/repo/item-view', () => {
 			branch: 'tentman-preview'
 		});
 		expect(getCachedContent).toHaveBeenCalledWith(
-			{ cacheKey: 'github:acme/docs?ref=tentman-preview' },
+			expect.objectContaining({ cacheKey: 'github:acme/docs?ref=tentman-preview' }),
 			collectionConfig.config,
 			collectionConfig.path,
 			collectionConfig.slug
 		);
 	});
 
+	it('resolves directory-backed GitHub items without loading the whole collection', async () => {
+		const backend = createGitHubBackend({
+			'tentman.json': `{
+				"configsDir": "tentman/configs",
+				"siteName": "Acme Docs"
+			}`,
+			'tentman/configs/posts.tentman.json': `{
+				"type": "content",
+				"label": "Posts",
+				"collection": true,
+				"itemLabel": "title",
+				"content": {
+					"mode": "directory",
+					"path": "../../src/content/posts",
+					"template": "../../src/content/posts/_template.md"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" },
+					{ "id": "body", "type": "markdown", "label": "Body" }
+				]
+			}`,
+			'src/content/posts/_template.md': `---\ntitle: ""\n---\n`,
+			'src/content/posts/hello-world.md': `---\ntitle: "Hello world"\n---\nFull body`,
+			'src/content/posts/second.md': `---\ntitle: "Second"\n---\nSecond body`
+		});
+
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
+			backend,
+			draftBranch: null
+		} as never);
+		vi.mocked(getCachedConfigs).mockResolvedValue([
+			{
+				...collectionConfig,
+				path: 'tentman/configs/posts.tentman.json',
+				config: {
+					...collectionConfig.config,
+					content: {
+						mode: 'directory',
+						path: '../../src/content/posts',
+						template: '../../src/content/posts/_template.md'
+					},
+					blocks: [
+						{ id: 'title', type: 'text' },
+						{ id: 'body', type: 'markdown' }
+					]
+				}
+			}
+		] as never);
+		vi.mocked(loadGitHubBlockRegistryData).mockResolvedValue({
+			blockConfigs: [],
+			packageBlocks: [],
+			blockRegistryError: null
+		});
+
+		const response = await GET({
+			url: new URL('http://localhost/api/repo/item-view?slug=posts&itemId=hello-world'),
+			locals: {},
+			cookies: createCookies()
+		} as never);
+
+		expect(await response.json()).toMatchObject({
+			item: {
+				_filename: 'hello-world.md',
+				title: 'Hello world',
+				body: 'Full body'
+			}
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(backend.listDirectory).not.toHaveBeenCalled();
+		expect(backend.readTextFile).not.toHaveBeenCalled();
+		expect(backend.octokit.rest.git.getBlob).toHaveBeenCalledTimes(3);
+	});
+
 	it('returns a redirect target when the config is not a collection', async () => {
 		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: createSnapshotFallbackBackend(),
 			draftBranch: null
 		} as never);
 		vi.mocked(getCachedConfigs).mockResolvedValue([
@@ -176,7 +338,7 @@ describe('GET /api/repo/item-view', () => {
 
 	it('clears the session and returns 401 when content fetch gets a GitHub 401', async () => {
 		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: createSnapshotFallbackBackend(),
 			draftBranch: null
 		} as never);
 		vi.mocked(getCachedConfigs).mockResolvedValue([collectionConfig] as never);

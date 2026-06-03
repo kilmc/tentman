@@ -12,8 +12,10 @@
 	import {
 		getConfigItemLabel,
 		getFirstCollectionItemId,
+		getFirstCollectionNavigationItemId,
 		getOrderedCollectionNavigation
 	} from '$lib/features/content-management/navigation';
+	import type { OrderedCollectionNavigation } from '$lib/features/content-management/navigation';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { DraftComparison } from '$lib/utils/draft-comparison';
 	import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
@@ -77,7 +79,27 @@
 		return isLocalMode ? localBlockRegistry : createBlockRegistry(blockConfigs, { packageBlocks });
 	});
 	const collectionItemCount = $derived(Array.isArray(content) ? content.length : 0);
+	const indexedCollectionNavigation = $derived(
+		!isLocalMode && isCollectionContent
+			? ((data.collectionNavigation ?? null) as OrderedCollectionNavigation | null)
+			: null
+	);
+	const indexedCollectionItemCount = $derived.by(() => {
+		if (!indexedCollectionNavigation) {
+			return null;
+		}
+
+		return (
+			indexedCollectionNavigation.items.length +
+			indexedCollectionNavigation.groups.reduce((count, group) => count + group.items.length, 0)
+		);
+	});
+	const displayCollectionItemCount = $derived(indexedCollectionItemCount ?? collectionItemCount);
 	const orderedCollectionNavigation = $derived.by(() => {
+		if (indexedCollectionNavigation) {
+			return indexedCollectionNavigation;
+		}
+
 		if (!config?.collection || !Array.isArray(content) || contentError) {
 			return {
 				items: [],
@@ -88,6 +110,11 @@
 		return getOrderedCollectionNavigation(config, content, navigationManifest);
 	});
 	const firstCollectionItemHref = $derived.by(() => {
+		if (indexedCollectionNavigation) {
+			const firstIndexedItemId = getFirstCollectionNavigationItemId(indexedCollectionNavigation);
+			return firstIndexedItemId ? resolve(`/pages/${data.pageSlug}/${firstIndexedItemId}/edit`) : null;
+		}
+
 		if (!config?.collection || !content || contentError) {
 			return null;
 		}
@@ -369,13 +396,13 @@
 				<h2 class="mb-2 font-semibold text-red-800">Failed to Load Content</h2>
 				<p class="text-sm text-red-700">{contentError}</p>
 			</div>
-		{:else if content === null}
+		{:else if content === null && !indexedCollectionNavigation}
 			<div class="rounded-md border border-stone-200 bg-white p-4 text-sm text-stone-600">
 				Loading content...
 			</div>
 		{:else if isCollectionContent}
 			<div class="grid gap-4 py-2">
-				{#if collectionItemCount > 0}
+				{#if displayCollectionItemCount > 0}
 					<div class="grid gap-3 lg:hidden">
 						<div class="flex items-center justify-between gap-3">
 							<div>

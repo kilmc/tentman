@@ -14,6 +14,7 @@ vi.mock('$lib/server/page-context', () => ({
 
 import { GET } from '../../routes/api/repo/configs/+server';
 import { getCachedConfigs } from '$lib/stores/config-cache';
+import { clearRepositorySnapshotCache } from '$lib/server/repository-data';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
@@ -30,15 +31,21 @@ function createCookies() {
 describe('GET /api/repo/configs', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearRepositorySnapshotCache();
 		pageContextMocks.requireGitHubContentRepository.mockResolvedValue({
 			backend: {
+				kind: 'github',
+				cacheKey: 'github:acme/docs?ref=main',
+				label: 'acme/docs',
+				supportsDraftBranches: true,
 				discoverBlockConfigs: vi.fn(async () => []),
 				readRootConfig: vi.fn(async () => null),
 				readTextFile: vi.fn(async () => {
 					throw { status: 404 };
 				}),
 				fileExists: vi.fn(async () => false)
-			}
+			},
+			draftBranch: null
 		});
 	});
 

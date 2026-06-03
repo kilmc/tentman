@@ -4,13 +4,17 @@ import type { DiscoveredConfig } from '$lib/config/discovery';
 import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
 import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { listChangedFilesBetweenRefs } from '$lib/github/branch';
+import type { BranchChangedFile } from '$lib/github/branch';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import type { RepositoryBackend } from '$lib/repository/types';
+import { isConfigContentFileChange } from '$lib/server/repository-data/path-classification';
+import { getChangedDirectoryReviewDocuments } from '$lib/server/repository-data/review-documents';
 import {
 	classifyReviewDraftChangedFiles,
+	type ReviewDraftChangedFile,
 	toReviewDraftChangedFiles
 } from './candidate-changes';
-import { buildConfigReviewSection } from './config-review';
+import { buildConfigReviewSection, buildScopedCollectionItemsReviewSection } from './config-review';
 import { buildTopLevelOrderChangeReview } from './structural-changes';
 import type {
 	OtherSiteChangesFile,
@@ -65,6 +69,31 @@ async function discoverConfigsForRef(
 	return backend.discoverConfigs();
 }
 
+function needsContentReview(input: {
+	config: DiscoveredConfig;
+	files: ReviewDraftChangedFile[];
+	manifestChanged: boolean;
+}): boolean {
+	if (input.manifestChanged && input.config.config.collection) {
+		return true;
+	}
+
+	return input.files.some((file) => isConfigContentFileChange(input.config, file));
+}
+
+function canUseScopedDirectoryReview(input: {
+	config: DiscoveredConfig;
+	files: ReviewDraftChangedFile[];
+	manifestChanged: boolean;
+}): boolean {
+	return (
+		!input.manifestChanged &&
+		Boolean(input.config.config.collection) &&
+		input.config.config.content.mode === 'directory' &&
+		input.files.some((file) => isConfigContentFileChange(input.config, file))
+	);
+}
+
 export async function buildPublishReviewModel(input: {
 	octokit: Octokit;
 	owner: string;
@@ -78,16 +107,20 @@ export async function buildPublishReviewModel(input: {
 	configs: DiscoveredConfig[];
 	baseBranch: string;
 	draftBranch: string;
+	changedFiles?: BranchChangedFile[] | null;
 }): Promise<PublishReviewModel> {
+	const changedFilesPromise = input.changedFiles
+		? Promise.resolve(toReviewDraftChangedFiles(input.changedFiles))
+		: listChangedFilesBetweenRefs(
+				input.octokit,
+				input.owner,
+				input.repo.name,
+				input.baseBranch,
+				input.draftBranch
+			).then(toReviewDraftChangedFiles);
 	const [draftConfigs, changedFiles] = await Promise.all([
 		discoverConfigsForRef(input.octokit, input.repo, input.draftBranch).catch(() => input.configs),
-		listChangedFilesBetweenRefs(
-			input.octokit,
-			input.owner,
-			input.repo.name,
-			input.baseBranch,
-			input.draftBranch
-		).then(toReviewDraftChangedFiles)
+		changedFilesPromise
 	]);
 	const baseConfigs = uniqueConfigsBySlug(input.configs);
 	const mergedConfigs = uniqueConfigsBySlug([...draftConfigs, ...baseConfigs]);
@@ -130,33 +163,76 @@ export async function buildPublishReviewModel(input: {
 			continue;
 		}
 
-		const [beforeContent, afterContent] = await Promise.all([
-			fetchContentDocument(baseBackend, baseConfig.config, baseConfig.path, {
-				branch: input.baseBranch
-			}),
-			fetchContentDocument(draftBackend, draftConfig.config, draftConfig.path, {
-				branch: input.draftBranch
+		const configFiles = candidateChanges.configFilesBySlug.get(slug) ?? [];
+		if (
+			!needsContentReview({
+				config: draftConfig,
+				files: configFiles,
+				manifestChanged: candidateChanges.manifestChanged
 			})
-		]);
+		) {
+			for (const file of configFiles) {
+				unmappedConfigFiles.push({
+					path: file.filename,
+					status: file.status
+				});
+			}
+			continue;
+		}
 
-		const section = buildConfigReviewSection({
+		const fieldOptions = {
+			repoAssetContext: {
+				owner: input.repo.owner,
+				repo: input.repo.name,
+				baseBranch: input.baseBranch,
+				draftBranch: input.draftBranch
+			}
+		};
+		const scopedDocuments = canUseScopedDirectoryReview({
 			config: draftConfig,
-			beforeContent,
-			afterContent,
-			baseManifest,
-			draftManifest,
-			baseRootConfig,
-			draftRootConfig,
-			fieldOptions: {
-				repoAssetContext: {
-					owner: input.repo.owner,
-					repo: input.repo.name,
+			files: configFiles,
+			manifestChanged: candidateChanges.manifestChanged
+		})
+			? await getChangedDirectoryReviewDocuments({
+					baseBackend,
+					draftBackend,
+					config: draftConfig.config,
+					configPath: draftConfig.path,
+					files: configFiles,
 					baseBranch: input.baseBranch,
 					draftBranch: input.draftBranch
-				}
-			},
-			singleConfigVisible: false
-		});
+				})
+			: null;
+		const fullDocuments = scopedDocuments
+			? null
+			: await Promise.all([
+					fetchContentDocument(baseBackend, baseConfig.config, baseConfig.path, {
+						branch: input.baseBranch
+					}),
+					fetchContentDocument(draftBackend, draftConfig.config, draftConfig.path, {
+						branch: input.draftBranch
+					})
+				]);
+
+		const section = scopedDocuments
+			? buildScopedCollectionItemsReviewSection({
+					config: draftConfig,
+					beforeContent: scopedDocuments.beforeContent,
+					afterContent: scopedDocuments.afterContent,
+					fieldOptions,
+					singleConfigVisible: false
+				})
+			: buildConfigReviewSection({
+					config: draftConfig,
+					beforeContent: fullDocuments?.[0] ?? [],
+					afterContent: fullDocuments?.[1] ?? [],
+					baseManifest,
+					draftManifest,
+					baseRootConfig,
+					draftRootConfig,
+					fieldOptions,
+					singleConfigVisible: false
+				});
 
 		if (section) {
 			sections.push(section);

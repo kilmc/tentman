@@ -9,6 +9,7 @@ import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
@@ -67,6 +68,11 @@ export const actions: Actions = {
 				);
 			});
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
+			invalidateRepositoryData({
+				backend,
+				ref: branchName,
+				reason: 'content-write'
+			});
 
 			console.log(`✅ Saved content to ${branchName}`);
 
@@ -140,6 +146,11 @@ export const actions: Actions = {
 			invalidateContent(backend.cacheKey);
 			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
 			invalidateNavigationManifestStateCache(backend);
+			invalidateRepositoryData({
+				backend,
+				ref: defaultBranch,
+				reason: 'publish'
+			});
 
 			throw redirect(303, buildPathWithQuery(`/pages/${params.page}/edit`, { published: 'true' }));
 		} catch (err) {

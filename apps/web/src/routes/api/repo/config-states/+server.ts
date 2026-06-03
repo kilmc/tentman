@@ -4,6 +4,7 @@ import { resolveContentDocumentState } from '$lib/features/content-management/st
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
+import { getSingletonConfigStates } from '$lib/server/repository-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
@@ -21,7 +22,23 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 					locals,
 					cookies
 				);
-				const stateConfigs = configs.filter((config) => !!config.config.state);
+				const indexedStatesBySlug = await getSingletonConfigStates({ backend });
+				if (indexedStatesBySlug) {
+					logTiming('api.repo.config-states.result', {
+						repo: locals.selectedRepo?.full_name ?? null,
+						stateConfigCount: Object.keys(indexedStatesBySlug).length,
+						resolvedStateCount: Object.keys(indexedStatesBySlug).length,
+						source: 'repository-data'
+					});
+
+					return json({
+						statesBySlug: indexedStatesBySlug
+					});
+				}
+
+				const stateConfigs = configs.filter(
+					(config) => !!config.config.state && !config.config.collection
+				);
 				const statesBySlugEntries = await Promise.all(
 					stateConfigs.map(async (config) => {
 						const content = await getCachedContent(

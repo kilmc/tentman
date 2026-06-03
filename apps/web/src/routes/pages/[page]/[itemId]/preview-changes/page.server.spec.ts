@@ -32,10 +32,15 @@ vi.mock('$lib/stores/content-cache', () => ({
 	invalidateContent: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	invalidateRepositoryData: vi.fn()
+}));
+
 import { actions } from './+page.server';
 import { saveContentDocument } from '$lib/content/service';
 import { InvalidDirectoryFilenameError } from '$lib/features/content-management/transforms';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import { invalidateContent } from '$lib/stores/content-cache';
 
 function createRequest(form: Record<string, string>) {
@@ -95,6 +100,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 			status: 303,
 			location: '/pages/posts/hello-world/edit?saved=true'
 		});
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			reason: 'content-write'
+		});
 	});
 
 	it('publishes item draft changes directly from the preview screen', async () => {
@@ -139,6 +149,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 		});
 
 		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: undefined,
+			reason: 'publish'
+		});
 	});
 
 	it('publishes newly created collection items and returns to the collection view', async () => {

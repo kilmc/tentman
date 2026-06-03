@@ -5,6 +5,7 @@ import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/servic
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { getDraftChangeIndex } from '$lib/server/repository-data';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const slug = url.searchParams.get('slug');
@@ -27,15 +28,34 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		try {
 			draftBranch = await getTentmanDraftBranchName(octokit, owner, name);
 			if (draftBranch) {
-				draftChanges = await compareDraftToBranch(
+				const draftChangeIndex = await getDraftChangeIndex({
 					octokit,
 					owner,
-					name,
-					defaultBranch,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					draftBranch
-				);
+					repo: name,
+					baseBranch: defaultBranch,
+					draftBranch,
+					configs: [discoveredConfig]
+				});
+				const changeScope = draftChangeIndex.byConfigSlug.get(discoveredConfig.slug);
+
+				if (changeScope && !changeScope.requiresFullFetch) {
+					draftChanges = {
+						modified: changeScope.modified.map((itemId) => ({ itemId })),
+						created: changeScope.created.map((itemId) => ({ itemId })),
+						deleted: changeScope.deleted.map((itemId) => ({ itemId })),
+						metadata: draftChangeIndex.metadata
+					};
+				} else {
+					draftChanges = await compareDraftToBranch(
+						octokit,
+						owner,
+						name,
+						defaultBranch,
+						discoveredConfig.config,
+						discoveredConfig.path,
+						draftBranch
+					);
+				}
 			}
 		} catch (err) {
 			handleGitHubSessionError({ cookies }, err);

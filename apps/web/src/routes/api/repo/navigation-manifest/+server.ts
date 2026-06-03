@@ -24,6 +24,7 @@ import {
 	invalidateGitHubRepositoryMetadataCache
 } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
 
 const CONFIG_ID_COMMIT_MESSAGE = 'Add Tentman content config ids';
@@ -346,11 +347,23 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 		invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
 		invalidateNavigationManifestStateCache(backend);
 		invalidateNavigationManifestStateCache(backend, writeOptions);
+		invalidateRepositoryData({
+			backend,
+			ref: writeOptions.ref,
+			changedPaths: ['tentman/navigation-manifest.json'],
+			reason: 'navigation-manifest'
+		});
 
 		if (draftBackend) {
 			invalidateCache(draftBackend.cacheKey);
 			invalidateGitHubRepositoryMetadataCache(draftBackend.cacheKey);
 			invalidateNavigationManifestStateCache(draftBackend);
+			invalidateRepositoryData({
+				backend: draftBackend,
+				ref: draftBranch?.branchName,
+				changedPaths: ['tentman/navigation-manifest.json'],
+				reason: 'navigation-manifest'
+			});
 		}
 
 		return json({

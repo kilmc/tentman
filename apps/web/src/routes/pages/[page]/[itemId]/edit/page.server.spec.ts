@@ -14,6 +14,11 @@ vi.mock('$lib/stores/content-cache', () => ({
 	getCachedContent: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	invalidateRepositoryData: vi.fn(),
+	resolveCollectionItem: vi.fn(async () => null)
+}));
+
 vi.mock('$lib/features/draft-assets/server', () => ({
 	materializeDraftAssetsFromFormData: vi.fn(async ({ content }) => ({ content }))
 }));
@@ -38,6 +43,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', async () => {
 
 import { actions } from './+page.server';
 import { deleteContentDocument } from '$lib/content/service';
+import { invalidateRepositoryData, resolveCollectionItem } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
@@ -69,6 +75,7 @@ function createRequest(form: Record<string, string>) {
 describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(resolveCollectionItem).mockResolvedValue(null);
 	});
 
 	it('redirects back to the item editor after saving to the managed draft', async () => {
@@ -101,9 +108,71 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			status: 303,
 			location: '/pages/posts/hello-world/edit?saved=true'
 		});
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({
+				readRootConfig: expect.any(Function)
+			}),
+			ref: 'tentman-preview',
+			reason: 'content-write'
+		});
 	});
 
-	it('deletes the draft item from the managed draft branch', async () => {
+	it('deletes a directory-backed draft item using the repository-data resolver filename', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'github:acme/docs'
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: collectionConfig
+		} as never);
+		vi.mocked(resolveCollectionItem).mockResolvedValue({
+			_filename: 'hello-world.md',
+			title: 'Hello world'
+		});
+
+		await expect(
+			actions.delete({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts?deleted=true'
+		});
+
+		expect(resolveCollectionItem).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: 'tentman-preview'
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			reason: 'content-write'
+		});
+		expect(deleteContentDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			{
+				branch: 'tentman-preview',
+				filename: 'hello-world.md'
+			}
+		);
+	});
+
+	it('falls back to full draft content when the repository-data resolver cannot answer', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs'
@@ -137,6 +206,12 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			location: '/pages/posts?deleted=true'
 		});
 
+		expect(resolveCollectionItem).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: 'tentman-preview'
+		});
 		expect(getCachedContent).toHaveBeenCalledWith(
 			{ cacheKey: 'github:acme/docs' },
 			collectionConfig.config,

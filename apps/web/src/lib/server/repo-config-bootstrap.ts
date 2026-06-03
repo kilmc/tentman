@@ -1,11 +1,10 @@
 import { error } from '@sveltejs/kit';
-import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import {
 	normalizeRepoConfigsBootstrap,
 	type RepoConfigsBootstrap
 } from '$lib/repository/config-bootstrap';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
+import { getRepositorySnapshot } from '$lib/server/repository-data';
 
 export interface SelectedGitHubRepoBootstrapContext extends RepoConfigsBootstrap {
 	backend: Awaited<ReturnType<typeof requireGitHubContentRepository>>['backend'];
@@ -25,22 +24,17 @@ export async function loadSelectedGitHubRepoBootstrapContext(
 	}
 
 	const { backend, draftBranch } = await requireGitHubContentRepository({ locals, cookies });
-	const [configs, blockConfigs, rootConfig, navigationManifest] = await Promise.all([
-		getCachedConfigs(backend),
-		backend.discoverBlockConfigs(),
-		backend.readRootConfig(),
-		loadNavigationManifestState(backend)
-	]);
+	const snapshot = await getRepositorySnapshot({ backend, ref: draftBranch });
 
 	return {
 		backend,
 		draftBranch,
 		...normalizeRepoConfigsBootstrap({
-			configs,
-			blockConfigs,
-			rootConfig,
+			configs: snapshot.configIndex.configs,
+			blockConfigs: snapshot.blockConfigIndex.configs,
+			rootConfig: snapshot.rootConfig,
 			activeDraftBranch: draftBranch,
-			navigationManifest
+			navigationManifest: snapshot.navigationManifest
 		})
 	};
 }

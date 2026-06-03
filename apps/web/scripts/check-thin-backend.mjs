@@ -16,6 +16,8 @@ export const ALLOWED_SERVER_JUSTIFICATIONS = new Set([
 const APPROVED_DIRECT_OCTOKIT_PATHS = new Set([
 	'src/lib/server/auth/github.ts',
 	'src/lib/server/page-context.ts',
+	'src/lib/server/repository-data/drafts.ts',
+	'src/lib/server/repository-data/source.ts',
 	'src/lib/repository/github.ts',
 	'src/lib/config/discovery.ts',
 	'src/lib/config/root-config.ts',

@@ -16,6 +16,10 @@ vi.mock('$lib/stores/config-cache', () => ({
 	invalidateCache: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	invalidateRepositoryData: vi.fn()
+}));
+
 vi.mock('$lib/repository/github', () => ({
 	createGitHubRepositoryBackend: vi.fn(() => ({
 		cacheKey: 'github:acme/docs'
@@ -55,6 +59,7 @@ import { applyInstructionExecutionPlan } from '$lib/features/instructions/execut
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { invalidateCache } from '$lib/stores/config-cache';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import {
 	createGitHubServerClient,
 	GITHUB_REPO_SESSION_COOKIE,
@@ -208,6 +213,11 @@ describe('/api/repo/instructions', () => {
 			'trunk'
 		);
 		expect(invalidateCache).toHaveBeenCalledWith('github:acme/docs');
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			ref: 'tentman-preview',
+			reason: 'repo-instruction'
+		});
 	});
 
 	it('rejects stale client plans', async () => {

@@ -79,6 +79,24 @@ const directoryConfig = parseContentConfigFixture(`{
 	]
 }`);
 
+const extensionlessDirectoryTemplateConfig = parseContentConfigFixture(`{
+	"type": "content",
+	"label": "Posts",
+	"itemLabel": "Post",
+	"collection": true,
+	"idField": "slug",
+	"content": {
+		"mode": "directory",
+		"path": "./posts",
+		"template": "./post",
+		"filename": "{{slug}}"
+	},
+	"blocks": [
+		{ "id": "title", "type": "text", "label": "Title" },
+		{ "id": "slug", "type": "text", "label": "Slug" }
+	]
+}`);
+
 function createOctokit(options?: {
 	draftDate?: string;
 	mainSha?: string;
@@ -236,6 +254,50 @@ describe('utils/draft-comparison', () => {
 		expect(comparison.modified.map((change) => change.itemId)).toEqual(['hello-world']);
 		expect(comparison.created.map((change) => change.itemId)).toEqual(['new-post']);
 		expect(comparison.deleted.map((change) => change.itemId)).toEqual(['old-post']);
+		expect(contentServiceMocks.fetchContentDocument).not.toHaveBeenCalled();
+	});
+
+	it('falls back to full content reads when a directory item is renamed out of the collection', async () => {
+		contentServiceMocks.fetchContentDocument.mockResolvedValue([]);
+		const octokit = createOctokit({
+			files: [
+				{
+					filename: 'content/archive/hello-world.md',
+					previous_filename: 'content/posts/hello-world.md',
+					status: 'renamed'
+				}
+			]
+		});
+
+		await compareDraftToBranch(
+			octokit as never,
+			'acme',
+			'docs',
+			'trunk',
+			directoryConfig,
+			'content/posts.tentman.json',
+			'tentman-preview'
+		);
+
+		expect(contentServiceMocks.fetchContentDocument).toHaveBeenCalledTimes(2);
+	});
+
+	it('defaults extensionless directory templates to markdown item changes', async () => {
+		const octokit = createOctokit({
+			files: [{ filename: 'content/posts/hello-world.md', status: 'modified' }]
+		});
+
+		const comparison = await compareDraftToBranch(
+			octokit as never,
+			'acme',
+			'docs',
+			'trunk',
+			extensionlessDirectoryTemplateConfig,
+			'content/posts.tentman.json',
+			'tentman-preview'
+		);
+
+		expect(comparison.modified.map((change) => change.itemId)).toEqual(['hello-world']);
 		expect(contentServiceMocks.fetchContentDocument).not.toHaveBeenCalled();
 	});
 

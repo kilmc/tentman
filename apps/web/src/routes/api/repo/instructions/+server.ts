@@ -12,6 +12,7 @@ import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import { invalidateNavigationManifestStateCache } from '$lib/features/content-management/navigation-manifest';
 import {
 	createGitHubRepositoryBackend,
@@ -169,6 +170,11 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 		invalidateCache(backend.cacheKey);
 		invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
 		invalidateNavigationManifestStateCache(backend);
+		invalidateRepositoryData({
+			backend,
+			ref: branchName,
+			reason: 'repo-instruction'
+		});
 
 		return json({
 			result,

@@ -16,11 +16,16 @@ vi.mock('$lib/features/review-draft/build-review-model', () => ({
 	buildPublishReviewModel: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	getDraftChangeIndex: vi.fn()
+}));
+
 import { GET } from '../../routes/api/repo/publish-view/+server';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { requireGitHubRepository } from '$lib/server/page-context';
+import { getDraftChangeIndex } from '$lib/server/repository-data';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
@@ -53,7 +58,7 @@ describe('GET /api/repo/publish-view', () => {
 			backend: { cacheKey: 'github:acme/docs' }
 		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
-		vi.mocked(getCachedConfigs).mockResolvedValue([
+		const configs = [
 			{
 				slug: 'posts',
 				path: 'content/posts.tentman.json',
@@ -78,7 +83,25 @@ describe('GET /api/repo/publish-view', () => {
 					blocks: []
 				}
 			}
-		] as never);
+		];
+		const draftChangeIndex = {
+			owner: 'acme',
+			repo: 'docs',
+			baseBranch: 'trunk',
+			draftBranch: 'tentman-preview',
+			metadata: {
+				branchExists: true
+			},
+			files: [
+				{
+					filename: 'src/content/posts/hello.md',
+					status: 'modified'
+				}
+			],
+			byConfigSlug: new Map()
+		};
+		vi.mocked(getCachedConfigs).mockResolvedValue(configs as never);
+		vi.mocked(getDraftChangeIndex).mockResolvedValue(draftChangeIndex as never);
 		vi.mocked(buildPublishReviewModel).mockResolvedValue({
 			topLevelOrderChange: {
 				title: 'Top-level content order',
@@ -122,6 +145,19 @@ describe('GET /api/repo/publish-view', () => {
 				]
 			}
 		});
+		expect(getDraftChangeIndex).toHaveBeenCalledWith({
+			octokit: {},
+			owner: 'acme',
+			repo: 'docs',
+			baseBranch: 'trunk',
+			draftBranch: 'tentman-preview',
+			configs
+		});
+		expect(buildPublishReviewModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				changedFiles: draftChangeIndex.files
+			})
+		);
 	});
 
 	it('clears the session and returns 401 on GitHub auth failure', async () => {

@@ -4,6 +4,7 @@ import {
 	getConfigItemLabel,
 	getContentItemTitle,
 	getOrderedCollectionNavigation,
+	getFirstCollectionNavigationItemId,
 	orderDiscoveredConfigs,
 	resolveContentItemTitle
 } from '$lib/features/content-management/navigation';
@@ -374,5 +375,27 @@ describe('content navigation helpers', () => {
 				{ itemId: 'post-3', title: 'Third Post', sortDate: null }
 			]
 		});
+	});
+
+	it('finds the first collection item from ordered navigation metadata', () => {
+		expect(
+			getFirstCollectionNavigationItemId({
+				groups: [
+					{
+						id: 'featured',
+						label: 'Featured',
+						items: [{ itemId: 'post-2', title: 'Second Post', sortDate: null }]
+					}
+				],
+				items: [{ itemId: 'post-1', title: 'Hello World', sortDate: null }]
+			})
+		).toBe('post-2');
+
+		expect(
+			getFirstCollectionNavigationItemId({
+				groups: [],
+				items: [{ itemId: 'post-1', title: 'Hello World', sortDate: null }]
+			})
+		).toBe('post-1');
 	});
 });

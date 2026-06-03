@@ -13,6 +13,7 @@ import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { getExistingItemMutationOptions } from '$lib/server/preview';
+import { invalidateRepositoryData, resolveCollectionItem } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
@@ -39,21 +40,32 @@ export const actions: Actions = {
 			};
 
 			if (discoveredConfig.config.content.mode === 'directory') {
-				// Directory-backed collections need the stored filename to delete an entry
-				const { getCachedContent } = await import('$lib/stores/content-cache');
-				const content = await getCachedContent(
+				const resolvedItem = await resolveCollectionItem({
 					backend,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					params.page,
-					branchName
-				);
+					slug: params.page,
+					itemId,
+					ref: branchName
+				});
+				if (typeof resolvedItem?._filename === 'string') {
+					deleteOptions.filename = resolvedItem._filename;
+				}
 
-				if (Array.isArray(content)) {
-					const item = findContentItemByRoute(content, discoveredConfig.config, itemId);
+				if (!deleteOptions.filename) {
+					const { getCachedContent } = await import('$lib/stores/content-cache');
+					const content = await getCachedContent(
+						backend,
+						discoveredConfig.config,
+						discoveredConfig.path,
+						params.page,
+						branchName
+					);
 
-					if (item?._filename) {
-						deleteOptions.filename = item._filename;
+					if (Array.isArray(content)) {
+						const item = findContentItemByRoute(content, discoveredConfig.config, itemId);
+
+						if (item?._filename) {
+							deleteOptions.filename = item._filename;
+						}
 					}
 				}
 			} else {
@@ -70,6 +82,11 @@ export const actions: Actions = {
 				)
 			);
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
+			invalidateRepositoryData({
+				backend,
+				ref: branchName,
+				reason: 'content-write'
+			});
 
 			// Redirect back to list view with success message
 			throw redirect(
@@ -164,6 +181,11 @@ export const actions: Actions = {
 				);
 			});
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
+			invalidateRepositoryData({
+				backend,
+				ref: branchName,
+				reason: 'content-write'
+			});
 
 			throw redirect(
 				303,

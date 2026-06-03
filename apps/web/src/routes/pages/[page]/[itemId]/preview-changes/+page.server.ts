@@ -12,6 +12,7 @@ import { syncCollectionItemGroupSelection } from '$lib/features/content-manageme
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { getExistingItemMutationOptions } from '$lib/server/preview';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
@@ -108,6 +109,11 @@ export const actions: Actions = {
 				);
 			});
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
+			invalidateRepositoryData({
+				backend,
+				ref: branchName,
+				reason: 'content-write'
+			});
 
 			console.log(`✅ Saved content to ${branchName}`);
 
@@ -228,6 +234,11 @@ export const actions: Actions = {
 			invalidateContent(backend.cacheKey);
 			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
 			invalidateNavigationManifestStateCache(backend);
+			invalidateRepositoryData({
+				backend,
+				ref: defaultBranch,
+				reason: 'publish'
+			});
 
 			const redirectPath = isNew
 				? `/pages/${params.page}`

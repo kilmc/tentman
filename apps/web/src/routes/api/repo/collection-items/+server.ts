@@ -4,6 +4,7 @@ import { getOrderedCollectionNavigation } from '$lib/features/content-management
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
+import { getCollectionNavigation } from '$lib/server/repository-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
@@ -35,6 +36,22 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					return json({ items: [] });
 				}
 
+				const indexedNavigation = await getCollectionNavigation({
+					backend,
+					slug
+				});
+				if (indexedNavigation) {
+					logTiming('api.repo.collection-items.result', {
+						repo: locals.selectedRepo?.full_name ?? null,
+						slug,
+						source: 'repository-data',
+						itemCount: indexedNavigation.items.length,
+						groupCount: indexedNavigation.groups.length
+					});
+
+					return json(indexedNavigation);
+				}
+
 				const content = await getCachedContent(
 					backend,
 					discoveredConfig.config,
@@ -51,6 +68,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				logTiming('api.repo.collection-items.result', {
 					repo: locals.selectedRepo?.full_name ?? null,
 					slug,
+					source: 'legacy-content-cache',
 					itemCount: navigation.items.length,
 					groupCount: navigation.groups.length
 				});

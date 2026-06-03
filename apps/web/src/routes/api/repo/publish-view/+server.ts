@@ -6,6 +6,7 @@ import { buildPublishReviewModel } from '$lib/features/review-draft/build-review
 import { getCachedConfigs } from '$lib/stores/config-cache';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubRepository } from '$lib/server/page-context';
+import { getDraftChangeIndex } from '$lib/server/repository-data';
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {
 	const requestContext = { locals, cookies };
@@ -21,6 +22,14 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 		}
 
 		const configs = await getCachedConfigs(backend);
+		const draftChangeIndex = await getDraftChangeIndex({
+			octokit,
+			owner,
+			repo: name,
+			baseBranch: repo.default_branch,
+			draftBranch,
+			configs
+		});
 		const reviewModel = await buildPublishReviewModel({
 			octokit,
 			owner,
@@ -28,7 +37,8 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			backend,
 			configs,
 			baseBranch: repo.default_branch,
-			draftBranch
+			draftBranch,
+			changedFiles: draftChangeIndex.files
 		});
 
 		return json({

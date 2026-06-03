@@ -1,5 +1,6 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { RootConfig } from '$lib/config/root-config';
+import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import {
 	getContentItemTitle,
 	getOrderedCollectionRecords
@@ -61,6 +62,27 @@ function buildMergedCollectionOrder(
 	}
 
 	return merged;
+}
+
+function getScopedItemId(config: DiscoveredConfig, item: ContentRecord): string | undefined {
+	return getItemId(item) ?? getItemRoute(config.config, item);
+}
+
+function normalizeScopedCollectionIds(
+	config: DiscoveredConfig,
+	content: ContentRecord[]
+): ContentRecord[] {
+	const seenItemIds = new Set<string>();
+
+	return content.filter((item) => {
+		const itemId = getScopedItemId(config, item);
+		if (!itemId || seenItemIds.has(itemId)) {
+			return false;
+		}
+
+		seenItemIds.add(itemId);
+		return true;
+	});
 }
 
 function buildSingletonItemCard(input: {
@@ -230,6 +252,74 @@ export function buildConfigReviewSection(input: {
 		defaultExpanded,
 		navigationHref,
 		collectionOrderChange,
+		items: finalItemCards
+	};
+}
+
+export function buildScopedCollectionItemsReviewSection(input: {
+	config: DiscoveredConfig;
+	beforeContent: ContentRecord[];
+	afterContent: ContentRecord[];
+	fieldOptions: BuildFieldReviewOptions;
+	singleConfigVisible: boolean;
+}): ReviewSection | null {
+	const beforeContent = normalizeScopedCollectionIds(input.config, input.beforeContent);
+	const afterContent = normalizeScopedCollectionIds(input.config, input.afterContent);
+	const beforeMap = new Map(beforeContent.map((item) => [getScopedItemId(input.config, item), item]));
+	const afterMap = new Map(afterContent.map((item) => [getScopedItemId(input.config, item), item]));
+	const itemIds = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].filter(
+		(itemId): itemId is string => Boolean(itemId)
+	);
+	const itemCards: ReviewItemCard[] = [];
+
+	for (const itemId of itemIds) {
+		const beforeRecord = beforeMap.get(itemId);
+		const afterRecord = afterMap.get(itemId);
+		const hasEdit = Boolean(beforeRecord && afterRecord && !deepEqual(beforeRecord, afterRecord));
+		const changeKinds = uniqueChangeKinds([
+			...(hasEdit ? ['edited' as const] : []),
+			...(!beforeRecord && afterRecord ? ['new' as const] : []),
+			...(beforeRecord && !afterRecord ? ['deleted' as const] : [])
+		]);
+
+		if (!changeKinds.length) {
+			continue;
+		}
+
+		const titleSource = afterRecord ?? beforeRecord;
+		itemCards.push({
+			itemId,
+			title: titleSource ? getContentItemTitle(input.config.config, titleSource) : itemId,
+			href: getReviewItemHref(input.config.slug, itemId),
+			changeKinds,
+			defaultExpanded: false,
+			fields: buildFieldChanges(
+				input.config.config.blocks,
+				beforeRecord,
+				afterRecord,
+				input.fieldOptions
+			)
+		});
+	}
+
+	if (!itemCards.length) {
+		return null;
+	}
+
+	const defaultExpanded = input.singleConfigVisible;
+	const finalItemCards = itemCards.map((item) => ({
+		...item,
+		defaultExpanded: defaultExpanded && itemCards.length === 1
+	}));
+
+	return {
+		configSlug: input.config.slug,
+		configLabel: input.config.config.label,
+		isCollection: true,
+		badges: buildSectionBadges(finalItemCards, false),
+		defaultExpanded,
+		navigationHref: getReviewConfigHref(input.config.slug, true),
+		collectionOrderChange: null,
 		items: finalItemCards
 	};
 }

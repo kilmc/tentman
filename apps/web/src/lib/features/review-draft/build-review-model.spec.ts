@@ -61,6 +61,12 @@ const baseConfigs = [
 
 const draftConfigs = [baseConfigs[1], baseConfigs[0]];
 
+function markdownPost(data: Record<string, string>): string {
+	return `---\n${Object.entries(data)
+		.map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+		.join('\n')}\n---\n`;
+}
+
 describe('buildPublishReviewModel', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -74,7 +80,40 @@ describe('buildPublishReviewModel', () => {
 					content: {
 						sorting: 'manual'
 					}
-				}))
+				})),
+				readTextFile: vi.fn(async (path: string) => {
+					if (path.endsWith('hello-world.md')) {
+						return ref === 'tentman-preview'
+							? markdownPost({
+									_tentmanId: 'post-1',
+									slug: 'hello-world',
+									title: 'Hello world updated'
+								})
+							: markdownPost({
+									_tentmanId: 'post-1',
+									slug: 'hello-world',
+									title: 'Hello world'
+								});
+					}
+
+					if (path.endsWith('new-post.md')) {
+						return markdownPost({
+							_tentmanId: 'post-3',
+							slug: 'new-post',
+							title: 'New post'
+						});
+					}
+
+					if (path.endsWith('old-post.md')) {
+						return markdownPost({
+							_tentmanId: 'post-4',
+							slug: 'old-post',
+							title: 'Old post'
+						});
+					}
+
+					throw new Error(`Unexpected readTextFile path: ${path}`);
+				})
 			} as never;
 		});
 
@@ -178,6 +217,142 @@ describe('buildPublishReviewModel', () => {
 		expect(reviewModel.sections[0].items[0]).toMatchObject({
 			itemId: 'post-1',
 			defaultExpanded: true
+		});
+	});
+
+	it('uses injected changed files instead of listing changed files again', async () => {
+		vi.mocked(listChangedFilesBetweenRefs).mockResolvedValue([]);
+
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			changedFiles: [
+				{
+					filename: 'src/content/posts/hello-world.md',
+					status: 'modified'
+				}
+			]
+		});
+
+		expect(listChangedFilesBetweenRefs).not.toHaveBeenCalled();
+		expect(reviewModel.sections.map((section) => section.configSlug)).toEqual(['posts']);
+	});
+
+	it('loads only changed directory item files for simple item review sections', async () => {
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			changedFiles: [
+				{
+					filename: 'src/content/posts/hello-world.md',
+					status: 'modified'
+				}
+			]
+		});
+
+		const [, baseBackendCall, draftBackendCall] = vi.mocked(createGitHubRepositoryBackend).mock.results;
+		const baseBackend = await baseBackendCall?.value;
+		const draftBackend = await draftBackendCall?.value;
+
+		expect(fetchContentDocument).not.toHaveBeenCalled();
+		expect(baseBackend.readTextFile).toHaveBeenCalledWith('src/content/posts/hello-world.md', {
+			ref: 'main'
+		});
+		expect(draftBackend.readTextFile).toHaveBeenCalledWith('src/content/posts/hello-world.md', {
+			ref: 'tentman-preview'
+		});
+		expect(reviewModel.sections[0]?.items[0]).toMatchObject({
+			itemId: 'post-1',
+			title: 'Hello world updated',
+			changeKinds: ['edited']
+		});
+	});
+
+	it('reports config-only changes without fetching full content documents', async () => {
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			changedFiles: [
+				{
+					filename: 'content/posts.tentman.json',
+					status: 'modified'
+				}
+			]
+		});
+
+		expect(fetchContentDocument).not.toHaveBeenCalled();
+		expect(reviewModel.sections).toEqual([]);
+		expect(reviewModel.otherSiteChanges).toMatchObject({
+			files: [
+				{
+					path: 'content/posts.tentman.json',
+					status: 'modified'
+				}
+			]
+		});
+	});
+
+	it('reports directory template changes without fetching full content documents', async () => {
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			changedFiles: [
+				{
+					filename: 'templates/post.md',
+					status: 'modified'
+				}
+			]
+		});
+
+		expect(fetchContentDocument).not.toHaveBeenCalled();
+		expect(reviewModel.sections).toEqual([]);
+		expect(reviewModel.otherSiteChanges).toMatchObject({
+			files: [
+				{
+					path: 'templates/post.md',
+					status: 'modified'
+				}
+			]
 		});
 	});
 

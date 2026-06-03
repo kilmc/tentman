@@ -6,6 +6,7 @@ import {
 	publishDraftBranch
 } from '$lib/features/draft-publishing/service';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 
 export const actions = {
 	publish: async ({ locals, cookies }) => {
@@ -28,6 +29,11 @@ export const actions = {
 			invalidateContent(backend.cacheKey);
 			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
 			invalidateNavigationManifestStateCache(backend);
+			invalidateRepositoryData({
+				backend,
+				ref: defaultBranch,
+				reason: 'publish'
+			});
 
 			throw redirect(303, '/pages?merged=true');
 		} catch (err) {
@@ -43,12 +49,17 @@ export const actions = {
 
 	discard: async ({ locals, cookies }) => {
 		const requestContext = { locals, cookies };
-		const { octokit, owner, name, defaultBranch } = requireGitHubRepository(requestContext);
+		const { octokit, owner, name, backend, defaultBranch } = requireGitHubRepository(requestContext);
 
 		try {
 			const { branchName } = await discardDraftBranch(octokit, owner, name, defaultBranch);
 
 			console.log(`✅ Discarded draft branch: ${branchName}`);
+			invalidateRepositoryData({
+				backend,
+				ref: branchName,
+				reason: 'discard'
+			});
 
 			throw redirect(303, '/pages?cancelled=true');
 		} catch (err) {

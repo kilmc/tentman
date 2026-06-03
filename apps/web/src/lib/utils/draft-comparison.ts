@@ -11,6 +11,13 @@ import { resolveConfigPath } from '$lib/utils/validation';
 import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
+import {
+	getChangedFilePaths,
+	getDirectoryContentTarget,
+	getDirectoryItemIdFromPath,
+	isRelevantDirectoryContentChange,
+	type DirectoryBackedParsedContentConfig
+} from '$lib/server/repository-data/path-classification';
 
 const DRAFT_COMPARISON_CONTEXT_TTL = 60 * 1000;
 
@@ -333,7 +340,9 @@ function buildCheapDraftComparison(
 ): { comparison: DraftComparison; requiresFullFetch: boolean } | null {
 	if (config.content.mode === 'file') {
 		const filePath = resolveConfigPath(configPath, config.content.path);
-		const relevantFileChanged = changedFiles.some((file) => file.filename === filePath);
+		const relevantFileChanged = changedFiles.some((file) =>
+			getChangedFilePaths(file).includes(filePath)
+		);
 
 		if (!relevantFileChanged) {
 			return {
@@ -359,15 +368,8 @@ function buildCheapDraftComparison(
 		};
 	}
 
-	const resolvedDirectoryPath = resolveConfigPath(configPath, config.content.path);
-	const resolvedTemplatePath = resolveConfigPath(configPath, config.content.template);
-	const templateFilename = resolvedTemplatePath.split('/').pop() ?? resolvedTemplatePath;
-	const templateExt =
-		config.content.template.substring(config.content.template.lastIndexOf('.')) || '.md';
-	const prefix = resolvedDirectoryPath ? `${resolvedDirectoryPath}/` : '';
-	const relevantFiles = changedFiles.filter((file) =>
-		isRelevantDirectoryContentChange(file, prefix, templateFilename, templateExt)
-	);
+	const target = getDirectoryContentTarget(config as DirectoryBackedParsedContentConfig, configPath);
+	const relevantFiles = changedFiles.filter((file) => isRelevantDirectoryContentChange(file, target));
 
 	if (relevantFiles.length === 0) {
 		return {
@@ -423,45 +425,6 @@ function buildCheapDraftComparison(
 		},
 		requiresFullFetch: false
 	};
-}
-
-function isRelevantDirectoryContentChange(
-	file: DraftBranchChangedFile,
-	prefix: string,
-	templateFilename: string,
-	templateExt: string
-): boolean {
-	if (!file.filename.startsWith(prefix)) {
-		return false;
-	}
-
-	const relativePath = file.filename.slice(prefix.length);
-	if (relativePath.length === 0 || relativePath.includes('/')) {
-		return false;
-	}
-
-	if (relativePath.startsWith('_')) {
-		return false;
-	}
-
-	if (relativePath === templateFilename) {
-		return false;
-	}
-
-	if (relativePath.endsWith('.tentman.json')) {
-		return false;
-	}
-
-	return relativePath.endsWith(templateExt);
-}
-
-function getDirectoryItemIdFromPath(path: string): string | null {
-	const filename = path.split('/').pop();
-	if (!filename) {
-		return null;
-	}
-
-	return filename.replace(/\.[^/.]+$/, '');
 }
 
 /**

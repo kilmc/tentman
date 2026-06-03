@@ -270,6 +270,27 @@ export function getOrderedCollectionNavigation(
 	return splitOrderedItemsIntoGroups(items, config, getManifestCollection(manifest, config));
 }
 
+export function orderCollectionNavigationItems(
+	config: ParsedContentConfig,
+	items: CollectionNavigationItem[],
+	manifest: NavigationManifest | null | undefined
+): OrderedCollectionNavigation {
+	return splitOrderedItemsIntoGroups(items, config, getManifestCollection(manifest, config));
+}
+
+export function getFirstCollectionNavigationItemId(
+	navigation: OrderedCollectionNavigation
+): string | null {
+	for (const group of navigation.groups) {
+		const firstItem = group.items[0];
+		if (firstItem) {
+			return firstItem.itemId;
+		}
+	}
+
+	return navigation.items[0]?.itemId ?? null;
+}
+
 export function getFirstCollectionItemId(
 	config: ParsedContentConfig,
 	content: ContentDocument,
@@ -277,15 +298,7 @@ export function getFirstCollectionItemId(
 	rootConfig?: RootConfig | null
 ): string | null {
 	const orderedNavigation = getOrderedCollectionNavigation(config, content, manifest, rootConfig);
-
-	for (const group of orderedNavigation.groups) {
-		const firstItem = group.items[0];
-		if (firstItem) {
-			return firstItem.itemId;
-		}
-	}
-
-	return orderedNavigation.items[0]?.itemId ?? null;
+	return getFirstCollectionNavigationItemId(orderedNavigation);
 }
 
 export function getOrderedCollectionRecords(

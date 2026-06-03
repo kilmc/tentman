@@ -12,10 +12,15 @@ vi.mock('$lib/utils/draft-comparison', () => ({
 	compareDraftToBranch: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	getDraftChangeIndex: vi.fn()
+}));
+
 import { GET } from '../../routes/api/repo/draft-status/+server';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { getDraftChangeIndex } from '$lib/server/repository-data';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
@@ -52,13 +57,31 @@ describe('GET /api/repo/draft-status', () => {
 			octokit: {},
 			owner: 'acme',
 			name: 'docs',
+			defaultBranch: 'main',
 			discoveredConfig
 		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
-		vi.mocked(compareDraftToBranch).mockResolvedValue({
-			modified: [],
-			created: [{ itemId: 'hello-world' }],
-			deleted: []
+		vi.mocked(getDraftChangeIndex).mockResolvedValue({
+			owner: 'acme',
+			repo: 'docs',
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			metadata: {
+				branchExists: true
+			},
+			files: [],
+			byConfigSlug: new Map([
+				[
+					'posts',
+					{
+						slug: 'posts',
+						modified: [],
+						created: ['hello-world'],
+						deleted: [],
+						requiresFullFetch: false
+					}
+				]
+			])
 		});
 
 		const response = await GET({
@@ -72,9 +95,67 @@ describe('GET /api/repo/draft-status', () => {
 			draftChanges: {
 				modified: [],
 				created: [{ itemId: 'hello-world' }],
+				deleted: [],
+				metadata: {
+					branchExists: true
+				}
+			}
+		});
+		expect(compareDraftToBranch).not.toHaveBeenCalled();
+	});
+
+	it('falls back to full comparison when the draft index cannot cheaply answer', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			defaultBranch: 'main',
+			discoveredConfig
+		} as never);
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
+		vi.mocked(getDraftChangeIndex).mockResolvedValue({
+			owner: 'acme',
+			repo: 'docs',
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			metadata: {
+				branchExists: true
+			},
+			files: [],
+			byConfigSlug: new Map([
+				[
+					'posts',
+					{
+						slug: 'posts',
+						modified: [],
+						created: [],
+						deleted: [],
+						requiresFullFetch: true
+					}
+				]
+			])
+		});
+		vi.mocked(compareDraftToBranch).mockResolvedValue({
+			modified: [{ itemId: 'hello-world' }],
+			created: [],
+			deleted: []
+		});
+
+		const response = await GET({
+			url: new URL('http://localhost/api/repo/draft-status?slug=posts'),
+			locals: {},
+			cookies: createCookies()
+		} as never);
+
+		expect(await response.json()).toEqual({
+			draftBranch: 'tentman-preview',
+			draftChanges: {
+				modified: [{ itemId: 'hello-world' }],
+				created: [],
 				deleted: []
 			}
 		});
+		expect(compareDraftToBranch).toHaveBeenCalledTimes(1);
 	});
 
 	it('clears the session and returns 401 on GitHub auth failure', async () => {

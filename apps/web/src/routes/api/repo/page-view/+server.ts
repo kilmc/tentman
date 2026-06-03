@@ -3,10 +3,14 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { getCachedContent } from '$lib/stores/content-cache';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
+import {
+	getCollectionNavigation,
+	getRepositorySnapshot,
+	getSingletonDocument
+} from '$lib/server/repository-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
@@ -29,9 +33,8 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					requestContext,
 					`/pages/${slug}`
 				);
-				const discoveredConfig = (await getCachedConfigs(backend)).find(
-					(config) => config.slug === slug
-				);
+				const snapshot = await getRepositorySnapshot({ backend });
+				const discoveredConfig = snapshot.configIndex.bySlug.get(slug);
 
 				if (!discoveredConfig) {
 					throw error(404, 'Configuration not found');
@@ -39,14 +42,29 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 				let content = null;
 				let contentError = null;
+				let collectionNavigation = null;
 
 				try {
-					content = await getCachedContent(
-						backend,
-						discoveredConfig.config,
-						discoveredConfig.path,
-						discoveredConfig.slug
-					);
+					if (discoveredConfig.config.collection) {
+						collectionNavigation = await getCollectionNavigation({
+							backend,
+							slug: discoveredConfig.slug
+						});
+					} else {
+						content = await getSingletonDocument({
+							backend,
+							slug: discoveredConfig.slug
+						});
+					}
+
+					if (!collectionNavigation && content === null) {
+						content = await getCachedContent(
+							backend,
+							discoveredConfig.config,
+							discoveredConfig.path,
+							discoveredConfig.slug
+						);
+					}
 				} catch (err) {
 					handleGitHubSessionError({ cookies }, err);
 					logError(err, 'Fetch content');
@@ -60,6 +78,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					repo: locals.selectedRepo?.full_name ?? null,
 					slug,
 					hasContent: content !== null,
+					hasCollectionNavigation: collectionNavigation !== null,
 					hasContentError: contentError !== null,
 					blockConfigCount: blockConfigs.length,
 					packageBlockCount: packageBlocks.length
@@ -71,6 +90,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					packageBlocks,
 					blockRegistryError,
 					content,
+					collectionNavigation,
 					contentError,
 					branch: draftBranch,
 					pageSlug: slug,

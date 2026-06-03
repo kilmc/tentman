@@ -55,4 +55,44 @@ describe('review draft candidate changes', () => {
 			}
 		]);
 	});
+
+	it('maps renamed files by their previous path', () => {
+		const result = classifyReviewDraftChangedFiles(
+			[
+				{
+					slug: 'posts',
+					path: 'content/posts.tentman.json',
+					config: {
+						type: 'content',
+						label: 'Posts',
+						_tentmanId: 'posts',
+						collection: true,
+						idField: 'slug',
+						content: {
+							mode: 'directory',
+							path: 'src/content/posts',
+							template: 'templates/post.md'
+						},
+						blocks: []
+					}
+				}
+			] as never,
+			[
+				{
+					filename: 'src/content/archive/hello-world.md',
+					previousFilename: 'src/content/posts/hello-world.md',
+					status: 'renamed'
+				}
+			]
+		);
+
+		expect(result.configFilesBySlug.get('posts')).toEqual([
+			{
+				filename: 'src/content/archive/hello-world.md',
+				previousFilename: 'src/content/posts/hello-world.md',
+				status: 'renamed'
+			}
+		]);
+		expect(result.hiddenFiles).toEqual([]);
+	});
 });

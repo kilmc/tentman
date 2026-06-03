@@ -26,12 +26,17 @@ vi.mock('$lib/stores/content-cache', () => ({
 	invalidateContent: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	invalidateRepositoryData: vi.fn()
+}));
+
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 	invalidateNavigationManifestStateCache: vi.fn()
 }));
 
 import { actions } from './+page.server';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import { invalidateContent } from '$lib/stores/content-cache';
 
 function createRequest(form: Record<string, string>) {
@@ -86,6 +91,11 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 			status: 303,
 			location: '/pages/about/edit?saved=true'
 		});
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			reason: 'content-write'
+		});
 	});
 
 	it('publishes singleton draft changes directly from the preview screen', async () => {
@@ -125,6 +135,11 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 		});
 
 		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: undefined,
+			reason: 'publish'
+		});
 	});
 
 	it('preserves preview query params when auth expires during singleton draft save', async () => {

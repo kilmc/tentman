@@ -1,7 +1,11 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import { NAVIGATION_MANIFEST_PATH } from '$lib/features/content-management/navigation-manifest';
 import type { BranchChangedFile } from '$lib/github/branch';
-import { resolveConfigPath } from '$lib/utils/validation';
+import {
+	buildContentFileTargets,
+	getChangedFilePaths,
+	mapPathToConfigSlug
+} from '$lib/server/repository-data/path-classification';
 
 export interface ReviewDraftChangedFile {
 	filename: string;
@@ -18,14 +22,6 @@ export interface ReviewDraftCandidateChanges {
 	hiddenFiles: ReviewDraftChangedFile[];
 }
 
-interface ConfigTarget {
-	slug: string;
-	configPath: string;
-	contentPath: string;
-	contentMode: 'file' | 'directory';
-	templatePath?: string;
-}
-
 function toChangedFileStatus(
 	status: string | undefined
 ): ReviewDraftChangedFile['status'] {
@@ -38,41 +34,6 @@ function toChangedFileStatus(
 		default:
 			return 'unknown';
 	}
-}
-
-function buildConfigTargets(configs: DiscoveredConfig[]): ConfigTarget[] {
-	return configs.map((config) => ({
-		slug: config.slug,
-		configPath: config.path,
-		contentPath: resolveConfigPath(config.path, config.config.content.path),
-		contentMode: config.config.content.mode,
-		...(config.config.content.mode === 'directory'
-			? {
-					templatePath: resolveConfigPath(config.path, config.config.content.template)
-				}
-			: {})
-	}));
-}
-
-function mapFileToConfigSlug(
-	targets: ConfigTarget[],
-	filename: string
-): string | null {
-	for (const target of targets) {
-		if (filename === target.configPath || filename === target.contentPath) {
-			return target.slug;
-		}
-
-		if (target.contentMode === 'directory' && filename.startsWith(`${target.contentPath}/`)) {
-			return target.slug;
-		}
-
-		if (target.templatePath && filename === target.templatePath) {
-			return target.slug;
-		}
-	}
-
-	return null;
 }
 
 function isTentmanRelatedFile(filename: string): boolean {
@@ -96,7 +57,7 @@ export function classifyReviewDraftChangedFiles(
 	configs: DiscoveredConfig[],
 	changedFiles: ReviewDraftChangedFile[]
 ): ReviewDraftCandidateChanges {
-	const targets = buildConfigTargets(configs);
+	const targets = buildContentFileTargets(configs);
 	const configFilesBySlug = new Map<string, ReviewDraftChangedFile[]>();
 	const otherTentmanFiles: ReviewDraftChangedFile[] = [];
 	const hiddenFiles: ReviewDraftChangedFile[] = [];
@@ -114,11 +75,9 @@ export function classifyReviewDraftChangedFiles(
 			continue;
 		}
 
-		const candidatePaths = [changedFile.filename, changedFile.previousFilename].filter(
-			(path): path is string => typeof path === 'string' && path.length > 0
-		);
+		const candidatePaths = getChangedFilePaths(changedFile);
 		const matchingSlug = candidatePaths
-			.map((path) => mapFileToConfigSlug(targets, path))
+			.map((path) => mapPathToConfigSlug(targets, path))
 			.find((slug): slug is string => Boolean(slug));
 
 		if (matchingSlug) {

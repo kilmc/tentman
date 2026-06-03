@@ -8,6 +8,7 @@ import {
 	type PagesOverviewSummaryRequest
 } from '$lib/features/content-management/overview-summary';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
+import { getDraftChangeIndex } from '$lib/server/repository-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
@@ -56,22 +57,38 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 					return json(createEmptyPagesOverviewSummary(true));
 				}
 
+				const draftChangeIndex = await getDraftChangeIndex({
+					octokit,
+					owner,
+					repo: name,
+					baseBranch: defaultBranch,
+					draftBranch,
+					configs: orderedConfigs
+				});
 				const changedPages = (
 					await Promise.all(
 						orderedConfigs.map(async (config) => {
-							const draftChanges = await compareDraftToBranch(
-								octokit,
-								owner,
-								name,
-								defaultBranch,
-								config.config,
-								config.path,
-								draftBranch
-							);
-							const changeCount =
-								draftChanges.modified.length +
-								draftChanges.created.length +
-								draftChanges.deleted.length;
+							const changeScope = draftChangeIndex.byConfigSlug.get(config.slug);
+							let changeCount =
+								(changeScope?.modified.length ?? 0) +
+								(changeScope?.created.length ?? 0) +
+								(changeScope?.deleted.length ?? 0);
+
+							if (changeScope?.requiresFullFetch) {
+								const draftChanges = await compareDraftToBranch(
+									octokit,
+									owner,
+									name,
+									defaultBranch,
+									config.config,
+									config.path,
+									draftBranch
+								);
+								changeCount =
+									draftChanges.modified.length +
+									draftChanges.created.length +
+									draftChanges.deleted.length;
+							}
 
 							if (changeCount === 0) {
 								return null;

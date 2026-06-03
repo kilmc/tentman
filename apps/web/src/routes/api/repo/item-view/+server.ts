@@ -6,8 +6,8 @@ import { loadNavigationManifestState } from '$lib/features/content-management/na
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
+import { getRepositorySnapshot, resolveCollectionItem } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
@@ -34,9 +34,8 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					requestContext,
 					`/pages/${slug}/${itemId}`
 				);
-				const discoveredConfig = (await getCachedConfigs(backend)).find(
-					(config) => config.slug === slug
-				);
+				const snapshot = await getRepositorySnapshot({ backend });
+				const discoveredConfig = snapshot.configIndex.bySlug.get(slug);
 
 				if (!discoveredConfig) {
 					throw error(404, 'Configuration not found');
@@ -52,20 +51,28 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				let item = null;
 
 				try {
-					const content = await getCachedContent(
+					item = await resolveCollectionItem({
 						backend,
-						discoveredConfig.config,
-						discoveredConfig.path,
-						discoveredConfig.slug
-					);
+						slug,
+						itemId
+					});
 
-					if (Array.isArray(content)) {
-						item = findContentItemByRoute(content, discoveredConfig.config, itemId);
+					if (!item) {
+						const content = await getCachedContent(
+							backend,
+							discoveredConfig.config,
+							discoveredConfig.path,
+							discoveredConfig.slug
+						);
 
-						if (!item && discoveredConfig.config.content.mode === 'file') {
-							const index = Number.parseInt(itemId, 10);
-							if (!Number.isNaN(index) && index >= 0 && index < content.length) {
-								item = content[index];
+						if (Array.isArray(content)) {
+							item = findContentItemByRoute(content, discoveredConfig.config, itemId);
+
+							if (!item && discoveredConfig.config.content.mode === 'file') {
+								const index = Number.parseInt(itemId, 10);
+								if (!Number.isNaN(index) && index >= 0 && index < content.length) {
+									item = content[index];
+								}
 							}
 						}
 					}

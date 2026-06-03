@@ -92,8 +92,13 @@ vi.mock('$lib/github/pull-request', () => ({
 	}))
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	invalidateRepositoryData: vi.fn()
+}));
+
 import { POST } from '../../routes/api/repo/navigation-manifest/+server';
 import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import {
 	loadNavigationManifestState,
 	reconcileManualNavigationSetup,
@@ -181,6 +186,12 @@ describe('POST /api/repo/navigation-manifest', () => {
 		);
 		expect(reconcileManualNavigationSetup).toHaveBeenCalled();
 		expect(writeNavigationManifest).toHaveBeenCalled();
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			changedPaths: ['tentman/navigation-manifest.json'],
+			reason: 'navigation-manifest'
+		});
 		expect(await response.json()).toEqual({
 			navigationManifest: await loadNavigationManifestState({} as never, {
 				ref: 'tentman-preview'
