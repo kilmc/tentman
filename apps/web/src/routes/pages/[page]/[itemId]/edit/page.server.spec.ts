@@ -16,7 +16,7 @@ vi.mock('$lib/stores/content-cache', () => ({
 
 vi.mock('$lib/server/repository-data', () => ({
 	invalidateRepositoryData: vi.fn(),
-	resolveCollectionItem: vi.fn(async () => null)
+	resolveCollectionItemDocument: vi.fn(async () => null)
 }));
 
 vi.mock('$lib/features/draft-assets/server', () => ({
@@ -43,7 +43,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', async () => {
 
 import { actions } from './+page.server';
 import { deleteContentDocument } from '$lib/content/service';
-import { invalidateRepositoryData, resolveCollectionItem } from '$lib/server/repository-data';
+import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
@@ -75,7 +75,7 @@ function createRequest(form: Record<string, string>) {
 describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		vi.mocked(resolveCollectionItem).mockResolvedValue(null);
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
 	});
 
 	it('redirects back to the item editor after saving to the managed draft', async () => {
@@ -127,10 +127,22 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			name: 'docs',
 			discoveredConfig: collectionConfig
 		} as never);
-		vi.mocked(resolveCollectionItem).mockResolvedValue({
-			_filename: 'hello-world.md',
-			title: 'Hello world'
-		});
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: collectionConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				_filename: 'legacy-name-should-not-be-used.md',
+				title: 'Hello world'
+			}
+		} as never);
 
 		await expect(
 			actions.delete({
@@ -149,7 +161,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			location: '/pages/posts?deleted=true'
 		});
 
-		expect(resolveCollectionItem).toHaveBeenCalledWith({
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
 			backend: { cacheKey: 'github:acme/docs' },
 			slug: 'posts',
 			itemId: 'hello-world',
@@ -206,7 +218,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			location: '/pages/posts?deleted=true'
 		});
 
-		expect(resolveCollectionItem).toHaveBeenCalledWith({
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
 			backend: { cacheKey: 'github:acme/docs' },
 			slug: 'posts',
 			itemId: 'hello-world',

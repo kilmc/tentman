@@ -247,6 +247,7 @@ describe('GET /api/repo/item-view', () => {
 				"type": "content",
 				"label": "Posts",
 				"collection": true,
+				"idField": "slug",
 				"itemLabel": "title",
 				"content": {
 					"mode": "directory",
@@ -308,6 +309,63 @@ describe('GET /api/repo/item-view', () => {
 		expect(backend.listDirectory).not.toHaveBeenCalled();
 		expect(backend.readTextFile).not.toHaveBeenCalled();
 		expect(backend.octokit.rest.git.getBlob).toHaveBeenCalledTimes(3);
+	});
+
+	it('resolves directory-backed GitHub items by route metadata without falling back to full content', async () => {
+		const backend = createGitHubBackend({
+			'tentman.json': `{
+				"configsDir": "tentman/configs",
+				"siteName": "Acme Docs"
+			}`,
+			'tentman/configs/posts.tentman.json': `{
+				"type": "content",
+				"label": "Posts",
+				"collection": true,
+				"idField": "slug",
+				"itemLabel": "title",
+				"content": {
+					"mode": "directory",
+					"path": "../../src/content/posts",
+					"template": "../../src/content/posts/_template.md"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" },
+					{ "id": "slug", "type": "text", "label": "Slug" },
+					{ "id": "body", "type": "markdown", "label": "Body" }
+				]
+			}`,
+			'src/content/posts/_template.md': `---\ntitle: ""\nslug: ""\n---\n`,
+			'src/content/posts/first.md': `---\ntitle: "Hello world"\nslug: "hello-world"\n---\nFull body`,
+			'src/content/posts/second.md': `---\ntitle: "Second"\nslug: "second"\n---\nSecond body`
+		});
+
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
+			backend,
+			draftBranch: null
+		} as never);
+		vi.mocked(loadGitHubBlockRegistryData).mockResolvedValue({
+			blockConfigs: [],
+			packageBlocks: [],
+			blockRegistryError: null
+		});
+
+		const response = await GET({
+			url: new URL('http://localhost/api/repo/item-view?slug=posts&itemId=hello-world'),
+			locals: {},
+			cookies: createCookies()
+		} as never);
+
+		expect(await response.json()).toMatchObject({
+			item: {
+				_filename: 'first.md',
+				title: 'Hello world',
+				slug: 'hello-world',
+				body: 'Full body'
+			}
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(backend.listDirectory).not.toHaveBeenCalled();
+		expect(backend.readTextFile).not.toHaveBeenCalled();
 	});
 
 	it('returns a redirect target when the config is not a collection', async () => {

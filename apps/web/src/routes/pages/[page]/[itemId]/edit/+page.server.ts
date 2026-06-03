@@ -13,7 +13,7 @@ import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { getExistingItemMutationOptions } from '$lib/server/preview';
-import { invalidateRepositoryData, resolveCollectionItem } from '$lib/server/repository-data';
+import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
@@ -26,7 +26,6 @@ export const actions: Actions = {
 				requestContext,
 				params.page
 				);
-			const formData = await request.formData();
 			const itemId = params.itemId;
 			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
 			const writeOptions = {
@@ -40,14 +39,14 @@ export const actions: Actions = {
 			};
 
 			if (discoveredConfig.config.content.mode === 'directory') {
-				const resolvedItem = await resolveCollectionItem({
+				const resolvedItem = await resolveCollectionItemDocument({
 					backend,
 					slug: params.page,
 					itemId,
 					ref: branchName
 				});
-				if (typeof resolvedItem?._filename === 'string') {
-					deleteOptions.filename = resolvedItem._filename;
+				if (resolvedItem?.indexItem.filename) {
+					deleteOptions.filename = resolvedItem.indexItem.filename;
 				}
 
 				if (!deleteOptions.filename) {

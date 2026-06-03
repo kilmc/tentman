@@ -6,7 +6,7 @@ import { loadNavigationManifestState } from '$lib/features/content-management/na
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
-import { getRepositorySnapshot, resolveCollectionItem } from '$lib/server/repository-data';
+import { getRepositorySnapshot, resolveCollectionItemDocument } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
@@ -51,11 +51,12 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				let item = null;
 
 				try {
-					item = await resolveCollectionItem({
+					const resolvedItem = await resolveCollectionItemDocument({
 						backend,
 						slug,
 						itemId
 					});
+					item = resolvedItem?.content ?? null;
 
 					if (!item) {
 						const content = await getCachedContent(
