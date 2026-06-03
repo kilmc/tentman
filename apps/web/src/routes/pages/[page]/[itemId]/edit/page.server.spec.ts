@@ -60,6 +60,16 @@ const collectionConfig = {
 	}
 } as const;
 
+const fileCollectionConfig = {
+	...collectionConfig,
+	config: {
+		...collectionConfig.config,
+		content: {
+			mode: 'file'
+		}
+	}
+} as const;
+
 function createRequest(form: Record<string, string>) {
 	return {
 		formData: async () => {
@@ -238,6 +248,47 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			{
 				branch: 'tentman-preview',
 				filename: 'hello-world.md'
+			}
+		);
+	});
+
+	it('deletes a file-backed draft item by item id without resolver fallback work', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'github:acme/docs'
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: fileCollectionConfig
+		} as never);
+
+		await expect(
+			actions.delete({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts?deleted=true'
+		});
+
+		expect(resolveCollectionItemDocument).not.toHaveBeenCalled();
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(deleteContentDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			fileCollectionConfig.config,
+			fileCollectionConfig.path,
+			{
+				branch: 'tentman-preview',
+				itemId: 'hello-world'
 			}
 		);
 	});

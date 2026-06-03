@@ -368,6 +368,76 @@ describe('GET /api/repo/item-view', () => {
 		expect(backend.readTextFile).not.toHaveBeenCalled();
 	});
 
+	it('resolves file-backed GitHub items without loading the whole collection through the content cache', async () => {
+		const backend = createGitHubBackend({
+			'tentman.json': `{
+				"configsDir": "tentman/configs",
+				"siteName": "Acme Docs"
+			}`,
+			'tentman/configs/posts.tentman.json': `{
+				"type": "content",
+				"label": "Posts",
+				"collection": true,
+				"idField": "slug",
+				"itemLabel": "title",
+				"content": {
+					"mode": "file",
+					"path": "../../src/content/posts.json",
+					"itemsPath": "$.posts"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" },
+					{ "id": "slug", "type": "text", "label": "Slug" },
+					{ "id": "body", "type": "markdown", "label": "Body" }
+				]
+			}`,
+			'src/content/posts.json': JSON.stringify({
+				posts: [
+					{
+						slug: 'hello-world',
+						title: 'Hello world',
+						body: 'Full body'
+					},
+					{
+						slug: 'second',
+						title: 'Second',
+						body: 'Second body'
+					}
+				]
+			})
+		});
+
+		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
+			backend,
+			draftBranch: null
+		} as never);
+		vi.mocked(loadGitHubBlockRegistryData).mockResolvedValue({
+			blockConfigs: [],
+			packageBlocks: [],
+			blockRegistryError: null
+		});
+
+		const response = await GET({
+			url: new URL('http://localhost/api/repo/item-view?slug=posts&itemId=hello-world'),
+			locals: {},
+			cookies: createCookies()
+		} as never);
+
+		expect(await response.json()).toMatchObject({
+			item: {
+				slug: 'hello-world',
+				title: 'Hello world',
+				body: 'Full body'
+			},
+			itemId: 'hello-world',
+			mode: 'github',
+			pageSlug: 'posts'
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(backend.listDirectory).not.toHaveBeenCalled();
+		expect(backend.readTextFile).not.toHaveBeenCalled();
+	});
+
 	it('returns a redirect target when the config is not a collection', async () => {
 		vi.mocked(requireGitHubContentRepository).mockResolvedValue({
 			backend: createSnapshotFallbackBackend(),
