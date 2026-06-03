@@ -463,7 +463,10 @@ function toFileCollectionIndexItems(input: {
 			return [];
 		}
 
-		const navigationItem = navigationByItemId.get(fallbackId);
+		const normalizedItemId = getItemId(item);
+		const navigationItem =
+			(normalizedItemId ? navigationByItemId.get(normalizedItemId) : undefined) ??
+			navigationByItemId.get(fallbackId);
 		return [
 			{
 				itemId: fallbackId,
