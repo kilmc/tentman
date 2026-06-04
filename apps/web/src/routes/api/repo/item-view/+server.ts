@@ -1,13 +1,12 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { findContentItemByRoute } from '$lib/features/content-management/item';
 import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot, resolveCollectionItemDocument } from '$lib/server/repository-data';
-import { getCachedContent } from '$lib/stores/content-cache';
+import { resolveCollectionItemForRoute } from '$lib/server/repository-data/route-fallbacks';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
@@ -59,23 +58,11 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					item = resolvedItem?.content ?? null;
 
 					if (!item) {
-						const content = await getCachedContent(
+						item = await resolveCollectionItemForRoute({
 							backend,
-							discoveredConfig.config,
-							discoveredConfig.path,
-							discoveredConfig.slug
-						);
-
-						if (Array.isArray(content)) {
-							item = findContentItemByRoute(content, discoveredConfig.config, itemId);
-
-							if (!item && discoveredConfig.config.content.mode === 'file') {
-								const index = Number.parseInt(itemId, 10);
-								if (!Number.isNaN(index) && index >= 0 && index < content.length) {
-									item = content[index];
-								}
-							}
-						}
+							discoveredConfig,
+							itemId
+						});
 					}
 
 					if (!item) {

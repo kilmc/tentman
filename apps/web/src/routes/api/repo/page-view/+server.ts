@@ -2,15 +2,11 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
-import { getCachedContent } from '$lib/stores/content-cache';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
-import {
-	getCollectionNavigation,
-	getRepositorySnapshot,
-	getSingletonDocument
-} from '$lib/server/repository-data';
+import { getRepositorySnapshot } from '$lib/server/repository-data';
+import { resolvePageViewContentForRoute } from '$lib/server/repository-data/route-fallbacks';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
@@ -43,28 +39,16 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				let content = null;
 				let contentError = null;
 				let collectionNavigation = null;
+				let contentSource = null;
 
 				try {
-					if (discoveredConfig.config.collection) {
-						collectionNavigation = await getCollectionNavigation({
-							backend,
-							slug: discoveredConfig.slug
-						});
-					} else {
-						content = await getSingletonDocument({
-							backend,
-							slug: discoveredConfig.slug
-						});
-					}
-
-					if (!collectionNavigation && content === null) {
-						content = await getCachedContent(
-							backend,
-							discoveredConfig.config,
-							discoveredConfig.path,
-							discoveredConfig.slug
-						);
-					}
+					const resolvedContent = await resolvePageViewContentForRoute({
+						backend,
+						discoveredConfig
+					});
+					content = resolvedContent.content;
+					collectionNavigation = resolvedContent.collectionNavigation;
+					contentSource = resolvedContent.source;
 				} catch (err) {
 					handleGitHubSessionError({ cookies }, err);
 					logError(err, 'Fetch content');
@@ -79,6 +63,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					slug,
 					hasContent: content !== null,
 					hasCollectionNavigation: collectionNavigation !== null,
+					contentSource,
 					hasContentError: contentError !== null,
 					blockConfigCount: blockConfigs.length,
 					packageBlockCount: packageBlocks.length
