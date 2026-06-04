@@ -31,6 +31,10 @@ function hasScopedPaths(input: RepositoryDataInvalidationInput): input is Reposi
 	return Array.isArray(input.changedPaths) && input.changedPaths.length > 0;
 }
 
+function hasScopedRef(input: RepositoryDataInvalidationInput): boolean {
+	return typeof input.ref === 'string' && input.ref.length > 0;
+}
+
 function isRepositoryStructurePath(path: string): boolean {
 	return (
 		path === 'tentman.json' ||
@@ -61,7 +65,7 @@ function clearAllRepositoryDataCaches(): void {
 
 export function invalidateRepositoryData(input: RepositoryDataInvalidationInput): void {
 	const repoKey = input.backend.cacheKey;
-	const scoped = hasScopedPaths(input);
+	const scoped = hasScopedPaths(input) || hasScopedRef(input);
 	const invalidatesSnapshot = shouldInvalidateSnapshot(input);
 
 	if (!scoped) {

@@ -138,4 +138,20 @@ describe('repository data invalidation', () => {
 
 		expect(backend.octokit.rest.git.getTree).toHaveBeenCalledTimes(2);
 	});
+
+	it('keeps other refs when invalidating a path-unknown draft ref', async () => {
+		const backend = createGitHubBackend();
+
+		await getRepositorySnapshot({ backend, ref: 'main' });
+		await getRepositorySnapshot({ backend, ref: 'tentman-preview' });
+		invalidateRepositoryData({
+			backend,
+			ref: 'tentman-preview',
+			reason: 'discard'
+		});
+		await getRepositorySnapshot({ backend, ref: 'main' });
+		await getRepositorySnapshot({ backend, ref: 'tentman-preview' });
+
+		expect(backend.octokit.rest.git.getTree).toHaveBeenCalledTimes(3);
+	});
 });
