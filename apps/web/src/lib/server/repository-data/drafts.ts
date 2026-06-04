@@ -9,11 +9,7 @@ import {
 	getDirectoryItemIdFromPath,
 	isRelevantDirectoryContentChange
 } from './path-classification';
-import type {
-	ConfigDraftChangeScope,
-	DraftChangedFile,
-	DraftChangeIndex
-} from './types';
+import type { ConfigDraftChangeScope, DraftChangedFile, DraftChangeIndex } from './types';
 
 type DirectoryBackedConfig = ParsedContentConfig & {
 	content: { mode: 'directory'; path: string; template: string; filename?: string };
@@ -45,7 +41,9 @@ function getDraftChangeIndexCacheKey(input: DraftChangeIndexInput): string {
 	return `${input.owner}/${input.repo}:${input.baseBranch}:${input.draftBranch}:${configIdentity}`;
 }
 
-function isFreshDraftChangeIndex(entry: CachedDraftChangeIndex | undefined): entry is CachedDraftChangeIndex {
+function isFreshDraftChangeIndex(
+	entry: CachedDraftChangeIndex | undefined
+): entry is CachedDraftChangeIndex {
 	return entry !== undefined && Date.now() - entry.timestamp < DRAFT_CHANGE_INDEX_TTL;
 }
 
@@ -200,7 +198,12 @@ function classifyConfigChanges(
 		return classifyFileBackedChanges(config.config, config.path, files, config.slug);
 	}
 
-	return classifyDirectoryChanges(config.config as DirectoryBackedConfig, config.path, files, config.slug);
+	return classifyDirectoryChanges(
+		config.config as DirectoryBackedConfig,
+		config.path,
+		files,
+		config.slug
+	);
 }
 
 function buildDraftChangeIndex(

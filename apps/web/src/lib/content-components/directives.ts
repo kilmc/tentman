@@ -140,7 +140,8 @@ export function serializeContentComponentDirective(
 	const labelAttributeName = getMarkdownLabelAttributeName(component);
 	const label = labelAttributeName ? (attributes[labelAttributeName] ?? '') : '';
 	const attributeEntries = Object.entries(attributes).filter(
-		([attributeName, attributeValue]) => attributeName !== labelAttributeName && attributeValue !== ''
+		([attributeName, attributeValue]) =>
+			attributeName !== labelAttributeName && attributeValue !== ''
 	);
 	const serializedAttributes =
 		attributeEntries.length > 0

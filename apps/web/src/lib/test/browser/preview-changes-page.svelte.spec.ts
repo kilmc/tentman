@@ -104,8 +104,9 @@ describe('routes/pages/[page]/preview-changes/+page.svelte', () => {
 			form: undefined as never
 		});
 
-		await expectElement(screen.getByRole('heading', { name: '2 files will be changed' }))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('heading', { name: '2 files will be changed' })
+		).toBeVisible();
 		await expectElement(screen.getByText('static/images/hero-asset.png')).toBeVisible();
 		await expectElement(screen.getByText('Size: 2.00 KB')).toBeVisible();
 	});

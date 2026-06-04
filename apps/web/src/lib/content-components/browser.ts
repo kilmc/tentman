@@ -1,13 +1,18 @@
 import { get } from 'svelte/store';
 import { localRepo } from '$lib/stores/local-repo';
-import { loadContentComponentRegistryFromRepository, type ContentComponentRegistry } from './registry';
+import {
+	loadContentComponentRegistryFromRepository,
+	type ContentComponentRegistry
+} from './registry';
 
 const contentComponentRegistryCache = new Map<string, Promise<ContentComponentRegistry>>();
 
 function createGitHubLoader() {
 	return {
 		async fileExists(path: string) {
-			const response = await fetch(`/api/repo/content-components?path=${encodeURIComponent(path)}&mode=exists`);
+			const response = await fetch(
+				`/api/repo/content-components?path=${encodeURIComponent(path)}&mode=exists`
+			);
 			if (!response.ok) {
 				throw new Error(`Failed to probe content components directory (${response.status})`);
 			}
@@ -17,17 +22,23 @@ function createGitHubLoader() {
 		},
 
 		async listDirectory(path: string) {
-			const response = await fetch(`/api/repo/content-components?path=${encodeURIComponent(path)}&mode=list`);
+			const response = await fetch(
+				`/api/repo/content-components?path=${encodeURIComponent(path)}&mode=list`
+			);
 			if (!response.ok) {
 				throw new Error(`Failed to list content components directory (${response.status})`);
 			}
 
-			const payload = (await response.json()) as { entries: Array<{ name: string; path: string; kind: 'file' | 'directory' }> };
+			const payload = (await response.json()) as {
+				entries: Array<{ name: string; path: string; kind: 'file' | 'directory' }>;
+			};
 			return payload.entries;
 		},
 
 		async readTextFile(path: string) {
-			const response = await fetch(`/api/repo/content-components?path=${encodeURIComponent(path)}&mode=read`);
+			const response = await fetch(
+				`/api/repo/content-components?path=${encodeURIComponent(path)}&mode=read`
+			);
 			if (!response.ok) {
 				throw new Error(`Failed to load content component file at ${path} (${response.status})`);
 			}
@@ -66,7 +77,10 @@ export async function loadContentComponentRegistryForMode(
 	options: { scopeKey?: string; componentsDir?: string } = {}
 ): Promise<ContentComponentRegistry> {
 	const scopeKey = options.scopeKey ?? mode;
-	const cacheKey = getRegistryCacheKey(mode, JSON.stringify([scopeKey, options.componentsDir ?? null]));
+	const cacheKey = getRegistryCacheKey(
+		mode,
+		JSON.stringify([scopeKey, options.componentsDir ?? null])
+	);
 	let cached = contentComponentRegistryCache.get(cacheKey);
 
 	if (!cached) {

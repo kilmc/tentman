@@ -11,9 +11,7 @@ interface ToolbarConfigOptions {
 	onselectimage: (trigger?: HTMLElement) => void;
 }
 
-export function createMarkdownFieldToolbarConfig(
-	options: ToolbarConfigOptions
-): {
+export function createMarkdownFieldToolbarConfig(options: ToolbarConfigOptions): {
 	structureOptions: StructureOption[];
 	listOptions: ListOption[];
 	inlineToggleButtons: InlineToggleButton[];

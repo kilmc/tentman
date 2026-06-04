@@ -6,9 +6,8 @@ const discoveryMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$lib/config/discovery', async () => {
-	const actual = await vi.importActual<typeof import('$lib/config/discovery')>(
-		'$lib/config/discovery'
-	);
+	const actual =
+		await vi.importActual<typeof import('$lib/config/discovery')>('$lib/config/discovery');
 
 	return {
 		...actual,

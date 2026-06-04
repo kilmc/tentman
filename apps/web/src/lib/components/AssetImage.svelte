@@ -36,5 +36,5 @@
 </script>
 
 {#if src}
-	<img {src} {alt} class={className} {loading} />
+	<img {src} {alt} class={`block ${className}`} width="128" height="128" {loading} />
 {/if}

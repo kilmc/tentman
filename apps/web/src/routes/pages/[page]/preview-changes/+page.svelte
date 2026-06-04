@@ -76,8 +76,8 @@
 			Review the saved changes for <strong>{data.discoveredConfig.config.label}</strong>
 		</p>
 		<p class="mt-2 text-sm text-stone-500">
-			This screen only covers this page. Use <strong>Review Draft</strong> to inspect the
-			current draft across the whole site before publishing.
+			This screen only covers this page. Use <strong>Review Draft</strong> to inspect the current draft
+			across the whole site before publishing.
 		</p>
 	</div>
 
@@ -210,10 +210,7 @@
 
 						await update();
 						if (data.repo && (result.type === 'redirect' || result.type === 'success')) {
-							draftBranch.setBranch(
-								TENTMAN_DRAFT_BRANCH,
-								`${data.repo.owner}/${data.repo.name}`
-							);
+							draftBranch.setBranch(TENTMAN_DRAFT_BRANCH, `${data.repo.owner}/${data.repo.name}`);
 						}
 						if (result.type === 'redirect' || result.type === 'success') {
 							await cleanupDraftRefs(submittedRefs);
@@ -304,7 +301,8 @@
 					Publish actions use the latest saved content.
 				</li>
 				<li>
-					<strong>Publish Draft:</strong> Saves to the managed Tentman draft, publishes it immediately, and returns you to the editor.
+					<strong>Publish Draft:</strong> Saves to the managed Tentman draft, publishes it immediately,
+					and returns you to the editor.
 				</li>
 			</ul>
 		</div>

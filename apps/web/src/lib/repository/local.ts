@@ -354,7 +354,10 @@ export function createLocalRepositoryBackend(
 
 	async function getDiscoverySignature(): Promise<LocalDiscoverySignature> {
 		const rootConfigText = await readRootConfigTextFromDisk();
-		const navigationManifestText = await readFileText(rootHandle, 'tentman/navigation-manifest.json')
+		const navigationManifestText = await readFileText(
+			rootHandle,
+			'tentman/navigation-manifest.json'
+		)
 			.then((value) => value)
 			.catch(() => null);
 		const rootConfig = (() => {

@@ -12,10 +12,7 @@ export function getItemId(item: ContentRecord): string | undefined {
 		: undefined;
 }
 
-export function getItemSlug(
-	config: ParsedContentConfig,
-	item: ContentRecord
-): string | undefined {
+export function getItemSlug(config: ParsedContentConfig, item: ContentRecord): string | undefined {
 	if (!config.idField) {
 		return undefined;
 	}
@@ -25,25 +22,25 @@ export function getItemSlug(
 }
 
 export function getItemFilename(item: ContentRecord): string | undefined {
-	return typeof item._filename === 'string' && item._filename.length > 0 ? item._filename : undefined;
+	return typeof item._filename === 'string' && item._filename.length > 0
+		? item._filename
+		: undefined;
 }
 
 export function getItemPath(item: ContentRecord): string | undefined {
 	return getItemFilename(item);
 }
 
-export function getItemRoute(
-	config: ParsedContentConfig,
-	item: ContentRecord
-): string | undefined {
+export function getItemRoute(config: ParsedContentConfig, item: ContentRecord): string | undefined {
 	const filename = getItemFilename(item);
-	return getItemSlug(config, item) ?? getItemId(item) ?? (filename ? stripFileExtension(filename) : undefined);
+	return (
+		getItemSlug(config, item) ??
+		getItemId(item) ??
+		(filename ? stripFileExtension(filename) : undefined)
+	);
 }
 
-export function findContentItem(
-	items: ContentRecord[],
-	itemId: string
-): ContentRecord | undefined {
+export function findContentItem(items: ContentRecord[], itemId: string): ContentRecord | undefined {
 	return items.find((item) => getItemId(item) === itemId || item._tentmanId === itemId);
 }
 

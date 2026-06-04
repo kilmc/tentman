@@ -36,14 +36,16 @@ describe('repeatable item label browser coverage', () => {
 			}
 		});
 
-		await expectElement(screen.getByRole('button', { name: 'Edit Section 1: Opening' }))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('button', { name: 'Edit Section 1: Opening' })
+		).toBeVisible();
 		await screen.getByRole('button', { name: 'Edit Section 1: Opening' }).click();
 		await screen.getByLabelText('Summary').fill('Updated opening');
 		await screen.getByRole('button', { name: 'Save' }).click();
 
-		await expectElement(screen.getByRole('button', { name: 'Edit Section 1: Updated opening' }))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('button', { name: 'Edit Section 1: Updated opening' })
+		).toBeVisible();
 	});
 
 	it('renders date-based repeatable labels with itemLabelFormat after create', async () => {
@@ -89,8 +91,9 @@ describe('repeatable item label browser coverage', () => {
 		await screen.getByLabelText('Title').fill('Launch');
 		await screen.getByRole('button', { name: 'Add', exact: true }).click();
 
-		await expectElement(screen.getByRole('button', { name: 'Edit Event 1: Apr 3, 2026' }))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('button', { name: 'Edit Event 1: Apr 3, 2026' })
+		).toBeVisible();
 	});
 
 	it('uses reusable block config label metadata for repeatable entries', async () => {
@@ -134,7 +137,8 @@ describe('repeatable item label browser coverage', () => {
 			] as never)
 		});
 
-		await expectElement(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('button', { name: 'Edit Image 1: Opening view' })
+		).toBeVisible();
 	});
 });

@@ -103,7 +103,8 @@ export function collectContentComponentReferenceState(options: {
 
 		for (const block of blocks) {
 			const storageKey = getBlockStorageKey(block);
-			const structuredBlocks = getStructuredBlocksForUsage(block, options.blockRegistry)?.blocks ?? null;
+			const structuredBlocks =
+				getStructuredBlocksForUsage(block, options.blockRegistry)?.blocks ?? null;
 			const fieldValue = value[storageKey];
 
 			if (structuredBlocks) {

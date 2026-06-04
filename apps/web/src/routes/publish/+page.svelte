@@ -18,7 +18,9 @@
 		confirm('Are you sure you want to discard all draft changes? This cannot be undone.');
 
 	const siteName = $derived(data.rootConfig?.siteName ?? data.selectedRepo?.name ?? null);
-	const sectionSlugs = $derived(reviewModel.sections.map((section: ReviewSection) => section.configSlug));
+	const sectionSlugs = $derived(
+		reviewModel.sections.map((section: ReviewSection) => section.configSlug)
+	);
 	let expandedSections = $state<string[]>([]);
 	let expandedItems = $state<Record<string, string[]>>({});
 	let topLevelExpanded = $state(false);
@@ -104,7 +106,10 @@
 				<form
 					method="POST"
 					action="?/publish"
-					use:enhance={createPublishEnhanceHandler(draftBranchStore, (value) => (publishing = value))}
+					use:enhance={createPublishEnhanceHandler(
+						draftBranchStore,
+						(value) => (publishing = value)
+					)}
 				>
 					<button
 						type="submit"

@@ -44,7 +44,9 @@ describe('components/form/SelectField.svelte', () => {
 		await screen.getByRole('button', { name: 'Prepare submit' }).click();
 
 		await expectElement(screen.getByTestId('submit-error')).toHaveTextContent('');
-		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent('{"layout":"inline"}');
+		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent(
+			'{"layout":"inline"}'
+		);
 	});
 
 	it('validates required static selects', async () => {

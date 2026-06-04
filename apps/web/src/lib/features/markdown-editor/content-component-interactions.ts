@@ -35,9 +35,8 @@ export function getMarkdownEditorContentComponentToolbarButton(
 	componentToolbarButtons: ContentComponentToolbarButton[]
 ): ContentComponentToolbarButton | null {
 	return (
-		componentToolbarButtons.find(
-			(button) => button.contentComponent?.nodeName === nodeTypeName
-		) ?? null
+		componentToolbarButtons.find((button) => button.contentComponent?.nodeName === nodeTypeName) ??
+		null
 	);
 }
 
@@ -47,7 +46,7 @@ export function isMarkdownEditorContentComponentNode(
 ): boolean {
 	return Boolean(
 		node?.type?.name &&
-			getMarkdownEditorContentComponentToolbarButton(node.type.name, componentToolbarButtons)
+		getMarkdownEditorContentComponentToolbarButton(node.type.name, componentToolbarButtons)
 	);
 }
 

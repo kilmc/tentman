@@ -21,9 +21,7 @@ export interface SnapshotDiscoveryResult {
 
 function getBlobEntryByPath(tree: RepositoryTree): Map<string, RepositoryTree['entries'][number]> {
 	return new Map(
-		tree.entries
-			.filter((entry) => entry.type === 'blob')
-			.map((entry) => [entry.path, entry])
+		tree.entries.filter((entry) => entry.type === 'blob').map((entry) => [entry.path, entry])
 	);
 }
 
@@ -134,4 +132,3 @@ export async function discoverGitHubSnapshotConfigs(
 		blockConfigs
 	};
 }
-

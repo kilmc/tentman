@@ -122,7 +122,10 @@ function createGitHubBackend(files: Record<string, string>) {
 	};
 }
 
-function createBootstrapContext(configs: unknown[], backend: unknown = { cacheKey: 'github:acme/docs' }) {
+function createBootstrapContext(
+	configs: unknown[],
+	backend: unknown = { cacheKey: 'github:acme/docs' }
+) {
 	return {
 		backend,
 		configs,

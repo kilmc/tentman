@@ -125,7 +125,7 @@ export function addNavigationGroupToManifest(
 									...(collection.configId ? { configId: collection.configId } : {}),
 									items: [...collection.items],
 									...(collection.groups
-									? {
+										? {
 												groups: collection.groups.map((group) => ({
 													id: group.id,
 													...(group.label && { label: group.label }),

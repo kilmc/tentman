@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-	import type { RepositoryBackend } from '$lib/repository/types';
-	import { materializeDraftAssetsFromFormData } from './server';
-	import { buildDraftAssetRef } from './shared';
+import type { RepositoryBackend } from '$lib/repository/types';
+import { materializeDraftAssetsFromFormData } from './server';
+import { buildDraftAssetRef } from './shared';
 
 function createBackend() {
 	return {

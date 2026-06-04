@@ -108,9 +108,7 @@ export async function checkThinBackend({ rootDir = process.cwd() } = {}) {
 					`${relativePath}: missing SERVER_JUSTIFICATION header on route server entrypoint`
 				);
 			} else if (!ALLOWED_SERVER_JUSTIFICATIONS.has(match[1])) {
-				issues.push(
-					`${relativePath}: invalid SERVER_JUSTIFICATION "${match[1]}"`
-				);
+				issues.push(`${relativePath}: invalid SERVER_JUSTIFICATION "${match[1]}"`);
 			}
 
 			if (

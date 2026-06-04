@@ -134,7 +134,9 @@ describe('routes/pages/+page.svelte', () => {
 			data: baseData
 		});
 
-		await expectElement(screen.getByRole('heading', { name: 'Add a page' })).not.toBeInTheDocument();
+		await expectElement(
+			screen.getByRole('heading', { name: 'Add a page' })
+		).not.toBeInTheDocument();
 		await expectElement(screen.getByRole('link', { name: 'Add page' })).not.toBeInTheDocument();
 		await expectElement(screen.getByRole('heading', { name: 'No changes detected' })).toBeVisible();
 	});
@@ -172,9 +174,11 @@ describe('routes/pages/+page.svelte', () => {
 			}
 		});
 
-		await expectElement(screen.getByRole('heading', { name: 'Tentman couldn’t read this repo’s config' }))
-			.toBeVisible();
-		await expectElement(screen.getByText(/tentman\/configs\/projects\.tentman\.json/i))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('heading', { name: 'Tentman couldn’t read this repo’s config' })
+		).toBeVisible();
+		await expectElement(
+			screen.getByText(/tentman\/configs\/projects\.tentman\.json/i)
+		).toBeVisible();
 	});
 });

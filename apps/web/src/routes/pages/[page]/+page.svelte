@@ -112,7 +112,9 @@
 	const firstCollectionItemHref = $derived.by(() => {
 		if (indexedCollectionNavigation) {
 			const firstIndexedItemId = getFirstCollectionNavigationItemId(indexedCollectionNavigation);
-			return firstIndexedItemId ? resolve(`/pages/${data.pageSlug}/${firstIndexedItemId}/edit`) : null;
+			return firstIndexedItemId
+				? resolve(`/pages/${data.pageSlug}/${firstIndexedItemId}/edit`)
+				: null;
 		}
 
 		if (!config?.collection || !content || contentError) {

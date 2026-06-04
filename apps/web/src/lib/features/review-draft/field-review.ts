@@ -207,7 +207,10 @@ function buildStructuredContextSummaries(
 ): { beforeSummary: string[]; afterSummary: string[] } | null {
 	const beforeDescriptors = buildStructuredContextDescriptors(blocks, beforeItems);
 	const afterDescriptors = buildStructuredContextDescriptors(blocks, afterItems);
-	if (beforeDescriptors.some((descriptor) => !descriptor) || afterDescriptors.some((descriptor) => !descriptor)) {
+	if (
+		beforeDescriptors.some((descriptor) => !descriptor) ||
+		afterDescriptors.some((descriptor) => !descriptor)
+	) {
 		return null;
 	}
 
@@ -279,12 +282,7 @@ function buildStructuredEntries(
 		const beforeRecord = isPlainObject(beforeEntry) ? beforeEntry : undefined;
 		const afterRecord = isPlainObject(afterEntry) ? afterEntry : undefined;
 
-		const fields = buildFieldChanges(
-			childBlocks,
-			beforeRecord,
-			afterRecord,
-			options
-		);
+		const fields = buildFieldChanges(childBlocks, beforeRecord, afterRecord, options);
 		if (!fields.length) {
 			continue;
 		}
@@ -328,14 +326,14 @@ function buildStructuredPresentation(
 			sameLength &&
 			[...beforeSerialized].sort().join('\n') === [...afterSerialized].sort().join('\n');
 		const sameOrder =
-			sameLength &&
-			beforeSerialized.every((value, index) => value === afterSerialized[index]);
+			sameLength && beforeSerialized.every((value, index) => value === afterSerialized[index]);
 		const hasStructuralChange = canCompareByStableIdentity
 			? beforeDescriptors.length !== afterDescriptors.length ||
 				beforeDescriptors.some(
 					(descriptor, index) =>
 						descriptor &&
-						descriptor.occurrenceKey !== (afterDescriptors[index] as StructuredContextDescriptor).occurrenceKey
+						descriptor.occurrenceKey !==
+							(afterDescriptors[index] as StructuredContextDescriptor).occurrenceKey
 				)
 			: !sameLength || (sameValues && !sameOrder);
 
@@ -462,9 +460,7 @@ function createFieldChange(
 	label: string,
 	presentation: ReviewFieldPresentation
 ): ReviewFieldChange {
-	const defaultExpanded =
-		!('isLong' in presentation) ||
-		!presentation.isLong;
+	const defaultExpanded = !('isLong' in presentation) || !presentation.isLong;
 
 	return {
 		fieldId,

@@ -425,6 +425,9 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			data: layoutData
 		});
 
+		await expect
+			.poll(() => sidebarEditorMocks.fetchContentDocument.mock.calls.length)
+			.toBeGreaterThan(0);
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
 		await screen.getByRole('button', { name: 'Hide collection panel' }).click();
 
@@ -434,7 +437,9 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await screen.getByRole('link', { name: 'Blog Posts' }).click();
 
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
-		await expectElement(screen.getByRole('button', { name: 'Hide collection panel' })).toBeVisible();
+		await expectElement(
+			screen.getByRole('button', { name: 'Hide collection panel' })
+		).toBeVisible();
 	});
 
 	it('renders the side panel as a sibling of the main panel', async () => {
@@ -483,7 +488,8 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 
 		await expectElement(screen.getByRole('heading', { name: 'Gallery' })).toBeVisible();
 		await expectElement(screen.getByLabelText('Layout')).toHaveValue('grid');
-		await expectElement(screen.getByRole('button', { name: 'Edit Image 1: Opening view' }))
-			.toBeVisible();
+		await expectElement(
+			screen.getByRole('button', { name: 'Edit Image 1: Opening view' })
+		).toBeVisible();
 	});
 });

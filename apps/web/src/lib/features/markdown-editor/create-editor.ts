@@ -101,7 +101,10 @@ function getContentComponentActivationRequestFromTarget(options: {
 	}
 
 	const contentComponentDom = options.target.closest('[data-tentman-content-component-node]');
-	if (!(contentComponentDom instanceof Element) || !options.view.dom.contains(contentComponentDom)) {
+	if (
+		!(contentComponentDom instanceof Element) ||
+		!options.view.dom.contains(contentComponentDom)
+	) {
 		return null;
 	}
 
@@ -131,7 +134,10 @@ function getContentComponentActivationRequestFromSelection(options: {
 		node?: ContentComponentLikeNode | null;
 	};
 	const selectedNode = selection.node ?? null;
-	if (!selectedNode || !isMarkdownEditorContentComponentNode(selectedNode, options.componentToolbarButtons)) {
+	if (
+		!selectedNode ||
+		!isMarkdownEditorContentComponentNode(selectedNode, options.componentToolbarButtons)
+	) {
 		return null;
 	}
 
@@ -214,7 +220,11 @@ export function createMarkdownEditor(
 			},
 			handleDOMEvents: {
 				keydown(view, event) {
-					if (!(event instanceof KeyboardEvent) || event.key !== 'Enter' || !isModifierClick(event)) {
+					if (
+						!(event instanceof KeyboardEvent) ||
+						event.key !== 'Enter' ||
+						!isModifierClick(event)
+					) {
 						return false;
 					}
 
@@ -228,7 +238,8 @@ export function createMarkdownEditor(
 					}
 
 					event.preventDefault();
-					(editor.view.dom as HTMLElement).dataset.tentmanLastActivationSource = 'keyboard-mod-enter';
+					(editor.view.dom as HTMLElement).dataset.tentmanLastActivationSource =
+						'keyboard-mod-enter';
 					queueMicrotask(() => {
 						runIfActive(() => {
 							options.onContentComponentActivate?.(activationRequest);
@@ -301,7 +312,10 @@ export function createMarkdownEditor(
 				const componentToolbarButtons = options.contentComponentToolbarButtons ?? [];
 				(editor.view.dom as HTMLElement).dataset.tentmanLastClickDetail = String(event.detail);
 
-				if (isMarkdownEditorContentComponentNode(node, componentToolbarButtons) && !isModifierClick(event)) {
+				if (
+					isMarkdownEditorContentComponentNode(node, componentToolbarButtons) &&
+					!isModifierClick(event)
+				) {
 					editor.commands.setNodeSelection(nodePos);
 					editor.view.focus();
 					return true;

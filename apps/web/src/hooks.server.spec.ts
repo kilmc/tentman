@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handle } from './hooks.server';
-import {
-	GITHUB_REPO_SESSION_COOKIE,
-	persistGitHubSession
-} from '$lib/server/auth/github';
+import { GITHUB_REPO_SESSION_COOKIE, persistGitHubSession } from '$lib/server/auth/github';
 import { SELECTED_BACKEND_COOKIE, SELECTED_LOCAL_REPO_COOKIE } from '$lib/repository/selection';
 
 function createCookies(initial: Record<string, string> = {}) {

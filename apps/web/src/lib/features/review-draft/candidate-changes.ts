@@ -22,9 +22,7 @@ export interface ReviewDraftCandidateChanges {
 	hiddenFiles: ReviewDraftChangedFile[];
 }
 
-function toChangedFileStatus(
-	status: string | undefined
-): ReviewDraftChangedFile['status'] {
+function toChangedFileStatus(status: string | undefined): ReviewDraftChangedFile['status'] {
 	switch (status) {
 		case 'added':
 		case 'modified':

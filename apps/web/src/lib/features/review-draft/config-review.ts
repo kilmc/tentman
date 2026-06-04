@@ -20,7 +20,10 @@ function uniqueChangeKinds(kinds: ReviewChangeKind[]): ReviewChangeKind[] {
 	return [...new Set(kinds)];
 }
 
-function buildSectionBadges(itemCards: ReviewItemCard[], hasStructuralChange: boolean): ReviewBadge[] {
+function buildSectionBadges(
+	itemCards: ReviewItemCard[],
+	hasStructuralChange: boolean
+): ReviewBadge[] {
 	const changeKinds = new Set(itemCards.flatMap((item) => item.changeKinds));
 	const badges: ReviewBadge[] = [];
 
@@ -47,10 +50,7 @@ function buildSectionBadges(itemCards: ReviewItemCard[], hasStructuralChange: bo
 	return badges;
 }
 
-function buildMergedCollectionOrder(
-	beforeIds: string[],
-	afterIds: string[]
-): string[] {
+function buildMergedCollectionOrder(beforeIds: string[], afterIds: string[]): string[] {
 	const merged = [...afterIds];
 	const afterIdSet = new Set(afterIds);
 	const deletedIds = beforeIds.filter((itemId) => !afterIdSet.has(itemId));
@@ -105,7 +105,9 @@ function buildSingletonItemCard(input: {
 
 	return {
 		itemId: '_singleton',
-		title: titleSource ? getContentItemTitle(input.config.config, titleSource) : input.config.config.label,
+		title: titleSource
+			? getContentItemTitle(input.config.config, titleSource)
+			: input.config.config.label,
 		href: getReviewConfigHref(input.config.slug, false),
 		changeKinds: uniqueChangeKinds([
 			...(input.beforeRecord && input.afterRecord ? ['edited' as const] : []),
@@ -167,10 +169,20 @@ export function buildConfigReviewSection(input: {
 		input.draftManifest.manifest,
 		input.draftRootConfig
 	);
-	const beforeItems = [...beforeOrdered.groups.flatMap((group) => group.items), ...beforeOrdered.items];
-	const afterItems = [...afterOrdered.groups.flatMap((group) => group.items), ...afterOrdered.items];
-	const beforeMap = new Map(beforeItems.map((item, index) => [item.itemId, { ...item, position: index + 1 }]));
-	const afterMap = new Map(afterItems.map((item, index) => [item.itemId, { ...item, position: index + 1 }]));
+	const beforeItems = [
+		...beforeOrdered.groups.flatMap((group) => group.items),
+		...beforeOrdered.items
+	];
+	const afterItems = [
+		...afterOrdered.groups.flatMap((group) => group.items),
+		...afterOrdered.items
+	];
+	const beforeMap = new Map(
+		beforeItems.map((item, index) => [item.itemId, { ...item, position: index + 1 }])
+	);
+	const afterMap = new Map(
+		afterItems.map((item, index) => [item.itemId, { ...item, position: index + 1 }])
+	);
 	const mergedOrder = buildMergedCollectionOrder(
 		beforeItems.map((item) => item.itemId),
 		afterItems.map((item) => item.itemId)
@@ -237,11 +249,11 @@ export function buildConfigReviewSection(input: {
 		return null;
 	}
 
-	const defaultExpanded =
-		input.singleConfigVisible || Boolean(collectionOrderChange);
+	const defaultExpanded = input.singleConfigVisible || Boolean(collectionOrderChange);
 	const finalItemCards = itemCards.map((item, index) => ({
 		...item,
-		defaultExpanded: defaultExpanded && itemCards.length === 1 ? true : index === 0 && itemCards.length === 1
+		defaultExpanded:
+			defaultExpanded && itemCards.length === 1 ? true : index === 0 && itemCards.length === 1
 	}));
 
 	return {
@@ -265,7 +277,9 @@ export function buildScopedCollectionItemsReviewSection(input: {
 }): ReviewSection | null {
 	const beforeContent = normalizeScopedCollectionIds(input.config, input.beforeContent);
 	const afterContent = normalizeScopedCollectionIds(input.config, input.afterContent);
-	const beforeMap = new Map(beforeContent.map((item) => [getScopedItemId(input.config, item), item]));
+	const beforeMap = new Map(
+		beforeContent.map((item) => [getScopedItemId(input.config, item), item])
+	);
 	const afterMap = new Map(afterContent.map((item) => [getScopedItemId(input.config, item), item]));
 	const itemIds = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].filter(
 		(itemId): itemId is string => Boolean(itemId)

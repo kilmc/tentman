@@ -11,10 +11,7 @@ import {
 	toJsonFileContent
 } from '$lib/features/content-management/transforms';
 import { resolveConfigPath } from '$lib/utils/validation';
-import {
-	isTentmanGroupBlock,
-	TENTMAN_GROUP_STORAGE_KEY
-} from '$lib/config/tentman-group';
+import { isTentmanGroupBlock, TENTMAN_GROUP_STORAGE_KEY } from '$lib/config/tentman-group';
 import { getCollectionGroups, isCollectionManualSortingEnabled } from './config';
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
 import { hasGeneratedTentmanId } from './stable-identity';
@@ -420,8 +417,13 @@ function parseNavigationManifestCollection(
 				);
 			}
 
-			if (group.value !== undefined && (typeof group.value !== 'string' || group.value.length === 0)) {
-				throw new Error(`${context}.groups[${index}].value must be a non-empty string when present`);
+			if (
+				group.value !== undefined &&
+				(typeof group.value !== 'string' || group.value.length === 0)
+			) {
+				throw new Error(
+					`${context}.groups[${index}].value must be a non-empty string when present`
+				);
 			}
 
 			return {
@@ -1545,14 +1547,13 @@ export async function syncCollectionItemGroupSelection(
 	const manifestState =
 		existingManifest === undefined ? await loadNavigationManifestState(backend, options) : null;
 	const baseManifest = existingManifest ?? manifestState?.manifest ?? null;
-	const manifestCollection =
-		cloneManifestCollection(
+	const manifestCollection = cloneManifestCollection(
 		getConfigManifestCollection(baseManifest, config) ?? {
 			items: []
 		}
 	) ?? {
-			items: []
-		};
+		items: []
+	};
 	const nextItems = manifestCollection.items.includes(itemId)
 		? [...manifestCollection.items]
 		: [...manifestCollection.items, itemId];

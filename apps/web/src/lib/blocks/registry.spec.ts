@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBlockRegistry, loadBlockRegistry, type LoadBlockRegistryOptions } from '$lib/blocks/registry';
+import {
+	createBlockRegistry,
+	loadBlockRegistry,
+	type LoadBlockRegistryOptions
+} from '$lib/blocks/registry';
 import { parseDiscoveredBlockConfig } from '$lib/config/discovery';
 import type { RepositoryBackend } from '$lib/repository/types';
 

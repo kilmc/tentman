@@ -103,9 +103,13 @@ test.describe('MarkdownField harness', () => {
 		const field = page.getByTestId('disabled-component-field');
 
 		await expect(
-			field.getByText('Markdown field contains content component "buy-button" that is not enabled on this field')
+			field.getByText(
+				'Markdown field contains content component "buy-button" that is not enabled on this field'
+			)
 		).toBeVisible();
-		await expect(field.getByTestId('disabled-component-field-validation-errors')).toContainText('[]');
+		await expect(field.getByTestId('disabled-component-field-validation-errors')).toContainText(
+			'[]'
+		);
 		await expect(field.getByTestId('disabled-component-field-save-state')).toContainText(
 			'save-allowed'
 		);
@@ -159,10 +163,7 @@ test.describe('MarkdownField harness', () => {
 		const editorSurface = editor.locator('.ProseMirror');
 
 		await field.getByText('Project gallery: City sketches').click();
-		await expect(editorSurface).toHaveAttribute(
-			'data-tentman-selection-kind',
-			/NodeSelection$/
-		);
+		await expect(editorSurface).toHaveAttribute('data-tentman-selection-kind', /NodeSelection$/);
 		await expect(editorSurface).toHaveAttribute(
 			'data-tentman-selected-node-type',
 			'contentComponentProjectGallery'
@@ -218,9 +219,9 @@ test.describe('MarkdownField harness', () => {
 		await expect(field.getByTestId('sibling-object-reference-field-markdown-value')).toContainText(
 			'::gallery-embed'
 		);
-		await expect(field.getByTestId('sibling-object-reference-field-validation-errors')).toContainText(
-			'[]'
-		);
+		await expect(
+			field.getByTestId('sibling-object-reference-field-validation-errors')
+		).toContainText('[]');
 		await expect(field.getByTestId('sibling-object-reference-field-save-state')).toContainText(
 			'save-allowed'
 		);
@@ -245,7 +246,9 @@ test.describe('MarkdownField harness', () => {
 		await expect(editor.getByText(/Invalid gallery-embed/i)).toHaveCount(0);
 	});
 
-	test('keeps rich editor content visible when switching to markdown and back', async ({ page }) => {
+	test('keeps rich editor content visible when switching to markdown and back', async ({
+		page
+	}) => {
 		await page.goto('/__test__/markdown-field');
 		const field = page.getByTestId('sibling-object-reference-field');
 
@@ -258,7 +261,9 @@ test.describe('MarkdownField harness', () => {
 		await expect(field.getByText('Gallery embed: Homepage gallery')).toBeVisible();
 	});
 
-	test('cmd-enter activates marker-only reference components like double click', async ({ page }) => {
+	test('cmd-enter activates marker-only reference components like double click', async ({
+		page
+	}) => {
 		await page.goto('/__test__/markdown-field');
 		const field = page.getByTestId('sibling-object-reference-field');
 
@@ -267,7 +272,9 @@ test.describe('MarkdownField harness', () => {
 		await expect(page.getByLabel('Gallery source field')).toBeFocused();
 	});
 
-	test('jumps marker-only reference components to their source field on click', async ({ page }) => {
+	test('jumps marker-only reference components to their source field on click', async ({
+		page
+	}) => {
 		await page.goto('/__test__/markdown-field');
 		const field = page.getByTestId('sibling-object-reference-field');
 		await field.getByText('Gallery embed: Homepage gallery').dblclick();
@@ -297,10 +304,7 @@ test.describe('MarkdownField harness', () => {
 		await page.getByTestId('reset-static-marker').click();
 		await marker.dblclick();
 
-		await expect(editorSurface).toHaveAttribute(
-			'data-tentman-selection-kind',
-			/NodeSelection$/
-		);
+		await expect(editorSurface).toHaveAttribute('data-tentman-selection-kind', /NodeSelection$/);
 		await expect(editorSurface).toHaveAttribute(
 			'data-tentman-selected-node-type',
 			'contentComponentStaticMarker'
@@ -325,14 +329,9 @@ test.describe('MarkdownField harness', () => {
 			const field = page.getByTestId('reference-edit-field');
 			const editorSurface = field.locator('.ProseMirror');
 
-			await field
-				.locator('[data-tentman-content-component-node="project-gallery"]')
-				.tap();
+			await field.locator('[data-tentman-content-component-node="project-gallery"]').tap();
 
-			await expect(editorSurface).toHaveAttribute(
-				'data-tentman-selection-kind',
-				/NodeSelection$/
-			);
+			await expect(editorSurface).toHaveAttribute('data-tentman-selection-kind', /NodeSelection$/);
 			await expect(editorSurface).toHaveAttribute(
 				'data-tentman-selected-node-type',
 				'contentComponentProjectGallery'
@@ -377,7 +376,7 @@ test.describe('MarkdownField harness', () => {
 		await field.getByRole('combobox').selectOption('twitter-cover');
 		await field.getByRole('button', { name: 'Save social card embed' }).click();
 
-		await expect(field.getByText('Social card: Twitter card cover')).toBeVisible();
+		await expect(field.getByText('Social card embed: Twitter card cover')).toBeVisible();
 		await expect(field.getByTestId('nested-object-reference-field-markdown-value')).toContainText(
 			'::social-card-embed{cardRef="twitter-cover"}'
 		);

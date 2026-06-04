@@ -17,7 +17,13 @@
 				--green: #008f68;
 				--red: #d81717;
 				font-family:
-					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+					Inter,
+					ui-sans-serif,
+					system-ui,
+					-apple-system,
+					BlinkMacSystemFont,
+					'Segoe UI',
+					sans-serif;
 			}
 
 			* {
@@ -72,7 +78,7 @@
 
 			.repo {
 				color: var(--muted);
-				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 				font-size: 0.8rem;
 			}
 
@@ -294,7 +300,7 @@
 
 			.item-meta {
 				color: var(--muted);
-				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 				font-size: 0.76rem;
 			}
 
@@ -308,7 +314,7 @@
 			}
 
 			.draft-note::before {
-				content: "";
+				content: '';
 				min-height: 100%;
 				background: var(--blue);
 				border-radius: 6px;
@@ -380,7 +386,7 @@
 
 			.file-path {
 				color: var(--muted);
-				font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+				font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 				font-size: 0.8rem;
 				overflow-wrap: anywhere;
 			}
@@ -503,21 +509,30 @@
 
 					<section class="card-grid" aria-label="Albums">
 						<a class="item" href="#">
-							<img src="https://picsum.photos/seed/tentman-ceremony/900/680" alt="Abstract album artwork" />
+							<img
+								src="https://picsum.photos/seed/tentman-ceremony/900/680"
+								alt="Abstract album artwork"
+							/>
 							<div>
 								<h2 class="item-title">The Old Ceremony</h2>
 								<p class="item-meta">albums/old-ceremony.md</p>
 							</div>
 						</a>
 						<a class="item" href="#">
-							<img src="https://picsum.photos/seed/tentman-signal/900/680" alt="Muted coastal photograph" />
+							<img
+								src="https://picsum.photos/seed/tentman-signal/900/680"
+								alt="Muted coastal photograph"
+							/>
 							<div>
 								<h2 class="item-title">Signal Fires</h2>
 								<p class="item-meta">albums/signal-fires.md</p>
 							</div>
 						</a>
 						<a class="item" href="#">
-							<img src="https://picsum.photos/seed/tentman-sister/900/680" alt="Building detail photograph" />
+							<img
+								src="https://picsum.photos/seed/tentman-sister/900/680"
+								alt="Building detail photograph"
+							/>
 							<div>
 								<h2 class="item-title">Sister Cities</h2>
 								<p class="item-meta">albums/sister-cities.md</p>
@@ -547,7 +562,9 @@
 								</div>
 								<div class="field">
 									<label for="notes">Notes <span>Markdown</span></label>
-									<textarea id="notes">A short note about the record, where it belongs, and what should be visible in the card view.</textarea>
+									<textarea id="notes">
+A short note about the record, where it belongs, and what should be visible in the card view.</textarea
+									>
 								</div>
 								<div class="form-actions">
 									<button class="button primary" type="button">Save changes</button>

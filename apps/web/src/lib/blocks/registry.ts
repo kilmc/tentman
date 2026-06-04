@@ -89,7 +89,11 @@ export function resolveBlockAdapterForUsage(
 export function getStructuredBlocksForUsage(
 	usage: BlockUsage,
 	registry: Pick<BlockRegistry, 'get'>
-): { blocks: BlockUsage[]; collection: boolean; editorLayout?: LocalBlockDefinition['config']['editorLayout'] } | null {
+): {
+	blocks: BlockUsage[];
+	collection: boolean;
+	editorLayout?: LocalBlockDefinition['config']['editorLayout'];
+} | null {
 	if (usage.type === 'block' && usage.blocks) {
 		return {
 			blocks: usage.blocks,
@@ -106,7 +110,7 @@ export function getStructuredBlocksForUsage(
 	return {
 		blocks: entry.config.blocks,
 		collection:
-			typeof usage.collection === 'boolean' ? usage.collection : entry.config.collection ?? false,
+			typeof usage.collection === 'boolean' ? usage.collection : (entry.config.collection ?? false),
 		...(entry.config.editorLayout ? { editorLayout: entry.config.editorLayout } : {})
 	};
 }

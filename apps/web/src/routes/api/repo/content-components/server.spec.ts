@@ -101,7 +101,12 @@ describe('GET /api/repo/content-components', () => {
 			draftBranch: 'tentman-preview'
 		});
 
-		await GET(createRequest('src/lib/content-components/project-gallery-embed/component.json', 'read') as never);
+		await GET(
+			createRequest(
+				'src/lib/content-components/project-gallery-embed/component.json',
+				'read'
+			) as never
+		);
 
 		expect(pageContextMocks.requireGitHubContentRepository).toHaveBeenCalled();
 		expect(pageContextMocks.readTextFile).toHaveBeenCalledWith(

@@ -27,8 +27,7 @@
 		navigationManifest,
 		width,
 		onaddselectoption
-	}: Props =
-		$props();
+	}: Props = $props();
 
 	let formGenerator = $state<FormGenerator | null>(null);
 	let preparedData = $state('');

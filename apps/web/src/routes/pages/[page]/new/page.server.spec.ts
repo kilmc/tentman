@@ -100,13 +100,15 @@ describe('routes/pages/[page]/new/+page.server', () => {
 	});
 
 	it('returns a validation error when a new filename escapes the managed directory', async () => {
-		vi.mocked(createContentDocument).mockImplementation(async (_backend, _config, _path, _data, options) => {
-			if (options?.filename === '../outside') {
-				throw new InvalidDirectoryFilenameError(
-					'Filename cannot include path separators. Use a single file name only.'
-				);
+		vi.mocked(createContentDocument).mockImplementation(
+			async (_backend, _config, _path, _data, options) => {
+				if (options?.filename === '../outside') {
+					throw new InvalidDirectoryFilenameError(
+						'Filename cannot include path separators. Use a single file name only.'
+					);
+				}
 			}
-		});
+		);
 
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {

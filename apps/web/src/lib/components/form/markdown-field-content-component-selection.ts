@@ -95,7 +95,8 @@ function findReferenceTargetPath(options: {
 		}
 
 		const structuredBlocks =
-			getStructuredBlocksForUsage(block, options.formContentContext.getBlockRegistry())?.blocks ?? null;
+			getStructuredBlocksForUsage(block, options.formContentContext.getBlockRegistry())?.blocks ??
+			null;
 		if (!structuredBlocks) {
 			continue;
 		}
@@ -163,7 +164,9 @@ export function getMarkdownFieldContentComponentReferenceTarget(options: {
 		return null;
 	}
 
-	const bindingIndex = referenceState.referenceIndex.get(options.item.contentComponent.reference.binding);
+	const bindingIndex = referenceState.referenceIndex.get(
+		options.item.contentComponent.reference.binding
+	);
 	if (!bindingIndex || bindingIndex.size === 0) {
 		return null;
 	}
@@ -215,8 +218,7 @@ export function getMarkdownFieldContentComponentState(options: {
 		options.href ??
 		(typeof options.node.nodeAttributes.href === 'string' ? options.node.nodeAttributes.href : '');
 	const broken =
-		options.broken ??
-		String(options.node.nodeAttributes[BROKEN_ATTRIBUTE_NAME] ?? '') === 'true';
+		options.broken ?? String(options.node.nodeAttributes[BROKEN_ATTRIBUTE_NAME] ?? '') === 'true';
 	const canEdit = Boolean(item.contentComponent?.hasEditableFields);
 	const referenceTarget = getMarkdownFieldContentComponentReferenceTarget({
 		item,

@@ -58,7 +58,11 @@ describe('draft-publishing/service', () => {
 
 	it('returns undefined when no Tentman draft branch exists', async () => {
 		await expect(
-			getTentmanDraftBranchName(createOctokit(['feature/editor', 'preview-marketing']), 'acme', 'docs')
+			getTentmanDraftBranchName(
+				createOctokit(['feature/editor', 'preview-marketing']),
+				'acme',
+				'docs'
+			)
 		).resolves.toBeUndefined();
 	});
 
@@ -103,9 +107,7 @@ describe('draft-publishing/service', () => {
 	});
 
 	it('creates the canonical draft branch when none exists yet', async () => {
-		await expect(
-			ensureDraftBranch(createOctokit([]), 'acme', 'docs', 'trunk')
-		).resolves.toEqual({
+		await expect(ensureDraftBranch(createOctokit([]), 'acme', 'docs', 'trunk')).resolves.toEqual({
 			branchName: TENTMAN_DRAFT_BRANCH,
 			created: true
 		});

@@ -42,7 +42,10 @@ import { actions } from './+page.server';
 import { createContentDocument, saveContentDocument } from '$lib/content/service';
 import { InvalidDirectoryFilenameError } from '$lib/features/content-management/transforms';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
-import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
+import {
+	invalidateRepositoryData,
+	resolveCollectionItemDocument
+} from '$lib/server/repository-data';
 import { getCachedContent, invalidateContent } from '$lib/stores/content-cache';
 
 const collectionConfig = {
@@ -78,9 +81,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	});
 
 	it('saves item draft changes and returns to the editor with a saved flag', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
@@ -123,9 +128,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	});
 
 	it('saves an existing item using the repository-data resolver filename when the form omits it', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
@@ -198,9 +205,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	});
 
 	it('falls back to full content when saving an existing item and repository-data cannot resolve it', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'local:docs',
@@ -270,9 +279,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	});
 
 	it('publishes item draft changes directly from the preview screen', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
@@ -324,9 +335,11 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	});
 
 	it('publishes newly created collection items and returns to the collection view', async () => {
-		vi.mocked(createContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'created');
-		});
+		vi.mocked(createContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'created');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
@@ -379,13 +392,15 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	});
 
 	it('returns a validation error when a rename targets a path outside the managed directory', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (_backend, _config, _path, _data, options) => {
-			if (options?.newFilename === '../outside') {
-				throw new InvalidDirectoryFilenameError(
-					'Filename cannot include path separators. Use a single file name only.'
-				);
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (_backend, _config, _path, _data, options) => {
+				if (options?.newFilename === '../outside') {
+					throw new InvalidDirectoryFilenameError(
+						'Filename cannot include path separators. Use a single file name only.'
+					);
+				}
 			}
-		});
+		);
 
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {

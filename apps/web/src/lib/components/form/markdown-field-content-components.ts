@@ -1,5 +1,8 @@
 import { createMarkdownContentComponentArtifacts } from '$lib/content-components/markdown';
-import { filterContentComponentRegistry, type ContentComponentRegistry } from '$lib/content-components/registry';
+import {
+	filterContentComponentRegistry,
+	type ContentComponentRegistry
+} from '$lib/content-components/registry';
 import { dedupeMarkdownFieldToolbarButtons } from '$lib/components/form/markdown-field-ui';
 import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
 

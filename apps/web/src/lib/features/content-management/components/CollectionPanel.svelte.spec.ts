@@ -35,7 +35,9 @@ describe('CollectionPanel customize mode', () => {
 			slug: 'events',
 			label: 'Events',
 			itemLabel: 'Event',
-			items: [{ itemId: 'event-1', title: 'Apr 3, 2026', sortDate: new Date('2026-04-03').getTime() }],
+			items: [
+				{ itemId: 'event-1', title: 'Apr 3, 2026', sortDate: new Date('2026-04-03').getTime() }
+			],
 			groups: []
 		});
 

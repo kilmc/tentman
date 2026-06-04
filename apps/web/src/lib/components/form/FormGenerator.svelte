@@ -329,7 +329,7 @@
 			{onaddselectoption}
 			editorLayout={config.editorLayout}
 			showValidationErrors={showErrors}
-			getFieldError={getFieldError}
+			{getFieldError}
 			onchange={handleFieldChange}
 			onvalidationchange={handleFieldValidationChange}
 		/>

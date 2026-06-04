@@ -41,10 +41,7 @@ function getDefaultVisibility(): Required<StateVisibility> {
 	};
 }
 
-function getResolvedCases(
-	stateConfig: StateConfig,
-	rootConfig?: RootConfig | null
-): StateCase[] {
+function getResolvedCases(stateConfig: StateConfig, rootConfig?: RootConfig | null): StateCase[] {
 	const presetCases =
 		stateConfig.preset && rootConfig?.statePresets?.[stateConfig.preset]
 			? rootConfig.statePresets[stateConfig.preset].cases

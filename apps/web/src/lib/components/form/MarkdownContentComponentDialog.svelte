@@ -32,9 +32,9 @@
 	$effect(() => {
 		void tick().then(() => {
 			form
-				?.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
-					'input, select, textarea'
-				)
+				?.querySelector<
+					HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+				>('input, select, textarea')
 				?.focus();
 		});
 	});
@@ -115,9 +115,7 @@
 
 			{#if serializedValue}
 				<div class="mt-4 rounded-md border border-stone-200 bg-stone-50 px-3 py-3">
-					<p class="text-xs font-medium tracking-wide text-stone-500 uppercase">
-						Markdown marker
-					</p>
+					<p class="text-xs font-medium tracking-wide text-stone-500 uppercase">Markdown marker</p>
 					<code class="mt-2 block whitespace-pre-wrap break-all font-mono text-xs text-stone-900">
 						{serializedValue}
 					</code>
@@ -125,7 +123,10 @@
 			{/if}
 
 			{#if validationError}
-				<div class="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+				<div
+					class="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+					role="alert"
+				>
 					{validationError}
 				</div>
 			{/if}

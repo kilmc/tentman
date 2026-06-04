@@ -267,10 +267,7 @@
 		}
 	}
 
-	async function loadLocalItem(
-		pageSlug: string,
-		itemId: string
-	) {
+	async function loadLocalItem(pageSlug: string, itemId: string) {
 		const requestId = ++localLoadRequest;
 
 		discoveredConfig = null;
@@ -531,8 +528,10 @@
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
 			clearRecoveryDraft();
 			await localContent.refresh({ force: true });
-			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			await goto(resolve(`/pages/${discoveredConfig.slug}/${data.itemId}/edit`) + '?published=true');
+
+			await goto(
+				resolve(`/pages/${discoveredConfig.slug}/${data.itemId}/edit`) + '?published=true'
+			);
 		} catch (error) {
 			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save changes';
@@ -563,7 +562,7 @@
 					: { itemId: data.itemId }
 			);
 			await localContent.refresh({ force: true });
-			// eslint-disable-next-line svelte/no-navigation-without-resolve
+
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?deleted=true`);
 		} catch (error) {
 			localError = error instanceof Error ? error.message : 'Failed to delete item';
@@ -604,7 +603,9 @@
 						</span>
 					{/if}
 					{#if showSaveStatus}
-						<span class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${saveStatusMeta.className}`}>
+						<span
+							class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${saveStatusMeta.className}`}
+						>
 							{saveStatusMeta.label}
 						</span>
 					{/if}
@@ -673,11 +674,7 @@
 				with the recovered draft only if you want to review and re-save those older unsaved edits.
 			</p>
 			<div class="mt-3 flex flex-col gap-2 sm:flex-row">
-				<button
-					type="button"
-					onclick={recoverStaleDraft}
-					class="tm-btn tm-btn-primary"
-				>
+				<button type="button" onclick={recoverStaleDraft} class="tm-btn tm-btn-primary">
 					Replace with recovery
 				</button>
 				<button type="button" onclick={clearRecoveryDraft} class="tm-btn tm-btn-secondary">
@@ -828,10 +825,7 @@
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
-				<a
-					href={resolve(`/pages/${data.pageSlug}/${data.itemId}`)}
-					class="tm-btn tm-btn-secondary"
-				>
+				<a href={resolve(`/pages/${data.pageSlug}/${data.itemId}`)} class="tm-btn tm-btn-secondary">
 					Cancel
 				</a>
 			</PageStickyFooter>

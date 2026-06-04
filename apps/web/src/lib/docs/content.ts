@@ -351,7 +351,8 @@ const blockUsageRows = fiveColumnRows([
 		field: 'isItemLabel',
 		required: 'No',
 		type: 'boolean',
-		purpose: 'Marks one text or date field as the human-facing label source for its local item-like schema unit.',
+		purpose:
+			'Marks one text or date field as the human-facing label source for its local item-like schema unit.',
 		notes:
 			'V1 applies only to collections, repeatable structured items, and reusable repeatable block configs. Singleton pages are out of scope.'
 	},
@@ -903,7 +904,6 @@ const contentComponentConfigExample = `{
 const contentComponentRenderExample = `<a class="buy-button buy-button--{{ variant }}" href="{{ href }}">
   {{ label }}
 </a>`;
-
 
 const contentComponentMdsvexExample = `import adapter from '@sveltejs/adapter-auto';
 import { mdsvex } from 'mdsvex';
@@ -2264,11 +2264,11 @@ const docsPages: DocsPage[] = [
 						html: `<ul class="list-disc space-y-2 pl-5">
 <li>Each entry in ${inlineCode('blockPackage.blocks')} is a definition object, not a raw block config.</li>
 <li>The definition must include ${inlineCode('config')}, and that config must parse as ${inlineCode(
-	'type: "block"'
-)}.</li>
+							'type: "block"'
+						)}.</li>
 <li>An optional ${inlineCode('adapter')} export may sit next to ${inlineCode(
-	'config'
-)}, and its ${inlineCode('type')} must match the block id.</li>
+							'config'
+						)}, and its ${inlineCode('type')} must match the block id.</li>
 </ul>`
 					}
 				]

@@ -368,7 +368,8 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 
 		await expectElement(screen.getByText('Local recovery available')).toBeVisible();
 		await screen.getByRole('button', { name: 'Recover changes' }).click();
-		await expectElement(screen.getByTestId('mock-form-data'))
-			.toHaveTextContent('Recovered hello world');
+		await expectElement(screen.getByTestId('mock-form-data')).toHaveTextContent(
+			'Recovered hello world'
+		);
 	});
 });

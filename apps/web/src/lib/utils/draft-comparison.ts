@@ -369,8 +369,13 @@ function buildCheapDraftComparison(
 		};
 	}
 
-	const target = getDirectoryContentTarget(config as DirectoryBackedParsedContentConfig, configPath);
-	const relevantFiles = changedFiles.filter((file) => isRelevantDirectoryContentChange(file, target));
+	const target = getDirectoryContentTarget(
+		config as DirectoryBackedParsedContentConfig,
+		configPath
+	);
+	const relevantFiles = changedFiles.filter((file) =>
+		isRelevantDirectoryContentChange(file, target)
+	);
 
 	if (relevantFiles.length === 0) {
 		return {

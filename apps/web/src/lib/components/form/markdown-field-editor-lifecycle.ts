@@ -1,4 +1,7 @@
-import { createMarkdownEditor, type MarkdownEditorController } from '$lib/features/markdown-editor/create-editor';
+import {
+	createMarkdownEditor,
+	type MarkdownEditorController
+} from '$lib/features/markdown-editor/create-editor';
 import type { MarkdownEditorContentComponentActivationRequest } from '$lib/features/markdown-editor/content-component-interactions';
 import { loadMarkdownFieldContentComponentState } from '$lib/components/form/markdown-field-content-components';
 import type { ContentComponentRegistry } from '$lib/content-components/registry';

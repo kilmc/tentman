@@ -41,12 +41,14 @@ function getChangedFilename(file: ChangedPathFile): string | null {
 }
 
 function isSimpleDirectoryChange(status: string): status is DirectoryChangeStatus {
-	return status === 'added' || status === 'modified' || status === 'changed' || status === 'removed';
+	return (
+		status === 'added' || status === 'modified' || status === 'changed' || status === 'removed'
+	);
 }
 
 function getDirectoryChangePath(file: ChangedPathFile): string | null {
 	const paths = getChangedFilePaths(file);
-	return paths.length === 1 ? paths[0] ?? null : null;
+	return paths.length === 1 ? (paths[0] ?? null) : null;
 }
 
 async function readDirectoryItem(input: {
@@ -71,7 +73,9 @@ export async function getChangedDirectoryReviewDocuments(
 	}
 
 	const target = getDirectoryContentTarget(input.config, input.configPath);
-	const relevantFiles = input.files.filter((file) => isRelevantDirectoryContentChange(file, target));
+	const relevantFiles = input.files.filter((file) =>
+		isRelevantDirectoryContentChange(file, target)
+	);
 	if (relevantFiles.length === 0) {
 		return {
 			beforeContent: [],
@@ -79,8 +83,7 @@ export async function getChangedDirectoryReviewDocuments(
 		};
 	}
 
-	const isMarkdown =
-		target.templateExtension === '.md' || target.templateExtension === '.markdown';
+	const isMarkdown = target.templateExtension === '.md' || target.templateExtension === '.markdown';
 	const beforeReads: Array<Promise<ContentRecord>> = [];
 	const afterReads: Array<Promise<ContentRecord>> = [];
 

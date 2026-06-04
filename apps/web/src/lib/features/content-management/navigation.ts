@@ -20,7 +20,10 @@ import type {
 } from '$lib/features/content-management/navigation-manifest';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 
-export { getConfigItemLabel, resolveContentItemTitle } from '$lib/features/content-management/item-labels';
+export {
+	getConfigItemLabel,
+	resolveContentItemTitle
+} from '$lib/features/content-management/item-labels';
 
 export interface CollectionNavigationItem {
 	itemId: string;

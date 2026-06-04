@@ -11,12 +11,11 @@
 	class="overflow-y-auto border-b border-stone-200 bg-white/95 px-4 py-5 backdrop-blur xl:sticky xl:top-4 xl:h-[calc(100dvh-2rem)] xl:rounded-3xl xl:border xl:border-stone-200 xl:px-5 xl:py-6 xl:shadow-[0_1px_0_rgba(28,25,23,0.03),0_18px_50px_rgba(28,25,23,0.06)]"
 >
 	<div class="mb-6 border-b border-stone-200 pb-4">
-		<p class="text-[11px] font-semibold tracking-[0.18em] text-stone-500 uppercase">
-			Tentman docs
-		</p>
+		<p class="text-[11px] font-semibold tracking-[0.18em] text-stone-500 uppercase">Tentman docs</p>
 		<h2 class="mt-2 text-lg font-semibold tracking-tight text-stone-950">Reference and guides</h2>
 		<p class="mt-2 text-sm leading-6 text-stone-600">
-			Step through the guides first, then drop into exact config and type pages when you need detail.
+			Step through the guides first, then drop into exact config and type pages when you need
+			detail.
 		</p>
 	</div>
 

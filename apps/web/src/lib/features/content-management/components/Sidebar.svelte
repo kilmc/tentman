@@ -81,8 +81,7 @@
 
 	function getConfigLinkLabel(config: DiscoveredConfig) {
 		const state = configStatesBySlug[config.slug];
-		const stateLabel =
-			state && state.visibility.navigation !== false ? `, ${state.label}` : '';
+		const stateLabel = state && state.visibility.navigation !== false ? `, ${state.label}` : '';
 		const issueLabel =
 			(config.issues?.length ?? 0) > 0
 				? `, ${config.issues?.length} config warning${config.issues?.length === 1 ? '' : 's'}`

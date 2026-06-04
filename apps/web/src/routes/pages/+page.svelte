@@ -8,7 +8,9 @@
 	const hasChanges = $derived(data.summary.changedPages.length > 0);
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const localDiscoveryError = $derived(isLocalMode ? $localContent.error : null);
-	const hasConfigs = $derived(isLocalMode ? $localContent.configs.length > 0 : data.summary.hasConfigs);
+	const hasConfigs = $derived(
+		isLocalMode ? $localContent.configs.length > 0 : data.summary.hasConfigs
+	);
 	const canAddPage = $derived(
 		isLocalMode ? $localContent.instructionDiscovery.instructions.length > 0 : data.canAddPage
 	);
@@ -31,12 +33,9 @@
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">New work</p>
-					<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">
-						Add a page
-					</h2>
+					<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">Add a page</h2>
 					<p class="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-						Create a new page with a guided setup flow, then confirm it before anything is
-						saved.
+						Create a new page with a guided setup flow, then confirm it before anything is saved.
 					</p>
 				</div>
 
@@ -107,12 +106,10 @@
 			class="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-10 text-center"
 		>
 			<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">Current state</p>
-			<h2 class="mt-3 text-2xl font-bold tracking-[-0.04em] text-stone-950">
-				No changes detected
-			</h2>
+			<h2 class="mt-3 text-2xl font-bold tracking-[-0.04em] text-stone-950">No changes detected</h2>
 			<p class="mt-3 text-sm leading-6 text-stone-600">
-				When Tentman can see saved draft changes, this page will list the affected sections of
-				the site.
+				When Tentman can see saved draft changes, this page will list the affected sections of the
+				site.
 			</p>
 		</section>
 	{/if}

@@ -278,7 +278,9 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 				}
 
 				if (mutation.action === 'add-collection-group') {
-					const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
+					const collectionConfig = nextConfigs.find(
+						(config) => config.slug === mutation.collection
+					);
 					if (!collectionConfig) {
 						throw error(404, 'Collection config not found');
 					}
@@ -316,7 +318,9 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 				}
 
 				if (mutation.action === 'save-collection-order') {
-					const collectionConfig = nextConfigs.find((config) => config.slug === mutation.collection);
+					const collectionConfig = nextConfigs.find(
+						(config) => config.slug === mutation.collection
+					);
 					if (!collectionConfig) {
 						throw error(404, 'Collection config not found');
 					}

@@ -85,7 +85,10 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 		});
 
 		for (const config of missingConfigs) {
-			await backend.writeTextFile(config.path, JSON.stringify({ ...config.config, _tentmanId: config.slug }));
+			await backend.writeTextFile(
+				config.path,
+				JSON.stringify({ ...config.config, _tentmanId: config.slug })
+			);
 		}
 
 		return missingConfigs.map((config: { path: string; slug: string }) => ({

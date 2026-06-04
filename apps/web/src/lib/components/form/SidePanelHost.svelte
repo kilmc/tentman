@@ -90,11 +90,11 @@
 					</div>
 				</div>
 				<div class="flex items-center gap-2">
-						{#if canRemove}
-							<details bind:this={actionMenu} class="relative">
-								<summary class="tm-icon-btn list-none" aria-label={`${panel.title} editor actions`}>
-									<MoreHorizontal class="h-4 w-4" />
-								</summary>
+					{#if canRemove}
+						<details bind:this={actionMenu} class="relative">
+							<summary class="tm-icon-btn list-none" aria-label={`${panel.title} editor actions`}>
+								<MoreHorizontal class="h-4 w-4" />
+							</summary>
 							<div
 								class="absolute top-full right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
 							>

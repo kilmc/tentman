@@ -147,11 +147,11 @@
 		{inlineToggleButtons}
 		{actionButtons}
 		{componentToolbarButtons}
-		istoolbaritemactive={istoolbaritemactive}
-		onapplystructurevalue={onapplystructurevalue}
-		onapplylistvalue={onapplylistvalue}
-		onhandleinlineformatchange={onhandleinlineformatchange}
-		onactivatetoolbaritem={onactivatetoolbaritem}
+		{istoolbaritemactive}
+		{onapplystructurevalue}
+		{onapplylistvalue}
+		{onhandleinlineformatchange}
+		{onactivatetoolbaritem}
 	/>
 
 	<input
@@ -195,18 +195,18 @@
 		open={contextualPopoverOpen}
 		anchor={contextualPopoverAnchor}
 		popover={contextualPopover}
-		linkMode={linkMode}
-		linkValue={linkValue}
+		{linkMode}
+		{linkValue}
 		{componentJumpLabel}
 		onopenchange={oncontextualpopoveropenchange}
-		onlinkvaluechange={onlinkvaluechange}
-		onstartlinkedit={onstartlinkedit}
-		onsubmitlinkedit={onsubmitlinkedit}
-		oncancellinkedit={oncancellinkedit}
-		onedittarget={onedittarget}
-		onjumptarget={onjumptarget}
-		onopencurrenthref={onopencurrenthref}
-		onremovecurrentlink={onremovecurrentlink}
+		{onlinkvaluechange}
+		{onstartlinkedit}
+		{onsubmitlinkedit}
+		{oncancellinkedit}
+		{onedittarget}
+		{onjumptarget}
+		{onopencurrenthref}
+		{onremovecurrentlink}
 	/>
 {/if}
 

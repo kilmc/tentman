@@ -67,12 +67,8 @@ const baseData = {
 									before: 'About',
 									after: 'About us',
 									diffMode: 'inline',
-									beforeSegments: [
-										{ value: 'About', status: 'removed' as const }
-									],
-									afterSegments: [
-										{ value: 'About us', status: 'added' as const }
-									],
+									beforeSegments: [{ value: 'About', status: 'removed' as const }],
+									afterSegments: [{ value: 'About us', status: 'added' as const }],
 									isLong: false
 								}
 							}
@@ -125,7 +121,9 @@ describe('review draft publish page', () => {
 
 		await screen.getByRole('button', { name: 'Expand Posts' }).click();
 		await screen.getByRole('button', { name: 'Expand Hello world' }).click();
-		await expectElement(screen.getByText('This change only affects placement in the final order.')).toBeVisible();
+		await expectElement(
+			screen.getByText('This change only affects placement in the final order.')
+		).toBeVisible();
 		await expectElement(screen.getByText('About page')).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Collapse all' }).click();
@@ -133,7 +131,9 @@ describe('review draft publish page', () => {
 
 		await screen.getByRole('button', { name: 'Expand all' }).click();
 		await expectElement(screen.getByText('About page')).toBeVisible();
-		await expectElement(screen.getByText('This change only affects placement in the final order.')).toBeVisible();
+		await expectElement(
+			screen.getByText('This change only affects placement in the final order.')
+		).toBeVisible();
 	});
 
 	it('keeps other site changes collapsed by default and leaves publish available', async () => {

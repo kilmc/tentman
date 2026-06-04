@@ -68,7 +68,9 @@
 	});
 
 	const panelId = $derived(fieldPath ? `object:${fieldPath}` : `object:${label}`);
-	const isPanelOpen = $derived($activeSidePanel?.id === panelId && $activeSidePanel.kind === 'object');
+	const isPanelOpen = $derived(
+		$activeSidePanel?.id === panelId && $activeSidePanel.kind === 'object'
+	);
 
 	function createPanel(): OpenObjectPanelInput | null {
 		if (!sidePanel.session || !fieldPath) {

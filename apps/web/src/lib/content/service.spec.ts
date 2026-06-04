@@ -220,8 +220,7 @@ describe('content/service', () => {
 
 	it('fetches and saves markdown file-mode singleton content through the service', async () => {
 		const backend = new MemoryRepositoryBackend({
-			'content/about.md':
-				'---\ntitle: Before\npublished: false\n---\n## Hello\n\nBefore body'
+			'content/about.md': '---\ntitle: Before\npublished: false\n---\n## Hello\n\nBefore body'
 		});
 
 		const fetched = await fetchContentDocument(
@@ -284,16 +283,11 @@ describe('content/service', () => {
 			'---\ntitle: First draft\npublished: false\n---\nHello world'
 		);
 
-		await saveContentDocument(
-			backend,
-			markdownSingletonConfig,
-			'content/about.tentman.json',
-			{
-				title: 'First draft',
-				published: false,
-				body: 'Hello world'
-			}
-		);
+		await saveContentDocument(backend, markdownSingletonConfig, 'content/about.tentman.json', {
+			title: 'First draft',
+			published: false,
+			body: 'Hello world'
+		});
 
 		expect(backend.files.get('content/about.md')).toBe(
 			'---\ntitle: First draft\npublished: false\n---\nHello world'
@@ -493,12 +487,10 @@ describe('content/service', () => {
 		);
 
 		await expect(
-			createContentDocument(
-				backend,
-				templatedDirectoryConfig,
-				'content/posts.tentman.json',
-				{ slug: 'nested/post', title: 'Bad Path' }
-			)
+			createContentDocument(backend, templatedDirectoryConfig, 'content/posts.tentman.json', {
+				slug: 'nested/post',
+				title: 'Bad Path'
+			})
 		).rejects.toThrow('Filename cannot include path separators.');
 	});
 

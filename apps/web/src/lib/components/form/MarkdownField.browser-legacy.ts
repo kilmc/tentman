@@ -230,19 +230,24 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
-		await expectElement(screen.getByRole('img', { name: 'Hero' }))
-			.toHaveAttribute('src', 'blob:hero');
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'blob:hero'
+		);
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 
-		await expectElement(screen.getByLabelText('Body'))
-			.toHaveValue('# Hello world\n\n![Hero](draft-asset:hero)');
+		await expectElement(screen.getByLabelText('Body')).toHaveValue(
+			'# Hello world\n\n![Hero](draft-asset:hero)'
+		);
 
 		await screen.getByRole('button', { name: 'Rich' }).click();
 
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
-		await expectElement(screen.getByRole('img', { name: 'Hero' }))
-			.toHaveAttribute('src', 'blob:hero');
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'blob:hero'
+		);
 	});
 
 	it('stages inline images from the toolbar, updates markdown, and cleans up removed refs', async () => {
@@ -321,8 +326,10 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await screen.getByRole('button', { name: 'Bold' }).click();
 
-		await expectElement(screen.getByRole('button', { name: 'Bold' }))
-			.toHaveAttribute('aria-pressed', 'true');
+		await expectElement(screen.getByRole('button', { name: 'Bold' })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 		await expectElement(screen.getByLabelText('Body')).toHaveValue('**Hello world**');
@@ -337,16 +344,18 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByText('Example').click();
-		await expectElement(screen.getByRole('textbox', { name: 'URL' }))
-			.toHaveValue('https://example.com/old');
+		await expectElement(screen.getByRole('textbox', { name: 'URL' })).toHaveValue(
+			'https://example.com/old'
+		);
 
 		await screen.getByRole('textbox', { name: 'URL' }).fill('https://example.com/new');
 		await screen.getByRole('button', { name: 'Save link' }).click();
 		await expect.poll(() => document.querySelector('[aria-label="Link actions"]')).toBeNull();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 
-		await expectElement(screen.getByLabelText('Body'))
-			.toHaveValue('[Example](https://example.com/new)');
+		await expectElement(screen.getByLabelText('Body')).toHaveValue(
+			'[Example](https://example.com/new)'
+		);
 		expect(promptSpy).not.toHaveBeenCalled();
 	});
 
@@ -373,8 +382,9 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expect.poll(() => document.querySelector('[aria-label="Link actions"]')).toBeNull();
 
 		await screen.getByRole('button', { name: 'Link' }).click();
-		await expectElement(screen.getByRole('textbox', { name: 'URL' }))
-			.toHaveValue('https://example.com/old');
+		await expectElement(screen.getByRole('textbox', { name: 'URL' })).toHaveValue(
+			'https://example.com/old'
+		);
 	});
 
 	it('opens native links on modifier click', async () => {
@@ -404,18 +414,12 @@ describe('components/form/MarkdownField.svelte', () => {
 		await expectElement(screen.getByText('Insert Buy Button')).toBeVisible();
 		await screen.getByLabelText('URL *').fill('https://example.com/buy');
 		await expectElement(
-				screen.getByText(
-					':buy-button[Buy online]{href="https://example.com/buy" variant="default"}'
-				)
-			)
-			.toBeVisible();
+			screen.getByText(':buy-button[Buy online]{href="https://example.com/buy" variant="default"}')
+		).toBeVisible();
 		await screen.getByLabelText('Label *').fill('Buy tickets');
 		await expectElement(
-				screen.getByText(
-					':buy-button[Buy tickets]{href="https://example.com/buy" variant="default"}'
-				)
-			)
-			.toBeVisible();
+			screen.getByText(':buy-button[Buy tickets]{href="https://example.com/buy" variant="default"}')
+		).toBeVisible();
 
 		const variantSelect = document.querySelector('select');
 		if (!(variantSelect instanceof HTMLSelectElement)) {
@@ -424,18 +428,18 @@ describe('components/form/MarkdownField.svelte', () => {
 		variantSelect.value = 'secondary';
 		variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
 		await expectElement(
-				screen.getByText(
-					':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}'
-				)
+			screen.getByText(
+				':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}'
 			)
-			.toBeVisible();
+		).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Save buy button' }).click();
 		await expectElement(screen.getByText('Buy button: Buy tickets')).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expectElement(screen.getByLabelText('Body'))
-			.toHaveValue(':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}');
+		await expectElement(screen.getByLabelText('Body')).toHaveValue(
+			':buy-button[Buy tickets]{href="https://example.com/buy" variant="secondary"}'
+		);
 	});
 
 	it('shows live validation state for content component dialogs before submit', async () => {
@@ -508,8 +512,9 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await expectElement(screen.getByText('Buy button: New label')).toBeVisible();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expectElement(screen.getByLabelText('Body'))
-			.toHaveValue(':buy-button[New label]{href="https://example.com/new" variant="default"}');
+		await expectElement(screen.getByLabelText('Body')).toHaveValue(
+			':buy-button[New label]{href="https://example.com/new" variant="default"}'
+		);
 	});
 
 	it('keeps incomplete component markers visible and reopens them with recovered values', async () => {
@@ -540,8 +545,9 @@ describe('components/form/MarkdownField.svelte', () => {
 
 		await expectElement(screen.getByText('Buy button: Old label')).toBeVisible();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
-		await expectElement(screen.getByLabelText('Body'))
-			.toHaveValue(':buy-button[Old label]{href="https://example.com/old" variant="secondary"}');
+		await expectElement(screen.getByLabelText('Body')).toHaveValue(
+			':buy-button[Old label]{href="https://example.com/old" variant="secondary"}'
+		);
 	});
 
 	it('re-renders content component chips after edits and opens the editor from the popover', async () => {
@@ -771,8 +777,9 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Prepare submit' }).click();
-		await expectElement(screen.getByTestId('submit-error'))
-			.toHaveTextContent(/could not resolve token "missing-gallery"/);
+		await expectElement(screen.getByTestId('submit-error')).toHaveTextContent(
+			/could not resolve token "missing-gallery"/
+		);
 		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent('');
 	});
 
@@ -804,8 +811,9 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Prepare submit' }).click();
-		await expectElement(screen.getByTestId('submit-error'))
-			.toHaveTextContent(/could not parse directive attributes/i);
+		await expectElement(screen.getByTestId('submit-error')).toHaveTextContent(
+			/could not parse directive attributes/i
+		);
 		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent('');
 	});
 });

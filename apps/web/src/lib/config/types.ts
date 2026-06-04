@@ -71,8 +71,10 @@ export interface PrimitiveBlockUsage extends BaseBlockUsage {
 	content?: never;
 }
 
-export interface TentmanGroupBlockUsage
-	extends Omit<BaseBlockUsage, 'id' | 'type' | 'options' | 'collection'> {
+export interface TentmanGroupBlockUsage extends Omit<
+	BaseBlockUsage,
+	'id' | 'type' | 'options' | 'collection'
+> {
 	id: 'tentmanGroup';
 	type: 'tentmanGroup';
 	collection: string;

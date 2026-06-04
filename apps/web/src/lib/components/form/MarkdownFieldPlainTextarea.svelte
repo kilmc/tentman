@@ -9,15 +9,8 @@
 		oninputchange: (event: Event) => void;
 	}
 
-	let {
-		textareaId,
-		value,
-		placeholder,
-		required,
-		rows,
-		isInvalid,
-		oninputchange
-	}: Props = $props();
+	let { textareaId, value, placeholder, required, rows, isInvalid, oninputchange }: Props =
+		$props();
 </script>
 
 <textarea

@@ -29,7 +29,9 @@
 			<div class="flex flex-wrap items-center gap-2">
 				<h4 class="text-base font-semibold text-stone-950">{item.title}</h4>
 				{#each item.changeKinds as kind}
-					<span class="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em] text-stone-600 uppercase">
+					<span
+						class="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em] text-stone-600 uppercase"
+					>
 						{kind}
 					</span>
 				{/each}
@@ -37,7 +39,10 @@
 			{#if moveSummary(item)}
 				<p class="mt-2 text-sm text-stone-500">{moveSummary(item)}</p>
 			{/if}
-			<a href={item.href} class="mt-2 inline-flex text-sm font-medium text-stone-600 hover:text-stone-950">
+			<a
+				href={item.href}
+				class="mt-2 inline-flex text-sm font-medium text-stone-600 hover:text-stone-950"
+			>
 				Open item
 			</a>
 		</div>

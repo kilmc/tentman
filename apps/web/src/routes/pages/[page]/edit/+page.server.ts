@@ -18,10 +18,7 @@ export const actions: Actions = {
 
 		try {
 			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
-				await requireDiscoveredConfig(
-				requestContext,
-				params.page
-				);
+				await requireDiscoveredConfig(requestContext, params.page);
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 			const { branchName } = await ensureDraftBranch(octokit, owner, name, defaultBranch);

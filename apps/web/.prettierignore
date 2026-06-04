@@ -1,3 +1,7 @@
 .netlify
 .svelte-kit
 build
+test-results
+.vitest-attachments
+src/lib/components/form/__screenshots__
+src/lib/test/browser/__screenshots__

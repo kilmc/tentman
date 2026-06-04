@@ -98,9 +98,7 @@ describe('content state resolution', () => {
 				{
 					statePresets: {
 						releaseStatus: {
-							cases: [
-								{ value: 'scheduled', label: 'Scheduled', variant: 'warning', icon: 'clock' }
-							]
+							cases: [{ value: 'scheduled', label: 'Scheduled', variant: 'warning', icon: 'clock' }]
 						}
 					}
 				}

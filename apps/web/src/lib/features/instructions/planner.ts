@@ -242,10 +242,9 @@ async function buildPlannedFiles(
 					? 'skip-existing'
 					: 'conflict'
 				: 'create';
-		const reason =
-			isDuplicatePath
-				? 'Another template in this instruction already targets this path.'
-				: status === 'skip-existing'
+		const reason = isDuplicatePath
+			? 'Another template in this instruction already targets this path.'
+			: status === 'skip-existing'
 				? 'Skipped because the target file already exists.'
 				: status === 'conflict'
 					? 'A file already exists at this path.'
@@ -392,7 +391,9 @@ function buildFallbackConfirmationSummary(
 	}
 
 	if (lines.length === 0) {
-		lines.push('Tentman did not find any file templates or navigation changes for this instruction.');
+		lines.push(
+			'Tentman did not find any file templates or navigation changes for this instruction.'
+		);
 	}
 
 	return lines;

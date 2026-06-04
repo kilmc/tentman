@@ -387,7 +387,7 @@
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
 			clearRecoveryDraft();
 			await localContent.refresh({ force: true });
-			// eslint-disable-next-line svelte/no-navigation-without-resolve
+
 			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
 		} catch (error) {
 			formHasUnsavedChanges = true;
@@ -405,7 +405,9 @@
 				New {config ? getConfigItemLabel(config) : 'Item'}
 			</h1>
 			{#if showSaveStatus}
-				<span class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${saveStatusMeta.className}`}>
+				<span
+					class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${saveStatusMeta.className}`}
+				>
 					{saveStatusMeta.label}
 				</span>
 			{/if}
@@ -436,11 +438,7 @@
 				with the recovered draft only if you want to review and re-save those older unsaved edits.
 			</p>
 			<div class="mt-3 flex flex-col gap-2 sm:flex-row">
-				<button
-					type="button"
-					onclick={recoverStaleDraft}
-					class="tm-btn tm-btn-primary"
-				>
+				<button type="button" onclick={recoverStaleDraft} class="tm-btn tm-btn-primary">
 					Replace with recovery
 				</button>
 				<button type="button" onclick={clearRecoveryDraft} class="tm-btn tm-btn-secondary">
@@ -643,9 +641,7 @@
 				>
 					{saving ? 'Creating...' : 'Create'}
 				</button>
-				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary">
-					Cancel
-				</a>
+				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary"> Cancel </a>
 			</PageStickyFooter>
 		</form>
 	{/if}

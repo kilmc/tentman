@@ -68,9 +68,7 @@ describe('getNextMarkdownFieldValidationState', () => {
 			})
 		).toMatchObject({
 			componentLoadError: expect.stringMatching(/attribute href is required/i),
-			validationErrorsToEmit: [
-				expect.stringMatching(/attribute href is required/i)
-			]
+			validationErrorsToEmit: [expect.stringMatching(/attribute href is required/i)]
 		});
 	});
 });

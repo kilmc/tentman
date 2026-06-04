@@ -26,7 +26,9 @@
 </script>
 
 <div class="bg-stone-50">
-	<div class="mx-auto grid max-w-[104rem] grid-cols-1 gap-0 xl:grid-cols-[19.5rem_minmax(0,1fr)] xl:gap-6 xl:px-4">
+	<div
+		class="mx-auto grid max-w-[104rem] grid-cols-1 gap-0 xl:grid-cols-[19.5rem_minmax(0,1fr)] xl:gap-6 xl:px-4"
+	>
 		<div class="hidden xl:block">
 			<DocsSidebar />
 		</div>

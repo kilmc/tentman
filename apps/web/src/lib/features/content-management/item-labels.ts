@@ -68,7 +68,9 @@ function dedupeLocales(locales: Array<string | null | undefined>): string[] {
 
 function getRuntimeLocales(): string[] {
 	return dedupeLocales([
-		...(typeof navigator !== 'undefined' ? [...(navigator.languages ?? []), navigator.language] : []),
+		...(typeof navigator !== 'undefined'
+			? [...(navigator.languages ?? []), navigator.language]
+			: []),
 		'en-US'
 	]);
 }
@@ -163,7 +165,9 @@ export function analyzeItemLabelSchemaUnit(blocks: BlockUsage[]): ItemLabelSchem
 			blockId: explicitBlocks[0]?.id,
 			message: `Only one block per schema unit can use isItemLabel: true. Found ${explicitBlocks
 				.map((block) => `"${block.id}"`)
-				.join(', ')}. Tentman will ignore all explicit item labels in this schema unit and fall back to the existing label heuristic.`
+				.join(
+					', '
+				)}. Tentman will ignore all explicit item labels in this schema unit and fall back to the existing label heuristic.`
 		});
 
 		return {

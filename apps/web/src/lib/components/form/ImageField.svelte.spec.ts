@@ -88,16 +88,20 @@ describe('components/form/ImageField.svelte', () => {
 			storagePath: 'static/images/'
 		});
 
-		await expectElement(screen.getByRole('img', { name: 'Hero image' }))
-			.toHaveAttribute('src', 'data:image/png;base64,ZXhpc3Rpbmc=');
+		await expectElement(screen.getByRole('img', { name: 'Hero image' })).toHaveAttribute(
+			'src',
+			'data:image/png;base64,ZXhpc3Rpbmc='
+		);
 
 		await screen
 			.getByLabelText('Hero image')
 			.upload(new File(['next-image'], 'hero.png', { type: 'image/png' }));
 
 		await expectElement(screen.getByText('draft-asset:new-image')).toBeVisible();
-		await expectElement(screen.getByRole('img', { name: 'Hero image' }))
-			.toHaveAttribute('src', 'data:image/png;base64,bmV3');
+		await expectElement(screen.getByRole('img', { name: 'Hero image' })).toHaveAttribute(
+			'src',
+			'data:image/png;base64,bmV3'
+		);
 		expect(draftAssetStoreMocks.create).toHaveBeenCalledWith(
 			expect.any(File),
 			expect.objectContaining({
@@ -110,7 +114,6 @@ describe('components/form/ImageField.svelte', () => {
 		await screen.getByRole('button', { name: 'Remove image' }).click();
 
 		expect(draftAssetStoreMocks.delete).toHaveBeenLastCalledWith('draft-asset:new-image');
-		await expectElement(screen.getByRole('img', { name: 'Hero image' }))
-			.not.toBeInTheDocument();
+		await expectElement(screen.getByRole('img', { name: 'Hero image' })).not.toBeInTheDocument();
 	});
 });

@@ -82,7 +82,11 @@ function withTentmanId<T extends { _tentmanId?: string }>(
 }
 
 function normalizeRuntimeCollectionGroups(config: ParsedContentConfig): ParsedContentConfig {
-	if (!isCollectionManualSortingEnabled(config) || config.collection === true || !config.collection) {
+	if (
+		!isCollectionManualSortingEnabled(config) ||
+		config.collection === true ||
+		!config.collection
+	) {
 		return config;
 	}
 

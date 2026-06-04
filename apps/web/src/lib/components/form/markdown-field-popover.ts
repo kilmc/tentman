@@ -113,9 +113,7 @@ export function getMarkdownFieldEditorHostClickResult(options: {
 	};
 }
 
-export function getMarkdownFieldRichShellPopover(
-	popoverState: MarkdownFieldPopoverState
-): {
+export function getMarkdownFieldRichShellPopover(popoverState: MarkdownFieldPopoverState): {
 	kind: 'link' | 'component';
 	href: string;
 	placement: 'above' | 'below';

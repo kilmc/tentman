@@ -130,9 +130,7 @@ function readOptionalDateTimeFormatOptions(
 			typeof optionValue !== 'number' &&
 			typeof optionValue !== 'boolean'
 		) {
-			throw new Error(
-				`${context}.${key}.${optionKey} must be a string, number, or boolean`
-			);
+			throw new Error(`${context}.${key}.${optionKey} must be a string, number, or boolean`);
 		}
 	}
 
@@ -175,21 +173,23 @@ function readOptionalReferenceBindings(
 
 	if (typeof candidate === 'string') {
 		if (candidate.length === 0) {
-			throw new Error(`${context}.referenceFor must be a non-empty string or array of non-empty strings`);
+			throw new Error(
+				`${context}.referenceFor must be a non-empty string or array of non-empty strings`
+			);
 		}
 
 		return candidate;
 	}
 
 	if (!Array.isArray(candidate) || candidate.length === 0) {
-		throw new Error(`${context}.referenceFor must be a non-empty string or array of non-empty strings`);
+		throw new Error(
+			`${context}.referenceFor must be a non-empty string or array of non-empty strings`
+		);
 	}
 
 	return candidate.map((entry, index) => {
 		if (typeof entry !== 'string' || entry.length === 0) {
-			throw new Error(
-				`${context}.referenceFor[${index}] must be a non-empty string`
-			);
+			throw new Error(`${context}.referenceFor[${index}] must be a non-empty string`);
 		}
 
 		return entry;
@@ -236,14 +236,7 @@ function readTentmanGroupBlockOptions(
 ): TentmanGroupBlockOptions {
 	const collection = readRequiredString(value, 'collection', context);
 	const addOption = readOptionalBoolean(value, 'addOption', context);
-	const supportedKeys = new Set([
-		'type',
-		'label',
-		'required',
-		'show',
-		'collection',
-		'addOption'
-	]);
+	const supportedKeys = new Set(['type', 'label', 'required', 'show', 'collection', 'addOption']);
 	const unsupportedKeys = Object.keys(value).filter((key) => !supportedKeys.has(key));
 
 	if (unsupportedKeys.length > 0) {
@@ -285,7 +278,13 @@ function getLabelFromOptionValue(value: string): string {
 }
 
 function supportsPrimitiveReferenceMetadata(type: string): boolean {
-	return type === 'text' || type === 'textarea' || type === 'email' || type === 'url' || type === 'select';
+	return (
+		type === 'text' ||
+		type === 'textarea' ||
+		type === 'email' ||
+		type === 'url' ||
+		type === 'select'
+	);
 }
 
 function readBlocks(value: Record<string, unknown>, context: string): BlockUsage[] {
@@ -337,7 +336,8 @@ function parseEditorLayout(
 
 	assertObject(candidate, `${context}.editorLayout must be an object`);
 
-	const aside = readOptionalStringArray(candidate, 'aside', `${context}.editorLayout`) ?? legacyAside;
+	const aside =
+		readOptionalStringArray(candidate, 'aside', `${context}.editorLayout`) ?? legacyAside;
 	const asideLabel = readOptionalString(candidate, 'asideLabel', `${context}.editorLayout`);
 
 	if ((aside?.length ?? 0) === 0 && !asideLabel) {
@@ -408,7 +408,11 @@ function parseCollectionBehaviorConfig(
 	return {
 		...(sorting === 'manual' ? { sorting } : {}),
 		...(groups
-			? { groups: groups.map((group, index) => parseCollectionGroupConfig(group, `${context}.groups[${index}]`)) }
+			? {
+					groups: groups.map((group, index) =>
+						parseCollectionGroupConfig(group, `${context}.groups[${index}]`)
+					)
+				}
 			: {}),
 		...(state !== undefined ? { state: parseStateConfig(state, `${context}.state`) } : {})
 	};
@@ -463,7 +467,8 @@ function parseStateConfig(input: unknown, context: string): StateConfig {
 	assertObject(input, `${context} must be an object`);
 
 	const preset = readOptionalString(input, 'preset', context);
-	const cases = input.cases !== undefined ? parseStateCases(input.cases, `${context}.cases`) : undefined;
+	const cases =
+		input.cases !== undefined ? parseStateCases(input.cases, `${context}.cases`) : undefined;
 	const visibility = input.visibility;
 
 	if (!preset && !cases) {
@@ -488,8 +493,7 @@ function parseStateConfig(input: unknown, context: string): StateConfig {
 		...(visibility !== undefined
 			? {
 					visibility: {
-						...(readOptionalBoolean(visibility, 'navigation', `${context}.visibility`) !==
-						undefined
+						...(readOptionalBoolean(visibility, 'navigation', `${context}.visibility`) !== undefined
 							? {
 									navigation: readOptionalBoolean(
 										visibility,
@@ -717,7 +721,8 @@ function parseContentMode(input: unknown, context: string): FileContentMode | Di
 function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig {
 	const collection = parseCollectionBehaviorConfig(input.collection, 'config.collection');
 	const content = parseContentMode(input.content, 'config.content');
-	const state = input.state !== undefined ? parseStateConfig(input.state, 'config.state') : undefined;
+	const state =
+		input.state !== undefined ? parseStateConfig(input.state, 'config.state') : undefined;
 	const blocks = readBlocks(input, 'config');
 	const editorLayout = parseEditorLayout(input, blocks, 'config');
 
@@ -845,7 +850,11 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 	const label = readOptionalString(rawField as Record<string, unknown>, 'label', context);
 	const required = readOptionalBoolean(rawField as Record<string, unknown>, 'required', context);
 	const generated = readOptionalBoolean(rawField as Record<string, unknown>, 'generated', context);
-	const isItemLabel = readOptionalBoolean(rawField as Record<string, unknown>, 'isItemLabel', context);
+	const isItemLabel = readOptionalBoolean(
+		rawField as Record<string, unknown>,
+		'isItemLabel',
+		context
+	);
 	const itemLabelFormat = readOptionalDateTimeFormatOptions(
 		rawField as Record<string, unknown>,
 		'itemLabelFormat',
@@ -863,9 +872,7 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 		context
 	);
 	const options =
-		type === 'select'
-			? readSelectOptions(rawField as Record<string, unknown>, context)
-			: undefined;
+		type === 'select' ? readSelectOptions(rawField as Record<string, unknown>, context) : undefined;
 
 	if (show !== undefined && show !== 'primary' && show !== 'secondary') {
 		throw new Error(`${context}.show must be "primary" or "secondary"`);
@@ -881,7 +888,11 @@ function parseLegacyFieldArrayItem(input: unknown, context: string): BlockUsage 
 
 	if (type === 'array') {
 		const nestedBlocks = parseLegacyFields(rawField.fields ?? {}, `${context}.fields`);
-		const editorLayout = parseEditorLayout({ editorLayout: rawField.editorLayout }, nestedBlocks, context);
+		const editorLayout = parseEditorLayout(
+			{ editorLayout: rawField.editorLayout },
+			nestedBlocks,
+			context
+		);
 
 		return {
 			id,
@@ -967,7 +978,11 @@ function parseLegacyFieldObjectEntry(
 
 	if (type === 'array') {
 		const nestedBlocks = parseLegacyFields(input.fields ?? {}, `${context}.fields`);
-		const editorLayout = parseEditorLayout({ editorLayout: input.editorLayout }, nestedBlocks, context);
+		const editorLayout = parseEditorLayout(
+			{ editorLayout: input.editorLayout },
+			nestedBlocks,
+			context
+		);
 
 		return {
 			id: normalizedId,

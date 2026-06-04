@@ -43,7 +43,10 @@ vi.mock('$lib/features/content-management/navigation-manifest', async () => {
 
 import { actions } from './+page.server';
 import { deleteContentDocument, saveContentDocument } from '$lib/content/service';
-import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
+import {
+	invalidateRepositoryData,
+	resolveCollectionItemDocument
+} from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 
@@ -91,9 +94,11 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 	});
 
 	it('redirects back to the item editor after saving to the managed draft', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(options?.filename ?? 'content/posts/hello-world.md', 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(options?.filename ?? 'content/posts/hello-world.md', 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
@@ -137,9 +142,11 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 	});
 
 	it('saves a directory-backed draft item using the repository-data resolver filename', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
@@ -212,9 +219,11 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 	});
 
 	it('falls back to full draft content when saving and the repository-data resolver cannot answer', async () => {
-		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, _data, options) => {
-			await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
-		});
+		vi.mocked(saveContentDocument).mockImplementation(
+			async (backend, _config, _path, _data, options) => {
+				await backend.writeTextFile(`content/posts/${options?.filename}`, 'updated');
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'local:docs',
@@ -284,9 +293,11 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 	});
 
 	it('deletes a directory-backed draft item using the repository-data resolver filename', async () => {
-		vi.mocked(deleteContentDocument).mockImplementation(async (backend, _config, _path, options) => {
-			await backend.deleteFile(`content/posts/${options.filename}`);
-		});
+		vi.mocked(deleteContentDocument).mockImplementation(
+			async (backend, _config, _path, options) => {
+				await backend.deleteFile(`content/posts/${options.filename}`);
+			}
+		);
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',

@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GitHubRepositoryBackend } from '$lib/repository/github';
 import type { RepositoryBackend } from '$lib/repository/types';
-import { clearRepositorySnapshotCache, getRepositorySnapshot, invalidateRepositoryData } from './index';
+import {
+	clearRepositorySnapshotCache,
+	getRepositorySnapshot,
+	invalidateRepositoryData
+} from './index';
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 	loadNavigationManifestState: vi.fn(async () => ({

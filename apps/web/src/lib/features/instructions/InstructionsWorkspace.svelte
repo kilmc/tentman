@@ -281,7 +281,9 @@
 			} else if (isGitHubMode) {
 				const response = await fetch('/api/repo/instructions');
 				if (!response.ok) {
-					throw new Error(await readResponseError(response, 'Could not load the available options.'));
+					throw new Error(
+						await readResponseError(response, 'Could not load the available options.')
+					);
 				}
 
 				result = (await response.json()) as InstructionDiscoveryResult;
@@ -398,6 +400,7 @@
 				applyResult = await applyInstructionExecutionPlan(backend, validatedPlan, {
 					message: `Apply instruction ${activePlan.instructionId} via Tentman`
 				});
+				await invalidate('app:content');
 				await localContent.refresh({ force: true });
 			} else if (isGitHubMode) {
 				const response = await fetch('/api/repo/instructions', {
@@ -429,9 +432,9 @@
 				const payload = await response.json();
 				applyResult = payload.result;
 				activePlan = payload.plan;
+				await invalidate('app:content');
 			}
 
-			await invalidate('app:content');
 			await refreshInstructions({ preservePlanState: true });
 		} catch (error) {
 			applyError = error instanceof Error ? error.message : 'Could not finish creating this.';
@@ -560,7 +563,8 @@
 					<button
 						type="button"
 						class="inline-flex min-h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50"
-						onclick={() => resetForInstruction(hasMultipleInstructions ? null : selectedInstruction)}
+						onclick={() =>
+							resetForInstruction(hasMultipleInstructions ? null : selectedInstruction)}
 					>
 						{successButtonLabel}
 					</button>
@@ -610,7 +614,9 @@
 
 				{#if activePlan.planErrors.length > 0}
 					<div class="mt-5 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-						<p class="text-sm font-semibold text-yellow-950">This needs attention before you continue</p>
+						<p class="text-sm font-semibold text-yellow-950">
+							This needs attention before you continue
+						</p>
 						<div class="mt-3 space-y-2">
 							{#each activePlan.planErrors as issue}
 								<p class="text-sm text-yellow-900">{issue}</p>
@@ -661,9 +667,7 @@
 									{input.label}
 								</label>
 								{#if input.required}
-									<span
-										class="text-xs font-semibold tracking-[0.16em] text-stone-400 uppercase"
-									>
+									<span class="text-xs font-semibold tracking-[0.16em] text-stone-400 uppercase">
 										Required
 									</span>
 								{/if}
@@ -684,8 +688,7 @@
 										type="checkbox"
 										class="h-4 w-4 rounded border-stone-300 text-stone-950"
 										checked={Boolean(inputValues[input.id])}
-										onchange={(event) =>
-											updateInputValue(input.id, event.currentTarget.checked)}
+										onchange={(event) => updateInputValue(input.id, event.currentTarget.checked)}
 									/>
 								</label>
 							{:else if input.type === 'select'}

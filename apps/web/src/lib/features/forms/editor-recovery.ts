@@ -42,10 +42,7 @@ export function writeEditorRecoverySnapshot(
 	snapshot: EditorRecoverySnapshot
 ): void {
 	try {
-		storage.setItem(
-			buildEditorRecoveryStorageKey(snapshot.routeKey),
-			JSON.stringify(snapshot)
-		);
+		storage.setItem(buildEditorRecoveryStorageKey(snapshot.routeKey), JSON.stringify(snapshot));
 	} catch {
 		// Ignore storage write failures so editing can continue without recovery persistence.
 	}

@@ -47,7 +47,7 @@
 	import {
 		getMarkdownFieldActiveInlineFormatValues,
 		getMarkdownFieldActiveListValue,
-		getMarkdownFieldActiveStructureValue,
+		getMarkdownFieldActiveStructureValue
 	} from '$lib/components/form/markdown-field-toolbar-state';
 	import {
 		activateMarkdownFieldToolbarItem,
@@ -56,13 +56,11 @@
 		applyMarkdownFieldStructureValue,
 		isMarkdownFieldToolbarItemActive
 	} from '$lib/components/form/markdown-field-toolbar-actions';
-	import {
-		normalizeMarkdownFieldHref,
-	} from '$lib/components/form/markdown-field-ui';
+	import { normalizeMarkdownFieldHref } from '$lib/components/form/markdown-field-ui';
 	import { getMarkdownFieldContextualPopoverState } from '$lib/components/form/markdown-field-controller';
 	import {
 		createMarkdownFieldLinkPopoverState,
-		getMarkdownFieldEditorHostClickResult,
+		getMarkdownFieldEditorHostClickResult
 	} from '$lib/components/form/markdown-field-popover';
 	import {
 		getMarkdownFieldContentComponentState,
@@ -177,9 +175,7 @@
 			pageRootConfig: page.data.rootConfig ?? null
 		})
 	);
-	const contentComponentValidationMode = $derived(
-		getMarkdownFieldValidationMode(activeRootConfig)
-	);
+	const contentComponentValidationMode = $derived(getMarkdownFieldValidationMode(activeRootConfig));
 	const isOverLimit = $derived(maxLength !== undefined && characterCount > maxLength);
 	const isUnderMin = $derived(
 		minLength !== undefined && characterCount > 0 && characterCount < minLength
@@ -404,7 +400,9 @@
 		}
 
 		fieldRoot.scrollIntoView({ block: 'center', inline: 'nearest' });
-		const panelOpener = fieldRoot.querySelector<HTMLElement>('[data-form-side-panel-opener="true"]');
+		const panelOpener = fieldRoot.querySelector<HTMLElement>(
+			'[data-form-side-panel-opener="true"]'
+		);
 		if (panelOpener) {
 			panelOpener.click();
 		}
@@ -475,9 +473,7 @@
 		return true;
 	}
 
-	function queueComponentReferenceJump(
-		contentComponent = getSelectedContentComponentState()
-	) {
+	function queueComponentReferenceJump(contentComponent = getSelectedContentComponentState()) {
 		requestAnimationFrame(() => {
 			void jumpToSelectedComponentReference(contentComponent);
 		});
@@ -910,7 +906,7 @@
 			{inlineToggleButtons}
 			{actionButtons}
 			{componentToolbarButtons}
-			editorLoadError={editorLoadError}
+			{editorLoadError}
 			hasRichEditor={Boolean(richEditor)}
 			isInvalid={isOverLimit || isUnderMin}
 			contextualPopover={richShellViewModel.contextualPopover}
@@ -918,11 +914,9 @@
 			contextualPopoverAnchorStyle={richShellViewModel.contextualPopoverAnchorStyle}
 			linkMode={popoverState.linkMode}
 			linkValue={popoverState.linkValue}
-			componentJumpLabel={
-				popoverState.componentReferenceTarget
-					? `Jump to ${popoverState.componentReferenceTarget.fieldLabel}`
-					: getComponentJumpLabel()
-			}
+			componentJumpLabel={popoverState.componentReferenceTarget
+				? `Jump to ${popoverState.componentReferenceTarget.fieldLabel}`
+				: getComponentJumpLabel()}
 			componentDialog={componentDialogState.item?.dialog ?? null}
 			componentDialogTitle={dialogViewModel.title}
 			componentDialogSubmitLabel={dialogViewModel.submitLabel}

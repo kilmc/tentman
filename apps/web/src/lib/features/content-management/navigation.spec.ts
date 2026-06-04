@@ -266,9 +266,7 @@ describe('content navigation helpers', () => {
 				{
 					statePresets: {
 						publication: {
-							cases: [
-								{ value: false, label: 'Draft', variant: 'warning', icon: 'file-pen' }
-							]
+							cases: [{ value: false, label: 'Draft', variant: 'warning', icon: 'file-pen' }]
 						}
 					}
 				}

@@ -18,7 +18,8 @@ describe('routes/pages/[page]/preview-changes/+page', () => {
 			} as never)
 		).rejects.toMatchObject({
 			status: 302,
-			location: '/repos?returnTo=%2Fpages%2Fabout%2Fpreview-changes%3Fdata%3Dabc%26filename%3Dabout.md'
+			location:
+				'/repos?returnTo=%2Fpages%2Fabout%2Fpreview-changes%3Fdata%3Dabc%26filename%3Dabout.md'
 		});
 	});
 

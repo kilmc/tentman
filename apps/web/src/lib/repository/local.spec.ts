@@ -370,7 +370,8 @@ describe('createLocalRepositoryBackend', () => {
 	});
 
 	it('invalidates the local discovery signature when content component templates change', async () => {
-		let renderTemplate = '<a class="buy-button" href="{{ href | escape }}">{{ label | escape }}</a>';
+		let renderTemplate =
+			'<a class="buy-button" href="{{ href | escape }}">{{ label | escape }}</a>';
 		const rootHandle = createDirectoryHandle({
 			src: createDirectoryHandle({
 				lib: createDirectoryHandle({

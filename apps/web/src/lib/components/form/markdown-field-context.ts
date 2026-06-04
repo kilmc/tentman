@@ -34,7 +34,9 @@ export function getMarkdownFieldReferenceOptions(
 	formContentContext: FormContentContext | null,
 	binding: string
 ): Array<{ label: string; value: string }> {
-	return collectMarkdownFieldReferenceState(formContentContext)?.optionsByBinding.get(binding) ?? [];
+	return (
+		collectMarkdownFieldReferenceState(formContentContext)?.optionsByBinding.get(binding) ?? []
+	);
 }
 
 export function getMarkdownFieldActiveRootConfig(options: {
@@ -56,10 +58,14 @@ export function getMarkdownFieldComponentMode(options: {
 	testComponentMode?: 'local' | 'github';
 	selectedBackendKind?: string;
 }): 'local' | 'github' {
-	return options.testComponentMode ?? (options.selectedBackendKind === 'local' ? 'local' : 'github');
+	return (
+		options.testComponentMode ?? (options.selectedBackendKind === 'local' ? 'local' : 'github')
+	);
 }
 
-export function getMarkdownFieldComponentsDir(rootConfig: RootConfig | null | undefined): string | undefined {
+export function getMarkdownFieldComponentsDir(
+	rootConfig: RootConfig | null | undefined
+): string | undefined {
 	return rootConfig?.componentsDir;
 }
 
@@ -161,8 +167,7 @@ export function getNextMarkdownFieldValidationState(options: {
 		return {
 			componentLoadError: null,
 			lastValidationErrorsKey: '',
-			validationErrorsToEmit:
-				options.lastValidationErrorsKey !== '' ? [] : null
+			validationErrorsToEmit: options.lastValidationErrorsKey !== '' ? [] : null
 		};
 	}
 

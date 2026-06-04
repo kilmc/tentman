@@ -114,15 +114,13 @@ describe('server/auth/github', () => {
 	it('creates Octokit clients with explicit GitHub API version headers', () => {
 		const cookies = createCookieStore();
 		const hookError = vi.fn();
-		OctokitMock.mockImplementationOnce(
-			(function MockOctokit() {
-				return {
-					hook: {
-						error: hookError
-					}
-				};
-			}) as any
-		);
+		OctokitMock.mockImplementationOnce(function MockOctokit() {
+			return {
+				hook: {
+					error: hookError
+				}
+			};
+		} as any);
 
 		createGitHubServerClient('secret-token', cookies);
 

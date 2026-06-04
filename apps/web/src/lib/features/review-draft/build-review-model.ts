@@ -151,7 +151,8 @@ export async function buildPublishReviewModel(input: {
 	}
 
 	for (const slug of candidateSlugs) {
-		const draftConfig = draftConfigMap.get(slug) ?? mergedConfigs.find((config) => config.slug === slug);
+		const draftConfig =
+			draftConfigMap.get(slug) ?? mergedConfigs.find((config) => config.slug === slug);
 		const baseConfig = baseConfigs.find((config) => config.slug === slug) ?? draftConfig;
 		if (!draftConfig || !baseConfig) {
 			for (const file of candidateChanges.configFilesBySlug.get(slug) ?? []) {
@@ -260,8 +261,8 @@ export async function buildPublishReviewModel(input: {
 		draftManifest.manifest,
 		draftRootConfig
 	);
-	const orderedSections = orderedConfigs.flatMap((config) =>
-		sections.find((section) => section.configSlug === config.slug) ?? []
+	const orderedSections = orderedConfigs.flatMap(
+		(config) => sections.find((section) => section.configSlug === config.slug) ?? []
 	);
 	const visibleSections = topLevelOrderChange ? orderedSections.length + 1 : orderedSections.length;
 	const otherSiteChangesFiles: OtherSiteChangesFile[] = [
@@ -288,19 +289,16 @@ export async function buildPublishReviewModel(input: {
 
 	const uniqueOtherFiles = otherSiteChangesFiles.filter(
 		(file, index, files) =>
-			files.findIndex((candidate) => candidate.path === file.path && candidate.status === file.status) ===
-			index
+			files.findIndex(
+				(candidate) => candidate.path === file.path && candidate.status === file.status
+			) === index
 	);
-	const otherSiteChanges = buildOtherSiteChanges(
-		uniqueOtherFiles,
-		visibleSections === 0
-	);
-	const sectionCount = orderedSections.length + (topLevelOrderChange ? 1 : 0) + (otherSiteChanges ? 1 : 0);
+	const otherSiteChanges = buildOtherSiteChanges(uniqueOtherFiles, visibleSections === 0);
+	const sectionCount =
+		orderedSections.length + (topLevelOrderChange ? 1 : 0) + (otherSiteChanges ? 1 : 0);
 	const finalSections = orderedSections.map((section) => {
 		const defaultExpanded =
-			section.defaultExpanded ||
-			sectionCount === 1 ||
-			orderedSections.length === 1;
+			section.defaultExpanded || sectionCount === 1 || orderedSections.length === 1;
 		const shouldExpandSingleItem = defaultExpanded && section.items.length === 1;
 
 		return {

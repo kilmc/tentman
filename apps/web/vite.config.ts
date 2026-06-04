@@ -7,15 +7,21 @@ import { sveltekit } from '@sveltejs/kit/vite';
 const includeBrowserProject = process.env.VITEST_BROWSER === '1';
 
 export default defineConfig({
+	build: {
+		chunkSizeWarningLimit: 650,
+		rolldownOptions: {
+			checks: {
+				eval: false,
+				pluginTimings: false
+			}
+		}
+	},
 	resolve: {
 		alias: {
 			buffer: path.resolve('./src/lib/test-support/browser-buffer-stub.ts')
 		}
 	},
-	plugins: [
-		tailwindcss(),
-		sveltekit()
-	],
+	plugins: [tailwindcss(), sveltekit()],
 	optimizeDeps: {
 		noDiscovery: true,
 		include: [

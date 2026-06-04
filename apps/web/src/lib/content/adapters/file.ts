@@ -143,8 +143,7 @@ function getItemIndexByRouteOrId(
 	itemRouteOrId: string
 ): number {
 	return items.findIndex(
-		(item) =>
-			getItemRoute(config, item) === itemRouteOrId || getItemId(item) === itemRouteOrId
+		(item) => getItemRoute(config, item) === itemRouteOrId || getItemId(item) === itemRouteOrId
 	);
 }
 

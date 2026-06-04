@@ -43,7 +43,9 @@ describe('collectContentComponentReferenceState', () => {
 		});
 
 		expect(referenceState.errors).toEqual([]);
-		expect(referenceState.referenceIndex.get('gallery-embed:galleryRef')?.get('main')).toMatchObject({
+		expect(
+			referenceState.referenceIndex.get('gallery-embed:galleryRef')?.get('main')
+		).toMatchObject({
 			token: 'main',
 			container: {
 				referenceToken: 'main',
@@ -82,18 +84,20 @@ describe('collectContentComponentReferenceState', () => {
 		});
 
 		expect(referenceState.errors).toEqual([]);
-		expect(referenceState.referenceIndex.get('hero-embed:heroRef')?.get('main-hero')).toMatchObject({
-			token: 'main-hero',
-			self: 'main-hero',
-			container: {
-				heroToken: 'main-hero',
-				title: 'Homepage hero'
-			},
-			full: {
-				heroToken: 'main-hero',
-				title: 'Homepage hero'
+		expect(referenceState.referenceIndex.get('hero-embed:heroRef')?.get('main-hero')).toMatchObject(
+			{
+				token: 'main-hero',
+				self: 'main-hero',
+				container: {
+					heroToken: 'main-hero',
+					title: 'Homepage hero'
+				},
+				full: {
+					heroToken: 'main-hero',
+					title: 'Homepage hero'
+				}
 			}
-		});
+		);
 		expect(referenceState.optionsByBinding.get('hero-embed:heroRef')).toEqual([
 			{
 				value: 'main-hero',
@@ -144,7 +148,9 @@ describe('collectContentComponentReferenceState', () => {
 		});
 
 		expect(referenceState.errors).toEqual([]);
-		expect(referenceState.referenceIndex.get('og-image:assetRef')?.get('cover-image')).toMatchObject({
+		expect(
+			referenceState.referenceIndex.get('og-image:assetRef')?.get('cover-image')
+		).toMatchObject({
 			token: 'cover-image',
 			container: {
 				imageToken: 'cover-image',

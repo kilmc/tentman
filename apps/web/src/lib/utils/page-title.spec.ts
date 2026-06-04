@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ParsedContentConfig } from '$lib/config/parse';
-import {
-	buildContentTitleContext,
-	formatAppTitle,
-	formatDocsTitle
-} from '$lib/utils/page-title';
+import { buildContentTitleContext, formatAppTitle, formatDocsTitle } from '$lib/utils/page-title';
 
 const blogConfig: ParsedContentConfig = {
 	type: 'content',

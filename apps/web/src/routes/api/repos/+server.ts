@@ -1,10 +1,7 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import {
-	createGitHubServerClient,
-	handleGitHubSessionError
-} from '$lib/server/auth/github';
+import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {
 	if (!locals.isAuthenticated || !locals.githubToken) {

@@ -39,7 +39,11 @@ async function getSingletonConfigState(
 		return null;
 	}
 
-	const cacheKey = getSingletonStateCacheKey(snapshot, discoveredConfig.slug, discoveredConfig.path);
+	const cacheKey = getSingletonStateCacheKey(
+		snapshot,
+		discoveredConfig.slug,
+		discoveredConfig.path
+	);
 	if (singletonStateCache.has(cacheKey)) {
 		return singletonStateCache.get(cacheKey) ?? null;
 	}

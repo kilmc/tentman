@@ -327,8 +327,9 @@ describe('InstructionsWorkspace', () => {
 		await expectElement(screen.getByText('Press Kit', { exact: true })).toBeVisible();
 		await expectElement(screen.getByText('URL slug')).toBeVisible();
 		await expectElement(screen.getByText('press-kit', { exact: true })).toBeVisible();
-		await expectElement(screen.getByText('This page will be added to Tentman navigation.'))
-			.toBeVisible();
+		await expectElement(
+			screen.getByText('This page will be added to Tentman navigation.')
+		).toBeVisible();
 
 		await screen.getByRole('button', { name: 'Create page' }).click();
 

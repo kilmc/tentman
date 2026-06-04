@@ -223,9 +223,7 @@ describe('repository snapshot data layer', () => {
 			'tentman/configs/posts.tentman.json'
 		);
 		expect(snapshot.blockConfigIndex.configs).toHaveLength(1);
-		expect(snapshot.blockConfigIndex.byId.get('seo')?.path).toBe(
-			'tentman/blocks/seo.tentman.json'
-		);
+		expect(snapshot.blockConfigIndex.byId.get('seo')?.path).toBe('tentman/blocks/seo.tentman.json');
 		expect(getCachedConfigs).not.toHaveBeenCalled();
 		expect(backend.discoverBlockConfigs).not.toHaveBeenCalled();
 		expect(backend.readRootConfig).not.toHaveBeenCalled();

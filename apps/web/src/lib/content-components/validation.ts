@@ -70,7 +70,9 @@ export function validateMarkdownContentComponents(options: {
 				for (const message of validateContentComponentInstance(component, instance, {
 					referenceIndex: options.referenceIndex
 				})) {
-					errors.add(`Markdown field contains invalid content component "${match.name}": ${message}`);
+					errors.add(
+						`Markdown field contains invalid content component "${match.name}": ${message}`
+					);
 				}
 			} catch (error) {
 				errors.add(

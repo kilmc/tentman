@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
 
 function createStoreState<T>(initialValue: T) {
-	let value = initialValue;
+	const value = initialValue;
 	const subscribers = new Set<(nextValue: T) => void>();
 
 	return {

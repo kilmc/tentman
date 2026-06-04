@@ -98,7 +98,10 @@ export function applyMarkdownFieldInlineFormatChange(options: {
 
 	const changedValue = getMarkdownFieldChangedInlineFormatValue({
 		nextValues: options.nextValues,
-		currentValues: getMarkdownFieldActiveInlineFormatValues(options.editor, options.inlineToggleButtons)
+		currentValues: getMarkdownFieldActiveInlineFormatValues(
+			options.editor,
+			options.inlineToggleButtons
+		)
 	});
 	if (!changedValue) {
 		return;

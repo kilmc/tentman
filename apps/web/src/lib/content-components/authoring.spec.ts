@@ -109,7 +109,9 @@ describe('applyAuthoringContentComponentTransforms', () => {
 		);
 
 		expect(result.markdown).toContain(':buy-button[Buy tickets]');
-		expect(result.errors[0]).toContain('Markdown content component handling failed for "buy-button"');
+		expect(result.errors[0]).toContain(
+			'Markdown content component handling failed for "buy-button"'
+		);
 	});
 
 	it('preserves source and reports errors for malformed directive attributes', () => {

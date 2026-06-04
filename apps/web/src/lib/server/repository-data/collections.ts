@@ -132,7 +132,9 @@ function getCandidateItemEntries(
 }
 
 function findBlobEntry(snapshot: RepositorySnapshot, path: string): RepositoryTreeEntry | null {
-	return snapshot.tree?.entries.find((entry) => entry.type === 'blob' && entry.path === path) ?? null;
+	return (
+		snapshot.tree?.entries.find((entry) => entry.type === 'blob' && entry.path === path) ?? null
+	);
 }
 
 function collectProjectionFieldIds(config: ParsedContentConfig): Set<string> {
@@ -167,10 +169,11 @@ function getProjectionSchemaIdentity(config: ParsedContentConfig, fieldIds: Set<
 		fields: [...fieldIds].sort(),
 		itemLabel: config.itemLabel ?? null,
 		sorting: collection?.sorting ?? null,
-		groups: collection?.groups?.map((group) => ({
-			id: group._tentmanId ?? null,
-			label: group.label
-		})) ?? null,
+		groups:
+			collection?.groups?.map((group) => ({
+				id: group._tentmanId ?? null,
+				label: group.label
+			})) ?? null,
 		state: collection?.state ?? null
 	});
 }
@@ -585,7 +588,9 @@ async function buildFileCollectionIndex(input: {
 	}
 }
 
-async function loadCollectionIndex(input: CollectionNavigationInput): Promise<CollectionIndex | null> {
+async function loadCollectionIndex(
+	input: CollectionNavigationInput
+): Promise<CollectionIndex | null> {
 	if (!canUseGitHubSource(input.backend)) {
 		return null;
 	}
@@ -769,14 +774,15 @@ export async function resolveCollectionItemDocument(
 		const indexItem =
 			index?.byRoute.get(input.itemId) ??
 			index?.byId.get(input.itemId) ??
-			(/^\d+$/.test(input.itemId)
-				? index?.items[Number.parseInt(input.itemId, 10)]
-				: undefined);
+			(/^\d+$/.test(input.itemId) ? index?.items[Number.parseInt(input.itemId, 10)] : undefined);
 		if (!indexItem || typeof indexItem.index !== 'number') {
 			return null;
 		}
 
-		const contentPath = resolveConfigPath(discoveredConfig.path, discoveredConfig.config.content.path);
+		const contentPath = resolveConfigPath(
+			discoveredConfig.path,
+			discoveredConfig.config.content.path
+		);
 		const entry = findBlobEntry(snapshot, contentPath);
 		if (!entry) {
 			return null;
@@ -804,12 +810,14 @@ export async function resolveCollectionItemDocument(
 	}
 
 	const info = getTemplateInfo(discoveredConfig.path, discoveredConfig.config);
-	const directEntry = getCandidateItemEntries(snapshot, discoveredConfig.config, discoveredConfig.path).find(
-		(entry) => {
-			const filename = getFilename(entry.path);
-			return filename === input.itemId || stripFileExtension(filename) === input.itemId;
-		}
-	);
+	const directEntry = getCandidateItemEntries(
+		snapshot,
+		discoveredConfig.config,
+		discoveredConfig.path
+	).find((entry) => {
+		const filename = getFilename(entry.path);
+		return filename === input.itemId || stripFileExtension(filename) === input.itemId;
+	});
 	const index = directEntry === undefined ? await getCollectionIndex(input) : null;
 	const indexItem = index?.byRoute.get(input.itemId) ?? index?.byId.get(input.itemId);
 	const path = directEntry?.path ?? indexItem?.path;

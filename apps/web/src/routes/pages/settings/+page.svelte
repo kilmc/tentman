@@ -238,10 +238,11 @@
 	<div class="mb-6">
 		<h1 class="text-2xl font-bold tracking-[-0.03em] text-stone-950 sm:text-3xl">Settings</h1>
 		<p class="mt-2 max-w-2xl text-sm text-stone-600">
-			Inspect and repair the repo state that powers sidebar and collection panel editing. Tentman manages stable
+			Inspect and repair the repo state that powers sidebar and collection panel editing. Tentman
+			manages stable
 			<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">_tentmanId</code>
-			values for manual ordering automatically at runtime, and this screen is for syncing that
-			state back into the repo when needed. Once it is ready, use
+			values for manual ordering automatically at runtime, and this screen is for syncing that state back
+			into the repo when needed. Once it is ready, use
 			<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">Edit navigation</code>
 			in the sidebar.
 		</p>
@@ -323,10 +324,10 @@
 						{!hasConfiguredManualNavigation
 							? 'Configured off'
 							: setup.status === 'active'
-							? 'Ready'
-							: setup.status === 'partial'
-								? 'Needs repair'
-								: 'Needs repair'}
+								? 'Ready'
+								: setup.status === 'partial'
+									? 'Needs repair'
+									: 'Needs repair'}
 					</h2>
 					<p class="mt-2 text-sm text-stone-600">
 						Manifest path:
@@ -375,15 +376,17 @@
 						Top-level order is opted into with root
 						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">content.sorting: "manual"</code>
 						. Collection item order is opted into with
-						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">collection.sorting: "manual"</code>
+						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs"
+							>collection.sorting: "manual"</code
+						>
 						plus an author-facing
 						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">idField</code>.
 					</p>
 					<p class="mt-2 text-sm text-stone-600">
 						When a repo is configured that way, Tentman can repair missing stable ids, fix
 						duplicates, migrate legacy group definitions into
-						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">collection.groups</code>,
-						and refresh legacy manifest references without exposing those ids in normal authoring.
+						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">collection.groups</code>, and
+						refresh legacy manifest references without exposing those ids in normal authoring.
 					</p>
 				</div>
 			</div>
@@ -396,9 +399,9 @@
 					<p class="mt-2 text-sm text-stone-600">
 						These are Tentman-managed
 						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">_tentmanId</code>
-						values for stable navigation state. Tentman is already inferring them at runtime for
-						configured repos, so navigation can work without manual repair. This section only shows
-						configs where the repo files have not been synced yet.
+						values for stable navigation state. Tentman is already inferring them at runtime for configured
+						repos, so navigation can work without manual repair. This section only shows configs where
+						the repo files have not been synced yet.
 					</p>
 					<p class="mt-2 text-sm text-stone-600">
 						You do not need to hand-manage these ids. Syncing just writes Tentman's current runtime
@@ -465,8 +468,9 @@
 						{#if !collection.canOrderItems}
 							<p class="mt-1 text-sm text-stone-500">
 								Add
-								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs">collection.sorting: "manual"</code>,
-								and
+								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs"
+									>collection.sorting: "manual"</code
+								>, and
 								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs">idField</code>
 								to unlock item reordering.
 							</p>

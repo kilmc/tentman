@@ -45,7 +45,9 @@ export function parseSingletonContent(config: SingletonFileConfig, raw: string):
 }
 
 function findTreeEntry(snapshot: RepositorySnapshot, path: string): RepositoryTreeEntry | null {
-	return snapshot.tree?.entries.find((entry) => entry.type === 'blob' && entry.path === path) ?? null;
+	return (
+		snapshot.tree?.entries.find((entry) => entry.type === 'blob' && entry.path === path) ?? null
+	);
 }
 
 function getSingletonDocumentCacheKey(

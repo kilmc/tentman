@@ -64,7 +64,9 @@ export async function getCachedConfigs(backend: RepositoryBackend): Promise<Disc
 		.discoverConfigs()
 		.then((configs) => {
 			const fetchTime = performance.now() - fetchStart;
-			console.log(`✅ [CONFIG CACHE] Fetched ${configs.length} configs in ${fetchTime.toFixed(0)}ms`);
+			console.log(
+				`✅ [CONFIG CACHE] Fetched ${configs.length} configs in ${fetchTime.toFixed(0)}ms`
+			);
 
 			cache.set(repoKey, {
 				configs,

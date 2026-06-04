@@ -19,7 +19,9 @@ function getRequestedRef(backend: RepositoryBackend, ref?: string | null): strin
 }
 
 function isGitHubBackend(backend: RepositoryBackend): backend is GitHubRepositoryBackend {
-	return backend.kind === 'github' && 'octokit' in backend && 'owner' in backend && 'repo' in backend;
+	return (
+		backend.kind === 'github' && 'octokit' in backend && 'owner' in backend && 'repo' in backend
+	);
 }
 
 function decodeGitHubBlob(content: string): string {

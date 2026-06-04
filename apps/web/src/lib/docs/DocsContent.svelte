@@ -91,7 +91,9 @@
 								<thead class="bg-stone-50/90 text-left text-stone-700">
 									<tr>
 										{#each block.table.columns as column}
-											<th class={`px-4 py-3.5 align-bottom text-xs font-semibold tracking-[0.08em] text-stone-600 uppercase ${getColumnClass(column)}`}>
+											<th
+												class={`px-4 py-3.5 align-bottom text-xs font-semibold tracking-[0.08em] text-stone-600 uppercase ${getColumnClass(column)}`}
+											>
 												{column}
 											</th>
 										{/each}
@@ -101,7 +103,9 @@
 									{#each block.table.rows as row}
 										<tr class="align-top odd:bg-white even:bg-stone-50/35">
 											{#each row as cell, cellIndex}
-												<td class={`px-4 py-3.5 align-top ${getColumnClass(block.table.columns[cellIndex])}`}>
+												<td
+													class={`px-4 py-3.5 align-top ${getColumnClass(block.table.columns[cellIndex])}`}
+												>
 													<div class={getCellClass(block.table.columns[cellIndex])}>
 														{cell}
 													</div>

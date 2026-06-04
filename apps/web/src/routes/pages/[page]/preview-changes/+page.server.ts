@@ -18,22 +18,14 @@ export const actions: Actions = {
 
 		try {
 			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
-				await requireDiscoveredConfig(
-				requestContext,
-				params.page
-				);
+				await requireDiscoveredConfig(requestContext, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
 			const contentData = JSON.parse(formData.get('data') as string) as ContentRecord;
 
 			// Get or create draft branch
-			const { branchName, created } = await ensureDraftBranch(
-				octokit,
-				owner,
-				name,
-				defaultBranch
-			);
+			const { branchName, created } = await ensureDraftBranch(octokit, owner, name, defaultBranch);
 			if (created) {
 				console.log(`✅ Created draft branch: ${branchName}`);
 			}
@@ -102,10 +94,7 @@ export const actions: Actions = {
 
 		try {
 			const { backend, octokit, owner, name, defaultBranch, discoveredConfig } =
-				await requireDiscoveredConfig(
-				requestContext,
-				params.page
-				);
+				await requireDiscoveredConfig(requestContext, params.page);
 
 			// Parse form data
 			const formData = await request.formData();
@@ -148,9 +137,8 @@ export const actions: Actions = {
 			const { invalidateContent } = await import('$lib/stores/content-cache');
 			const { invalidateCache } = await import('$lib/stores/config-cache');
 			const { invalidateGitHubRepositoryMetadataCache } = await import('$lib/repository/github');
-			const {
-				invalidateNavigationManifestStateCache
-			} = await import('$lib/features/content-management/navigation-manifest');
+			const { invalidateNavigationManifestStateCache } =
+				await import('$lib/features/content-management/navigation-manifest');
 			invalidateCache(backend.cacheKey);
 			invalidateContent(backend.cacheKey);
 			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);

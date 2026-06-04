@@ -5,11 +5,7 @@ import type {
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
-import {
-	clearContentCache,
-	getCachedContent,
-	invalidateContent
-} from './content-cache';
+import { clearContentCache, getCachedContent, invalidateContent } from './content-cache';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;

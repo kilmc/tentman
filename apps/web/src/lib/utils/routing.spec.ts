@@ -48,9 +48,7 @@ describe('routing utils', () => {
 				new: 'true',
 				newFilename: undefined
 			})
-		).toBe(
-			'/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&new=true'
-		);
+		).toBe('/pages/posts/hello-world/preview-changes?data=abc&filename=hello-world.md&new=true');
 	});
 
 	it('keeps safe in-app auth redirect targets', () => {

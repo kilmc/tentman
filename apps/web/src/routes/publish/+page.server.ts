@@ -58,7 +58,8 @@ async function getPublishChangedPaths(input: {
 export const actions = {
 	publish: async ({ locals, cookies }) => {
 		const requestContext = { locals, cookies };
-		const { octokit, owner, name, backend, defaultBranch } = requireGitHubRepository(requestContext);
+		const { octokit, owner, name, backend, defaultBranch } =
+			requireGitHubRepository(requestContext);
 
 		try {
 			const changedPaths = await getPublishChangedPaths({
@@ -76,9 +77,8 @@ export const actions = {
 			const { invalidateContent } = await import('$lib/stores/content-cache');
 			const { invalidateCache } = await import('$lib/stores/config-cache');
 			const { invalidateGitHubRepositoryMetadataCache } = await import('$lib/repository/github');
-			const {
-				invalidateNavigationManifestStateCache
-			} = await import('$lib/features/content-management/navigation-manifest');
+			const { invalidateNavigationManifestStateCache } =
+				await import('$lib/features/content-management/navigation-manifest');
 			invalidateCache(backend.cacheKey);
 			invalidateContent(backend.cacheKey);
 			invalidateGitHubRepositoryMetadataCache(backend.cacheKey);
@@ -104,7 +104,8 @@ export const actions = {
 
 	discard: async ({ locals, cookies }) => {
 		const requestContext = { locals, cookies };
-		const { octokit, owner, name, backend, defaultBranch } = requireGitHubRepository(requestContext);
+		const { octokit, owner, name, backend, defaultBranch } =
+			requireGitHubRepository(requestContext);
 
 		try {
 			const { branchName } = await discardDraftBranch(octokit, owner, name, defaultBranch);

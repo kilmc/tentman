@@ -44,6 +44,7 @@ async function createAutoContextFixture() {
 	const unmanagedFilePath = path.join(projectRoot, 'notes/unmanaged.md');
 
 	await Promise.all([
+		fs.mkdir(path.join(projectRoot, '.git'), { recursive: true }),
 		fs.mkdir(path.join(projectRoot, 'tentman/configs'), { recursive: true }),
 		fs.mkdir(path.join(projectRoot, 'src/routes/about'), { recursive: true }),
 		fs.mkdir(path.join(projectRoot, 'src/content/posts'), { recursive: true }),

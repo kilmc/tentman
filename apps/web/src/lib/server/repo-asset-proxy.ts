@@ -29,7 +29,9 @@ function normalizeRepoRelativePath(value: string): string {
 
 function joinAssetPath(rootDir: string, assetValue: string): string | null {
 	const normalizedRootDir = normalizeDraftAssetStoragePath(rootDir);
-	const joinedPath = normalizeRepoRelativePath(`${normalizedRootDir}${trimLeadingSlash(assetValue)}`);
+	const joinedPath = normalizeRepoRelativePath(
+		`${normalizedRootDir}${trimLeadingSlash(assetValue)}`
+	);
 	return joinedPath.startsWith(normalizedRootDir) ? joinedPath : null;
 }
 
@@ -40,7 +42,11 @@ function resolvePublicAssetPath(rootDir: string, assetValue: string): string | n
 	}
 
 	const normalizedPublicPath = publicPath === '/' ? '/' : publicPath.replace(/\/+$/, '');
-	if (normalizedPublicPath !== '/' && assetValue !== normalizedPublicPath && !assetValue.startsWith(`${normalizedPublicPath}/`)) {
+	if (
+		normalizedPublicPath !== '/' &&
+		assetValue !== normalizedPublicPath &&
+		!assetValue.startsWith(`${normalizedPublicPath}/`)
+	) {
 		return null;
 	}
 

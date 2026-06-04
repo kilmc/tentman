@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/server/auth/github', async () => {
-	const actual = await vi.importActual<typeof import('$lib/server/auth/github')>(
-		'$lib/server/auth/github'
-	);
+	const actual =
+		await vi.importActual<typeof import('$lib/server/auth/github')>('$lib/server/auth/github');
 
 	return {
 		...actual,

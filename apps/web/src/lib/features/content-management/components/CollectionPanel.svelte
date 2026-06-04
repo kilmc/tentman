@@ -312,11 +312,7 @@
 					</details>
 				</div>
 
-				<a
-					href={resolve(`/pages/${slug}/new`)}
-					class="tm-icon-btn"
-					aria-label={`New ${itemLabel}`}
-				>
+				<a href={resolve(`/pages/${slug}/new`)} class="tm-icon-btn" aria-label={`New ${itemLabel}`}>
 					<Plus class="h-4 w-4" />
 				</a>
 			</div>
@@ -343,7 +339,9 @@
 								class="grid gap-1"
 								data-is-dnd-shadow-item-hint={group[SHADOW_ITEM_MARKER_PROPERTY_NAME]}
 							>
-									<div class="sticky top-[-0.75rem] z-10 -mx-1 grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-1 bg-white/95 px-1 pt-4 pb-1 backdrop-blur">
+								<div
+									class="sticky top-[-0.75rem] z-10 -mx-1 grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-1 bg-white/95 px-1 pt-4 pb-1 backdrop-blur"
+								>
 									<button
 										type="button"
 										class="inline-flex h-6 w-6 items-center justify-center rounded-md text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
@@ -459,7 +457,9 @@
 						</div>
 					</section>
 
-					<div class="sticky bottom-0 -mx-3 mt-1 flex items-center gap-2 border-t border-stone-200 bg-white/95 px-3 pt-3 pb-1 backdrop-blur">
+					<div
+						class="sticky bottom-0 -mx-3 mt-1 flex items-center gap-2 border-t border-stone-200 bg-white/95 px-3 pt-3 pb-1 backdrop-blur"
+					>
 						<button
 							type="button"
 							class="tm-btn tm-btn-secondary min-h-8 flex-1 px-2 text-xs"
@@ -500,7 +500,9 @@
 					{#each groups as group (group.id)}
 						{#if group.items.length > 0}
 							<section class="grid gap-1">
-									<div class="sticky top-[-0.75rem] z-10 -mx-1 bg-white/95 px-1 pt-4 pb-1 backdrop-blur">
+								<div
+									class="sticky top-[-0.75rem] z-10 -mx-1 bg-white/95 px-1 pt-4 pb-1 backdrop-blur"
+								>
 									<button
 										type="button"
 										class="grid min-h-6 w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-stone-100"

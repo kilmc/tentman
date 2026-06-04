@@ -112,10 +112,7 @@
 		contentError = data.contentError;
 	}
 
-	async function loadLocalItem(
-		pageSlug: string,
-		itemId: string
-	) {
+	async function loadLocalItem(pageSlug: string, itemId: string) {
 		const requestId = ++localLoadRequest;
 
 		discoveredConfig = null;

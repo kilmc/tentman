@@ -24,4 +24,6 @@ vite.config.ts.timestamp-*
 
 # Test artifacts
 apps/web/.vitest-attachments/
+apps/web/test-results/
+apps/web/src/lib/components/form/__screenshots__/
 apps/web/src/lib/test/browser/__screenshots__/

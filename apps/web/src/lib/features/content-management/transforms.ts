@@ -205,7 +205,10 @@ function recoverMalformedMarkdownFrontmatter(source: string) {
 
 	return {
 		data: lastValid.data,
-		body: lines.slice(lastValid.endLine + 1).join('\n').replace(/^\n/, '')
+		body: lines
+			.slice(lastValid.endLine + 1)
+			.join('\n')
+			.replace(/^\n/, '')
 	};
 }
 

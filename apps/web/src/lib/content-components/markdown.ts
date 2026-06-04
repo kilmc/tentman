@@ -2,13 +2,11 @@ import { Node, type Extensions, type NodeViewRendererProps } from '@tiptap/core'
 import {
 	getContentComponentReferenceAttribute,
 	normalizeContentComponentInstance,
+	resolveContentComponentInstance,
 	validateContentComponentInstance
 } from '@tentman/core/content-components';
 import type { MarkdownToolbarItemContribution } from '$lib/features/markdown-editor/types';
-import {
-	getContentComponentChipLabel,
-	renderContentComponentChipNode
-} from '$lib/content-components/label-chip';
+import { getContentComponentChipLabel } from '$lib/content-components/label-chip';
 import {
 	getMarkdownLabelAttributeName,
 	parseDirectiveAttributes,
@@ -115,6 +113,110 @@ function escapeHtml(value: string): string {
 		.replaceAll('<', '&lt;')
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;');
+}
+
+function toSentenceLabel(value: string): string {
+	const normalizedValue = value.trim();
+	if (normalizedValue.length === 0) {
+		return '';
+	}
+
+	return normalizedValue.charAt(0).toUpperCase() + normalizedValue.slice(1).toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getRecordLabel(value: unknown): string | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	for (const key of ['title', 'label', 'name']) {
+		const candidate = value[key];
+		if (typeof candidate !== 'string') {
+			continue;
+		}
+
+		const normalizedCandidate = candidate.trim();
+		if (normalizedCandidate.length > 0) {
+			return normalizedCandidate;
+		}
+	}
+
+	return null;
+}
+
+function getReferenceEntryLabel(entry: unknown): string | null {
+	if (!isRecord(entry)) {
+		return null;
+	}
+
+	return (
+		getRecordLabel(entry.self) ??
+		getRecordLabel(entry.container) ??
+		getRecordLabel(entry.full) ??
+		(typeof entry.token === 'string' && entry.token.trim().length > 0 ? entry.token.trim() : null)
+	);
+}
+
+function getContentComponentPreviewLabel(
+	component: ContentComponentRegistry['components'][number],
+	attributes: Record<string, string>,
+	options: {
+		referenceIndex?: Map<string, Map<string, unknown>>;
+	}
+): string {
+	const componentLabel = toSentenceLabel(getContentComponentChipLabel(component));
+	const labelAttributeName = getMarkdownLabelAttributeName(component);
+	if (labelAttributeName) {
+		const labelValue = attributes[labelAttributeName]?.trim();
+		if (labelValue) {
+			return `${componentLabel}: ${labelValue}`;
+		}
+	}
+
+	const referenceAttribute = getContentComponentReferenceAttribute(component);
+	if (referenceAttribute) {
+		const token = attributes[referenceAttribute.attributeId]?.trim();
+		const referenceLabel = token
+			? getReferenceEntryLabel(options.referenceIndex?.get(referenceAttribute.binding)?.get(token))
+			: null;
+
+		if (referenceLabel) {
+			return `${componentLabel}: ${referenceLabel}`;
+		}
+	}
+
+	const markerBindingIndex = options.referenceIndex?.get(component.definition.id);
+	if (markerBindingIndex?.size === 1) {
+		const referenceLabel = getReferenceEntryLabel(Array.from(markerBindingIndex.values())[0]);
+		if (referenceLabel) {
+			return `${componentLabel}: ${referenceLabel}`;
+		}
+	}
+
+	return `${componentLabel} preview`;
+}
+
+function renderContentComponentPreviewNode(
+	container: HTMLElement,
+	component: ContentComponentRegistry['components'][number],
+	attributes: Record<string, string>,
+	options: {
+		referenceIndex?: Map<string, Map<string, unknown>>;
+	}
+): void {
+	const tagName = component.definition.kind === 'block' ? 'div' : 'span';
+	const className =
+		component.definition.kind === 'block'
+			? 'tm-content-component-chip tm-content-component-chip--block'
+			: 'tm-content-component-chip tm-content-component-chip--inline';
+
+	container.innerHTML = `<${tagName} data-tentman-content-component-chip="${component.definition.kind}" class="${className}">${escapeHtml(
+		getContentComponentPreviewLabel(component, attributes, options)
+	)}</${tagName}>`;
 }
 
 function getSchemaAttributes(
@@ -324,7 +426,12 @@ function buildComponentNodeView(
 					throw new Error(brokenState.error || 'Content component marker needs repair.');
 				}
 
-					renderContentComponentChipNode(dom, component);
+				resolveContentComponentInstance(component, instance, {
+					referenceIndex: previewRenderOptions?.referenceIndex ?? new Map()
+				});
+				renderContentComponentPreviewNode(dom, component, instance.attributes, {
+					referenceIndex: previewRenderOptions?.referenceIndex
+				});
 			} catch (error) {
 				dom.dataset.tentmanContentComponentBroken = 'true';
 				dom.className =

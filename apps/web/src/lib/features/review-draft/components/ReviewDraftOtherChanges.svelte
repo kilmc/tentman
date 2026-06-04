@@ -40,7 +40,9 @@
 			<ul class="space-y-2">
 				{#each review.files as file}
 					<li class="flex flex-wrap items-center gap-2 text-sm text-stone-800">
-						<span class="rounded-full bg-stone-100 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-stone-600 uppercase">
+						<span
+							class="rounded-full bg-stone-100 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-stone-600 uppercase"
+						>
 							{file.status}
 						</span>
 						<code>{file.path}</code>

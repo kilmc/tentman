@@ -43,7 +43,10 @@ export async function loadSelectedGitHubRepoConfigs(
 	locals: App.Locals,
 	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>
 ): Promise<RepoConfigsBootstrap> {
-	const { backend: _backend, draftBranch: _draftBranch, ...bootstrap } =
-		await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
+	const {
+		backend: _backend,
+		draftBranch: _draftBranch,
+		...bootstrap
+	} = await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
 	return bootstrap;
 }

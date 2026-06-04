@@ -75,7 +75,9 @@ describe('buildPublishReviewModel', () => {
 			const ref = options?.defaultRef;
 
 			return {
-				discoverConfigs: vi.fn(async () => (ref === 'tentman-preview' ? draftConfigs : baseConfigs)),
+				discoverConfigs: vi.fn(async () =>
+					ref === 'tentman-preview' ? draftConfigs : baseConfigs
+				),
 				readRootConfig: vi.fn(async () => ({
 					content: {
 						sorting: 'manual'
@@ -149,9 +151,7 @@ describe('buildPublishReviewModel', () => {
 				];
 			}
 
-			return options?.branch === 'tentman-preview'
-				? { title: 'About us' }
-				: { title: 'About' };
+			return options?.branch === 'tentman-preview' ? { title: 'About us' } : { title: 'About' };
 		});
 	});
 
@@ -270,7 +270,8 @@ describe('buildPublishReviewModel', () => {
 			]
 		});
 
-		const [, baseBackendCall, draftBackendCall] = vi.mocked(createGitHubRepositoryBackend).mock.results;
+		const [, baseBackendCall, draftBackendCall] = vi.mocked(createGitHubRepositoryBackend).mock
+			.results;
 		const baseBackend = await baseBackendCall?.value;
 		const draftBackend = await draftBackendCall?.value;
 
@@ -392,8 +393,22 @@ describe('buildPublishReviewModel', () => {
 		vi.mocked(fetchContentDocument).mockImplementation(async (_backend, config, _path, options) => {
 			if (config._tentmanId === 'posts') {
 				return options?.branch === 'tentman-preview'
-					? [{ _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello world', summary: 'Launch update' }]
-					: [{ _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello world', summary: 'Original summary' }];
+					? [
+							{
+								_tentmanId: 'post-1',
+								slug: 'hello-world',
+								title: 'Hello world',
+								summary: 'Launch update'
+							}
+						]
+					: [
+							{
+								_tentmanId: 'post-1',
+								slug: 'hello-world',
+								title: 'Hello world',
+								summary: 'Original summary'
+							}
+						];
 			}
 
 			return options?.branch === 'tentman-preview' ? { title: 'About us' } : { title: 'About' };

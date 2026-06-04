@@ -9,7 +9,9 @@ import type { ContentDocument } from '$lib/features/content-management/types';
 import { getReviewConfigHref } from './navigation';
 import type { OrderChangeReview, ReviewOrderEntry } from './types';
 
-function buildOrderEntries<T extends { id: string; label: string }>(items: T[]): ReviewOrderEntry[] {
+function buildOrderEntries<T extends { id: string; label: string }>(
+	items: T[]
+): ReviewOrderEntry[] {
 	return items.map((item, index) => ({
 		id: item.id,
 		label: item.label,
@@ -33,14 +35,18 @@ export function buildTopLevelOrderChangeReview(
 	baseRootConfig: RootConfig | null,
 	draftRootConfig: RootConfig | null
 ): OrderChangeReview | null {
-	const before = orderDiscoveredConfigs(baseConfigs, baseManifest.manifest, baseRootConfig).map((config) => ({
-		id: config.slug,
-		label: config.config.label
-	}));
-	const after = orderDiscoveredConfigs(draftConfigs, draftManifest.manifest, draftRootConfig).map((config) => ({
-		id: config.slug,
-		label: config.config.label
-	}));
+	const before = orderDiscoveredConfigs(baseConfigs, baseManifest.manifest, baseRootConfig).map(
+		(config) => ({
+			id: config.slug,
+			label: config.config.label
+		})
+	);
+	const after = orderDiscoveredConfigs(draftConfigs, draftManifest.manifest, draftRootConfig).map(
+		(config) => ({
+			id: config.slug,
+			label: config.config.label
+		})
+	);
 
 	const beforeEntries = buildOrderEntries(before);
 	const afterEntries = buildOrderEntries(after);
@@ -83,10 +89,12 @@ export function buildCollectionOrderChangeReview(input: {
 	);
 
 	const before = buildOrderEntries(
-		[...beforeRecords.groups.flatMap((group) => group.items), ...beforeRecords.items].map((item) => ({
-			id: item.itemId,
-			label: item.title
-		}))
+		[...beforeRecords.groups.flatMap((group) => group.items), ...beforeRecords.items].map(
+			(item) => ({
+				id: item.itemId,
+				label: item.title
+			})
+		)
 	);
 	const after = buildOrderEntries(
 		[...afterRecords.groups.flatMap((group) => group.items), ...afterRecords.items].map((item) => ({

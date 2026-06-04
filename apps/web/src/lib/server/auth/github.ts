@@ -246,9 +246,10 @@ function unsealGitHubSession(value: string | undefined): StoredGitHubSession | n
 	}
 }
 
-function readStoredGitHubSession(
-	sessionValue: string | undefined
-): { session: StoredGitHubSession | null; expired: boolean } {
+function readStoredGitHubSession(sessionValue: string | undefined): {
+	session: StoredGitHubSession | null;
+	expired: boolean;
+} {
 	if (!sessionValue) {
 		return { session: null, expired: false };
 	}

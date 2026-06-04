@@ -11,13 +11,7 @@
 		onToggleItem: (itemId: string) => void;
 	}
 
-	let {
-		section,
-		expanded,
-		expandedItemIds,
-		onToggleSection,
-		onToggleItem
-	}: Props = $props();
+	let { section, expanded, expandedItemIds, onToggleSection, onToggleItem }: Props = $props();
 </script>
 
 <section class="rounded-2xl border border-stone-200 bg-white">

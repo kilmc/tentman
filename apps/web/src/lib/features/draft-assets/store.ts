@@ -38,7 +38,10 @@ function createDraftAssetId(randomUUID?: (() => string) | undefined): string {
 	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function openDatabase(indexedDbFactory: IDBFactory, databaseName: string): Promise<IDBDatabase> {
+async function openDatabase(
+	indexedDbFactory: IDBFactory,
+	databaseName: string
+): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
 		const request = indexedDbFactory.open(databaseName, DATABASE_VERSION);
 
@@ -274,7 +277,8 @@ export function createBrowserDraftAssetStore(
 	const objectUrls: ObjectUrlCache = new Map();
 	const indexedDbFactory = options.indexedDB ?? indexedDB;
 	const storage = options.storage ?? navigator.storage;
-	const createObjectURL = options.createObjectURL ?? ((object: Blob) => URL.createObjectURL(object));
+	const createObjectURL =
+		options.createObjectURL ?? ((object: Blob) => URL.createObjectURL(object));
 	const revokeObjectURL = options.revokeObjectURL ?? ((url: string) => URL.revokeObjectURL(url));
 	const randomUUID =
 		options.randomUUID ??

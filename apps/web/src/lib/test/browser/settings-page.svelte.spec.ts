@@ -208,8 +208,9 @@ describe('routes/pages/settings/+page.svelte', () => {
 		await screen.getByLabelText('Preview port').fill('5174');
 		await screen.getByRole('button', { name: 'Save port' }).click();
 
-		await expectElement(screen.getByText('Use the site preview port, not the Tentman app port.'))
-			.toBeVisible();
+		await expectElement(
+			screen.getByText('Use the site preview port, not the Tentman app port.')
+		).toBeVisible();
 		expect(JSON.parse(settingsPageMocks.files['tentman.json'])).toMatchObject({
 			local: {
 				previewUrl: 'http://localhost:5173/'

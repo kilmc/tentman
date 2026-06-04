@@ -1,6 +1,10 @@
 <script lang="ts">
 	import ReviewDraftFieldChange from './ReviewDraftFieldChange.svelte';
-	import type { ReviewDiffLine, ReviewDiffSegment, ReviewFieldChange } from '$lib/features/review-draft/types';
+	import type {
+		ReviewDiffLine,
+		ReviewDiffSegment,
+		ReviewFieldChange
+	} from '$lib/features/review-draft/types';
 
 	interface Props {
 		field: ReviewFieldChange;
@@ -56,7 +60,9 @@
 			{#if field.presentation.diffMode === 'inline'}
 				<div class="grid gap-3 md:grid-cols-2">
 					<div>
-						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">Before</p>
+						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+							Before
+						</p>
 						<p class="rounded-xl bg-white p-3 text-sm leading-6">
 							{#each field.presentation.beforeSegments ?? [] as segment}
 								<span class={segmentClass(segment.status)}>{segment.value}</span>
@@ -64,7 +70,9 @@
 						</p>
 					</div>
 					<div>
-						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">After</p>
+						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+							After
+						</p>
 						<p class="rounded-xl bg-white p-3 text-sm leading-6">
 							{#each field.presentation.afterSegments ?? [] as segment}
 								<span class={segmentClass(segment.status)}>{segment.value}</span>
@@ -75,33 +83,50 @@
 			{:else if field.presentation.diffMode === 'lines'}
 				<div class="grid gap-3 md:grid-cols-2">
 					<div>
-						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">Before</p>
-						<pre class="overflow-x-auto rounded-xl bg-white p-3 text-sm leading-6 whitespace-pre-wrap break-words">{#each field.presentation.beforeLines ?? [] as line}<span class={lineClass(line.status)}>{line.value}{'\n'}</span>{/each}</pre>
+						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+							Before
+						</p>
+						<pre
+							class="overflow-x-auto rounded-xl bg-white p-3 text-sm leading-6 whitespace-pre-wrap break-words">{#each field.presentation.beforeLines ?? [] as line}<span
+									class={lineClass(line.status)}>{line.value}{'\n'}</span
+								>{/each}</pre>
 					</div>
 					<div>
-						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">After</p>
-						<pre class="overflow-x-auto rounded-xl bg-white p-3 text-sm leading-6 whitespace-pre-wrap break-words">{#each field.presentation.afterLines ?? [] as line}<span class={lineClass(line.status)}>{line.value}{'\n'}</span>{/each}</pre>
+						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+							After
+						</p>
+						<pre
+							class="overflow-x-auto rounded-xl bg-white p-3 text-sm leading-6 whitespace-pre-wrap break-words">{#each field.presentation.afterLines ?? [] as line}<span
+									class={lineClass(line.status)}>{line.value}{'\n'}</span
+								>{/each}</pre>
 					</div>
 				</div>
 			{:else}
 				<div class="grid gap-3 md:grid-cols-2">
-					<div class="rounded-xl bg-white p-3 text-sm text-stone-800">{field.presentation.before ?? '—'}</div>
-					<div class="rounded-xl bg-white p-3 text-sm text-stone-800">{field.presentation.after ?? '—'}</div>
+					<div class="rounded-xl bg-white p-3 text-sm text-stone-800">
+						{field.presentation.before ?? '—'}
+					</div>
+					<div class="rounded-xl bg-white p-3 text-sm text-stone-800">
+						{field.presentation.after ?? '—'}
+					</div>
 				</div>
 			{/if}
 		{:else if field.presentation.kind === 'value'}
 			<div class="grid gap-3 md:grid-cols-2">
-				<div class="rounded-xl bg-white p-3 text-sm text-stone-800">{field.presentation.before ?? '—'}</div>
-				<div class="rounded-xl bg-white p-3 text-sm text-stone-800">{field.presentation.after ?? '—'}</div>
+				<div class="rounded-xl bg-white p-3 text-sm text-stone-800">
+					{field.presentation.before ?? '—'}
+				</div>
+				<div class="rounded-xl bg-white p-3 text-sm text-stone-800">
+					{field.presentation.after ?? '—'}
+				</div>
 			</div>
 		{:else if field.presentation.kind === 'media'}
 			<div class="grid gap-3 md:grid-cols-2">
-				{#each [
-					{ label: 'Before', value: field.presentation.before },
-					{ label: 'After', value: field.presentation.after }
-				] as side}
+				{#each [{ label: 'Before', value: field.presentation.before }, { label: 'After', value: field.presentation.after }] as side}
 					<div>
-						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">{side.label}</p>
+						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+							{side.label}
+						</p>
 						<div class="rounded-xl bg-white p-3">
 							{#if side.value?.previewUrl}
 								<img
@@ -117,12 +142,11 @@
 			</div>
 		{:else if field.presentation.kind === 'object'}
 			<div class="grid gap-3 md:grid-cols-2">
-				{#each [
-					{ label: 'Before', rows: field.presentation.before },
-					{ label: 'After', rows: field.presentation.after }
-				] as side}
+				{#each [{ label: 'Before', rows: field.presentation.before }, { label: 'After', rows: field.presentation.after }] as side}
 					<div class="rounded-xl bg-white p-3">
-						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">{side.label}</p>
+						<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+							{side.label}
+						</p>
 						{#if side.rows.length === 0}
 							<p class="text-sm text-stone-500">No value</p>
 						{:else}
@@ -141,12 +165,11 @@
 		{:else if field.presentation.kind === 'structured'}
 			{#if field.presentation.mode === 'context'}
 				<div class="grid gap-3 md:grid-cols-2">
-					{#each [
-						{ label: 'Before', items: field.presentation.beforeSummary ?? [] },
-						{ label: 'After', items: field.presentation.afterSummary ?? [] }
-					] as side}
+					{#each [{ label: 'Before', items: field.presentation.beforeSummary ?? [] }, { label: 'After', items: field.presentation.afterSummary ?? [] }] as side}
 						<div class="rounded-xl bg-white p-3">
-							<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">{side.label}</p>
+							<p class="mb-2 text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">
+								{side.label}
+							</p>
 							<ol class="space-y-2">
 								{#each side.items as item, index}
 									<li class="text-sm text-stone-800">{index + 1}. {item}</li>
@@ -162,7 +185,9 @@
 							<div class="mb-3 flex flex-wrap items-center gap-2">
 								<h5 class="text-sm font-semibold text-stone-900">{entry.title}</h5>
 								{#each entry.changeKinds as kind}
-									<span class="rounded-full bg-stone-100 px-2 py-1 text-[11px] font-semibold text-stone-600 uppercase">
+									<span
+										class="rounded-full bg-stone-100 px-2 py-1 text-[11px] font-semibold text-stone-600 uppercase"
+									>
 										{kind}
 									</span>
 								{/each}
@@ -175,8 +200,12 @@
 								</div>
 							{:else if entry.beforeSummary || entry.afterSummary}
 								<div class="grid gap-3 md:grid-cols-2">
-									<div class="rounded-xl bg-stone-50 p-3 text-sm text-stone-800">{entry.beforeSummary ?? '—'}</div>
-									<div class="rounded-xl bg-stone-50 p-3 text-sm text-stone-800">{entry.afterSummary ?? '—'}</div>
+									<div class="rounded-xl bg-stone-50 p-3 text-sm text-stone-800">
+										{entry.beforeSummary ?? '—'}
+									</div>
+									<div class="rounded-xl bg-stone-50 p-3 text-sm text-stone-800">
+										{entry.afterSummary ?? '—'}
+									</div>
 								</div>
 							{/if}
 						</div>

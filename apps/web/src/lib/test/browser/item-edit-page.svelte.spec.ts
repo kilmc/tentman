@@ -311,7 +311,9 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			{ itemId: 'hello-world' }
 		);
 		expect(localFlowMocks.deleteDraftAsset).toHaveBeenCalledWith('draft-asset:hero');
-		expect(localFlowMocks.goto).toHaveBeenCalledWith('/pages/posts/hello-world/edit?published=true');
+		expect(localFlowMocks.goto).toHaveBeenCalledWith(
+			'/pages/posts/hello-world/edit?published=true'
+		);
 	});
 
 	it('recovers unsaved local item edits after interruption', async () => {
@@ -365,7 +367,8 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 
 		await expectElement(screen.getByText('Local recovery available')).toBeVisible();
 		await screen.getByRole('button', { name: 'Recover changes' }).click();
-		await expectElement(screen.getByTestId('mock-form-data'))
-			.toHaveTextContent('Recovered hello world');
+		await expectElement(screen.getByTestId('mock-form-data')).toHaveTextContent(
+			'Recovered hello world'
+		);
 	});
 });

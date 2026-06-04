@@ -102,7 +102,9 @@
 	}
 </script>
 
-<div class="overflow-x-auto border-b border-stone-200 bg-white/80 px-3 py-2.5 [scrollbar-width:none]">
+<div
+	class="overflow-x-auto border-b border-stone-200 bg-white/80 px-3 py-2.5 [scrollbar-width:none]"
+>
 	<Toolbar.Root
 		aria-label="Markdown formatting"
 		class="inline-flex min-w-max items-center gap-1.5 overscroll-x-contain sm:max-w-full sm:min-w-0 sm:gap-2 lg:gap-2.5 sticky top-50"

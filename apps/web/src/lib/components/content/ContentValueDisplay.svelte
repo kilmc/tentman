@@ -163,7 +163,9 @@
 				if (!cancelled) {
 					renderedMarkdown = markdownValue;
 					contentComponentIssue =
-						error instanceof Error ? error.message : 'Failed to process markdown content components';
+						error instanceof Error
+							? error.message
+							: 'Failed to process markdown content components';
 				}
 			}
 		}
@@ -174,7 +176,6 @@
 			cancelled = true;
 		};
 	});
-
 </script>
 
 {#if structuredBlocks}

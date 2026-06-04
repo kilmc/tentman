@@ -261,14 +261,14 @@ describe('navigation manifest helpers', () => {
 					path: 'src/content/projects.json',
 					itemsPath: '$'
 				},
-						blocks: [
-							{
-								id: 'tentmanGroup',
-								type: 'tentmanGroup',
-								label: 'Group',
-								collection: 'projects'
-							}
-						]
+				blocks: [
+					{
+						id: 'tentmanGroup',
+						type: 'tentmanGroup',
+						label: 'Group',
+						collection: 'projects'
+					}
+				]
 			})
 		});
 
@@ -314,7 +314,12 @@ describe('navigation manifest helpers', () => {
 		);
 
 		expect(manifest?.collections?.projects?.groups).toEqual([
-			{ id: 'illustration', label: 'Illustration', value: 'illustration', items: ['other-project'] },
+			{
+				id: 'illustration',
+				label: 'Illustration',
+				value: 'illustration',
+				items: ['other-project']
+			},
 			{
 				id: 'study-projects',
 				label: 'Study Projects',
@@ -354,7 +359,7 @@ describe('navigation manifest helpers', () => {
 					path: 'src/content/projects.json',
 					itemsPath: '$'
 				},
-						blocks: [{ id: 'group', type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
+				blocks: [{ id: 'group', type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
 			})
 		});
 
@@ -369,23 +374,21 @@ describe('navigation manifest helpers', () => {
 					_tentmanId: 'projects',
 					collection: {
 						sorting: 'manual',
-						groups: [
-							{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' }
-						]
+						groups: [{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' }]
 					},
 					content: {
 						mode: 'file',
 						path: 'src/content/projects.json',
 						itemsPath: '$'
 					},
-						blocks: [
-							{
-								id: 'tentmanGroup',
-								type: 'tentmanGroup',
-								label: 'Group',
-								collection: 'projects'
-							}
-						]
+					blocks: [
+						{
+							id: 'tentmanGroup',
+							type: 'tentmanGroup',
+							label: 'Group',
+							collection: 'projects'
+						}
+					]
 				}
 			},
 			{
@@ -558,7 +561,9 @@ describe('navigation manifest helpers', () => {
 					slug: 'posts',
 					configId: 'posts',
 					items: ['post-2', 'post-1'],
-					groups: [{ id: 'featured-group', label: 'Featured', value: 'featured', items: ['post-1'] }]
+					groups: [
+						{ id: 'featured-group', label: 'Featured', value: 'featured', items: ['post-1'] }
+					]
 				}
 			}
 		});

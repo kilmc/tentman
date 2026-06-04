@@ -53,7 +53,9 @@ Object.assign(globalThis, {
 	}
 });
 
-function createComponentItem(overrides: Partial<ContentComponentToolbarButton> = {}): ContentComponentToolbarButton {
+function createComponentItem(
+	overrides: Partial<ContentComponentToolbarButton> = {}
+): ContentComponentToolbarButton {
 	return {
 		id: 'project-gallery',
 		label: 'Project Gallery',
@@ -126,8 +128,7 @@ describe('markdown field interaction helpers', () => {
 	it('opens a component action popover only for openActions nodes', () => {
 		const nodeDom = new TestHTMLElement();
 		nodeDom.dataset.tentmanContentComponentBroken = 'false';
-		nodeDom.getBoundingClientRect = () =>
-			new DOMRect(100, 120, 80, 24);
+		nodeDom.getBoundingClientRect = () => new DOMRect(100, 120, 80, 24);
 		const editor = createEditorStub({
 			selectionNode: { attrs: { href: 'https://example.com/gallery' } },
 			nodeDom
@@ -148,8 +149,7 @@ describe('markdown field interaction helpers', () => {
 
 	it('does not open a component action popover for direct actions', () => {
 		const nodeDom = new TestHTMLElement();
-		nodeDom.getBoundingClientRect = () =>
-			new DOMRect(100, 120, 80, 24);
+		nodeDom.getBoundingClientRect = () => new DOMRect(100, 120, 80, 24);
 		const editor = createEditorStub({
 			selectionNode: { attrs: {} },
 			nodeDom

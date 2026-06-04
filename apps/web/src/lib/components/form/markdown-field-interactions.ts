@@ -148,7 +148,8 @@ export function openMarkdownFieldComponentDialog(options: {
 		values: dialogState.values,
 		error: null,
 		returnFocus:
-			options.trigger ?? (options.activeElement instanceof HTMLElement ? options.activeElement : null),
+			options.trigger ??
+			(options.activeElement instanceof HTMLElement ? options.activeElement : null),
 		mode: dialogState.mode
 	};
 }

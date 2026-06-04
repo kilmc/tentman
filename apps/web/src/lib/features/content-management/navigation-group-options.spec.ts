@@ -117,9 +117,7 @@ describe('navigation group select options', () => {
 			collections: {
 				'project-collection': {
 					items: [],
-					groups: [
-						{ id: 'tent_group_new_work', label: 'New Work', value: 'new-work', items: [] }
-					]
+					groups: [{ id: 'tent_group_new_work', label: 'New Work', value: 'new-work', items: [] }]
 				}
 			}
 		});

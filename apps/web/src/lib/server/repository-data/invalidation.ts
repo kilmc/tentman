@@ -4,19 +4,10 @@ import {
 	clearCollectionNavigationCache,
 	clearCollectionNavigationCacheForScope
 } from './collections';
-import {
-	clearSingletonDocumentCache,
-	clearSingletonDocumentCacheForScope
-} from './documents';
+import { clearSingletonDocumentCache, clearSingletonDocumentCacheForScope } from './documents';
 import { clearDraftChangeIndexCache } from './drafts';
-import {
-	clearRepositorySnapshotCache,
-	clearRepositorySnapshotCacheForScope
-} from './snapshot';
-import {
-	clearSingletonConfigStateCache,
-	clearSingletonConfigStateCacheForScope
-} from './states';
+import { clearRepositorySnapshotCache, clearRepositorySnapshotCacheForScope } from './snapshot';
+import { clearSingletonConfigStateCache, clearSingletonConfigStateCacheForScope } from './states';
 
 export interface RepositoryDataInvalidationInput {
 	backend: RepositoryBackend;
@@ -25,7 +16,9 @@ export interface RepositoryDataInvalidationInput {
 	reason: 'content-write' | 'publish' | 'discard' | 'navigation-manifest' | 'repo-instruction';
 }
 
-function hasScopedPaths(input: RepositoryDataInvalidationInput): input is RepositoryDataInvalidationInput & {
+function hasScopedPaths(
+	input: RepositoryDataInvalidationInput
+): input is RepositoryDataInvalidationInput & {
 	changedPaths: string[];
 } {
 	return Array.isArray(input.changedPaths) && input.changedPaths.length > 0;
@@ -48,7 +41,11 @@ function shouldInvalidateSnapshot(input: RepositoryDataInvalidationInput): boole
 		return true;
 	}
 
-	if (input.reason === 'publish' || input.reason === 'discard' || input.reason === 'repo-instruction') {
+	if (
+		input.reason === 'publish' ||
+		input.reason === 'discard' ||
+		input.reason === 'repo-instruction'
+	) {
 		return true;
 	}
 

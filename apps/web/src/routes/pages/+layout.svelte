@@ -876,8 +876,12 @@
 	});
 
 	$effect(() => {
-		page.url.pathname;
-		page.url.search;
+		const routeKey = `${page.url.pathname}?${page.url.search}`;
+
+		if (!routeKey) {
+			return;
+		}
+
 		isMobileSidebarOpen = false;
 		isMobileCollectionOpen = false;
 	});

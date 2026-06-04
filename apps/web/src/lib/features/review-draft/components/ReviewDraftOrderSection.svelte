@@ -18,7 +18,10 @@
 		<div>
 			<p class="text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase">Order review</p>
 			<h2 class="mt-1 text-lg font-semibold text-stone-950">{resolvedTitle}</h2>
-			<a href={review.href} class="mt-2 inline-flex text-sm font-medium text-stone-600 hover:text-stone-950">
+			<a
+				href={review.href}
+				class="mt-2 inline-flex text-sm font-medium text-stone-600 hover:text-stone-950"
+			>
 				Open related content
 			</a>
 		</div>
@@ -42,7 +45,9 @@
 				<ol class="space-y-2">
 					{#each review.before as entry}
 						<li class="flex items-baseline gap-3 text-sm text-stone-800">
-							<span class="inline-flex min-w-6 justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-stone-500">
+							<span
+								class="inline-flex min-w-6 justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-stone-500"
+							>
 								{entry.position}
 							</span>
 							<span>{entry.label}</span>
@@ -55,7 +60,9 @@
 				<ol class="space-y-2">
 					{#each review.after as entry}
 						<li class="flex items-baseline gap-3 text-sm text-stone-800">
-							<span class="inline-flex min-w-6 justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-stone-500">
+							<span
+								class="inline-flex min-w-6 justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-stone-500"
+							>
 								{entry.position}
 							</span>
 							<span>{entry.label}</span>
