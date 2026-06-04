@@ -30,6 +30,77 @@ export function getExistingItemMutationOptions(
 	return { itemId };
 }
 
+async function resolveExistingDirectoryItemFilename({
+	backend,
+	discoveredConfig,
+	itemId,
+	ref
+}: {
+	backend: RepositoryBackend;
+	discoveredConfig: DiscoveredConfig;
+	itemId: string;
+	ref?: string;
+}): Promise<string | undefined> {
+	const resolvedItem = await resolveCollectionItemDocument({
+		backend,
+		slug: discoveredConfig.slug,
+		itemId,
+		ref
+	});
+	if (resolvedItem?.indexItem.filename) {
+		return resolvedItem.indexItem.filename;
+	}
+
+	const content = await getCachedContent(
+		backend,
+		discoveredConfig.config,
+		discoveredConfig.path,
+		discoveredConfig.slug,
+		ref
+	);
+	if (!Array.isArray(content)) {
+		return undefined;
+	}
+
+	return findContentItemByRoute(content, discoveredConfig.config, itemId)?._filename;
+}
+
+export async function resolveExistingItemMutationOptions({
+	backend,
+	discoveredConfig,
+	itemId,
+	filename,
+	newFilename,
+	ref
+}: {
+	backend: RepositoryBackend;
+	discoveredConfig: DiscoveredConfig;
+	itemId: string;
+	filename?: string;
+	newFilename?: string;
+	ref?: string;
+}) {
+	if (discoveredConfig.config.content.mode === 'file') {
+		return { itemId };
+	}
+
+	const resolvedFilename =
+		filename ??
+		(await resolveExistingDirectoryItemFilename({
+			backend,
+			discoveredConfig,
+			itemId,
+			ref
+		}));
+
+	return getExistingItemMutationOptions(
+		discoveredConfig.config.content.mode,
+		itemId,
+		resolvedFilename,
+		newFilename
+	);
+}
+
 export async function resolveExistingCollectionItemDeleteOptions({
 	backend,
 	discoveredConfig,
@@ -48,33 +119,14 @@ export async function resolveExistingCollectionItemDeleteOptions({
 		};
 	}
 
-	const resolvedItem = await resolveCollectionItemDocument({
+	const filename = await resolveExistingDirectoryItemFilename({
 		backend,
-		slug: discoveredConfig.slug,
+		discoveredConfig,
 		itemId,
 		ref: branch
 	});
-	if (resolvedItem?.indexItem.filename) {
-		return {
-			branch,
-			filename: resolvedItem.indexItem.filename
-		};
-	}
-
-	const content = await getCachedContent(
-		backend,
-		discoveredConfig.config,
-		discoveredConfig.path,
-		discoveredConfig.slug,
-		branch
-	);
-	if (!Array.isArray(content)) {
-		return { branch };
-	}
-
-	const item = findContentItemByRoute(content, discoveredConfig.config, itemId);
 	return {
 		branch,
-		...(item?._filename ? { filename: item._filename } : {})
+		...(filename ? { filename } : {})
 	};
 }

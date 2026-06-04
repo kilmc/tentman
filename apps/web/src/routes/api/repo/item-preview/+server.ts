@@ -6,8 +6,8 @@ import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
 import {
-	getExistingItemMutationOptions,
-	parseEncodedPreviewContentData
+	parseEncodedPreviewContentData,
+	resolveExistingItemMutationOptions
 } from '$lib/server/preview';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
@@ -49,12 +49,13 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		let changesSummary = null;
 		let changesError = null;
 		const existingItemOptions = !isNew
-			? getExistingItemMutationOptions(
-					discoveredConfig.config.content.mode,
+			? await resolveExistingItemMutationOptions({
+					backend,
+					discoveredConfig,
 					itemId,
 					filename,
 					newFilename
-				)
+				})
 			: null;
 
 		try {

@@ -8,9 +8,18 @@ vi.mock('$lib/content/service', () => ({
 	previewContentChanges: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	resolveCollectionItemDocument: vi.fn(async () => null)
+}));
+
+vi.mock('$lib/stores/content-cache', () => ({
+	getCachedContent: vi.fn()
+}));
+
 import { GET } from '../../routes/api/repo/item-preview/+server';
 import { previewContentChanges } from '$lib/content/service';
 import { requireDiscoveredConfig } from '$lib/server/page-context';
+import { resolveCollectionItemDocument } from '$lib/server/repository-data';
 
 const collectionConfig = {
 	slug: 'posts',
@@ -28,6 +37,7 @@ const collectionConfig = {
 describe('GET /api/repo/item-preview', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
 	});
 
 	it('returns the collection preview bootstrap payload', async () => {
@@ -83,6 +93,73 @@ describe('GET /api/repo/item-preview', () => {
 				owner: 'acme',
 				name: 'docs'
 			}
+		});
+	});
+
+	it('resolves an existing directory item filename from repository metadata when it is missing from the query', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: { cacheKey: 'github:acme/docs' },
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: collectionConfig
+		} as never);
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: collectionConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				title: 'Hello world'
+			}
+		} as never);
+		vi.mocked(previewContentChanges).mockResolvedValue({
+			totalChanges: 1,
+			files: [
+				{
+					type: 'update',
+					path: 'content/posts/hello-world.md'
+				}
+			]
+		} as never);
+
+		const encodedData = Buffer.from(JSON.stringify({ title: 'Updated world' })).toString(
+			'base64url'
+		);
+		const response = await GET({
+			url: new URL(
+				`http://localhost/api/repo/item-preview?slug=posts&itemId=hello-world&data=${encodedData}`
+			),
+			locals: {},
+			cookies: {
+				delete: vi.fn()
+			}
+		} as never);
+
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: undefined
+		});
+		expect(previewContentChanges).toHaveBeenCalledWith(
+			{ cacheKey: 'github:acme/docs' },
+			collectionConfig.config,
+			collectionConfig.path,
+			{ title: 'Updated world' },
+			{
+				isNew: false,
+				filename: 'hello-world.md'
+			}
+		);
+		expect(await response.json()).toMatchObject({
+			itemId: 'hello-world',
+			isNew: false
 		});
 	});
 

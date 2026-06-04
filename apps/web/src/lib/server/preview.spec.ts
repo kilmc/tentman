@@ -10,7 +10,8 @@ vi.mock('$lib/stores/content-cache', () => ({
 
 import {
 	getExistingItemMutationOptions,
-	resolveExistingCollectionItemDeleteOptions
+	resolveExistingCollectionItemDeleteOptions,
+	resolveExistingItemMutationOptions
 } from './preview';
 import { resolveCollectionItemDocument } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
@@ -86,6 +87,72 @@ describe('preview mutation helpers', () => {
 
 		expect(resolveCollectionItemDocument).not.toHaveBeenCalled();
 		expect(getCachedContent).not.toHaveBeenCalled();
+	});
+
+	it('resolves existing directory mutation options from repository-data when filename is missing', async () => {
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: directoryConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				title: 'Hello world'
+			}
+		} as never);
+
+		await expect(
+			resolveExistingItemMutationOptions({
+				backend,
+				discoveredConfig: directoryConfig as never,
+				itemId: 'hello-world',
+				newFilename: 'updated-world.md',
+				ref: 'tentman-preview'
+			})
+		).resolves.toEqual({
+			filename: 'hello-world.md',
+			newFilename: 'updated-world.md'
+		});
+
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend,
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: 'tentman-preview'
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+	});
+
+	it('falls back to legacy content cache for existing directory mutation options', async () => {
+		vi.mocked(getCachedContent).mockResolvedValue([
+			{
+				_filename: 'hello-world.md',
+				title: 'Hello world'
+			}
+		]);
+
+		await expect(
+			resolveExistingItemMutationOptions({
+				backend,
+				discoveredConfig: directoryConfig as never,
+				itemId: 'hello-world'
+			})
+		).resolves.toEqual({
+			filename: 'hello-world.md'
+		});
+
+		expect(getCachedContent).toHaveBeenCalledWith(
+			backend,
+			directoryConfig.config,
+			directoryConfig.path,
+			directoryConfig.slug,
+			undefined
+		);
 	});
 
 	it('prefers repository-data filenames for directory-backed collection deletes', async () => {
