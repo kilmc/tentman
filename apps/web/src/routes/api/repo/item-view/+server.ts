@@ -1,7 +1,6 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
@@ -71,7 +70,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 				const { blockConfigs, packageBlocks, blockRegistryError } =
 					await loadGitHubBlockRegistryData(backend);
-				const navigationManifest = await loadNavigationManifestState(backend);
+				const navigationManifest = snapshot.navigationManifest;
 
 				logTiming('api.repo.item-view.result', {
 					repo: locals.selectedRepo?.full_name ?? null,

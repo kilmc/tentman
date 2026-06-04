@@ -26,6 +26,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 }));
 
 import { GET } from '../../routes/api/repo/item-view/+server';
+import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import {
@@ -197,6 +198,7 @@ describe('GET /api/repo/item-view', () => {
 			collectionConfig.path,
 			collectionConfig.slug
 		);
+		expect(loadNavigationManifestState).toHaveBeenCalledTimes(1);
 	});
 
 	it('returns the active managed draft branch when content loads from the draft by default', async () => {
