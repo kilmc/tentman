@@ -8,24 +8,20 @@ vi.mock('$lib/features/draft-publishing/service', () => ({
 	getTentmanDraftBranchName: vi.fn()
 }));
 
-vi.mock('$lib/stores/config-cache', () => ({
-	getCachedConfigs: vi.fn()
-}));
-
 vi.mock('$lib/features/review-draft/build-review-model', () => ({
 	buildPublishReviewModel: vi.fn()
 }));
 
 vi.mock('$lib/server/repository-data', () => ({
-	getDraftChangeIndex: vi.fn()
+	getDraftChangeIndex: vi.fn(),
+	getRepositorySnapshot: vi.fn()
 }));
 
 import { GET } from '../../routes/api/repo/publish-view/+server';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { requireGitHubRepository } from '$lib/server/page-context';
-import { getDraftChangeIndex } from '$lib/server/repository-data';
+import { getDraftChangeIndex, getRepositorySnapshot } from '$lib/server/repository-data';
 import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
@@ -100,7 +96,11 @@ describe('GET /api/repo/publish-view', () => {
 			],
 			byConfigSlug: new Map()
 		};
-		vi.mocked(getCachedConfigs).mockResolvedValue(configs as never);
+		vi.mocked(getRepositorySnapshot).mockResolvedValue({
+			configIndex: {
+				configs
+			}
+		} as never);
 		vi.mocked(getDraftChangeIndex).mockResolvedValue(draftChangeIndex as never);
 		vi.mocked(buildPublishReviewModel).mockResolvedValue({
 			topLevelOrderChange: {
@@ -152,6 +152,10 @@ describe('GET /api/repo/publish-view', () => {
 			baseBranch: 'trunk',
 			draftBranch: 'tentman-preview',
 			configs
+		});
+		expect(getRepositorySnapshot).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			ref: 'trunk'
 		});
 		expect(buildPublishReviewModel).toHaveBeenCalledWith(
 			expect.objectContaining({

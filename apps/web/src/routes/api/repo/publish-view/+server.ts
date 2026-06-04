@@ -3,10 +3,9 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubRepository } from '$lib/server/page-context';
-import { getDraftChangeIndex } from '$lib/server/repository-data';
+import { getDraftChangeIndex, getRepositorySnapshot } from '$lib/server/repository-data';
 
 export const GET: RequestHandler = async ({ locals, cookies }) => {
 	const requestContext = { locals, cookies };
@@ -21,7 +20,8 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			throw error(404, 'No draft branch found');
 		}
 
-		const configs = await getCachedConfigs(backend);
+		const snapshot = await getRepositorySnapshot({ backend, ref: repo.default_branch });
+		const configs = snapshot.configIndex.configs;
 		const draftChangeIndex = await getDraftChangeIndex({
 			octokit,
 			owner,

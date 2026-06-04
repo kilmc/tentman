@@ -7,8 +7,11 @@ import {
 	publishDraftBranch
 } from '$lib/features/draft-publishing/service';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
-import { getDraftChangeIndex, invalidateRepositoryData } from '$lib/server/repository-data';
-import { getCachedConfigs } from '$lib/stores/config-cache';
+import {
+	getDraftChangeIndex,
+	getRepositorySnapshot,
+	invalidateRepositoryData
+} from '$lib/server/repository-data';
 
 async function getPublishChangedPaths(input: {
 	octokit: ReturnType<typeof requireGitHubRepository>['octokit'];
@@ -23,7 +26,11 @@ async function getPublishChangedPaths(input: {
 			return undefined;
 		}
 
-		const configs = await getCachedConfigs(input.backend);
+		const snapshot = await getRepositorySnapshot({
+			backend: input.backend,
+			ref: input.defaultBranch
+		});
+		const configs = snapshot.configIndex.configs;
 		const changeIndex = await getDraftChangeIndex({
 			octokit: input.octokit,
 			owner: input.owner,

@@ -17,11 +17,11 @@ vi.mock('$lib/stores/content-cache', () => ({
 
 vi.mock('$lib/server/repository-data', () => ({
 	getDraftChangeIndex: vi.fn(),
+	getRepositorySnapshot: vi.fn(),
 	invalidateRepositoryData: vi.fn()
 }));
 
 vi.mock('$lib/stores/config-cache', () => ({
-	getCachedConfigs: vi.fn(),
 	invalidateCache: vi.fn()
 }));
 
@@ -33,8 +33,11 @@ import {
 } from '$lib/features/draft-publishing/service';
 import { invalidateContent } from '$lib/stores/content-cache';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
-import { getDraftChangeIndex, invalidateRepositoryData } from '$lib/server/repository-data';
-import { getCachedConfigs } from '$lib/stores/config-cache';
+import {
+	getDraftChangeIndex,
+	getRepositorySnapshot,
+	invalidateRepositoryData
+} from '$lib/server/repository-data';
 
 describe('routes/publish/+page.server', () => {
 	beforeEach(() => {
@@ -49,20 +52,24 @@ describe('routes/publish/+page.server', () => {
 			}
 		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
-		vi.mocked(getCachedConfigs).mockResolvedValue([
-			{
-				slug: 'about',
-				path: 'content/about.tentman.json',
-				config: {
-					type: 'content',
-					label: 'About',
-					content: {
-						mode: 'file'
-					},
-					blocks: []
-				}
+		vi.mocked(getRepositorySnapshot).mockResolvedValue({
+			configIndex: {
+				configs: [
+					{
+						slug: 'about',
+						path: 'content/about.tentman.json',
+						config: {
+							type: 'content',
+							label: 'About',
+							content: {
+								mode: 'file'
+							},
+							blocks: []
+						}
+					}
+				]
 			}
-		] as never);
+		} as never);
 		vi.mocked(getDraftChangeIndex).mockResolvedValue({
 			files: [
 				{
@@ -96,6 +103,10 @@ describe('routes/publish/+page.server', () => {
 		});
 
 		expect(publishDraftBranch).toHaveBeenCalledWith({}, 'acme', 'docs', 'trunk');
+		expect(getRepositorySnapshot).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			ref: 'trunk'
+		});
 		expect(invalidateContent).toHaveBeenCalledWith('github:acme/docs');
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: { cacheKey: 'github:acme/docs' },
