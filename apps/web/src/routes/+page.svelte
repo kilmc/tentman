@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve as resolvePath } from '$app/paths';
 	import { page } from '$app/state';
 	import LocalRepoButton from '$lib/components/LocalRepoButton.svelte';
 	import { formatAppTitle } from '$lib/utils/page-title';
@@ -50,7 +50,7 @@
 		<div class="mt-10 flex flex-wrap gap-3">
 			{#if data.githubOAuthConfigured}
 				<a
-					href={resolve('/repos')}
+					href={resolvePath('/repos')}
 					class="inline-flex min-h-12 items-center justify-center rounded-md bg-stone-950 px-6 text-sm font-semibold text-white transition-colors hover:bg-stone-800"
 				>
 					Use GitHub Repos
