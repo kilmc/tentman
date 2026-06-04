@@ -16,7 +16,7 @@ import {
 	resolveCollectionNavigationForRoute,
 	resolvePageViewContentForRoute,
 	resolveSingletonConfigStatesForRoute
-} from './route-fallbacks';
+} from './route-data';
 import {
 	getCollectionNavigation,
 	resolveCollectionItemDocument,

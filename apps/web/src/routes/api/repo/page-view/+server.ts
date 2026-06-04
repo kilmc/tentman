@@ -6,7 +6,7 @@ import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot } from '$lib/server/repository-data';
-import { resolvePageViewContentForRoute } from '$lib/server/repository-data/route-fallbacks';
+import { resolvePageViewContentForRoute } from '$lib/server/repository-data/route-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {

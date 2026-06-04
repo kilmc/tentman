@@ -20,6 +20,8 @@ import {
 	getSingletonDocument
 } from '$lib/server/repository-data';
 
+// Route endpoints prefer repository-data indexes, then preserve legacy content-cache fallback
+// for local mode and GitHub source shapes that are not yet fully indexable.
 export type RepositoryRouteDataSource = 'repository-data' | 'legacy-content-cache';
 
 export interface ResolvedCollectionNavigation {

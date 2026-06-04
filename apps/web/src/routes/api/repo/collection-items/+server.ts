@@ -2,7 +2,7 @@
 import { error, json } from '@sveltejs/kit';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
-import { resolveCollectionNavigationForRoute } from '$lib/server/repository-data/route-fallbacks';
+import { resolveCollectionNavigationForRoute } from '$lib/server/repository-data/route-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 

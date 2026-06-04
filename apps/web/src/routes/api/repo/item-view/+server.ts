@@ -6,7 +6,7 @@ import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot } from '$lib/server/repository-data';
-import { resolveCollectionItemForRoute } from '$lib/server/repository-data/route-fallbacks';
+import { resolveCollectionItemForRoute } from '$lib/server/repository-data/route-data';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
