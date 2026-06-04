@@ -73,11 +73,15 @@ describe('GET /api/repo/page-view', () => {
 		vi.mocked(getCollectionNavigation).mockResolvedValue(null);
 		vi.mocked(getSingletonDocument).mockResolvedValue(null);
 		vi.mocked(getRepositorySnapshot).mockResolvedValue({
+			rootConfig: null,
 			configIndex: {
 				bySlug: new Map<string, unknown>([
 					['posts', discoveredConfig],
 					['about', singletonConfig]
 				])
+			},
+			blockConfigIndex: {
+				configs: []
 			}
 		} as never);
 	});

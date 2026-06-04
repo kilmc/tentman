@@ -56,7 +56,10 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				}
 
 				const { blockConfigs, packageBlocks, blockRegistryError } =
-					await loadGitHubBlockRegistryData(backend);
+					await loadGitHubBlockRegistryData(backend, {
+						blockConfigs: snapshot.blockConfigIndex.configs,
+						rootConfig: snapshot.rootConfig
+					});
 
 				logTiming('api.repo.page-view.result', {
 					repo: locals.selectedRepo?.full_name ?? null,

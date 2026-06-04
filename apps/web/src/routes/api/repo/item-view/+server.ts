@@ -69,7 +69,10 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				}
 
 				const { blockConfigs, packageBlocks, blockRegistryError } =
-					await loadGitHubBlockRegistryData(backend);
+					await loadGitHubBlockRegistryData(backend, {
+						blockConfigs: snapshot.blockConfigIndex.configs,
+						rootConfig: snapshot.rootConfig
+					});
 				const navigationManifest = snapshot.navigationManifest;
 
 				logTiming('api.repo.item-view.result', {
