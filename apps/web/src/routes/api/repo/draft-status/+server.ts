@@ -53,7 +53,14 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 						defaultBranch,
 						discoveredConfig.config,
 						discoveredConfig.path,
-						draftBranch
+						draftBranch,
+						{
+							comparisonContext: {
+								metadata: draftChangeIndex.metadata,
+								changedFiles: draftChangeIndex.files,
+								canUseCheapComparison: true
+							}
+						}
 					);
 				}
 			}

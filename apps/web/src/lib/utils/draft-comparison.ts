@@ -43,7 +43,7 @@ export interface DraftMetadata {
 	mainHeadCommit?: string; // Current SHA of main branch
 }
 
-interface DraftBranchChangedFile {
+export interface DraftBranchChangedFile {
 	filename: string;
 	status: string;
 	previous_filename?: string;
@@ -53,6 +53,10 @@ interface DraftComparisonContext {
 	metadata: DraftMetadata;
 	changedFiles: DraftBranchChangedFile[];
 	canUseCheapComparison: boolean;
+}
+
+interface CompareDraftToBranchOptions {
+	comparisonContext?: DraftComparisonContext;
 }
 
 interface CachedDraftComparisonContext {
@@ -86,16 +90,13 @@ export async function compareDraftToBranch(
 	baseBranch: string,
 	config: ParsedContentConfig,
 	configPath: string,
-	draftBranch: string
+	draftBranch: string,
+	options?: CompareDraftToBranchOptions
 ): Promise<DraftComparison> {
 	try {
-		const comparisonContext = await getDraftComparisonContext(
-			octokit,
-			owner,
-			repo,
-			baseBranch,
-			draftBranch
-		);
+		const comparisonContext =
+			options?.comparisonContext ??
+			(await getDraftComparisonContext(octokit, owner, repo, baseBranch, draftBranch));
 		const { metadata } = comparisonContext;
 
 		if (!metadata.branchExists) {

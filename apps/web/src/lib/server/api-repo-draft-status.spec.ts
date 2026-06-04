@@ -156,6 +156,24 @@ describe('GET /api/repo/draft-status', () => {
 			}
 		});
 		expect(compareDraftToBranch).toHaveBeenCalledTimes(1);
+		expect(compareDraftToBranch).toHaveBeenCalledWith(
+			{},
+			'acme',
+			'docs',
+			'main',
+			discoveredConfig.config,
+			discoveredConfig.path,
+			'tentman-preview',
+			{
+				comparisonContext: {
+					metadata: {
+						branchExists: true
+					},
+					changedFiles: [],
+					canUseCheapComparison: true
+				}
+			}
+		);
 	});
 
 	it('clears the session and returns 401 on GitHub auth failure', async () => {

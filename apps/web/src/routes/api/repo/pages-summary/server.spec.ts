@@ -255,5 +255,25 @@ describe('POST /api/repo/pages-summary', () => {
 			hasConfigs: true
 		});
 		expect(compareDraftToBranch).toHaveBeenCalledTimes(1);
+		expect(compareDraftToBranch).toHaveBeenCalledWith(
+			{},
+			'acme',
+			'docs',
+			'main',
+			expect.objectContaining({
+				label: 'Posts'
+			}),
+			'content/posts.tentman.json',
+			'tentman-preview',
+			{
+				comparisonContext: {
+					metadata: {
+						branchExists: true
+					},
+					changedFiles: [],
+					canUseCheapComparison: true
+				}
+			}
+		);
 	});
 });

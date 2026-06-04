@@ -326,4 +326,36 @@ describe('utils/draft-comparison', () => {
 		expect(comparison.created.map((change) => change.itemId)).toEqual(['second-post']);
 		expect(contentServiceMocks.fetchContentDocument).toHaveBeenCalledTimes(2);
 	});
+
+	it('reuses injected comparison context for full content fallbacks', async () => {
+		contentServiceMocks.fetchContentDocument
+			.mockResolvedValueOnce([{ slug: 'first-post', title: 'First' }])
+			.mockResolvedValueOnce([{ slug: 'first-post', title: 'Updated First' }]);
+		const octokit = createOctokit({
+			files: [{ filename: 'content/posts.json', status: 'modified' }]
+		});
+
+		const comparison = await compareDraftToBranch(
+			octokit as never,
+			'acme',
+			'docs',
+			'trunk',
+			arrayConfig,
+			'content/posts.tentman.json',
+			'tentman-preview',
+			{
+				comparisonContext: {
+					metadata: {
+						branchExists: true
+					},
+					changedFiles: [{ filename: 'content/posts.json', status: 'modified' }],
+					canUseCheapComparison: true
+				}
+			}
+		);
+
+		expect(comparison.modified.map((change) => change.itemId)).toEqual(['first-post']);
+		expect(octokit.rest.repos.compareCommits).not.toHaveBeenCalled();
+		expect(contentServiceMocks.fetchContentDocument).toHaveBeenCalledTimes(2);
+	});
 });

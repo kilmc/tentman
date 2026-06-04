@@ -82,7 +82,14 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 									defaultBranch,
 									config.config,
 									config.path,
-									draftBranch
+									draftBranch,
+									{
+										comparisonContext: {
+											metadata: draftChangeIndex.metadata,
+											changedFiles: draftChangeIndex.files,
+											canUseCheapComparison: true
+										}
+									}
 								);
 								changeCount =
 									draftChanges.modified.length +
