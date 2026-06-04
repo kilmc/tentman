@@ -24,8 +24,8 @@ import {
 	invalidateGitHubRepositoryMetadataCache
 } from '$lib/repository/github';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
-import { invalidateRepositoryData } from '$lib/server/repository-data';
-import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
+import { getRepositorySnapshot, invalidateRepositoryData } from '$lib/server/repository-data';
+import { invalidateCache } from '$lib/stores/config-cache';
 
 const CONFIG_ID_COMMIT_MESSAGE = 'Add Tentman content config ids';
 const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
@@ -180,11 +180,6 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 
 	try {
 		const mutation = assertMutation(await request.json());
-		const [configs, rootConfig, manifestState] = await Promise.all([
-			getCachedConfigs(backend),
-			backend.readRootConfig(),
-			loadNavigationManifestState(backend)
-		]);
 		const requiresDraftBranch = mutation.action !== undefined;
 		const draftBranch = requiresDraftBranch
 			? await ensureDraftBranch(octokit, owner, name, locals.selectedRepo.default_branch)
@@ -199,6 +194,13 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 					defaultRef: draftBranch.branchName
 				})
 			: null;
+		const snapshot = await getRepositorySnapshot({
+			backend,
+			ref: draftBranch?.branchName
+		});
+		const configs = snapshot.configIndex.configs;
+		const rootConfig = snapshot.rootConfig;
+		const manifestState = snapshot.navigationManifest;
 		const nextConfigs = configs.map((config) => ({
 			...config,
 			config: {

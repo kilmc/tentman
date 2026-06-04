@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/stores/config-cache', () => ({
-	getCachedConfigs: vi.fn(),
 	invalidateCache: vi.fn()
 }));
 
@@ -143,12 +142,13 @@ vi.mock('$lib/github/pull-request', () => ({
 }));
 
 vi.mock('$lib/server/repository-data', () => ({
+	getRepositorySnapshot: vi.fn(),
 	invalidateRepositoryData: vi.fn()
 }));
 
 import { POST } from '../../routes/api/repo/navigation-manifest/+server';
-import { getCachedConfigs, invalidateCache } from '$lib/stores/config-cache';
-import { invalidateRepositoryData } from '$lib/server/repository-data';
+import { invalidateCache } from '$lib/stores/config-cache';
+import { getRepositorySnapshot, invalidateRepositoryData } from '$lib/server/repository-data';
 import {
 	loadNavigationManifestState,
 	reconcileManualNavigationSetup,
@@ -165,42 +165,62 @@ function createCookies() {
 	};
 }
 
+function mockRepositorySnapshot(
+	configs: Array<{ slug: string; path: string; config: Record<string, unknown> }>
+) {
+	vi.mocked(getRepositorySnapshot).mockResolvedValue({
+		identity: {
+			repoKey: 'github:acme/docs',
+			ref: 'tentman-preview',
+			headSha: 'head-sha',
+			treeSha: 'tree-sha'
+		},
+		rootConfig: null,
+		configIndex: {
+			configs,
+			bySlug: new Map(configs.map((config) => [config.slug, config])),
+			byConfigPath: new Map(configs.map((config) => [config.path, config]))
+		},
+		blockConfigIndex: {
+			configs: [],
+			byId: new Map(),
+			byConfigPath: new Map()
+		},
+		navigationManifest: {
+			path: 'tentman/navigation-manifest.json',
+			exists: true,
+			manifest: {
+				version: 1,
+				content: {
+					items: ['about', 'posts']
+				}
+			},
+			error: null
+		},
+		loadedAt: Date.now()
+	} as never);
+}
+
 describe('POST /api/repo/navigation-manifest', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
 	it('enables manual navigation by adding ids and writing a generated manifest', async () => {
-		vi.mocked(getCachedConfigs)
-			.mockResolvedValueOnce([
-				{
-					slug: 'about',
-					path: 'content/about.tentman.json',
-					config: {
-						type: 'content',
-						label: 'About',
-						content: {
-							mode: 'file'
-						},
-						blocks: []
-					}
+		mockRepositorySnapshot([
+			{
+				slug: 'about',
+				path: 'content/about.tentman.json',
+				config: {
+					type: 'content',
+					label: 'About',
+					content: {
+						mode: 'file'
+					},
+					blocks: []
 				}
-			] as never)
-			.mockResolvedValueOnce([
-				{
-					slug: 'about',
-					path: 'content/about.tentman.json',
-					config: {
-						type: 'content',
-						id: 'about',
-						label: 'About',
-						content: {
-							mode: 'file'
-						},
-						blocks: []
-					}
-				}
-			] as never);
+			}
+		]);
 
 		const response = await POST({
 			request: new Request('http://localhost/api/repo/navigation-manifest', {
@@ -227,6 +247,10 @@ describe('POST /api/repo/navigation-manifest', () => {
 
 		expect(writeMissingContentConfigIds).toHaveBeenCalled();
 		expect(ensureDraftBranch).toHaveBeenCalledWith(expect.anything(), 'acme', 'docs', 'trunk');
+		expect(getRepositorySnapshot).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview'
+		});
 		expect(ensureDraftPullRequest).toHaveBeenCalledWith(
 			expect.anything(),
 			'acme',
@@ -255,7 +279,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 	});
 
 	it('validates and saves a manifest payload', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([] as never);
+		mockRepositorySnapshot([]);
 
 		await POST({
 			request: new Request('http://localhost/api/repo/navigation-manifest', {
@@ -308,7 +332,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 	});
 
 	it('adds a collection group through the manifest endpoint', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([
+		mockRepositorySnapshot([
 			{
 				slug: 'projects',
 				path: 'content/projects.tentman.json',
@@ -325,14 +349,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 					blocks: []
 				}
 			}
-		] as never);
-		vi.mocked(loadNavigationManifestState).mockResolvedValueOnce({
-			path: 'tentman/navigation-manifest.json',
-			exists: false,
-			manifest: null,
-			error: null
-		});
-
+		]);
 		await POST({
 			request: new Request('http://localhost/api/repo/navigation-manifest', {
 				method: 'POST',
@@ -388,7 +405,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 	});
 
 	it('saves collection order through the manifest endpoint', async () => {
-		vi.mocked(getCachedConfigs).mockResolvedValue([
+		mockRepositorySnapshot([
 			{
 				slug: 'projects',
 				path: 'content/projects.tentman.json',
@@ -406,7 +423,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 					blocks: []
 				}
 			}
-		] as never);
+		]);
 
 		await POST({
 			request: new Request('http://localhost/api/repo/navigation-manifest', {
