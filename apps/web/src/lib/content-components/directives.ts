@@ -2,6 +2,7 @@ import type { ContentComponentRegistry } from './registry';
 
 const ATTRIBUTE_PATTERN = /([A-Za-z0-9_-]+)\s*=\s*("([^"]*)"|'([^']*)')/g;
 const DIRECTIVE_NAME_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]*';
+const INLINE_DIRECTIVE_PREFIX_PATTERN = '(?<![A-Za-z0-9_./:-])';
 
 export interface ParsedContentDirectiveMatch {
 	raw: string;
@@ -70,7 +71,7 @@ export function getMarkdownLabelAttributeName(
 export function getDirectivePattern(kind: 'inline' | 'block'): RegExp {
 	return kind === 'inline'
 		? new RegExp(
-				`(?<!:):(?<name>${DIRECTIVE_NAME_PATTERN})(?:\\[(?<label>[^\\]]*)\\])?(?:\\{(?<attributes>[^}]*)\\})?`,
+				`${INLINE_DIRECTIVE_PREFIX_PATTERN}:(?<name>${DIRECTIVE_NAME_PATTERN})(?:\\[(?<label>[^\\]]*)\\])?(?:\\{(?<attributes>[^}]*)\\})?`,
 				'g'
 			)
 		: new RegExp(

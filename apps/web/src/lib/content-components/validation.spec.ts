@@ -83,4 +83,13 @@ describe('validateMarkdownContentComponents', () => {
 			})
 		).toEqual([]);
 	});
+
+	it('does not treat staged draft image refs as inline content components', () => {
+		expect(
+			validateMarkdownContentComponents({
+				markdown: '![Uploaded image](draft-asset:eadd963b-edff-455f-a404-f09bc57155fd)',
+				registry: createRegistry()
+			})
+		).toEqual([]);
+	});
 });
