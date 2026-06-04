@@ -3,10 +3,50 @@ import { redirect, error } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import {
 	discardDraftBranch,
+	getTentmanDraftBranchName,
 	publishDraftBranch
 } from '$lib/features/draft-publishing/service';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
-import { invalidateRepositoryData } from '$lib/server/repository-data';
+import { getDraftChangeIndex, invalidateRepositoryData } from '$lib/server/repository-data';
+import { getCachedConfigs } from '$lib/stores/config-cache';
+
+async function getPublishChangedPaths(input: {
+	octokit: ReturnType<typeof requireGitHubRepository>['octokit'];
+	owner: string;
+	name: string;
+	backend: ReturnType<typeof requireGitHubRepository>['backend'];
+	defaultBranch: string;
+}): Promise<string[] | undefined> {
+	try {
+		const draftBranch = await getTentmanDraftBranchName(input.octokit, input.owner, input.name);
+		if (!draftBranch) {
+			return undefined;
+		}
+
+		const configs = await getCachedConfigs(input.backend);
+		const changeIndex = await getDraftChangeIndex({
+			octokit: input.octokit,
+			owner: input.owner,
+			repo: input.name,
+			baseBranch: input.defaultBranch,
+			draftBranch,
+			configs
+		});
+
+		const changedPaths = new Set<string>();
+		for (const file of changeIndex.files) {
+			changedPaths.add(file.filename);
+			if (file.previous_filename) {
+				changedPaths.add(file.previous_filename);
+			}
+		}
+
+		return [...changedPaths];
+	} catch (err) {
+		console.warn('Could not scope repository-data publish invalidation:', err);
+		return undefined;
+	}
+}
 
 export const actions = {
 	publish: async ({ locals, cookies }) => {
@@ -14,6 +54,13 @@ export const actions = {
 		const { octokit, owner, name, backend, defaultBranch } = requireGitHubRepository(requestContext);
 
 		try {
+			const changedPaths = await getPublishChangedPaths({
+				octokit,
+				owner,
+				name,
+				backend,
+				defaultBranch
+			});
 			const { branchName } = await publishDraftBranch(octokit, owner, name, defaultBranch);
 
 			console.log(`✅ Published and deleted draft branch: ${branchName}`);
@@ -32,6 +79,7 @@ export const actions = {
 			invalidateRepositoryData({
 				backend,
 				ref: defaultBranch,
+				changedPaths,
 				reason: 'publish'
 			});
 

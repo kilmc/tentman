@@ -7,7 +7,8 @@ vi.mock('$lib/server/page-context', () => ({
 
 vi.mock('$lib/features/draft-publishing/service', () => ({
 	publishDraftBranch: vi.fn(),
-	discardDraftBranch: vi.fn()
+	discardDraftBranch: vi.fn(),
+	getTentmanDraftBranchName: vi.fn()
 }));
 
 vi.mock('$lib/stores/content-cache', () => ({
@@ -15,17 +16,25 @@ vi.mock('$lib/stores/content-cache', () => ({
 }));
 
 vi.mock('$lib/server/repository-data', () => ({
+	getDraftChangeIndex: vi.fn(),
 	invalidateRepositoryData: vi.fn()
+}));
+
+vi.mock('$lib/stores/config-cache', () => ({
+	getCachedConfigs: vi.fn(),
+	invalidateCache: vi.fn()
 }));
 
 import { actions } from './+page.server';
 import {
 	discardDraftBranch,
+	getTentmanDraftBranchName,
 	publishDraftBranch
 } from '$lib/features/draft-publishing/service';
 import { invalidateContent } from '$lib/stores/content-cache';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
-import { invalidateRepositoryData } from '$lib/server/repository-data';
+import { getDraftChangeIndex, invalidateRepositoryData } from '$lib/server/repository-data';
+import { getCachedConfigs } from '$lib/stores/config-cache';
 
 describe('routes/publish/+page.server', () => {
 	beforeEach(() => {
@@ -38,6 +47,34 @@ describe('routes/publish/+page.server', () => {
 			backend: {
 				cacheKey: 'github:acme/docs'
 			}
+		} as never);
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
+		vi.mocked(getCachedConfigs).mockResolvedValue([
+			{
+				slug: 'about',
+				path: 'content/about.tentman.json',
+				config: {
+					type: 'content',
+					label: 'About',
+					content: {
+						mode: 'file'
+					},
+					blocks: []
+				}
+			}
+		] as never);
+		vi.mocked(getDraftChangeIndex).mockResolvedValue({
+			files: [
+				{
+					filename: 'src/content/about.md',
+					status: 'modified'
+				},
+				{
+					filename: 'src/content/new-about.md',
+					previous_filename: 'src/content/old-about.md',
+					status: 'renamed'
+				}
+			]
 		} as never);
 	});
 
@@ -63,6 +100,37 @@ describe('routes/publish/+page.server', () => {
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: { cacheKey: 'github:acme/docs' },
 			ref: 'trunk',
+			changedPaths: [
+				'src/content/about.md',
+				'src/content/new-about.md',
+				'src/content/old-about.md'
+			],
+			reason: 'publish'
+		});
+	});
+
+	it('keeps broad publish invalidation when draft changes cannot be scoped', async () => {
+		vi.mocked(getDraftChangeIndex).mockRejectedValue(new Error('compare failed'));
+		vi.mocked(publishDraftBranch).mockResolvedValue({
+			branchName: 'tentman-preview'
+		});
+
+		await expect(
+			actions.publish({
+				locals: {},
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages?merged=true'
+		});
+
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: { cacheKey: 'github:acme/docs' },
+			ref: 'trunk',
+			changedPaths: undefined,
 			reason: 'publish'
 		});
 	});
