@@ -12,7 +12,7 @@ import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import {
-	getExistingItemMutationOptions,
+	resolveExistingItemMutationOptions,
 	resolveExistingCollectionItemDeleteOptions
 } from '$lib/server/preview';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
@@ -104,11 +104,12 @@ export const actions: Actions = {
 				message: `Update ${discoveredConfig.config.label} via Tentman CMS`,
 				ref: branchName
 			};
-			const saveOptions = getExistingItemMutationOptions(
-				discoveredConfig.config.content.mode,
-				params.itemId,
+			const saveOptions = await resolveExistingItemMutationOptions({
+				backend,
+				discoveredConfig,
+				itemId: params.itemId,
 				filename
-			);
+			});
 
 			if (!saveOptions) {
 				return fail(400, {

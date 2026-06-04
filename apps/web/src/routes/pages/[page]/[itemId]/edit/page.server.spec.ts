@@ -42,7 +42,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', async () => {
 });
 
 import { actions } from './+page.server';
-import { deleteContentDocument } from '$lib/content/service';
+import { deleteContentDocument, saveContentDocument } from '$lib/content/service';
 import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
@@ -125,6 +125,133 @@ describe('routes/pages/[page]/[itemId]/edit/+page.server', () => {
 			ref: 'tentman-preview',
 			reason: 'content-write'
 		});
+	});
+
+	it('saves a directory-backed draft item using the repository-data resolver filename', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: collectionConfig
+		} as never);
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: collectionConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				title: 'Hello world'
+			}
+		} as never);
+
+		await expect(
+			actions.saveToPreview({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Hello world updated' })
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts/hello-world/edit?saved=true'
+		});
+
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: undefined
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(saveContentDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			{ title: 'Hello world updated' },
+			{
+				branch: 'tentman-preview',
+				filename: 'hello-world.md'
+			}
+		);
+	});
+
+	it('falls back to full draft content when saving and the repository-data resolver cannot answer', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'local:docs',
+				readRootConfig: vi.fn(async () => null)
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: collectionConfig
+		} as never);
+		vi.mocked(getCachedContent).mockResolvedValue([
+			{
+				_filename: 'hello-world.md',
+				title: 'Hello world'
+			}
+		]);
+
+		await expect(
+			actions.saveToPreview({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Hello world updated' })
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts/hello-world/edit?saved=true'
+		});
+
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'local:docs' }),
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: undefined
+		});
+		expect(getCachedContent).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'local:docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			'posts',
+			undefined
+		);
+		expect(saveContentDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'local:docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			{ title: 'Hello world updated' },
+			{
+				branch: 'tentman-preview',
+				filename: 'hello-world.md'
+			}
+		);
 	});
 
 	it('deletes a directory-backed draft item using the repository-data resolver filename', async () => {
