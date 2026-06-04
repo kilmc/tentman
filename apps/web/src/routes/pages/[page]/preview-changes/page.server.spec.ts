@@ -35,6 +35,7 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 }));
 
 import { actions } from './+page.server';
+import { saveContentDocument } from '$lib/content/service';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 import { invalidateContent } from '$lib/stores/content-cache';
@@ -57,10 +58,14 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 	});
 
 	it('saves singleton draft changes and returns to the editor with a saved flag', async () => {
+		vi.mocked(saveContentDocument).mockImplementation(async (backend) => {
+			await backend.writeTextFile('content/about.md', 'updated');
+		});
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
-				readRootConfig: vi.fn(async () => null)
+				readRootConfig: vi.fn(async () => null),
+				commitChanges: vi.fn(async () => undefined)
 			},
 			octokit: {},
 			owner: 'acme',
@@ -94,15 +99,20 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			ref: 'tentman-preview',
+			changedPaths: ['content/about.md'],
 			reason: 'content-write'
 		});
 	});
 
 	it('publishes singleton draft changes directly from the preview screen', async () => {
+		vi.mocked(saveContentDocument).mockImplementation(async (backend) => {
+			await backend.writeTextFile('content/about.md', 'updated');
+		});
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
-				readRootConfig: vi.fn(async () => null)
+				readRootConfig: vi.fn(async () => null),
+				commitChanges: vi.fn(async () => undefined)
 			},
 			octokit: {},
 			owner: 'acme',
@@ -138,6 +148,7 @@ describe('routes/pages/[page]/preview-changes/+page.server', () => {
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			ref: undefined,
+			changedPaths: ['content/about.md'],
 			reason: 'publish'
 		});
 	});

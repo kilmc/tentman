@@ -26,6 +26,7 @@ vi.mock('$lib/server/repository-data', () => ({
 }));
 
 import { actions } from './+page.server';
+import { saveContentDocument } from '$lib/content/service';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 
@@ -47,10 +48,14 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 	});
 
 	it('redirects back to the editor after saving to the managed draft', async () => {
+		vi.mocked(saveContentDocument).mockImplementation(async (backend) => {
+			await backend.writeTextFile('content/about.md', 'updated');
+		});
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
-				readRootConfig: vi.fn(async () => null)
+				readRootConfig: vi.fn(async () => null),
+				commitChanges: vi.fn(async () => undefined)
 			},
 			octokit: {},
 			owner: 'acme',
@@ -84,6 +89,7 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			ref: 'tentman-preview',
+			changedPaths: ['content/about.md'],
 			reason: 'content-write'
 		});
 	});

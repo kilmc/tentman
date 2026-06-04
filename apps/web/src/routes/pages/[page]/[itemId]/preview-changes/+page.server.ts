@@ -7,7 +7,7 @@ import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/s
 import { formatErrorMessage, logError } from '$lib/utils/errors.js';
 import { ensureDraftBranch, publishDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
-import { withBatchedRepositoryWrites } from '$lib/repository/batch';
+import { withTrackedBatchedRepositoryWrites } from '$lib/repository/batch';
 import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
@@ -50,69 +50,76 @@ export const actions: Actions = {
 			};
 
 			// Save or create the content to the draft branch
-			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
-				const materialized = await materializeDraftAssetsFromFormData({
-					formData,
-					content: contentData,
-					configPath: discoveredConfig.path,
-					blocks: discoveredConfig.config.blocks,
-					backend: batchBackend,
-					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
-					writeOptions: {
-						ref: branchName
-					}
-				});
+			const { changedPaths } = await withTrackedBatchedRepositoryWrites(
+				backend,
+				writeOptions,
+				async (batchBackend) => {
+					const materialized = await materializeDraftAssetsFromFormData({
+						formData,
+						content: contentData,
+						configPath: discoveredConfig.path,
+						blocks: discoveredConfig.config.blocks,
+						backend: batchBackend,
+						defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+						writeOptions: {
+							ref: branchName
+						}
+					});
 
-				if (isNew) {
-					await createContentDocument(
+					if (isNew) {
+						await createContentDocument(
+							batchBackend,
+							discoveredConfig.config,
+							discoveredConfig.path,
+							materialized.content,
+							{
+								filename: newFilename,
+								branch: branchName
+							}
+						);
+						return;
+					}
+
+					const existingItemOptions = await resolveExistingItemMutationOptions({
+						backend,
+						discoveredConfig,
+						itemId: params.itemId,
+						filename,
+						newFilename
+					});
+
+					if (!existingItemOptions) {
+						throw new InvalidDirectoryFilenameError(
+							'Filename is required for directory-backed content.'
+						);
+					}
+
+					await saveContentDocument(
 						batchBackend,
 						discoveredConfig.config,
 						discoveredConfig.path,
 						materialized.content,
 						{
-							filename: newFilename,
-							branch: branchName
+							branch: branchName,
+							...existingItemOptions
 						}
 					);
-					return;
+					await syncCollectionItemGroupSelection(
+						batchBackend,
+						discoveredConfig,
+						materialized.content,
+						undefined,
+						{
+							ref: branchName
+						}
+					);
 				}
-
-				const existingItemOptions = await resolveExistingItemMutationOptions({
-					backend,
-					discoveredConfig,
-					itemId: params.itemId,
-					filename,
-					newFilename
-				});
-
-				if (!existingItemOptions) {
-					throw new InvalidDirectoryFilenameError('Filename is required for directory-backed content.');
-				}
-
-				await saveContentDocument(
-					batchBackend,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					materialized.content,
-					{
-						branch: branchName,
-						...existingItemOptions
-					}
-				);
-				await syncCollectionItemGroupSelection(
-					batchBackend,
-					discoveredConfig,
-					materialized.content,
-					undefined,
-					{
-						ref: branchName
-					}
-				);
-			});
+			);
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 			invalidateRepositoryData({
 				backend,
 				ref: branchName,
+				changedPaths,
 				reason: 'content-write'
 			});
 
@@ -165,65 +172,71 @@ export const actions: Actions = {
 				ref: branchName
 			};
 
-			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
-				const materialized = await materializeDraftAssetsFromFormData({
-					formData,
-					content: contentData,
-					configPath: discoveredConfig.path,
-					blocks: discoveredConfig.config.blocks,
-					backend: batchBackend,
-					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
-					writeOptions: {
-						ref: branchName
-					}
-				});
+			const { changedPaths } = await withTrackedBatchedRepositoryWrites(
+				backend,
+				writeOptions,
+				async (batchBackend) => {
+					const materialized = await materializeDraftAssetsFromFormData({
+						formData,
+						content: contentData,
+						configPath: discoveredConfig.path,
+						blocks: discoveredConfig.config.blocks,
+						backend: batchBackend,
+						defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+						writeOptions: {
+							ref: branchName
+						}
+					});
 
-				if (isNew) {
-					await createContentDocument(
+					if (isNew) {
+						await createContentDocument(
+							batchBackend,
+							discoveredConfig.config,
+							discoveredConfig.path,
+							materialized.content,
+							{
+								filename: newFilename,
+								branch: branchName
+							}
+						);
+						return;
+					}
+
+					const saveOptions = await resolveExistingItemMutationOptions({
+						backend,
+						discoveredConfig,
+						itemId: params.itemId,
+						filename,
+						newFilename
+					});
+
+					if (!saveOptions) {
+						throw new InvalidDirectoryFilenameError(
+							'Filename is required for directory-backed content.'
+						);
+					}
+
+					await saveContentDocument(
 						batchBackend,
 						discoveredConfig.config,
 						discoveredConfig.path,
 						materialized.content,
 						{
-							filename: newFilename,
-							branch: branchName
+							branch: branchName,
+							...saveOptions
 						}
 					);
-					return;
+					await syncCollectionItemGroupSelection(
+						batchBackend,
+						discoveredConfig,
+						materialized.content,
+						undefined,
+						{
+							ref: branchName
+						}
+					);
 				}
-
-				const saveOptions = await resolveExistingItemMutationOptions({
-					backend,
-					discoveredConfig,
-					itemId: params.itemId,
-					filename,
-					newFilename
-				});
-
-				if (!saveOptions) {
-					throw new InvalidDirectoryFilenameError('Filename is required for directory-backed content.');
-				}
-
-				await saveContentDocument(
-					batchBackend,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					materialized.content,
-					{
-						branch: branchName,
-						...saveOptions
-					}
-				);
-				await syncCollectionItemGroupSelection(
-					batchBackend,
-					discoveredConfig,
-					materialized.content,
-					undefined,
-					{
-						ref: branchName
-					}
-				);
-			});
+			);
 			await publishDraftBranch(octokit, owner, name, defaultBranch);
 
 			const { invalidateContent } = await import('$lib/stores/content-cache');
@@ -239,6 +252,7 @@ export const actions: Actions = {
 			invalidateRepositoryData({
 				backend,
 				ref: defaultBranch,
+				changedPaths,
 				reason: 'publish'
 			});
 

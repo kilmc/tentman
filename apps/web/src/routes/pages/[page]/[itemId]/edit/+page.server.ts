@@ -9,7 +9,7 @@ import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
-import { withBatchedRepositoryWrites } from '$lib/repository/batch';
+import { withTrackedBatchedRepositoryWrites } from '$lib/repository/batch';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import {
 	resolveExistingItemMutationOptions,
@@ -42,18 +42,22 @@ export const actions: Actions = {
 				branch: branchName
 			});
 
-			await withBatchedRepositoryWrites(backend, writeOptions, (batchBackend) =>
-				deleteContentDocument(
-					batchBackend,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					deleteOptions
-				)
+			const { changedPaths } = await withTrackedBatchedRepositoryWrites(
+				backend,
+				writeOptions,
+				(batchBackend) =>
+					deleteContentDocument(
+						batchBackend,
+						discoveredConfig.config,
+						discoveredConfig.path,
+						deleteOptions
+					)
 			);
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 			invalidateRepositoryData({
 				backend,
 				ref: branchName,
+				changedPaths,
 				reason: 'content-write'
 			});
 
@@ -117,43 +121,48 @@ export const actions: Actions = {
 				});
 			}
 
-			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
-				const materialized = await materializeDraftAssetsFromFormData({
-					formData,
-					content: contentData,
-					configPath: discoveredConfig.path,
-					blocks: discoveredConfig.config.blocks,
-					backend: batchBackend,
-					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
-					writeOptions: {
-						ref: branchName
-					}
-				});
+			const { changedPaths } = await withTrackedBatchedRepositoryWrites(
+				backend,
+				writeOptions,
+				async (batchBackend) => {
+					const materialized = await materializeDraftAssetsFromFormData({
+						formData,
+						content: contentData,
+						configPath: discoveredConfig.path,
+						blocks: discoveredConfig.config.blocks,
+						backend: batchBackend,
+						defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+						writeOptions: {
+							ref: branchName
+						}
+					});
 
-				await saveContentDocument(
-					batchBackend,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					materialized.content,
-					{
-						branch: branchName,
-						...saveOptions
-					}
-				);
-				await syncCollectionItemGroupSelection(
-					batchBackend,
-					discoveredConfig,
-					materialized.content,
-					undefined,
-					{
-						ref: branchName
-					}
-				);
-			});
+					await saveContentDocument(
+						batchBackend,
+						discoveredConfig.config,
+						discoveredConfig.path,
+						materialized.content,
+						{
+							branch: branchName,
+							...saveOptions
+						}
+					);
+					await syncCollectionItemGroupSelection(
+						batchBackend,
+						discoveredConfig,
+						materialized.content,
+						undefined,
+						{
+							ref: branchName
+						}
+					);
+				}
+			);
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 			invalidateRepositoryData({
 				backend,
 				ref: branchName,
+				changedPaths,
 				reason: 'content-write'
 			});
 

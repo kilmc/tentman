@@ -12,6 +12,11 @@ interface PendingWrite {
 	content: string | Uint8Array;
 }
 
+interface BatchedRepositoryWriteResult<T> {
+	result: T;
+	changedPaths: string[];
+}
+
 function normalizeRepositoryPath(path: string): string {
 	return normalizeGitHubPath(path);
 }
@@ -49,11 +54,15 @@ function createDeletedFileError(path: string): Error {
 	return new Error(`File has been deleted in the pending repository batch: ${path}`);
 }
 
-export async function withBatchedRepositoryWrites<T>(
+function getChangedPaths(changes: RepositoryFileChange[]): string[] {
+	return [...new Set(changes.map((change) => normalizeRepositoryPath(change.path)))];
+}
+
+export async function withTrackedBatchedRepositoryWrites<T>(
 	backend: RepositoryBackend,
 	options: RepositoryWriteOptions | undefined,
 	action: (batchBackend: RepositoryBackend) => Promise<T>
-): Promise<T> {
+): Promise<BatchedRepositoryWriteResult<T>> {
 	const changes: RepositoryFileChange[] = [];
 	const batchBackend: RepositoryBackend = {
 		...backend,
@@ -130,5 +139,17 @@ export async function withBatchedRepositoryWrites<T>(
 		}
 	}
 
+	return {
+		result,
+		changedPaths: getChangedPaths(changes)
+	};
+}
+
+export async function withBatchedRepositoryWrites<T>(
+	backend: RepositoryBackend,
+	options: RepositoryWriteOptions | undefined,
+	action: (batchBackend: RepositoryBackend) => Promise<T>
+): Promise<T> {
+	const { result } = await withTrackedBatchedRepositoryWrites(backend, options, action);
 	return result;
 }

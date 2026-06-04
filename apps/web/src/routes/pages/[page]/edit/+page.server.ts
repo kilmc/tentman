@@ -6,7 +6,7 @@ import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/s
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
-import { withBatchedRepositoryWrites } from '$lib/repository/batch';
+import { withTrackedBatchedRepositoryWrites } from '$lib/repository/batch';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
@@ -30,33 +30,38 @@ export const actions: Actions = {
 				ref: branchName
 			};
 
-			await withBatchedRepositoryWrites(backend, writeOptions, async (batchBackend) => {
-				const materialized = await materializeDraftAssetsFromFormData({
-					formData,
-					content: contentData,
-					configPath: discoveredConfig.path,
-					blocks: discoveredConfig.config.blocks,
-					backend: batchBackend,
-					defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
-					writeOptions: {
-						ref: branchName
-					}
-				});
+			const { changedPaths } = await withTrackedBatchedRepositoryWrites(
+				backend,
+				writeOptions,
+				async (batchBackend) => {
+					const materialized = await materializeDraftAssetsFromFormData({
+						formData,
+						content: contentData,
+						configPath: discoveredConfig.path,
+						blocks: discoveredConfig.config.blocks,
+						backend: batchBackend,
+						defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+						writeOptions: {
+							ref: branchName
+						}
+					});
 
-				await saveContentDocument(
-					batchBackend,
-					discoveredConfig.config,
-					discoveredConfig.path,
-					materialized.content,
-					{
-						branch: branchName
-					}
-				);
-			});
+					await saveContentDocument(
+						batchBackend,
+						discoveredConfig.config,
+						discoveredConfig.path,
+						materialized.content,
+						{
+							branch: branchName
+						}
+					);
+				}
+			);
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
 			invalidateRepositoryData({
 				backend,
 				ref: branchName,
+				changedPaths,
 				reason: 'content-write'
 			});
 

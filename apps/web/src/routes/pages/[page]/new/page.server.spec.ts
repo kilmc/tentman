@@ -49,10 +49,14 @@ describe('routes/pages/[page]/new/+page.server', () => {
 	});
 
 	it('redirects back to the new item editor after saving to the managed draft', async () => {
+		vi.mocked(createContentDocument).mockImplementation(async (backend) => {
+			await backend.writeTextFile('content/posts/hello-world.md', 'created');
+		});
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
 				cacheKey: 'github:acme/docs',
-				readRootConfig: vi.fn(async () => null)
+				readRootConfig: vi.fn(async () => null),
+				commitChanges: vi.fn(async () => undefined)
 			},
 			octokit: {},
 			owner: 'acme',
@@ -90,6 +94,7 @@ describe('routes/pages/[page]/new/+page.server', () => {
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			ref: 'tentman-preview',
+			changedPaths: ['content/posts/hello-world.md'],
 			reason: 'content-write'
 		});
 	});
