@@ -10,6 +10,7 @@ import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
@@ -56,6 +57,11 @@ export const actions: Actions = {
 				);
 			});
 			await ensureDraftPullRequest(octokit, owner, name, branchName, defaultBranch);
+			invalidateRepositoryData({
+				backend,
+				ref: branchName,
+				reason: 'content-write'
+			});
 
 			const itemId =
 				discoveredConfig.config.idField && contentData[discoveredConfig.config.idField]

@@ -29,19 +29,33 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 }));
 
 vi.mock('$lib/stores/content-cache', () => ({
+	getCachedContent: vi.fn(),
 	invalidateContent: vi.fn()
 }));
 
 vi.mock('$lib/server/repository-data', () => ({
-	invalidateRepositoryData: vi.fn()
+	invalidateRepositoryData: vi.fn(),
+	resolveCollectionItemDocument: vi.fn(async () => null)
 }));
 
 import { actions } from './+page.server';
 import { saveContentDocument } from '$lib/content/service';
 import { InvalidDirectoryFilenameError } from '$lib/features/content-management/transforms';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
-import { invalidateRepositoryData } from '$lib/server/repository-data';
-import { invalidateContent } from '$lib/stores/content-cache';
+import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
+import { getCachedContent, invalidateContent } from '$lib/stores/content-cache';
+
+const collectionConfig = {
+	slug: 'posts',
+	config: {
+		label: 'Posts',
+		blocks: [],
+		content: {
+			mode: 'directory'
+		}
+	},
+	path: 'content/posts.tentman.json'
+} as const;
 
 function createRequest(form: Record<string, string>) {
 	return {
@@ -58,6 +72,7 @@ function createRequest(form: Record<string, string>) {
 describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
 	});
 
 	it('saves item draft changes and returns to the editor with a saved flag', async () => {
@@ -70,14 +85,7 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 			owner: 'acme',
 			name: 'docs',
 			discoveredConfig: {
-				slug: 'posts',
-				config: {
-					blocks: [],
-					content: {
-						mode: 'directory'
-					}
-				},
-				path: 'content/posts.tentman.json'
+				...collectionConfig
 			}
 		} as never);
 
@@ -105,6 +113,133 @@ describe('routes/pages/[page]/[itemId]/preview-changes/+page.server', () => {
 			ref: 'tentman-preview',
 			reason: 'content-write'
 		});
+	});
+
+	it('saves an existing item using the repository-data resolver filename when the form omits it', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null)
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: collectionConfig
+		} as never);
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: collectionConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				title: 'Hello world'
+			}
+		} as never);
+
+		await expect(
+			actions.createPreview({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Hello world updated' })
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts/hello-world/edit?saved=true'
+		});
+
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: undefined
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(saveContentDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			{ title: 'Hello world updated' },
+			{
+				branch: 'tentman-preview',
+				filename: 'hello-world.md'
+			}
+		);
+	});
+
+	it('falls back to full content when saving an existing item and repository-data cannot resolve it', async () => {
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'local:docs',
+				readRootConfig: vi.fn(async () => null)
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: collectionConfig
+		} as never);
+		vi.mocked(getCachedContent).mockResolvedValue([
+			{
+				_filename: 'hello-world.md',
+				title: 'Hello world'
+			}
+		]);
+
+		await expect(
+			actions.createPreview({
+				locals: {},
+				params: {
+					page: 'posts',
+					itemId: 'hello-world'
+				},
+				request: createRequest({
+					data: JSON.stringify({ title: 'Hello world updated' })
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/posts/hello-world/edit?saved=true'
+		});
+
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'local:docs' }),
+			slug: 'posts',
+			itemId: 'hello-world',
+			ref: undefined
+		});
+		expect(getCachedContent).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'local:docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			'posts',
+			undefined
+		);
+		expect(saveContentDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ cacheKey: 'local:docs' }),
+			collectionConfig.config,
+			collectionConfig.path,
+			{ title: 'Hello world updated' },
+			{
+				branch: 'tentman-preview',
+				filename: 'hello-world.md'
+			}
+		);
 	});
 
 	it('publishes item draft changes directly from the preview screen', async () => {

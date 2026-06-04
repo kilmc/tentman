@@ -21,8 +21,13 @@ vi.mock('$lib/github/pull-request', () => ({
 	ensureDraftPullRequest: vi.fn()
 }));
 
+vi.mock('$lib/server/repository-data', () => ({
+	invalidateRepositoryData: vi.fn()
+}));
+
 import { actions } from './+page.server';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 
 function createRequest(form: Record<string, string>) {
 	return {
@@ -44,6 +49,7 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 	it('redirects back to the editor after saving to the managed draft', async () => {
 		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
 			backend: {
+				cacheKey: 'github:acme/docs',
 				readRootConfig: vi.fn(async () => null)
 			},
 			octokit: {},
@@ -74,6 +80,11 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 		).rejects.toMatchObject({
 			status: 303,
 			location: '/pages/about/edit?saved=true'
+		});
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			reason: 'content-write'
 		});
 	});
 

@@ -11,7 +11,7 @@ import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
-import { getExistingItemMutationOptions } from '$lib/server/preview';
+import { resolveExistingItemMutationOptions } from '$lib/server/preview';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
@@ -77,12 +77,13 @@ export const actions: Actions = {
 					return;
 				}
 
-				const existingItemOptions = getExistingItemMutationOptions(
-					discoveredConfig.config.content.mode,
-					params.itemId,
+				const existingItemOptions = await resolveExistingItemMutationOptions({
+					backend,
+					discoveredConfig,
+					itemId: params.itemId,
 					filename,
 					newFilename
-				);
+				});
 
 				if (!existingItemOptions) {
 					throw new InvalidDirectoryFilenameError('Filename is required for directory-backed content.');
@@ -191,12 +192,13 @@ export const actions: Actions = {
 					return;
 				}
 
-				const saveOptions = getExistingItemMutationOptions(
-					discoveredConfig.config.content.mode,
-					params.itemId,
+				const saveOptions = await resolveExistingItemMutationOptions({
+					backend,
+					discoveredConfig,
+					itemId: params.itemId,
 					filename,
 					newFilename
-				);
+				});
 
 				if (!saveOptions) {
 					throw new InvalidDirectoryFilenameError('Filename is required for directory-backed content.');
