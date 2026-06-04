@@ -6,14 +6,16 @@ import { InvalidDirectoryFilenameError } from '$lib/features/content-management/
 import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
-import { findContentItemByRoute } from '$lib/features/content-management/item';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withBatchedRepositoryWrites } from '$lib/repository/batch';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
-import { getExistingItemMutationOptions } from '$lib/server/preview';
-import { invalidateRepositoryData, resolveCollectionItemDocument } from '$lib/server/repository-data';
+import {
+	getExistingItemMutationOptions,
+	resolveExistingCollectionItemDeleteOptions
+} from '$lib/server/preview';
+import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
 
 export const actions: Actions = {
@@ -33,44 +35,12 @@ export const actions: Actions = {
 				ref: branchName
 			};
 
-			// Delete the content - prepare options based on type
-			const deleteOptions: { itemId?: string; filename?: string; branch?: string } = {
+			const deleteOptions = await resolveExistingCollectionItemDeleteOptions({
+				backend,
+				discoveredConfig,
+				itemId,
 				branch: branchName
-			};
-
-			if (discoveredConfig.config.content.mode === 'directory') {
-				const resolvedItem = await resolveCollectionItemDocument({
-					backend,
-					slug: params.page,
-					itemId,
-					ref: branchName
-				});
-				if (resolvedItem?.indexItem.filename) {
-					deleteOptions.filename = resolvedItem.indexItem.filename;
-				}
-
-				if (!deleteOptions.filename) {
-					const { getCachedContent } = await import('$lib/stores/content-cache');
-					const content = await getCachedContent(
-						backend,
-						discoveredConfig.config,
-						discoveredConfig.path,
-						params.page,
-						branchName
-					);
-
-					if (Array.isArray(content)) {
-						const item = findContentItemByRoute(content, discoveredConfig.config, itemId);
-
-						if (item?._filename) {
-							deleteOptions.filename = item._filename;
-						}
-					}
-				}
-			} else {
-				// File-backed collections delete by item ID
-				deleteOptions.itemId = itemId;
-			}
+			});
 
 			await withBatchedRepositoryWrites(backend, writeOptions, (batchBackend) =>
 				deleteContentDocument(
