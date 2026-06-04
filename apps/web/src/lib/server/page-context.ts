@@ -4,11 +4,11 @@ import {
 	TENTMAN_DRAFT_BRANCH,
 	getTentmanDraftBranchName
 } from '$lib/features/draft-publishing/service';
-import { getCachedConfigs } from '$lib/stores/config-cache';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import type { GitHubUserSnapshot } from '$lib/auth/session';
 import { buildReposReturnHref } from '$lib/utils/routing';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
+import { getRepositorySnapshot } from '$lib/server/repository-data';
 
 type AppLocals = App.Locals;
 type GitHubRequestContext = {
@@ -100,8 +100,8 @@ export async function requireDiscoveredConfig(
 	discoveredConfig: DiscoveredConfig;
 }> {
 	const repository = requireGitHubRepository(context, redirectTo);
-	const configs = await getCachedConfigs(repository.backend);
-	const discoveredConfig = configs.find((config) => config.slug === pageSlug);
+	const snapshot = await getRepositorySnapshot({ backend: repository.backend });
+	const discoveredConfig = snapshot.configIndex.bySlug.get(pageSlug);
 
 	if (!discoveredConfig) {
 		throw error(404, 'Configuration not found');
