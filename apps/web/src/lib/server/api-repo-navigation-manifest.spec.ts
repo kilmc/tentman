@@ -16,6 +16,7 @@ vi.mock('$lib/server/auth/github', async () => {
 });
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
+	NAVIGATION_MANIFEST_PATH: 'tentman/navigation-manifest.json',
 	reconcileManualNavigationSetup: vi.fn(async () => ({
 		version: 1,
 		content: {
@@ -35,18 +36,67 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 	})),
 	invalidateNavigationManifestStateCache: vi.fn(),
 	parseNavigationManifest: vi.fn((value: string) => JSON.parse(value)),
-	saveCollectionOrder: vi.fn(async () => ({
-		version: 1,
-		collections: {
-			projects: {
-				items: ['brand-system'],
-				groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+	saveCollectionOrder: vi.fn(async (backend) => {
+		await backend.writeTextFile(
+			'content/projects.tentman.json',
+			JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					sorting: 'manual',
+					groups: [{ _tentmanId: 'identity', label: 'Identity' }]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json'
+				},
+				blocks: []
+			})
+		);
+		await backend.writeTextFile(
+			'tentman/navigation-manifest.json',
+			JSON.stringify({
+				version: 1,
+				collections: {
+					projects: {
+						items: ['brand-system'],
+						groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+					}
+				}
+			})
+		);
+
+		return {
+			version: 1,
+			collections: {
+				projects: {
+					items: ['brand-system'],
+					groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+				}
 			}
+		};
+	}),
+	writeRootManualSorting: vi.fn(async (backend) => {
+		await backend.writeTextFile('tentman.json', JSON.stringify({ content: { sorting: 'manual' } }));
+	}),
+	writeMissingContentConfigIds: vi.fn(async (backend, configs) => {
+		const missingConfigs = configs.filter((config: { config: { _tentmanId?: string } }) => {
+			return !config.config._tentmanId;
+		});
+
+		for (const config of missingConfigs) {
+			await backend.writeTextFile(config.path, JSON.stringify({ ...config.config, _tentmanId: config.slug }));
 		}
-	})),
-	writeRootManualSorting: vi.fn(async () => {}),
-	writeMissingContentConfigIds: vi.fn(async () => []),
-	writeNavigationManifest: vi.fn(async () => {})
+
+		return missingConfigs.map((config: { path: string; slug: string }) => ({
+			path: config.path,
+			suggestedId: config.slug
+		}));
+	}),
+	writeNavigationManifest: vi.fn(async (backend, manifest) => {
+		await backend.writeTextFile('tentman/navigation-manifest.json', JSON.stringify(manifest));
+	})
 }));
 
 vi.mock('$lib/repository/github', () => ({
@@ -189,7 +239,11 @@ describe('POST /api/repo/navigation-manifest', () => {
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
 			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			ref: 'tentman-preview',
-			changedPaths: ['tentman/navigation-manifest.json'],
+			changedPaths: [
+				'content/about.tentman.json',
+				'tentman.json',
+				'tentman/navigation-manifest.json'
+			],
 			reason: 'navigation-manifest'
 		});
 		expect(await response.json()).toEqual({
@@ -245,6 +299,12 @@ describe('POST /api/repo/navigation-manifest', () => {
 				ref: 'tentman-preview'
 			}
 		);
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			changedPaths: ['tentman/navigation-manifest.json'],
+			reason: 'navigation-manifest'
+		});
 	});
 
 	it('adds a collection group through the manifest endpoint', async () => {
@@ -319,6 +379,12 @@ describe('POST /api/repo/navigation-manifest', () => {
 				ref: 'tentman-preview'
 			}
 		);
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			changedPaths: ['content/projects.tentman.json', 'tentman/navigation-manifest.json'],
+			reason: 'navigation-manifest'
+		});
 	});
 
 	it('saves collection order through the manifest endpoint', async () => {
@@ -387,5 +453,11 @@ describe('POST /api/repo/navigation-manifest', () => {
 				ref: 'tentman-preview'
 			}
 		);
+		expect(invalidateRepositoryData).toHaveBeenCalledWith({
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
+			ref: 'tentman-preview',
+			changedPaths: ['content/projects.tentman.json', 'tentman/navigation-manifest.json'],
+			reason: 'navigation-manifest'
+		});
 	});
 });

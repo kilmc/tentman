@@ -18,7 +18,7 @@ import {
 } from '$lib/features/content-management/navigation-group-options';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
-import { withBatchedRepositoryWrites } from '$lib/repository/batch';
+import { withTrackedBatchedRepositoryWrites } from '$lib/repository/batch';
 import {
 	createGitHubRepositoryBackend,
 	invalidateGitHubRepositoryMetadataCache
@@ -206,7 +206,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			}
 		}));
 
-		await withBatchedRepositoryWrites(
+		const { changedPaths } = await withTrackedBatchedRepositoryWrites(
 			backend,
 			{
 				message:
@@ -350,7 +350,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 		invalidateRepositoryData({
 			backend,
 			ref: writeOptions.ref,
-			changedPaths: ['tentman/navigation-manifest.json'],
+			changedPaths: changedPaths.length > 0 ? changedPaths : ['tentman/navigation-manifest.json'],
 			reason: 'navigation-manifest'
 		});
 
@@ -361,7 +361,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			invalidateRepositoryData({
 				backend: draftBackend,
 				ref: draftBranch?.branchName,
-				changedPaths: ['tentman/navigation-manifest.json'],
+				changedPaths: changedPaths.length > 0 ? changedPaths : ['tentman/navigation-manifest.json'],
 				reason: 'navigation-manifest'
 			});
 		}
