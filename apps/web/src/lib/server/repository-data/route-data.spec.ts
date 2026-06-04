@@ -85,7 +85,7 @@ const backend = {
 	label: 'acme/docs'
 } as never;
 
-describe('repository-data route fallbacks', () => {
+describe('repository-data route data', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(getCollectionNavigation).mockResolvedValue(null);
@@ -128,6 +128,45 @@ describe('repository-data route fallbacks', () => {
 			collectionConfig.path,
 			collectionConfig.slug
 		);
+	});
+
+	it('uses repository-data collection navigation when available', async () => {
+		vi.mocked(getCollectionNavigation).mockResolvedValue({
+			items: [
+				{
+					itemId: 'hello-world',
+					title: 'Hello world',
+					sortDate: null
+				}
+			],
+			groups: []
+		});
+
+		const result = await resolveCollectionNavigationForRoute({
+			backend,
+			discoveredConfig: collectionConfig as never,
+			navigationManifest: null,
+			rootConfig: null
+		});
+
+		expect(result).toEqual({
+			source: 'repository-data',
+			navigation: {
+				items: [
+					{
+						itemId: 'hello-world',
+						title: 'Hello world',
+						sortDate: null
+					}
+				],
+				groups: []
+			}
+		});
+		expect(getCollectionNavigation).toHaveBeenCalledWith({
+			backend,
+			slug: 'posts'
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
 	});
 
 	it('falls back to legacy content cache for singleton page content when indexing cannot answer', async () => {
