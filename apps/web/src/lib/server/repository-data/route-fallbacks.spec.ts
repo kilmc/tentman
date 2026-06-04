@@ -6,6 +6,7 @@ vi.mock('$lib/stores/content-cache', () => ({
 
 vi.mock('$lib/server/repository-data', () => ({
 	getCollectionNavigation: vi.fn(async () => null),
+	resolveCollectionItemDocument: vi.fn(async () => null),
 	getSingletonConfigStates: vi.fn(async () => null),
 	getSingletonDocument: vi.fn(async () => null)
 }));
@@ -18,6 +19,7 @@ import {
 } from './route-fallbacks';
 import {
 	getCollectionNavigation,
+	resolveCollectionItemDocument,
 	getSingletonConfigStates,
 	getSingletonDocument
 } from '$lib/server/repository-data';
@@ -87,6 +89,7 @@ describe('repository-data route fallbacks', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(getCollectionNavigation).mockResolvedValue(null);
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
 		vi.mocked(getSingletonConfigStates).mockResolvedValue(null);
 		vi.mocked(getSingletonDocument).mockResolvedValue(null);
 	});
@@ -193,6 +196,40 @@ describe('repository-data route fallbacks', () => {
 		);
 	});
 
+	it('uses repository-data for collection item route lookups when available', async () => {
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: collectionConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				title: 'Hello world'
+			}
+		} as never);
+
+		const result = await resolveCollectionItemForRoute({
+			backend,
+			discoveredConfig: collectionConfig as never,
+			itemId: 'hello-world'
+		});
+
+		expect(result).toEqual({
+			title: 'Hello world'
+		});
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend,
+			slug: 'posts',
+			itemId: 'hello-world'
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+	});
+
 	it('falls back to legacy collection lookup for unsupported item resolvers', async () => {
 		vi.mocked(getCachedContent).mockResolvedValue([
 			{
@@ -208,6 +245,11 @@ describe('repository-data route fallbacks', () => {
 
 		expect(result).toEqual({
 			title: 'First item'
+		});
+		expect(resolveCollectionItemDocument).toHaveBeenCalledWith({
+			backend,
+			slug: 'posts',
+			itemId: '0'
 		});
 		expect(getCachedContent).toHaveBeenCalledWith(
 			backend,

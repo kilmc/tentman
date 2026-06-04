@@ -5,7 +5,7 @@ import { loadNavigationManifestState } from '$lib/features/content-management/na
 import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
-import { getRepositorySnapshot, resolveCollectionItemDocument } from '$lib/server/repository-data';
+import { getRepositorySnapshot } from '$lib/server/repository-data';
 import { resolveCollectionItemForRoute } from '$lib/server/repository-data/route-fallbacks';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
@@ -50,20 +50,11 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				let item = null;
 
 				try {
-					const resolvedItem = await resolveCollectionItemDocument({
+					item = await resolveCollectionItemForRoute({
 						backend,
-						slug,
+						discoveredConfig,
 						itemId
 					});
-					item = resolvedItem?.content ?? null;
-
-					if (!item) {
-						item = await resolveCollectionItemForRoute({
-							backend,
-							discoveredConfig,
-							itemId
-						});
-					}
 
 					if (!item) {
 						throw error(404, 'Item not found');

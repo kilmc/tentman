@@ -15,6 +15,7 @@ import type { RepositoryBackend } from '$lib/repository/types';
 import { getCachedContent } from '$lib/stores/content-cache';
 import {
 	getCollectionNavigation,
+	resolveCollectionItemDocument,
 	getSingletonConfigStates,
 	getSingletonDocument
 } from '$lib/server/repository-data';
@@ -171,6 +172,15 @@ export async function resolveCollectionItemForRoute({
 	discoveredConfig: DiscoveredConfig;
 	itemId: string;
 }): Promise<ContentRecord | null> {
+	const resolvedItem = await resolveCollectionItemDocument({
+		backend,
+		slug: discoveredConfig.slug,
+		itemId
+	});
+	if (resolvedItem) {
+		return resolvedItem.content;
+	}
+
 	const content = await getCachedContent(
 		backend,
 		discoveredConfig.config,
