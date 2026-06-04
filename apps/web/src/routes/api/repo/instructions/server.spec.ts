@@ -22,7 +22,8 @@ vi.mock('$lib/server/repository-data', () => ({
 
 vi.mock('$lib/repository/github', () => ({
 	createGitHubRepositoryBackend: vi.fn(() => ({
-		cacheKey: 'github:acme/docs'
+		cacheKey: 'github:acme/docs',
+		commitChanges: vi.fn(async () => undefined)
 	})),
 	invalidateGitHubRepositoryMetadataCache: vi.fn()
 }));
@@ -169,11 +170,14 @@ describe('/api/repo/instructions', () => {
 			issues: []
 		});
 		vi.mocked(planInstructionExecution).mockResolvedValue(plan as never);
-		vi.mocked(applyInstructionExecutionPlan).mockResolvedValue({
-			createdFiles: ['tentman/configs/press-kit.tentman.json'],
-			skippedFiles: [],
-			navigationUpdated: false,
-			navigationStatus: null
+		vi.mocked(applyInstructionExecutionPlan).mockImplementation(async (backend) => {
+			await backend.writeTextFile('tentman/configs/press-kit.tentman.json', '{}');
+			return {
+				createdFiles: ['tentman/configs/press-kit.tentman.json'],
+				skippedFiles: [],
+				navigationUpdated: false,
+				navigationStatus: null
+			};
 		});
 
 		const response = await POST({
@@ -214,8 +218,9 @@ describe('/api/repo/instructions', () => {
 		);
 		expect(invalidateCache).toHaveBeenCalledWith('github:acme/docs');
 		expect(invalidateRepositoryData).toHaveBeenCalledWith({
-			backend: { cacheKey: 'github:acme/docs' },
+			backend: expect.objectContaining({ cacheKey: 'github:acme/docs' }),
 			ref: 'tentman-preview',
+			changedPaths: ['tentman/configs/press-kit.tentman.json'],
 			reason: 'repo-instruction'
 		});
 	});

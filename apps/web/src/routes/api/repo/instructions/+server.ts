@@ -10,7 +10,7 @@ import type {
 } from '$lib/features/instructions/types';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
-import { withBatchedRepositoryWrites } from '$lib/repository/batch';
+import { withTrackedBatchedRepositoryWrites } from '$lib/repository/batch';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 import { invalidateNavigationManifestStateCache } from '$lib/features/content-management/navigation-manifest';
@@ -163,8 +163,10 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			message: `Apply instruction ${validatedPlan.instructionId} via Tentman`,
 			ref: branchName
 		};
-		const result = await withBatchedRepositoryWrites(backend, writeOptions, (batchBackend) =>
-			applyInstructionExecutionPlan(batchBackend, validatedPlan, writeOptions)
+		const { result, changedPaths } = await withTrackedBatchedRepositoryWrites(
+			backend,
+			writeOptions,
+			(batchBackend) => applyInstructionExecutionPlan(batchBackend, validatedPlan, writeOptions)
 		);
 		await ensureDraftPullRequest(octokit, repo.owner, repo.name, branchName, repo.default_branch);
 		invalidateCache(backend.cacheKey);
@@ -173,6 +175,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 		invalidateRepositoryData({
 			backend,
 			ref: branchName,
+			changedPaths,
 			reason: 'repo-instruction'
 		});
 
