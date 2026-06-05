@@ -20,6 +20,11 @@
 - For regressions, prefer restoring or adding test coverage close to the broken behavior.
 - Prefer the smallest real fix that satisfies the issue over broad opportunistic refactors.
 - Run targeted verification first, then broader baseline checks as appropriate.
+- Run Vitest through the stable wrapper command so the user's persisted approval rule applies:
+  `node /Users/kilmc/code/tentman/tentman/scripts/run-vitest.mjs ...`
+- For browser Vitest, use the same wrapper with `--browser`, for example:
+  `node /Users/kilmc/code/tentman/tentman/scripts/run-vitest.mjs --browser run --project client src/lib/test/browser/example.svelte.spec.ts`
+- Do not run browser Vitest directly with `VITEST_BROWSER=1 pnpm ...`; it binds a local test server and will repeatedly prompt for sandbox escalation instead of reusing the wrapper approval.
 - If new work appears during implementation, create or update a follow-up issue instead of silently expanding scope.
 - End each completed issue with a short verification summary and any remaining risks or follow-ups.
 

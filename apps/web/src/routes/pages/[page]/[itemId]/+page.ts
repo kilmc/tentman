@@ -41,13 +41,37 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	});
 	const discoveredConfig = parentData.configs?.find((config) => config.slug === params.page) ?? null;
 	if (cachedDocument && discoveredConfig) {
+		const blockSupport = await githubRepositoryCache.getBlockSupport();
 		return {
 			discoveredConfig,
-			blockConfigs: parentData.blockConfigs ?? [],
-			packageBlocks: [],
-			blockRegistryError: null,
+			blockConfigs: blockSupport?.blockConfigs ?? parentData.blockConfigs ?? [],
+			packageBlocks: blockSupport?.packageBlocks ?? [],
+			blockRegistryError: blockSupport?.blockRegistryError ?? null,
 			navigationManifest: parentData.navigationManifest,
 			item: cachedDocument.content,
+			contentError: null,
+			itemId: params.itemId,
+			branch: parentData.activeDraftBranch,
+			pageSlug: params.page,
+			mode: 'github' as const
+		};
+	}
+
+	const warmedDocument = await githubRepositoryCache.warmItemDocumentForRoute({
+		slug: params.page,
+		itemId: params.itemId,
+		fetcher: fetch,
+		priority: 'foreground'
+	});
+	const warmedBlockSupport = await githubRepositoryCache.getBlockSupport();
+	if (warmedDocument && discoveredConfig && warmedBlockSupport) {
+		return {
+			discoveredConfig,
+			blockConfigs: warmedBlockSupport.blockConfigs,
+			packageBlocks: warmedBlockSupport.packageBlocks,
+			blockRegistryError: warmedBlockSupport.blockRegistryError,
+			navigationManifest: parentData.navigationManifest,
+			item: warmedDocument.content,
 			contentError: null,
 			itemId: params.itemId,
 			branch: parentData.activeDraftBranch,

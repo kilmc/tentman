@@ -48,7 +48,10 @@
 		writeNavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import { draftBranch } from '$lib/stores/draft-branch';
-	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+	import {
+		githubCacheWarmStatus,
+		githubRepositoryCache
+	} from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
@@ -344,10 +347,19 @@
 			return;
 		}
 
-		void githubRepositoryCache.hydrateFromBootstrap({
-			repoFullName: data.selectedRepo.full_name,
-			bootstrap: data
-		});
+		let cancelled = false;
+		let stopSiteWarm: (() => void) | null = null;
+
+		void (async () => {
+			await githubRepositoryCache.hydrateFromBootstrap({
+				repoFullName: data.selectedRepo!.full_name,
+				bootstrap: data
+			});
+
+			if (!cancelled) {
+				stopSiteWarm = githubRepositoryCache.startIdleSiteWarm({ fetcher: fetch });
+			}
+		})();
 
 		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
 		if (data.activeDraftBranch) {
@@ -355,6 +367,11 @@
 		} else if (draftBranch.hasDraft(repoFullName)) {
 			draftBranch.clear();
 		}
+
+		return () => {
+			cancelled = true;
+			stopSiteWarm?.();
+		};
 	});
 
 	function getGitHubCollectionStatus(slug: string): CollectionLoadStatus {
@@ -514,12 +531,60 @@
 		}
 	}
 
+	async function handleClearGitHubCache() {
+		if (isLocalMode || !data.selectedRepo || !data.repositoryIdentity) {
+			return;
+		}
+
+		try {
+			await githubRepositoryCache.clearRepoRef({
+				repoFullName: data.selectedRepo.full_name,
+				ref: data.repositoryIdentity.ref
+			});
+			await githubRepositoryCache.hydrateFromBootstrap({
+				repoFullName: data.selectedRepo.full_name,
+				bootstrap: data
+			});
+			githubRepositoryCache.startIdleSiteWarm({ fetcher: fetch });
+			githubCollectionItemsBySlug = {};
+			githubCollectionLoadStatusBySlug = {};
+			githubCollectionErrorBySlug = {};
+			githubConfigStatesLoaded = false;
+			toasts.success('GitHub cache cleared.');
+		} catch (error) {
+			toasts.error(error instanceof Error ? error.message : 'Failed to clear GitHub cache.');
+		}
+	}
+
 	function handleSidebarConfigSelect(config: DiscoveredConfig) {
 		if (!config.config.collection) {
 			return;
 		}
 
 		isCollectionPanelCollapsed = false;
+	}
+
+	function handlePromoteConfig(config: DiscoveredConfig) {
+		if (isLocalMode) {
+			return;
+		}
+
+		githubRepositoryCache.promoteRoute({
+			slug: config.slug,
+			fetcher: fetch
+		});
+	}
+
+	function handlePromoteCollectionItem(slug: string, itemId: string) {
+		if (isLocalMode) {
+			return;
+		}
+
+		githubRepositoryCache.promoteRoute({
+			slug,
+			itemId,
+			fetcher: fetch
+		});
 	}
 
 	async function loadGitHubCollectionItems(
@@ -952,6 +1017,7 @@
 				{currentPageSlug}
 				isAuthenticated={data.isAuthenticated}
 				{isLocalMode}
+				cacheWarmStatus={$githubCacheWarmStatus}
 				{canEditNavigation}
 				{canAddPage}
 				{isEditingNavigation}
@@ -960,6 +1026,7 @@
 				{hasUnsavedNavigationChanges}
 				{topLevelEditorItems}
 				onselectconfig={handleSidebarConfigSelect}
+				onpromoteroute={handlePromoteConfig}
 				onstartnavigationedit={() => void startNavigationEditing()}
 				oncancelnavigationedit={cancelNavigationEditing}
 				onsavenavigationedit={() => void saveNavigationEditing()}
@@ -967,6 +1034,7 @@
 				onnavfinalize={handleTopLevelFinalize}
 				onswitchsite={() => void handleSwitchSite()}
 				onrescan={() => void handleRescanLocalRepo()}
+				onclearcache={() => void handleClearGitHubCache()}
 			/>
 		{/key}
 	</div>
@@ -992,6 +1060,7 @@
 						{currentPageSlug}
 						isAuthenticated={data.isAuthenticated}
 						{isLocalMode}
+						cacheWarmStatus={$githubCacheWarmStatus}
 						{canEditNavigation}
 						{canAddPage}
 						{isEditingNavigation}
@@ -1000,6 +1069,7 @@
 						{hasUnsavedNavigationChanges}
 						{topLevelEditorItems}
 						onselectconfig={handleSidebarConfigSelect}
+						onpromoteroute={handlePromoteConfig}
 						mobile={true}
 						onclose={() => (isMobileSidebarOpen = false)}
 						onstartnavigationedit={() => void startNavigationEditing()}
@@ -1009,6 +1079,7 @@
 						onnavfinalize={handleTopLevelFinalize}
 						onswitchsite={() => void handleSwitchSite()}
 						onrescan={() => void handleRescanLocalRepo()}
+						onclearcache={() => void handleClearGitHubCache()}
 					/>
 				{/key}
 			</div>
@@ -1050,6 +1121,8 @@
 							canOrderItems={!!collectionSetup?.canOrderItems}
 							savingCustomOrder={savingCollectionOrder}
 							onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+							onpromoteitem={(item) =>
+								handlePromoteCollectionItem(currentConfig.slug, item.hrefItemId ?? item.itemId)}
 							onsavecustomorder={(collection: NavigationDraftCollection) =>
 								void saveCollectionCustomOrder(currentConfig, collection)}
 						/>
@@ -1133,6 +1206,8 @@
 					canOrderItems={!!collectionSetup?.canOrderItems}
 					savingCustomOrder={savingCollectionOrder}
 					onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+					onpromoteitem={(item) =>
+						handlePromoteCollectionItem(currentConfig.slug, item.hrefItemId ?? item.itemId)}
 					onsavecustomorder={(collection: NavigationDraftCollection) =>
 						void saveCollectionCustomOrder(currentConfig, collection)}
 				/>

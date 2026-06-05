@@ -33,6 +33,7 @@
 		savingCustomOrder?: boolean;
 		onretry?: () => void;
 		onsavecustomorder?: (collection: NavigationDraftCollection) => void;
+		onpromoteitem?: (item: CollectionNavigationItem) => void;
 	}
 
 	let {
@@ -47,7 +48,8 @@
 		canOrderItems = false,
 		savingCustomOrder = false,
 		onretry,
-		onsavecustomorder
+		onsavecustomorder,
+		onpromoteitem
 	}: Props = $props();
 
 	type EditableGroup = {
@@ -184,6 +186,10 @@
 
 	function getItemHref(item: CollectionNavigationItem) {
 		return resolve(`/pages/${slug}/${item.hrefItemId ?? item.itemId}/edit`);
+	}
+
+	function promoteItem(item: CollectionNavigationItem) {
+		onpromoteitem?.(item);
 	}
 
 	function isCurrentItem(item: CollectionNavigationItem) {
@@ -537,6 +543,9 @@
 									{#each group.items as item (item.itemId)}
 										<a
 											href={getItemHref(item)}
+											onfocus={() => promoteItem(item)}
+											onpointerenter={() => promoteItem(item)}
+											onpointerdown={() => promoteItem(item)}
 											class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 											class:tm-nav-link-active={isCurrentItem(item)}
 											aria-label={getItemLinkLabel(item)}
@@ -563,6 +572,9 @@
 							{#each items as item (item.itemId)}
 								<a
 									href={getItemHref(item)}
+									onfocus={() => promoteItem(item)}
+									onpointerenter={() => promoteItem(item)}
+									onpointerdown={() => promoteItem(item)}
 									class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 									class:tm-nav-link-active={isCurrentItem(item)}
 									aria-label={getItemLinkLabel(item)}
@@ -587,6 +599,9 @@
 					{#each visibleItems as item (item.itemId)}
 						<a
 							href={getItemHref(item)}
+							onfocus={() => promoteItem(item)}
+							onpointerenter={() => promoteItem(item)}
+							onpointerdown={() => promoteItem(item)}
 							class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
 							class:tm-nav-link-active={isCurrentItem(item)}
 							aria-label={getItemLinkLabel(item)}

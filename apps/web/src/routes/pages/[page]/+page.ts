@@ -52,6 +52,28 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
+	await githubRepositoryCache.hydrateFromBootstrap({
+		repoFullName: workspace.selectedRepo.full_name,
+		bootstrap: parentData
+	});
+	const cachedSingleton = await githubRepositoryCache.getSingletonDocumentForRoute({
+		slug: params.page
+	});
+	if (discoveredConfig && cachedSingleton?.blockSupport) {
+		return {
+			discoveredConfig,
+			blockConfigs: cachedSingleton.blockSupport.blockConfigs,
+			packageBlocks: cachedSingleton.blockSupport.packageBlocks,
+			blockRegistryError: cachedSingleton.blockSupport.blockRegistryError,
+			content: cachedSingleton.content,
+			collectionNavigation: null,
+			contentError: null,
+			branch: parentData.activeDraftBranch,
+			pageSlug: params.page,
+			mode: 'github' as const
+		};
+	}
+
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/page-view', {
 			slug: params.page
@@ -70,5 +92,14 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		throw httpError(response.status, 'Failed to load page view');
 	}
 
-	return await response.json();
+	const data = await response.json();
+	await githubRepositoryCache.setSingletonPageView({
+		slug: params.page,
+		content: data.content ?? null,
+		blockConfigs: data.blockConfigs,
+		packageBlocks: data.packageBlocks,
+		blockRegistryError: data.blockRegistryError ?? null
+	});
+
+	return data;
 };

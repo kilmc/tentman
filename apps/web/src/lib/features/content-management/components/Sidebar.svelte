@@ -9,6 +9,7 @@
 	import Plus from 'lucide-svelte/icons/plus';
 	import RefreshCw from 'lucide-svelte/icons/refresh-cw';
 	import Settings from 'lucide-svelte/icons/settings';
+	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import X from 'lucide-svelte/icons/x';
 	import type { DiscoveredConfig } from '$lib/config/discovery';
 	import {
@@ -16,6 +17,7 @@
 		type ResolvedContentState
 	} from '$lib/features/content-management/state';
 	import type { WorkspaceNavItem } from './workspace-types';
+	import type { GithubCacheWarmStatus } from '$lib/stores/github-repository-cache';
 
 	interface Props {
 		siteName: string;
@@ -25,6 +27,7 @@
 		currentPageSlug?: string | null;
 		isAuthenticated?: boolean;
 		isLocalMode?: boolean;
+		cacheWarmStatus?: GithubCacheWarmStatus;
 		canEditNavigation?: boolean;
 		canAddPage?: boolean;
 		isEditingNavigation?: boolean;
@@ -40,6 +43,8 @@
 		onnavfinalize?: (event: CustomEvent<DndEvent<WorkspaceNavItem>>) => void;
 		onswitchsite?: () => void;
 		onrescan?: () => void;
+		onclearcache?: () => void;
+		onpromoteroute?: (config: DiscoveredConfig) => void;
 		mobile?: boolean;
 		onclose?: () => void;
 	}
@@ -52,6 +57,7 @@
 		currentPageSlug = null,
 		isAuthenticated = false,
 		isLocalMode = false,
+		cacheWarmStatus,
 		canEditNavigation = false,
 		canAddPage = false,
 		isEditingNavigation = false,
@@ -67,11 +73,43 @@
 		onnavfinalize,
 		onswitchsite,
 		onrescan,
+		onclearcache,
+		onpromoteroute,
 		mobile = false,
 		onclose
 	}: Props = $props();
 
 	const flipDurationMs = 150;
+	const cacheProgress = $derived.by(() => {
+		if (!cacheWarmStatus || cacheWarmStatus.phase === 'idle') {
+			return null;
+		}
+
+		if (cacheWarmStatus.phase === 'error') {
+			return 1;
+		}
+
+		if (cacheWarmStatus.totalTasks <= 0) {
+			return null;
+		}
+
+		return Math.min(1, cacheWarmStatus.completedTasks / cacheWarmStatus.totalTasks);
+	});
+	const cacheStatusLabel = $derived.by(() => {
+		if (!cacheWarmStatus || cacheWarmStatus.phase === 'idle') {
+			return 'Caching site';
+		}
+
+		if (cacheWarmStatus.phase === 'ready') {
+			return 'Site cache ready';
+		}
+
+		if (cacheWarmStatus.phase === 'error') {
+			return 'Cache paused';
+		}
+
+		return 'Caching site';
+	});
 
 	function getTopLevelHref(config: DiscoveredConfig) {
 		return resolve(
@@ -151,6 +189,14 @@
 							>
 								<RefreshCw class="h-4 w-4" />
 								Rescan repo
+							</DropdownMenu.Item>
+						{:else}
+							<DropdownMenu.Item
+								class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors outline-none hover:bg-stone-100 data-[highlighted]:bg-stone-100"
+								onSelect={onclearcache}
+							>
+								<Trash2 class="h-4 w-4" />
+								Clear cache
 							</DropdownMenu.Item>
 						{/if}
 						{#if isAuthenticated}
@@ -247,6 +293,9 @@
 					<a
 						href={getTopLevelHref(config)}
 						onclick={() => onselectconfig?.(config)}
+						onfocus={() => onpromoteroute?.(config)}
+						onpointerenter={() => onpromoteroute?.(config)}
+						onpointerdown={() => onpromoteroute?.(config)}
 						class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-3 py-2 text-sm font-semibold"
 						class:tm-nav-link-active={isSelected}
 						aria-label={getConfigLinkLabel(config)}
@@ -291,6 +340,30 @@
 			<a href={resolve('/pages/new')} class="tm-btn tm-btn-ghost">
 				<Plus class="h-4 w-4" />
 				Add page
+			</a>
+		{/if}
+		{#if !isLocalMode}
+			<a
+				href={resolve('/pages/cache')}
+				class="grid gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-left transition-colors hover:border-stone-300 hover:bg-white focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none"
+				aria-label={`${cacheStatusLabel}. Open cache details`}
+			>
+				<div class="flex items-center justify-between gap-3">
+					<span class="text-xs font-semibold text-stone-700">{cacheStatusLabel}</span>
+					{#if cacheWarmStatus?.totalTasks}
+						<span class="font-mono text-[11px] text-stone-500">
+							{cacheWarmStatus.completedTasks}/{cacheWarmStatus.totalTasks}
+						</span>
+					{/if}
+				</div>
+				<div class="h-1 overflow-hidden rounded-full bg-stone-200">
+					<span
+						class="block h-full rounded-full transition-[width] duration-300"
+						class:bg-red-500={cacheWarmStatus?.phase === 'error'}
+						class:bg-stone-950={cacheWarmStatus?.phase !== 'error'}
+						style={`width: ${Math.round((cacheProgress ?? 0) * 100)}%`}
+					></span>
+				</div>
 			</a>
 		{/if}
 		<button type="button" class="tm-btn tm-btn-secondary" onclick={onswitchsite}>

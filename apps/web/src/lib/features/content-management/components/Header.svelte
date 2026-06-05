@@ -43,7 +43,7 @@
 </script>
 
 <header
-	class="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-stone-200 bg-white px-4 py-2 sm:px-6"
+	class="relative grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-stone-200 bg-white px-4 py-2 sm:px-6"
 >
 	<div class="flex min-w-0 items-center gap-2">
 		{#if showSidebarToggle}

@@ -100,14 +100,36 @@ function createIndexPayload() {
 	};
 }
 
-function createLoadEvent(fetch: typeof globalThis.fetch) {
+function createSingletonBootstrap(): RepoConfigsBootstrap {
 	return {
-		parent: async () => createBootstrap(),
+		...createBootstrap(),
+		configs: [
+			{
+				slug: 'about',
+				path: 'tentman/configs/about.tentman.json',
+				config: {
+					type: 'content',
+					label: 'About',
+					collection: false,
+					content: {
+						mode: 'file',
+						path: '../../src/content/about.md'
+					},
+					blocks: [{ id: 'title', type: 'text', label: 'Title' }]
+				}
+			}
+		]
+	} as RepoConfigsBootstrap;
+}
+
+function createLoadEvent(fetch: typeof globalThis.fetch, bootstrap = createBootstrap()) {
+	return {
+		parent: async () => bootstrap,
 		fetch,
 		params: {
-			page: 'projects'
+			page: bootstrap.configs[0]?.slug ?? 'projects'
 		},
-		url: new URL('http://localhost/pages/projects'),
+		url: new URL(`http://localhost/pages/${bootstrap.configs[0]?.slug ?? 'projects'}`),
 		depends: vi.fn()
 	};
 }
@@ -167,6 +189,47 @@ describe('GitHub collection route cache in the browser', () => {
 		await expect(githubRepositoryCache.getCollectionNavigation('projects')).resolves.toMatchObject({
 			items: [{ title: 'panorama 4' }]
 		});
+	});
+
+	it('seeds and reuses singleton page content without calling page-view again', async () => {
+		const bootstrap = createSingletonBootstrap();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/page-view')) {
+				return Response.json({
+					discoveredConfig: bootstrap.configs[0],
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null,
+					content: {
+						title: 'About Tentman'
+					},
+					collectionNavigation: null,
+					contentError: null,
+					branch: null,
+					pageSlug: 'about',
+					mode: 'github'
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await expect(loadCollectionLanding(createLoadEvent(fetch, bootstrap) as never)).resolves
+			.toMatchObject({
+				content: {
+					title: 'About Tentman'
+				}
+			});
+		await expect(loadCollectionLanding(createLoadEvent(fetch, bootstrap) as never)).resolves
+			.toMatchObject({
+				content: {
+					title: 'About Tentman'
+				},
+				blockRegistryError: null
+			});
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});
 
 	it('uses a cached item document without calling the item-view endpoint', async () => {

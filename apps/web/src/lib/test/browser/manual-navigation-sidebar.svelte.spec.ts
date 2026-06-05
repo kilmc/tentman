@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
-import { githubRepositoryCacheTestApi } from '$lib/stores/github-repository-cache';
+import {
+	githubCacheWarmStatus,
+	githubRepositoryCacheTestApi
+} from '$lib/stores/github-repository-cache';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -617,6 +620,33 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			if (url.startsWith('/api/repo/config-states')) {
 				return Response.json({ statesBySlug: {} });
 			}
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/page-view')) {
+				return Response.json({
+					content: {
+						title: 'About'
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return Response.json({
+					item: {
+						title: 'Cached item'
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		});
 		vi.stubGlobal('fetch', fetch);
@@ -634,6 +664,70 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		});
 
 		await expect.poll(() => document.body.textContent).toContain('Post 1');
+	});
+
+	it('shows GitHub cache progress in the sidebar with a cache details link', async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createGitHubIndexPayload());
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/page-view')) {
+				return Response.json({
+					content: { title: 'About' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return Response.json({
+					item: { title: 'Cached item' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			return Response.json({
+				indexIdentity: createGitHubIndexPayload().identity,
+				items: createGitHubProjectionItems(['blob-1', 'blob-2'])
+			});
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayout, {
+			data: githubLayoutData
+		});
+		githubCacheWarmStatus.set({
+			phase: 'warming',
+			message: 'Caching site data',
+			currentCollectionSlug: 'blog',
+			totalCollections: 1,
+			warmedCollections: 1,
+			totalItems: 2,
+			hydratedItems: 1,
+			totalTasks: 8,
+			completedTasks: 3,
+			showProgress: true,
+			error: null
+		});
+
+		const cacheLink = screen.getByRole('link', {
+			name: 'Caching site. Open cache details'
+		});
+		await expectElement(cacheLink).toBeVisible();
+		expect(cacheLink).toHaveAttribute('href', '/pages/cache');
+		await expectElement(screen.getByText('3/8')).toBeVisible();
 	});
 
 	it('hydrates visible GitHub collection titles before background rows in the panel', async () => {
@@ -665,6 +759,33 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			}
 			if (url.startsWith('/api/repo/config-states')) {
 				return Response.json({ statesBySlug: {} });
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/page-view')) {
+				return Response.json({
+					content: {
+						title: 'About'
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return Response.json({
+					item: {
+						title: 'Cached item'
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
 			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		});
