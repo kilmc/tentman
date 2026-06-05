@@ -316,6 +316,15 @@ function indexMatchesActiveSnapshot(index: SerializableCollectionIndex, snapshot
 	);
 }
 
+function isPathInCollectionIdentity(path: string, index: SerializableCollectionIndex): boolean {
+	const [contentPath] = index.identity.contentIdentity.split(':');
+	if (!contentPath) {
+		return false;
+	}
+
+	return path === contentPath || path.startsWith(`${contentPath}/`);
+}
+
 async function getCachedCollectionIndexItem(
 	slug: string,
 	itemId: string
@@ -642,6 +651,7 @@ export const githubRepositoryCache = {
 		const indexesToDelete = indexes.filter(
 			(index) =>
 				index.items.some((item) => changedPaths.includes(item.path)) ||
+				changedPaths.some((path) => isPathInCollectionIdentity(path, index)) ||
 				(hasRepositoryStructureChange && snapshot && indexMatchesActiveSnapshot(index, snapshot))
 		);
 		const affectedSlugs = new Set(indexesToDelete.map((index) => index.configSlug));

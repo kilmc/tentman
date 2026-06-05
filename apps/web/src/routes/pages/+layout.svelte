@@ -475,7 +475,7 @@
 
 	async function invalidateGitHubPagesData() {
 		if (data.selectedRepo) {
-			await githubRepositoryCache.clearRepo(data.selectedRepo.full_name);
+			await githubRepositoryCache.invalidatePaths(['tentman/navigation-manifest.json']);
 		}
 		await Promise.all([invalidate('app:content'), invalidate(shouldInvalidateGitHubPagesData)]);
 	}

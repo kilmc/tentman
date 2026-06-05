@@ -27,8 +27,10 @@
 		findContentItemByRoute,
 		formatContentValue
 	} from '$lib/features/content-management/item';
+	import { buildCollectionFilePath } from '$lib/features/content-management/transforms';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
+	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
@@ -53,12 +55,17 @@
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-	import { writeNavigationManifest } from '$lib/features/content-management/navigation-manifest';
+	import {
+		detectCollectionGroupField,
+		writeNavigationManifest
+	} from '$lib/features/content-management/navigation-manifest';
 	import {
 		addCollectionGroupToConfigSource,
 		addNavigationGroupToManifest
 	} from '$lib/features/content-management/navigation-group-options';
+	import { isCollectionManualSortingEnabled } from '$lib/features/content-management/config';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
+	import { resolveConfigPath } from '$lib/utils/validation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -474,6 +481,43 @@
 		recoverDraft(recoveryState.snapshot);
 	}
 
+	function canSaveCurrentItemUpdateNavigationManifest(): boolean {
+		if (!discoveredConfig?.config._tentmanId || !isCollectionManualSortingEnabled(discoveredConfig.config)) {
+			return false;
+		}
+
+		try {
+			detectCollectionGroupField(discoveredConfig);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function getCurrentItemCacheInvalidationPaths(options?: {
+		includeNavigationManifest?: boolean;
+	}): string[] {
+		if (!discoveredConfig) {
+			return [];
+		}
+
+		const contentPath = resolveConfigPath(
+			discoveredConfig.path,
+			discoveredConfig.config.content.path
+		);
+		const itemPath =
+			discoveredConfig.config.content.mode === 'directory'
+				? typeof item?._filename === 'string'
+					? buildCollectionFilePath(contentPath, item._filename)
+					: null
+				: contentPath;
+
+		return [
+			...(itemPath ? [itemPath] : []),
+			...(options?.includeNavigationManifest ? ['tentman/navigation-manifest.json'] : [])
+		];
+	}
+
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
 		if (!formGenerator) {
 			event?.preventDefault();
@@ -780,11 +824,17 @@
 						return;
 					}
 
-					await update();
 					if (result.type === 'redirect' || result.type === 'success') {
+						await githubRepositoryCache.invalidatePaths(
+							getCurrentItemCacheInvalidationPaths({
+								includeNavigationManifest: canSaveCurrentItemUpdateNavigationManifest()
+							})
+						);
+						await update();
 						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
 						clearRecoveryDraft();
 					} else {
+						await update();
 						hasUnsavedChanges = true;
 					}
 					saving = false;
@@ -906,7 +956,12 @@
 						action="?/delete"
 						use:enhance={() => {
 							deleting = true;
-							return async ({ update }) => {
+							return async ({ update, result }) => {
+								if (result.type === 'redirect' || result.type === 'success') {
+									await githubRepositoryCache.invalidatePaths(
+										getCurrentItemCacheInvalidationPaths()
+									);
+								}
 								await update();
 								deleting = false;
 							};

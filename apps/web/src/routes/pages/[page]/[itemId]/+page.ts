@@ -35,6 +35,27 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		bootstrap: parentData
 	});
 
+	const cachedDocument = await githubRepositoryCache.getItemDocumentForRoute({
+		slug: params.page,
+		itemId: params.itemId
+	});
+	const discoveredConfig = parentData.configs?.find((config) => config.slug === params.page) ?? null;
+	if (cachedDocument && discoveredConfig) {
+		return {
+			discoveredConfig,
+			blockConfigs: parentData.blockConfigs ?? [],
+			packageBlocks: [],
+			blockRegistryError: null,
+			navigationManifest: parentData.navigationManifest,
+			item: cachedDocument.content,
+			contentError: null,
+			itemId: params.itemId,
+			branch: parentData.activeDraftBranch,
+			pageSlug: params.page,
+			mode: 'github' as const
+		};
+	}
+
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/item-view', {
 			slug: params.page,

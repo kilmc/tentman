@@ -47,21 +47,8 @@ function createBootstrap(treeSha = 'tree-main', ref = 'main'): RepoConfigsBootst
 			resolvedAt: 1
 		},
 		configs: [
-			{
-				slug: 'posts',
-				path: 'tentman/configs/posts.tentman.json',
-				config: {
-					type: 'content',
-					label: 'Posts',
-					collection: true,
-					content: {
-						mode: 'directory',
-						path: '../../src/content/posts',
-						template: '../../src/content/posts/_template.md'
-					},
-					blocks: []
-				}
-			}
+			createCollectionConfig('posts', 'Posts', 'src/content/posts'),
+			createCollectionConfig('notes', 'Notes', 'src/content/notes')
 		],
 		blockConfigs: [],
 		rootConfig: null,
@@ -76,6 +63,24 @@ function createBootstrap(treeSha = 'tree-main', ref = 'main'): RepoConfigsBootst
 			issues: []
 		}
 	} as RepoConfigsBootstrap;
+}
+
+function createCollectionConfig(slug: string, label: string, contentPath: string) {
+	return {
+		slug,
+		path: `tentman/configs/${slug}.tentman.json`,
+		config: {
+			type: 'content',
+			label,
+			collection: true,
+			content: {
+				mode: 'directory',
+				path: `../../${contentPath}`,
+				template: `../../${contentPath}/_template.md`
+			},
+			blocks: []
+		}
+	};
 }
 
 function createIndexPayload(treeSha = 'tree-main') {
@@ -94,19 +99,45 @@ function createIndexPayload(treeSha = 'tree-main') {
 	], treeSha);
 }
 
-function createIndexPayloadWithItems(items: TestCollectionIndexItem[], treeSha = 'tree-main') {
+function createNotesIndexPayload(treeSha = 'tree-main') {
+	return createIndexPayloadWithItems(
+		[
+			{
+				itemId: 'field-note',
+				route: 'field-note',
+				path: 'src/content/notes/field-note.md',
+				filename: 'field-note.md',
+				blobSha: 'blob-note',
+				title: 'field note',
+				sortDate: null,
+				hydration: 'fallback' as const,
+				hrefItemId: 'field-note'
+			}
+		],
+		treeSha,
+		'notes',
+		'src/content/notes'
+	);
+}
+
+function createIndexPayloadWithItems(
+	items: TestCollectionIndexItem[],
+	treeSha = 'tree-main',
+	slug = 'posts',
+	contentPath = 'src/content/posts'
+) {
 	return {
 		identity: {
 			repoKey: 'github:acme/docs?ref=main',
 			ref: 'main',
 			headSha: 'head-main',
 			treeSha,
-			configSlug: 'posts',
-			configPath: 'tentman/configs/posts.tentman.json',
-			contentIdentity: 'src/content/posts:src/content/posts/_template.md',
+			configSlug: slug,
+			configPath: `tentman/configs/${slug}.tentman.json`,
+			contentIdentity: `${contentPath}:${contentPath}/_template.md`,
 			schemaIdentity: 'title'
 		},
-		configSlug: 'posts',
+		configSlug: slug,
 		mode: 'directory' as const,
 		items
 	};
@@ -402,6 +433,52 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toBeNull();
 		await expect(githubRepositoryCacheTestApi.getCollectionIndex('posts')).resolves.toBeNull();
+	});
+
+	it('clears a collection index when a new file appears inside its content directory', async () => {
+		const fetcher = vi.fn(async () => Response.json(createIndexPayload()));
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ itemId: 'hello-world' }]
+		});
+
+		await githubRepositoryCache.invalidatePaths(['src/content/posts/new-post.md']);
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toBeNull();
+		await expect(githubRepositoryCacheTestApi.getCollectionIndex('posts')).resolves.toBeNull();
+	});
+
+	it('preserves unaffected collection indexes when invalidating one item path', async () => {
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.includes('slug=posts')) {
+				return Response.json(createIndexPayload());
+			}
+			if (url.includes('slug=notes')) {
+				return Response.json(createNotesIndexPayload());
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+		await githubRepositoryCache.ensureCollectionIndex('notes', { fetcher });
+
+		await githubRepositoryCache.invalidatePaths(['src/content/posts/hello-world.md']);
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toBeNull();
+		await expect(githubRepositoryCache.getCollectionNavigation('notes')).resolves.toMatchObject({
+			items: [{ itemId: 'field-note' }]
+		});
 	});
 
 	it('clears a draft ref snapshot and index without clearing another ref', async () => {

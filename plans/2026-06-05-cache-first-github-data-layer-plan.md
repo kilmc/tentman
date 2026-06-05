@@ -6,6 +6,58 @@ Make the GitHub-backed UI read from a client-side repository cache by default, b
 
 The implementation should replace ad hoc route-level caching with a single cache/store boundary. Existing server `repository-data` stays useful, but route loads and layout components should ask the client cache first.
 
+## Current Status
+
+Implemented and manually verified. The GitHub-backed pages workspace is now significantly faster after cache warm-up:
+
+- Browser IndexedDB repository cache stores snapshot/config data, collection indexes, hydrated projections, and full opened item documents.
+- Warm collection routes avoid `/api/repo/page-view`.
+- Collection panels render cached/fallback rows first, hydrate visible titles first, and continue background projection hydration.
+- Item view/edit routes return cached full item documents when available.
+- Indexed item clicks without cached documents fetch only the selected `/api/repo/item-view`.
+- Successful item-view responses seed the full item document cache.
+- Save/create/delete/navigation/publish/discard flows invalidate narrower cache scopes:
+  - item path changes clear affected projections/documents and affected collection indexes
+  - newly created paths inside a collection content directory clear that collection index
+  - navigation/config/root structure changes clear active snapshot and relevant indexes
+  - publish/discard clears only the draft ref cache scope
+- Local mode behavior and thin-backend guardrails remain unchanged.
+
+Last full focused check pass:
+
+- `VITEST_BROWSER=1 pnpm --filter @tentman/web exec vitest run --project client src/lib/stores/github-repository-cache.svelte.spec.ts`
+- `VITEST_BROWSER=1 pnpm --filter @tentman/web exec vitest run --project client src/lib/test/browser/github-collection-route-cache.svelte.spec.ts`
+- `VITEST_BROWSER=1 pnpm --filter @tentman/web exec vitest run --project client src/lib/test/browser/item-edit-page.svelte.spec.ts src/lib/test/browser/new-item-page.svelte.spec.ts`
+- `VITEST_BROWSER=1 pnpm --filter @tentman/web exec vitest run --project client src/lib/test/browser/manual-navigation-sidebar.svelte.spec.ts`
+- `pnpm --filter @tentman/web exec vitest run 'src/routes/pages/[page]/[itemId]/page.spec.ts' 'src/routes/pages/[page]/[itemId]/edit/page.spec.ts'`
+- `pnpm --filter @tentman/web exec vitest run src/routes/publish/form-behavior.spec.ts`
+- `pnpm --filter @tentman/web run check`
+
+Remaining optional test work: a heavier browser integration assertion around GitHub `enhance` save/create/delete invalidation was considered, but skipped because it would likely be brittle relative to the cache-boundary tests plus manual verification.
+
+## Next UX Improvement Plan
+
+The next phase should keep the cache-first architecture but improve the user's sense of what is happening and make the background warm-up more complete.
+
+- Add restrained workspace-level sync/fetch indicators for GitHub mode:
+  - show when repository/site data is being fetched or hydrated
+  - distinguish initial load, collection projection hydration, and background cache warming if useful
+  - avoid noisy spinners in every panel; prefer a small header/sidebar status affordance that fits Tentman's utilitarian UI
+- Add an idle background cache warmer:
+  - after bootstrap and once the current page is interactive, schedule idle work with `requestIdleCallback` where available and a timeout fallback
+  - warm all collection indexes, then hydrate all collection projections in bounded batches
+  - optionally fetch full item documents in the background after projections are hydrated, so item views/edit forms can open instantly later
+  - keep concurrency low and cancellable so foreground route interactions stay responsive
+  - expose progress/state from `githubRepositoryCache` or a small adjacent store
+- Keep cache warming identity-based:
+  - do not refetch projections/documents when blob SHA and schema/config identity already match
+  - cancel or restart warming when repo/ref/tree identity changes
+  - preserve precise invalidation behavior from this phase
+- UX states to consider:
+  - `idle`, `checking`, `warming`, `hydrating visible items`, `ready`, `error`
+  - stale-but-known data should remain usable while background checks run
+  - errors should be non-blocking unless the current route cannot render
+
 ## Key Changes
 
 - Add a browser-only GitHub repository cache store using raw IndexedDB, no new dependency.

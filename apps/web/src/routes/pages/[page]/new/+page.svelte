@@ -16,6 +16,7 @@
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { draftBranch } from '$lib/stores/draft-branch';
+	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
@@ -42,6 +43,12 @@
 		addCollectionGroupToConfigSource,
 		addNavigationGroupToManifest
 	} from '$lib/features/content-management/navigation-group-options';
+	import {
+		buildCollectionFilePath,
+		getCollectionFilenameBase,
+		getTemplateInfo
+	} from '$lib/features/content-management/transforms';
+	import { resolveConfigPath } from '$lib/utils/validation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -282,6 +289,33 @@
 		}
 
 		recoverDraft(recoveryState.snapshot);
+	}
+
+	function ensureFilenameExtension(filenameBase: string, extension: string): string {
+		return filenameBase.includes('.') ? filenameBase : `${filenameBase}${extension}`;
+	}
+
+	function getCreatedItemCacheInvalidationPaths(contentData: ContentRecord): string[] {
+		if (!discoveredConfig) {
+			return [];
+		}
+
+		const contentPath = resolveConfigPath(
+			discoveredConfig.path,
+			discoveredConfig.config.content.path
+		);
+		const itemPath =
+			discoveredConfig.config.content.mode === 'directory'
+				? buildCollectionFilePath(
+						contentPath,
+						ensureFilenameExtension(
+							filename || getCollectionFilenameBase(discoveredConfig.config, contentData),
+							getTemplateInfo(discoveredConfig.path, discoveredConfig.config).templateExt
+						)
+					)
+				: contentPath;
+
+		return [itemPath];
 	}
 
 	async function handleAddSelectOption(input: {
@@ -541,6 +575,7 @@
 			onsubmit={prepareFormSubmit}
 			use:enhance={({ formData, cancel }) => {
 				let submittedRefs: string[] = [];
+				let submittedContent: ContentRecord | null = null;
 				const prepareSubmission = (async () => {
 					const encoded = formData.get('data');
 					if (typeof encoded !== 'string' || encoded.length === 0) {
@@ -549,6 +584,7 @@
 					}
 
 					const contentData = JSON.parse(encoded) as ContentRecord;
+					submittedContent = contentData;
 					const appended = await appendDraftAssetsToFormData(formData, contentData);
 					submittedRefs = appended.refs;
 					persistRecoveryDraft();
@@ -566,11 +602,15 @@
 						return;
 					}
 
-					await update();
 					if (result.type === 'redirect' || result.type === 'success') {
+						await githubRepositoryCache.invalidatePaths(
+							submittedContent ? getCreatedItemCacheInvalidationPaths(submittedContent) : []
+						);
+						await update();
 						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
 						clearRecoveryDraft();
 					} else {
+						await update();
 						formHasUnsavedChanges = true;
 					}
 					saving = false;
