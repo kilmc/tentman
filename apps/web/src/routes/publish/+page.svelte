@@ -2,6 +2,7 @@
 	import type { PageData } from './$types';
 	import { enhance } from '$app/forms';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
+	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { formatAppTitle } from '$lib/utils/page-title';
 	import ReviewDraftOrderSection from '$lib/features/review-draft/components/ReviewDraftOrderSection.svelte';
 	import ReviewDraftOtherChanges from '$lib/features/review-draft/components/ReviewDraftOtherChanges.svelte';
@@ -82,6 +83,17 @@
 		topLevelExpanded = false;
 		otherChangesExpanded = false;
 	}
+
+	async function clearDraftCacheScope() {
+		if (!data.selectedRepo?.full_name || !data.draftBranch?.name) {
+			return;
+		}
+
+		await githubRepositoryCache.clearRepoRef({
+			repoFullName: data.selectedRepo.full_name,
+			ref: data.draftBranch.name
+		});
+	}
 </script>
 
 <svelte:head>
@@ -108,7 +120,8 @@
 					action="?/publish"
 					use:enhance={createPublishEnhanceHandler(
 						draftBranchStore,
-						(value) => (publishing = value)
+						(value) => (publishing = value),
+						{ clearDraftCache: clearDraftCacheScope }
 					)}
 				>
 					<button
@@ -126,7 +139,8 @@
 					use:enhance={createDiscardEnhanceHandler(
 						draftBranchStore,
 						(value) => (discarding = value),
-						confirmDiscard
+						confirmDiscard,
+						{ clearDraftCache: clearDraftCacheScope }
 					)}
 				>
 					<button

@@ -1,5 +1,6 @@
 import type { GitHubRepositoryBackend } from '$lib/repository/github';
 import type { RepositoryBackend } from '$lib/repository/types';
+import { logTiming } from '$lib/utils/performance-logging';
 import type {
 	RepositoryRefIdentity,
 	RepositorySourceIdentity,
@@ -8,6 +9,8 @@ import type {
 } from './types';
 
 const UNKNOWN_TREE_SHA = 'unknown-tree';
+const textBlobCache = new Map<string, string>();
+const textBlobInflight = new Map<string, Promise<string>>();
 
 function getRefFromBackendCacheKey(backend: RepositoryBackend): string {
 	const ref = backend.cacheKey.match(/[?&]ref=([^&]+)/)?.[1];
@@ -128,11 +131,44 @@ export async function readGitHubTextBlob(
 	backend: GitHubRepositoryBackend,
 	sha: string
 ): Promise<string> {
-	const { data } = await backend.octokit.rest.git.getBlob({
-		owner: backend.owner,
-		repo: backend.repo,
-		file_sha: sha
-	});
+	const cacheKey = `${backend.cacheKey}:${sha}`;
+	const cached = textBlobCache.get(cacheKey);
+	if (cached !== undefined) {
+		return cached;
+	}
 
-	return decodeGitHubBlob(data.content);
+	const pending = textBlobInflight.get(cacheKey);
+	if (pending) {
+		return pending;
+	}
+
+	const start = performance.now();
+	const promise = backend.octokit.rest.git
+		.getBlob({
+			owner: backend.owner,
+			repo: backend.repo,
+			file_sha: sha
+		})
+		.then(({ data }) => {
+			const decoded = decodeGitHubBlob(data.content);
+			textBlobCache.set(cacheKey, decoded);
+			logTiming('repository-data.github-blob.load', {
+				repoKey: backend.cacheKey,
+				sha,
+				size: decoded.length,
+				durationMs: performance.now() - start
+			});
+			return decoded;
+		})
+		.finally(() => {
+			textBlobInflight.delete(cacheKey);
+		});
+
+	textBlobInflight.set(cacheKey, promise);
+	return promise;
+}
+
+export function clearGitHubTextBlobCache(): void {
+	textBlobCache.clear();
+	textBlobInflight.clear();
 }

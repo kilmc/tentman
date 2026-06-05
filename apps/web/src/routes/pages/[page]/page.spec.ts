@@ -67,6 +67,8 @@ describe('routes/pages/[page]/+page', () => {
 							full_name: 'acme/docs'
 						}
 					},
+					configs: [],
+					blockConfigs: [],
 					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				}),
 				fetch,
@@ -84,6 +86,8 @@ describe('routes/pages/[page]/+page', () => {
 	});
 
 	it('keeps collection routes on the explicit collection landing page', async () => {
+		const fetch = vi.fn();
+
 		await expect(
 			load({
 				parent: async () => ({
@@ -101,6 +105,24 @@ describe('routes/pages/[page]/+page', () => {
 							full_name: 'acme/docs'
 						}
 					},
+					configs: [
+						{
+							slug: 'posts',
+							path: 'tentman/configs/posts.tentman.json',
+							config: {
+								id: 'posts',
+								label: 'Posts',
+								collection: true,
+								content: {
+									mode: 'directory'
+								},
+								idField: 'slug',
+								blocks: []
+							}
+						}
+					],
+					blockConfigs: [],
+					activeDraftBranch: null,
 					navigationManifest: {
 						...EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
 						manifest: {
@@ -117,37 +139,7 @@ describe('routes/pages/[page]/+page', () => {
 						}
 					}
 				}),
-				fetch: async () =>
-					new Response(
-						JSON.stringify({
-							discoveredConfig: {
-								slug: 'posts',
-								config: {
-									id: 'posts',
-									label: 'Posts',
-									collection: true,
-									content: {
-										mode: 'directory'
-									},
-									idField: 'slug',
-									blocks: []
-								}
-							},
-							content: [
-								{ slug: 'hello-world', title: 'Hello world' },
-								{ slug: 'second-post', title: 'Second post' }
-							],
-							contentError: null,
-							pageSlug: 'posts',
-							mode: 'github'
-						}),
-						{
-							status: 200,
-							headers: {
-								'content-type': 'application/json'
-							}
-						}
-					),
+				fetch,
 				params: {
 					page: 'posts'
 				},
@@ -161,6 +153,7 @@ describe('routes/pages/[page]/+page', () => {
 			pageSlug: 'posts',
 			mode: 'github'
 		});
+		expect(fetch).not.toHaveBeenCalledWith('/api/repo/page-view?slug=posts');
 	});
 
 	it('preserves the current route query when the thin API returns 401', async () => {
@@ -181,6 +174,8 @@ describe('routes/pages/[page]/+page', () => {
 							full_name: 'acme/docs'
 						}
 					},
+					configs: [],
+					blockConfigs: [],
 					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 				}),
 				fetch: async () => new Response(null, { status: 401 }),

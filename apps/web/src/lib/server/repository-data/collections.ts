@@ -18,11 +18,12 @@ import type { ContentRecord, ContentValue } from '$lib/features/content-manageme
 import type { RepositoryBackend } from '$lib/repository/types';
 import { logTiming } from '$lib/utils/performance-logging';
 import { resolveConfigPath } from '$lib/utils/validation';
-import { canUseGitHubSource, readGitHubTextBlob } from './source';
+import { canUseGitHubSource, clearGitHubTextBlobCache, readGitHubTextBlob } from './source';
 import { getRepositorySnapshot } from './snapshot';
 import type {
 	CollectionIndex,
 	CollectionIndexItem,
+	CollectionProjectionBatchResult,
 	RepositorySnapshot,
 	RepositoryTreeEntry,
 	ResolvedCollectionItem
@@ -86,6 +87,13 @@ function getFilename(path: string): string {
 
 function stripFileExtension(filename: string): string {
 	return filename.replace(/\.[^/.]+$/, '');
+}
+
+function getFallbackTitleFromFilename(filename: string): string {
+	return stripFileExtension(filename)
+		.replace(/[-_]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
 }
 
 function isWithinDirectory(path: string, directoryPath: string): boolean {
@@ -364,9 +372,30 @@ function toCollectionIndexItems(
 				blobSha: entry.sha,
 				title: navigationItem?.title ?? route,
 				sortDate: navigationItem?.sortDate ?? null,
+				hydration: 'hydrated' as const,
+				hrefItemId: route,
 				...(navigationItem?.state ? { state: navigationItem.state } : {})
 			}
 		];
+	});
+}
+
+function toDirectoryFallbackCollectionIndexItems(entries: RepositoryTreeEntry[]): CollectionIndexItem[] {
+	return entries.map((entry) => {
+		const filename = getFilename(entry.path);
+		const route = stripFileExtension(filename);
+
+		return {
+			itemId: route,
+			route,
+			path: entry.path,
+			filename,
+			blobSha: entry.sha,
+			title: getFallbackTitleFromFilename(filename) || route,
+			sortDate: null,
+			hydration: 'fallback',
+			hrefItemId: route
+		};
 	});
 }
 
@@ -480,6 +509,8 @@ function toFileCollectionIndexItems(input: {
 				index,
 				title: navigationItem?.title ?? route ?? fallbackId,
 				sortDate: navigationItem?.sortDate ?? null,
+				hydration: 'hydrated' as const,
+				hrefItemId: route ?? fallbackId,
 				...(navigationItem?.state ? { state: navigationItem.state } : {})
 			}
 		];
@@ -507,7 +538,9 @@ function getCollectionIndexItemFromContent(input: {
 		blobSha: input.blobSha,
 		...(typeof input.index === 'number' ? { index: input.index } : {}),
 		title: route,
-		sortDate: null
+		sortDate: null,
+		hydration: 'hydrated',
+		hrefItemId: route
 	};
 }
 
@@ -521,18 +554,56 @@ async function buildDirectoryCollectionIndex(
 		return null;
 	}
 
-	const backend = input.backend;
 	const entries = getCandidateItemEntries(snapshot, config, configPath);
-	const info = getTemplateInfo(configPath, config);
 	const fieldIds = collectProjectionFieldIds(config);
 	const schemaIdentity = getProjectionSchemaIdentity(config, fieldIds);
+
+	return createCollectionIndex(
+		snapshot,
+		config,
+		configPath,
+		input.slug,
+		toDirectoryFallbackCollectionIndexItems(entries),
+		schemaIdentity
+	);
+}
+
+async function hydrateDirectoryCollectionEntries(input: {
+	backend: Parameters<typeof readGitHubTextBlob>[0];
+	snapshot: RepositorySnapshot;
+	config: DirectoryBackedConfig;
+	configPath: string;
+	slug: string;
+	blobShas: string[];
+}): Promise<CollectionProjectionBatchResult | null> {
+	const entries = getCandidateItemEntries(input.snapshot, input.config, input.configPath).filter(
+		(entry) => input.blobShas.includes(entry.sha)
+	);
+	if (entries.length === 0) {
+		const fieldIds = collectProjectionFieldIds(input.config);
+		return {
+			indexIdentity: createCollectionIndex(
+				input.snapshot,
+				input.config,
+				input.configPath,
+				input.slug,
+				[],
+				getProjectionSchemaIdentity(input.config, fieldIds)
+			).identity,
+			items: []
+		};
+	}
+
+	const info = getTemplateInfo(input.configPath, input.config);
+	const fieldIds = collectProjectionFieldIds(input.config);
+	const schemaIdentity = getProjectionSchemaIdentity(input.config, fieldIds);
 	const projections = await Promise.all(
 		entries.map((entry) =>
-			loadItemProjection(backend, entry, {
+			loadItemProjection(input.backend, entry, {
 				filename: getFilename(entry.path),
 				isMarkdown: info.isMarkdown,
 				fieldIds,
-				repoKey: snapshot.identity.repoKey,
+				repoKey: input.snapshot.identity.repoKey,
 				schemaIdentity
 			})
 		)
@@ -540,14 +611,22 @@ async function buildDirectoryCollectionIndex(
 	const presentEntries = entries.filter((_, index) => projections[index] !== null);
 	const presentProjections = projections.filter((item): item is ContentRecord => item !== null);
 
-	return createCollectionIndex(
-		snapshot,
-		config,
-		configPath,
-		input.slug,
-		toCollectionIndexItems(config, presentEntries, presentProjections, snapshot.rootConfig),
-		schemaIdentity
-	);
+	return {
+		indexIdentity: createCollectionIndex(
+			input.snapshot,
+			input.config,
+			input.configPath,
+			input.slug,
+			[],
+			schemaIdentity
+		).identity,
+		items: toCollectionIndexItems(
+			input.config,
+			presentEntries,
+			presentProjections,
+			input.snapshot.rootConfig
+		)
+	};
 }
 
 async function buildFileCollectionIndex(input: {
@@ -689,6 +768,48 @@ export async function getCollectionIndex(
 	return promise;
 }
 
+export async function hydrateCollectionProjections(input: CollectionNavigationInput & {
+	blobShas: string[];
+}): Promise<CollectionProjectionBatchResult | null> {
+	if (!canUseGitHubSource(input.backend)) {
+		return null;
+	}
+
+	const snapshot = await getRepositorySnapshot({
+		backend: input.backend,
+		ref: input.ref
+	});
+	const discoveredConfig = snapshot.configIndex.bySlug.get(input.slug);
+	if (!discoveredConfig?.config.collection) {
+		return null;
+	}
+
+	if (isDirectoryBackedConfig(discoveredConfig.config)) {
+		return hydrateDirectoryCollectionEntries({
+			backend: input.backend,
+			snapshot,
+			config: discoveredConfig.config,
+			configPath: discoveredConfig.path,
+			slug: input.slug,
+			blobShas: input.blobShas
+		});
+	}
+
+	if (isFileCollectionConfig(discoveredConfig.config)) {
+		const index = await getCollectionIndex(input);
+		if (!index) {
+			return null;
+		}
+
+		return {
+			indexIdentity: index.identity,
+			items: index.items.filter((item) => input.blobShas.includes(item.blobSha))
+		};
+	}
+
+	return null;
+}
+
 async function loadCollectionNavigation(
 	input: CollectionNavigationInput
 ): Promise<OrderedCollectionNavigation | null> {
@@ -715,11 +836,13 @@ async function loadCollectionNavigation(
 
 	const navigation = orderCollectionNavigationItems(
 		discoveredConfig.config,
-		index.items.map(({ itemId, title, sortDate, state }) => ({
+		index.items.map(({ itemId, title, sortDate, state, hydration, hrefItemId }) => ({
 			itemId,
 			title,
 			sortDate,
-			...(state ? { state } : {})
+			...(state ? { state } : {}),
+			...(hydration ? { hydration } : {}),
+			...(hrefItemId ? { hrefItemId } : {})
 		})),
 		snapshot.navigationManifest.manifest
 	);
@@ -810,16 +933,30 @@ export async function resolveCollectionItemDocument(
 	}
 
 	const info = getTemplateInfo(discoveredConfig.path, discoveredConfig.config);
-	const directEntry = getCandidateItemEntries(
+	const entries = getCandidateItemEntries(
 		snapshot,
 		discoveredConfig.config,
 		discoveredConfig.path
-	).find((entry) => {
+	);
+	const directEntry = entries.find((entry) => {
 		const filename = getFilename(entry.path);
 		return filename === input.itemId || stripFileExtension(filename) === input.itemId;
 	});
 	const index = directEntry === undefined ? await getCollectionIndex(input) : null;
-	const indexItem = index?.byRoute.get(input.itemId) ?? index?.byId.get(input.itemId);
+	let indexItem = index?.byRoute.get(input.itemId) ?? index?.byId.get(input.itemId);
+	if (!directEntry && !indexItem) {
+		const hydrated = await hydrateDirectoryCollectionEntries({
+			backend: input.backend,
+			snapshot,
+			config: discoveredConfig.config,
+			configPath: discoveredConfig.path,
+			slug: input.slug,
+			blobShas: entries.map((entry) => entry.sha)
+		});
+		indexItem =
+			hydrated?.items.find((item) => item.route === input.itemId || item.itemId === input.itemId) ??
+			undefined;
+	}
 	const path = directEntry?.path ?? indexItem?.path;
 	const blobSha = directEntry?.sha ?? indexItem?.blobSha;
 	if (!path || !blobSha) {
@@ -860,6 +997,7 @@ export async function resolveCollectionItem(
 }
 
 export function clearCollectionNavigationCache(): void {
+	clearGitHubTextBlobCache();
 	projectionCache.clear();
 	collectionIndexCache.clear();
 	collectionIndexInflight.clear();

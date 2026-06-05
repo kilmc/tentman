@@ -2,9 +2,11 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
+import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
-	const workspace = resolveWorkspaceState(await parent());
+	const parentData = await parent();
+	const workspace = resolveWorkspaceState(parentData);
 	const reposRedirect = buildReposRedirect('/repos', url);
 
 	if (workspace.mode === 'local') {
@@ -27,6 +29,11 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	}
 
 	depends('app:content');
+
+	await githubRepositoryCache.hydrateFromBootstrap({
+		repoFullName: workspace.selectedRepo.full_name,
+		bootstrap: parentData
+	});
 
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/item-view', {
@@ -57,6 +64,12 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	) {
 		throw redirect(302, data.redirectTo);
 	}
+
+	await githubRepositoryCache.setItemDocumentForRoute({
+		slug: params.page,
+		itemId: params.itemId,
+		content: data.item ?? null
+	});
 
 	return data;
 };

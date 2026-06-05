@@ -171,8 +171,10 @@ describe('GET /api/repo/page-view repository data', () => {
 				items: [
 					{
 						itemId: 'hello-world',
-						title: 'Hello world',
-						sortDate: new Date('2026-04-03').getTime()
+						title: 'hello world',
+						sortDate: null,
+						hydration: 'fallback',
+						hrefItemId: 'hello-world'
 					}
 				],
 				groups: []

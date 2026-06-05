@@ -3,6 +3,7 @@ export {
 	clearCollectionNavigationCache,
 	getCollectionIndex,
 	getCollectionNavigation,
+	hydrateCollectionProjections,
 	resolveCollectionItem,
 	resolveCollectionItemDocument
 } from './collections';
@@ -16,6 +17,7 @@ export type {
 	CollectionIndex,
 	CollectionIndexIdentity,
 	CollectionIndexItem,
+	CollectionProjectionBatchResult,
 	ConfigDraftChangeScope,
 	ConfigIndex,
 	DraftChangedFile,

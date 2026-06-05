@@ -5,6 +5,7 @@ import {
 	clearCollectionNavigationCache,
 	clearRepositorySnapshotCache,
 	getCollectionNavigation,
+	hydrateCollectionProjections,
 	resolveCollectionItemDocument
 } from './index';
 
@@ -107,7 +108,7 @@ describe('collection navigation repository data layer', () => {
 		clearCollectionNavigationCache();
 	});
 
-	it('builds directory-backed navigation from GitHub tree entries and blob projections', async () => {
+	it('builds directory-backed fallback navigation from GitHub tree entries without blob reads', async () => {
 		const backend = createGitHubBackend({
 			'tentman.json': `{
 				"configsDir": "tentman/configs",
@@ -142,23 +143,30 @@ describe('collection navigation repository data layer', () => {
 			items: [
 				{
 					itemId: 'second',
-					title: 'Second',
-					sortDate: new Date('2026-05-02').getTime()
+					title: 'second',
+					sortDate: null,
+					hydration: 'fallback',
+					hrefItemId: 'second'
 				},
 				{
 					itemId: 'first',
-					title: 'First',
-					sortDate: new Date('2026-05-01').getTime()
+					title: 'first',
+					sortDate: null,
+					hydration: 'fallback',
+					hrefItemId: 'first'
 				}
 			],
 			groups: []
 		});
 		expect(backend.listDirectory).not.toHaveBeenCalled();
 		expect(backend.readTextFile).not.toHaveBeenCalled();
+		expect(backend.octokit.rest.git.getBlob).not.toHaveBeenCalledWith(
+			expect.objectContaining({ file_sha: 'sha:src/content/posts/second.md' })
+		);
 		expect(backend.octokit.rest.git.getTree).toHaveBeenCalledTimes(1);
 	});
 
-	it('preserves collection item state from projection-backed navigation', async () => {
+	it('hydrates directory-backed projection titles and state by requested blob SHA', async () => {
 		const backend = createGitHubBackend({
 			'tentman.json': `{
 				"configsDir": "tentman/configs",
@@ -195,14 +203,17 @@ describe('collection navigation repository data layer', () => {
 			'src/content/posts/hello.md': `---\ntitle: "Hello"\nstatus: "published"\n---\nBody`
 		});
 
-		const navigation = await getCollectionNavigation({
+		const result = await hydrateCollectionProjections({
 			backend,
-			slug: 'posts'
+			slug: 'posts',
+			blobShas: ['sha:src/content/posts/hello.md']
 		});
 
-		expect(navigation?.items[0]).toMatchObject({
+		expect(result?.items[0]).toMatchObject({
 			itemId: 'hello',
 			title: 'Hello',
+			hydration: 'hydrated',
+			hrefItemId: 'hello',
 			state: {
 				value: 'published',
 				label: 'Published',
@@ -283,6 +294,8 @@ describe('collection navigation repository data layer', () => {
 					itemId: 'post-1',
 					title: 'First',
 					sortDate: new Date('2026-05-01').getTime(),
+					hydration: 'hydrated',
+					hrefItemId: 'post-1',
 					state: {
 						value: 'published',
 						label: 'Published',
@@ -299,6 +312,8 @@ describe('collection navigation repository data layer', () => {
 					itemId: 'post-2',
 					title: 'Second',
 					sortDate: new Date('2026-05-02').getTime(),
+					hydration: 'hydrated',
+					hrefItemId: 'post-2',
 					state: {
 						value: 'draft',
 						label: 'Draft',

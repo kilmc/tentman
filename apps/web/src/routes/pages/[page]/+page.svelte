@@ -12,7 +12,6 @@
 	import {
 		getConfigItemLabel,
 		getFirstCollectionItemId,
-		getFirstCollectionNavigationItemId,
 		getOrderedCollectionNavigation
 	} from '$lib/features/content-management/navigation';
 	import type { OrderedCollectionNavigation } from '$lib/features/content-management/navigation';
@@ -111,9 +110,12 @@
 	});
 	const firstCollectionItemHref = $derived.by(() => {
 		if (indexedCollectionNavigation) {
-			const firstIndexedItemId = getFirstCollectionNavigationItemId(indexedCollectionNavigation);
-			return firstIndexedItemId
-				? resolve(`/pages/${data.pageSlug}/${firstIndexedItemId}/edit`)
+			const firstIndexedItem =
+				indexedCollectionNavigation.groups[0]?.items[0] ?? indexedCollectionNavigation.items[0];
+			return firstIndexedItem
+				? resolve(
+						`/pages/${data.pageSlug}/${firstIndexedItem.hrefItemId ?? firstIndexedItem.itemId}/edit`
+					)
 				: null;
 		}
 
@@ -137,8 +139,8 @@
 		return resolve(`/pages/${data.pageSlug}/new`);
 	});
 
-	function getCollectionItemHref(itemId: string) {
-		return resolve(`/pages/${data.pageSlug}/${itemId}/edit`);
+	function getCollectionItemHref(item: { itemId: string; hrefItemId?: string }) {
+		return resolve(`/pages/${data.pageSlug}/${item.hrefItemId ?? item.itemId}/edit`);
 	}
 	const flashMessageKeys = [
 		'saved',
@@ -431,7 +433,7 @@
 									<div class="grid">
 										{#each group.items as item (item.itemId)}
 											<a
-												href={getCollectionItemHref(item.itemId)}
+												href={getCollectionItemHref(item)}
 												class="flex min-h-12 items-center justify-between gap-3 border-b border-stone-100 px-4 py-3 text-sm font-medium text-stone-900 transition-colors last:border-b-0 hover:bg-stone-50"
 											>
 												<span class="min-w-0 truncate">{item.title}</span>
@@ -454,7 +456,7 @@
 									<div class="grid">
 										{#each orderedCollectionNavigation.items as item (item.itemId)}
 											<a
-												href={getCollectionItemHref(item.itemId)}
+												href={getCollectionItemHref(item)}
 												class="flex min-h-12 items-center justify-between gap-3 border-b border-stone-100 px-4 py-3 text-sm font-medium text-stone-900 transition-colors last:border-b-0 hover:bg-stone-50"
 											>
 												<span class="min-w-0 truncate">{item.title}</span>

@@ -10,15 +10,21 @@ type EnhanceCancelContext = {
 	cancel(): void;
 };
 
+interface DraftCacheCleanupOptions {
+	clearDraftCache?: () => Promise<void> | void;
+}
+
 export function createPublishEnhanceHandler(
 	draftBranchStore: DraftBranchStoreLike,
-	setPublishing: (value: boolean) => void
+	setPublishing: (value: boolean) => void,
+	options: DraftCacheCleanupOptions = {}
 ) {
 	return () => {
 		setPublishing(true);
 
 		return async ({ update }: EnhanceUpdateContext) => {
 			await update();
+			await options.clearDraftCache?.();
 			draftBranchStore.clear();
 			setPublishing(false);
 		};
@@ -28,7 +34,8 @@ export function createPublishEnhanceHandler(
 export function createDiscardEnhanceHandler(
 	draftBranchStore: DraftBranchStoreLike,
 	setDiscarding: (value: boolean) => void,
-	confirmDiscard: () => boolean
+	confirmDiscard: () => boolean,
+	options: DraftCacheCleanupOptions = {}
 ) {
 	return ({ cancel }: EnhanceCancelContext) => {
 		if (!confirmDiscard()) {
@@ -40,6 +47,7 @@ export function createDiscardEnhanceHandler(
 
 		return async ({ update }: EnhanceUpdateContext) => {
 			await update();
+			await options.clearDraftCache?.();
 			draftBranchStore.clear();
 			setDiscarding(false);
 		};

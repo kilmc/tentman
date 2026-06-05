@@ -363,13 +363,17 @@ describe('GET /api/repo/collection-items', () => {
 			items: [
 				{
 					itemId: 'hello-world',
-					title: 'Hello world',
-					sortDate: new Date('2026-04-03').getTime()
+					title: 'hello world',
+					sortDate: null,
+					hydration: 'fallback',
+					hrefItemId: 'hello-world'
 				},
 				{
 					itemId: 'second',
-					title: 'Second',
-					sortDate: new Date('2026-04-04').getTime()
+					title: 'second',
+					sortDate: null,
+					hydration: 'fallback',
+					hrefItemId: 'second'
 				}
 			],
 			groups: []
@@ -458,12 +462,16 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'hello-world',
 					title: 'Hello world',
-					sortDate: new Date('2026-04-03').getTime()
+					sortDate: new Date('2026-04-03').getTime(),
+					hydration: 'hydrated',
+					hrefItemId: 'hello-world'
 				},
 				{
 					itemId: 'second',
 					title: 'Second',
-					sortDate: new Date('2026-04-04').getTime()
+					sortDate: new Date('2026-04-04').getTime(),
+					hydration: 'hydrated',
+					hrefItemId: 'second'
 				}
 			],
 			groups: []

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
+import { githubRepositoryCacheTestApi } from '$lib/stores/github-repository-cache';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -17,6 +18,21 @@ function createStoreState<T>(initialValue: T) {
 				subscriber(value);
 			}
 		}
+	};
+}
+
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (error: unknown) => void;
+	const promise = new Promise<T>((promiseResolve, promiseReject) => {
+		resolve = promiseResolve;
+		reject = promiseReject;
+	});
+
+	return {
+		promise,
+		resolve,
+		reject
 	};
 }
 
@@ -275,8 +291,96 @@ const layoutData = {
 	}
 };
 
+const githubLayoutData = {
+	...layoutData,
+	isAuthenticated: true,
+	selectedBackend: {
+		kind: 'github' as const,
+		repo: {
+			owner: 'acme',
+			name: 'docs',
+			full_name: 'acme/docs',
+			default_branch: 'main'
+		}
+	},
+	selectedRepo: {
+		owner: 'acme',
+		name: 'docs',
+		full_name: 'acme/docs',
+		default_branch: 'main'
+	},
+	activeDraftBranch: null,
+	repositoryIdentity: {
+		repoKey: 'github:acme/docs?ref=main',
+		mode: 'github' as const,
+		label: 'acme/docs',
+		ref: 'main',
+		headSha: 'head-main',
+		treeSha: 'tree-main',
+		resolvedAt: 1
+	},
+	configs: sidebarEditorMocks.localContentReadyState.configs,
+	blockConfigs: [],
+	rootConfig: sidebarEditorMocks.localContentReadyState.rootConfig,
+	navigationManifest: sidebarEditorMocks.localContentReadyState.navigationManifest
+};
+
+function createGitHubFallbackItems(count: number) {
+	return Array.from({ length: count }, (_, index) => {
+		const itemNumber = index + 1;
+		return {
+			itemId: `post-${itemNumber}`,
+			route: `post-${itemNumber}`,
+			path: `src/content/posts/post-${itemNumber}.md`,
+			filename: `post-${itemNumber}.md`,
+			blobSha: `blob-${itemNumber}`,
+			title: `post ${itemNumber}`,
+			sortDate: null,
+			hydration: 'fallback' as const,
+			hrefItemId: `post-${itemNumber}`
+		};
+	});
+}
+
+function createGitHubProjectionItems(blobShas: string[]) {
+	return blobShas.map((blobSha) => {
+		const itemNumber = blobSha.replace('blob-', '');
+		return {
+			itemId: `stable-${itemNumber}`,
+			route: `post-${itemNumber}`,
+			path: `src/content/posts/post-${itemNumber}.md`,
+			filename: `post-${itemNumber}.md`,
+			blobSha,
+			title: `Post ${itemNumber}`,
+			sortDate: null,
+			hydration: 'hydrated' as const,
+			hrefItemId: `post-${itemNumber}`
+		};
+	});
+}
+
+function createGitHubIndexPayload(items = createGitHubFallbackItems(2)) {
+	return {
+		identity: {
+			repoKey: 'github:acme/docs?ref=main',
+			ref: 'main',
+			headSha: 'head-main',
+			treeSha: 'tree-main',
+			configSlug: 'blog',
+			configPath: 'content/blog.tentman.json',
+			contentIdentity: 'src/content/posts:templates/post.md',
+			schemaIdentity: 'title'
+		},
+		configSlug: 'blog',
+		mode: 'directory' as const,
+		items
+	};
+}
+
 describe('routes/pages/+layout.svelte pages workspace navigation', () => {
-	beforeEach(() => {
+	beforeEach(async () => {
+		await githubRepositoryCacheTestApi.reset();
+		vi.unstubAllGlobals();
 		setViewportMode('desktop');
 		window.matchMedia = vi.fn((query: string) => ({
 			matches: query === '(min-width: 1024px)' ? desktopViewport : false,
@@ -491,5 +595,96 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expectElement(
 			screen.getByRole('button', { name: 'Edit Image 1: Opening view' })
 		).toBeVisible();
+	});
+
+	it('renders GitHub fallback rows before projection hydration completes', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog');
+		const projectionPayload = createDeferred<{
+			indexIdentity: ReturnType<typeof createGitHubIndexPayload>['identity'];
+			items: ReturnType<typeof createGitHubProjectionItems>;
+		}>();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createGitHubIndexPayload());
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				return Response.json(await projectionPayload.promise);
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		await render(PagesLayoutCollectionLandingHarness, {
+			data: githubLayoutData
+		});
+
+		await expect.poll(() => document.body.textContent).toContain('post 1');
+		expect(document.body.textContent).not.toContain('Post 1');
+
+		projectionPayload.resolve({
+			indexIdentity: createGitHubIndexPayload().identity,
+			items: createGitHubProjectionItems(['blob-1', 'blob-2'])
+		});
+
+		await expect.poll(() => document.body.textContent).toContain('Post 1');
+	});
+
+	it('hydrates visible GitHub collection titles before background rows in the panel', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog');
+		const fallbackItems = createGitHubFallbackItems(32);
+		const backgroundProjectionPayload = createDeferred<{
+			indexIdentity: ReturnType<typeof createGitHubIndexPayload>['identity'];
+			items: ReturnType<typeof createGitHubProjectionItems>;
+		}>();
+		const projectionCalls: string[][] = [];
+		const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createGitHubIndexPayload(fallbackItems));
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+				projectionCalls.push(body.blobShas);
+				if (projectionCalls.length === 1) {
+					return Response.json({
+						indexIdentity: createGitHubIndexPayload().identity,
+						items: createGitHubProjectionItems(body.blobShas)
+					});
+				}
+				return Response.json(await backgroundProjectionPayload.promise);
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		await render(PagesLayoutCollectionLandingHarness, {
+			data: githubLayoutData
+		});
+
+		await expect.poll(() => document.body.textContent).toContain('Post 1');
+		await expect.poll(() => document.body.textContent).toContain('Post 30');
+		await expect.poll(() => document.body.textContent).toContain('post 31');
+		expect(document.body.textContent).not.toContain('Post 31');
+		expect(projectionCalls[0]).toHaveLength(30);
+
+		backgroundProjectionPayload.resolve({
+			indexIdentity: createGitHubIndexPayload().identity,
+			items: createGitHubProjectionItems(['blob-31', 'blob-32'])
+		});
+
+		await expect.poll(() => document.body.textContent).toContain('Post 31');
 	});
 });

@@ -34,7 +34,8 @@ export async function loadSelectedGitHubRepoBootstrapContext(
 			blockConfigs: snapshot.blockConfigIndex.configs,
 			rootConfig: snapshot.rootConfig,
 			activeDraftBranch: draftBranch,
-			navigationManifest: snapshot.navigationManifest
+			navigationManifest: snapshot.navigationManifest,
+			repositoryIdentity: snapshot.identity
 		})
 	};
 }

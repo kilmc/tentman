@@ -177,9 +177,17 @@
 	function getItemLinkLabel(item: CollectionNavigationItem) {
 		const stateLabel =
 			item.state && item.state.visibility.navigation !== false ? `, ${item.state.label}` : '';
-		return currentItemId === item.itemId
+		return currentItemId === item.itemId || currentItemId === item.hrefItemId
 			? `${item.title}${stateLabel}, current ${itemLabel}`
 			: `${item.title}${stateLabel}`;
+	}
+
+	function getItemHref(item: CollectionNavigationItem) {
+		return resolve(`/pages/${slug}/${item.hrefItemId ?? item.itemId}/edit`);
+	}
+
+	function isCurrentItem(item: CollectionNavigationItem) {
+		return currentItemId === item.itemId || currentItemId === item.hrefItemId;
 	}
 
 	function toggleSortDirection() {
@@ -528,9 +536,9 @@
 								{#if !isGroupCollapsed(group.id)}
 									{#each group.items as item (item.itemId)}
 										<a
-											href={resolve(`/pages/${slug}/${item.itemId}/edit`)}
+											href={getItemHref(item)}
 											class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
-											class:tm-nav-link-active={currentItemId === item.itemId}
+											class:tm-nav-link-active={isCurrentItem(item)}
 											aria-label={getItemLinkLabel(item)}
 											title={item.title}
 										>
@@ -554,9 +562,9 @@
 						<section class="grid gap-1">
 							{#each items as item (item.itemId)}
 								<a
-									href={resolve(`/pages/${slug}/${item.itemId}/edit`)}
+									href={getItemHref(item)}
 									class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
-									class:tm-nav-link-active={currentItemId === item.itemId}
+									class:tm-nav-link-active={isCurrentItem(item)}
 									aria-label={getItemLinkLabel(item)}
 									title={item.title}
 								>
@@ -578,9 +586,9 @@
 				<div class="grid gap-1">
 					{#each visibleItems as item (item.itemId)}
 						<a
-							href={resolve(`/pages/${slug}/${item.itemId}/edit`)}
+							href={getItemHref(item)}
 							class="tm-nav-link grid min-h-9 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-r-md px-2.5 py-1.5 text-sm"
-							class:tm-nav-link-active={currentItemId === item.itemId}
+							class:tm-nav-link-active={isCurrentItem(item)}
 							aria-label={getItemLinkLabel(item)}
 							title={item.title}
 						>

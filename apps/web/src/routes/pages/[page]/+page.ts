@@ -2,9 +2,11 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
+import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
-	const workspace = resolveWorkspaceState(await parent());
+	const parentData = await parent();
+	const workspace = resolveWorkspaceState(parentData);
 	const reposRedirect = buildReposRedirect('/repos', url);
 
 	if (workspace.mode === 'local') {
@@ -27,6 +29,28 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	}
 
 	depends('app:content');
+
+	const discoveredConfig = parentData.configs.find((config) => config.slug === params.page);
+	if (discoveredConfig?.config.collection && url.searchParams.size === 0) {
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: workspace.selectedRepo.full_name,
+			bootstrap: parentData
+		});
+		await githubRepositoryCache.ensureCollectionIndex(params.page, { fetcher: fetch });
+
+		return {
+			discoveredConfig,
+			blockConfigs: parentData.blockConfigs ?? [],
+			packageBlocks: [],
+			blockRegistryError: null,
+			content: null,
+			collectionNavigation: await githubRepositoryCache.getCollectionNavigation(params.page),
+			contentError: null,
+			branch: parentData.activeDraftBranch,
+			pageSlug: params.page,
+			mode: 'github' as const
+		};
+	}
 
 	const response = await fetch(
 		buildPathWithQuery('/api/repo/page-view', {

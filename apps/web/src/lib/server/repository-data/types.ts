@@ -82,6 +82,13 @@ export interface CollectionIndexItem {
 	title: string;
 	sortDate?: number | null;
 	state?: ResolvedContentState | null;
+	hydration?: 'fallback' | 'hydrated';
+	hrefItemId?: string;
+}
+
+export interface CollectionProjectionBatchResult {
+	indexIdentity: CollectionIndexIdentity;
+	items: CollectionIndexItem[];
 }
 
 export interface CollectionIndex {

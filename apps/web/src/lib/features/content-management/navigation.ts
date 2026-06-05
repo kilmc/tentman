@@ -30,6 +30,8 @@ export interface CollectionNavigationItem {
 	title: string;
 	sortDate?: number | null;
 	state?: ResolvedContentState | null;
+	hydration?: 'fallback' | 'hydrated';
+	hrefItemId?: string;
 }
 
 export interface CollectionNavigationGroup {

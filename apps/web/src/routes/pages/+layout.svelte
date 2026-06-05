@@ -48,6 +48,7 @@
 		writeNavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import { draftBranch } from '$lib/stores/draft-branch';
+	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
@@ -63,6 +64,8 @@
 
 	const GITHUB_PAGES_INVALIDATION_PATHS = new Set([
 		'/api/repo/collection-items',
+		'/api/repo/collection-index',
+		'/api/repo/collection-projections',
 		'/api/repo/config-states',
 		'/api/repo/configs',
 		'/api/repo/draft-status',
@@ -341,6 +344,11 @@
 			return;
 		}
 
+		void githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: data.selectedRepo.full_name,
+			bootstrap: data
+		});
+
 		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
 		if (data.activeDraftBranch) {
 			draftBranch.setBranch(data.activeDraftBranch, repoFullName);
@@ -466,6 +474,9 @@
 	}
 
 	async function invalidateGitHubPagesData() {
+		if (data.selectedRepo) {
+			await githubRepositoryCache.clearRepo(data.selectedRepo.full_name);
+		}
 		await Promise.all([invalidate('app:content'), invalidate(shouldInvalidateGitHubPagesData)]);
 	}
 
@@ -524,30 +535,38 @@
 			return;
 		}
 
-		githubCollectionLoadStatusBySlug = {
-			...githubCollectionLoadStatusBySlug,
-			[config.slug]: 'loading'
-		};
+		const cachedNavigation = !options?.force
+			? await githubRepositoryCache.getCollectionNavigation(config.slug)
+			: null;
+		if (cachedNavigation) {
+			githubCollectionItemsBySlug = {
+				...githubCollectionItemsBySlug,
+				[config.slug]: cachedNavigation
+			};
+			githubCollectionLoadStatusBySlug = {
+				...githubCollectionLoadStatusBySlug,
+				[config.slug]: 'ready'
+			};
+		} else {
+			githubCollectionLoadStatusBySlug = {
+				...githubCollectionLoadStatusBySlug,
+				[config.slug]: 'loading'
+			};
+		}
 		githubCollectionErrorBySlug = {
 			...githubCollectionErrorBySlug,
 			[config.slug]: null
 		};
 
 		try {
-			const response = await fetch(
-				`${resolve('/api/repo/collection-items')}?slug=${encodeURIComponent(config.slug)}`
-			);
-
-			if (response.status === 401) {
-				await redirectToReposForExpiredSession();
-				return;
+			await githubRepositoryCache.warmCollection(config.slug, {
+				fetcher: fetch,
+				force: options?.force
+			});
+			const payload = await githubRepositoryCache.getCollectionNavigation(config.slug);
+			if (!payload) {
+				throw new Error('Failed to load collection navigation');
 			}
-
-			if (!response.ok) {
-				throw new Error(`Failed to load collection items (${response.status})`);
-			}
-
-			const payload = (await response.json()) as OrderedCollectionNavigation;
 
 			githubCollectionItemsBySlug = {
 				...githubCollectionItemsBySlug,
@@ -869,7 +888,26 @@
 		}
 
 		if (currentConfig?.config.collection) {
+			const unsubscribe = githubRepositoryCache.onCollectionChange(
+				currentConfig.slug,
+				(navigation) => {
+					if (!navigation) {
+						return;
+					}
+
+					githubCollectionItemsBySlug = {
+						...githubCollectionItemsBySlug,
+						[currentConfig.slug]: navigation
+					};
+					githubCollectionLoadStatusBySlug = {
+						...githubCollectionLoadStatusBySlug,
+						[currentConfig.slug]: 'ready'
+					};
+				}
+			);
 			void loadGitHubCollectionItems(currentConfig);
+			void loadGitHubConfigStates();
+			return unsubscribe;
 		}
 
 		void loadGitHubConfigStates();

@@ -7,9 +7,12 @@ describe('routes/publish/form-behavior', () => {
 			clear: vi.fn()
 		};
 		const setPublishing = vi.fn();
+		const clearDraftCache = vi.fn(async () => {});
 		const update = vi.fn(async () => {});
 
-		const runEnhance = createPublishEnhanceHandler(draftBranchStore, setPublishing);
+		const runEnhance = createPublishEnhanceHandler(draftBranchStore, setPublishing, {
+			clearDraftCache
+		});
 		const onSubmitResult = runEnhance();
 
 		expect(setPublishing).toHaveBeenCalledWith(true);
@@ -17,6 +20,7 @@ describe('routes/publish/form-behavior', () => {
 		await onSubmitResult({ update });
 
 		expect(update).toHaveBeenCalled();
+		expect(clearDraftCache).toHaveBeenCalled();
 		expect(draftBranchStore.clear).toHaveBeenCalled();
 		expect(setPublishing).toHaveBeenLastCalledWith(false);
 	});
@@ -47,6 +51,7 @@ describe('routes/publish/form-behavior', () => {
 			clear: vi.fn()
 		};
 		const setDiscarding = vi.fn();
+		const clearDraftCache = vi.fn(async () => {});
 		const confirmDiscard = vi.fn(() => true);
 		const cancel = vi.fn();
 		const update = vi.fn(async () => {});
@@ -54,7 +59,8 @@ describe('routes/publish/form-behavior', () => {
 		const onSubmitResult = createDiscardEnhanceHandler(
 			draftBranchStore,
 			setDiscarding,
-			confirmDiscard
+			confirmDiscard,
+			{ clearDraftCache }
 		)({ cancel });
 
 		expect(setDiscarding).toHaveBeenCalledWith(true);
@@ -63,6 +69,7 @@ describe('routes/publish/form-behavior', () => {
 		await onSubmitResult?.({ update });
 
 		expect(update).toHaveBeenCalled();
+		expect(clearDraftCache).toHaveBeenCalled();
 		expect(draftBranchStore.clear).toHaveBeenCalled();
 		expect(setDiscarding).toHaveBeenLastCalledWith(false);
 	});
