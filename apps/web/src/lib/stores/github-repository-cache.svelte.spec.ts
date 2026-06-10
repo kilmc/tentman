@@ -302,7 +302,12 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			)
 		).toMatchObject({
 			status: 'fresh',
-			path: 'tentman/configs/posts.tentman.json'
+			path: 'tentman/configs/posts.tentman.json',
+			activeRef: 'main',
+			mainHeadSha: 'head-main',
+			mainTreeSha: 'tree-main',
+			draftHeadSha: null,
+			draftTreeSha: null
 		});
 
 		await githubRepositoryCache.hydrateFromBootstrap({
@@ -640,6 +645,147 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		).toMatchObject({ status: 'fresh' });
 	});
 
+	it('stales and clears a singleton document when its content path changes', async () => {
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createSingletonConfig('about', 'About', 'src/content/about.md')],
+			singletonContentIdentities: {
+				about: {
+					path: 'src/content/about.md',
+					blobSha: 'blob-about'
+				}
+			}
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async () =>
+			Response.json({
+				content: {
+					title: 'About'
+				},
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null
+			})
+		);
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.warmSingletonDocumentRoute({
+			slug: 'about',
+			fetcher,
+			priority: 'foreground'
+		});
+
+		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
+			.toMatchObject({
+				content: { title: 'About' }
+			});
+
+		await githubRepositoryCache.invalidatePaths(['src/content/about.md']);
+
+		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
+			.toBeNull();
+		expect(
+			get(githubCacheInventoryStatus).records.find(
+				(record) => record.targetId === 'singletonDocument:about'
+			)
+		).toMatchObject({ status: 'stale' });
+	});
+
+	it('stales singleton documents without touching collection indexes for singleton config changes', async () => {
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [
+				createSingletonConfig('about', 'About', 'src/content/about.md'),
+				createCollectionConfig('posts', 'Posts', 'src/content/posts')
+			],
+			singletonContentIdentities: {
+				about: {
+					path: 'src/content/about.md',
+					blobSha: 'blob-about'
+				}
+			}
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/page-view')) {
+				return Response.json({
+					content: {
+						title: 'About'
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayload());
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.warmSingletonDocumentRoute({
+			slug: 'about',
+			fetcher,
+			priority: 'foreground'
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+
+		await githubRepositoryCache.invalidatePaths(['tentman/configs/about.tentman.json']);
+
+		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
+			.toBeNull();
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ itemId: 'hello-world' }]
+		});
+		expect(
+			get(githubCacheInventoryStatus).records.find(
+				(record) => record.targetId === 'singletonDocument:about'
+			)
+		).toMatchObject({ status: 'stale' });
+		expect(
+			get(githubCacheInventoryStatus).records.find(
+				(record) => record.targetId === 'collectionIndex:posts'
+			)
+		).toMatchObject({ status: 'fresh' });
+	});
+
+	it('stales block support when a block config path changes', async () => {
+		const bootstrap = {
+			...createBootstrap(),
+			blockConfigs: [{ id: 'hero', path: 'tentman/blocks/hero.tentman.json', config: {} }]
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async () =>
+			Response.json({
+				blockConfigs: bootstrap.blockConfigs,
+				packageBlocks: [],
+				blockRegistryError: null
+			})
+		);
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.warmBlockSupport({ fetcher });
+
+		await expect(githubRepositoryCache.getBlockSupport()).resolves.toMatchObject({
+			blockConfigs: [{ id: 'hero' }]
+		});
+
+		await githubRepositoryCache.invalidatePaths(['tentman/blocks/hero.tentman.json']);
+
+		await expect(githubRepositoryCache.getBlockSupport()).resolves.toBeNull();
+		expect(
+			get(githubCacheInventoryStatus).records.find((record) => record.targetId === 'blockSupport')
+		).toMatchObject({ status: 'stale' });
+	});
+
 	it('refreshes stale inventory targets and persists their updated status', async () => {
 		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
@@ -968,11 +1114,16 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			mainRepositoryIdentity: createBootstrap('tree-main', 'main').repositoryIdentity,
 			draftRepositoryIdentity: null
 		} as RepoConfigsBootstrap;
+		const draftIdentity = {
+			...createBootstrap('tree-draft', 'tentman-preview').repositoryIdentity,
+			headSha: 'head-draft'
+		};
 		const draftBootstrap = {
 			...createBootstrap('tree-draft', 'tentman-preview'),
 			activeDraftBranch: 'tentman-preview',
 			mainRepositoryIdentity: mainBootstrap.repositoryIdentity,
-			draftRepositoryIdentity: createBootstrap('tree-draft', 'tentman-preview').repositoryIdentity
+			repositoryIdentity: draftIdentity,
+			draftRepositoryIdentity: draftIdentity
 		} as RepoConfigsBootstrap;
 		const mainFetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
@@ -1039,6 +1190,17 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			waitForBackground: true
 		});
 
+		expect(
+			get(githubCacheInventoryStatus).records.find(
+				(record) => record.targetId === 'collectionIndex:posts'
+			)
+		).toMatchObject({
+			activeRef: 'tentman-preview',
+			mainHeadSha: 'head-main',
+			mainTreeSha: 'tree-main',
+			draftHeadSha: 'head-draft',
+			draftTreeSha: 'tree-draft'
+		});
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
 			items: [
 				{
@@ -1516,6 +1678,42 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		});
 
 		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
+
+	it('surfaces failed freshness checks through inventory while keeping cached navigation usable', async () => {
+		const indexFetcher = vi.fn(async () => Response.json(createIndexPayload()));
+		const failingFetcher = vi.fn(async () => new Response(null, { status: 503 }));
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher: indexFetcher });
+
+		await expect(
+			githubRepositoryCache.checkFreshness({
+				fetcher: failingFetcher,
+				warmChanged: false
+			})
+		).rejects.toThrow('Failed to check repository freshness (503)');
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ itemId: 'hello-world' }]
+		});
+		expect(get(githubCacheInventoryStatus).records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					targetId: 'collectionIndex:posts',
+					status: 'fresh',
+					error: 'Failed to check repository freshness (503)'
+				}),
+				expect.objectContaining({
+					targetId: 'snapshot',
+					status: 'fresh',
+					error: 'Failed to check repository freshness (503)'
+				})
+			])
+		);
 	});
 
 	it('backs off unchanged freshness checks and resets after changed paths', async () => {

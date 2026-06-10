@@ -258,6 +258,15 @@ Normal UI should not explain how caching works. The cache page can be technical 
 - Whether manual "Cache all anyway" should ship in V1 or wait until a user actually needs it.
 - Whether cache inventory should track approximate serialized bytes only, or use `navigator.storage.estimate()` as a secondary display value.
 
+## Progress Notes
+
+- `7f46a9e feat(cache): use durable GitHub inventory` landed the durable IndexedDB inventory, inventory-backed cache page, route cache-first paths, draft blob/schema reuse, freshness scheduler, and scoped invalidation core.
+- The remaining queue counters are isolated to `githubCacheWarmDebugStatus` and regression tests; product progress and cache UI derive from inventory.
+- Added hardening for failed freshness checks so errors are recorded on inventory records while cached navigation remains usable.
+- Added regression coverage for singleton content path invalidation, singleton config invalidation, block support invalidation, and freshness check failures.
+- Preserved both main and draft repository identities on active draft inventory records while keeping the active cache scoped to the draft workspace.
+- Polished the cache page status surface with inventory-derived refreshing, error, and budget-limited signals while keeping the page table-first.
+
 ## Initial Recommendation
 
 Start with Phase 1 and Phase 2 in one branch. Do not redesign the cache page until inventory exists, because the page needs to be a consumer of durable state, not another status model.

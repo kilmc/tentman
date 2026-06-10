@@ -169,6 +169,8 @@ interface CachedSnapshot {
 	navigationManifest: NavigationManifestState;
 	singletonContentIdentities: Record<string, RepoSingletonContentIdentity>;
 	activeDraftBranch: string | null;
+	mainRepositoryIdentity: RepoBootstrapIdentity | null;
+	draftRepositoryIdentity: RepoBootstrapIdentity | null;
 	updatedAt: number;
 }
 
@@ -492,10 +494,10 @@ function createInventoryRecord(input: {
 		repoFullName: input.snapshot.repoFullName,
 		workspaceKey,
 		activeRef: input.snapshot.identity.ref,
-		mainHeadSha: input.snapshot.activeDraftBranch ? null : input.snapshot.identity.headSha,
-		mainTreeSha: input.snapshot.activeDraftBranch ? null : input.snapshot.identity.treeSha,
-		draftHeadSha: input.snapshot.activeDraftBranch ? input.snapshot.identity.headSha : null,
-		draftTreeSha: input.snapshot.activeDraftBranch ? input.snapshot.identity.treeSha : null,
+		mainHeadSha: input.snapshot.mainRepositoryIdentity?.headSha ?? null,
+		mainTreeSha: input.snapshot.mainRepositoryIdentity?.treeSha ?? null,
+		draftHeadSha: input.snapshot.draftRepositoryIdentity?.headSha ?? null,
+		draftTreeSha: input.snapshot.draftRepositoryIdentity?.treeSha ?? null,
 		path: input.path ?? null,
 		label: input.label,
 		configSlug: input.configSlug ?? null,
@@ -1877,6 +1879,12 @@ export const githubRepositoryCache = {
 			navigationManifest: input.bootstrap.navigationManifest,
 			singletonContentIdentities: input.bootstrap.singletonContentIdentities ?? {},
 			activeDraftBranch: input.bootstrap.activeDraftBranch,
+			mainRepositoryIdentity:
+				input.bootstrap.mainRepositoryIdentity ??
+				(input.bootstrap.activeDraftBranch ? null : input.bootstrap.repositoryIdentity),
+			draftRepositoryIdentity:
+				input.bootstrap.draftRepositoryIdentity ??
+				(input.bootstrap.activeDraftBranch ? input.bootstrap.repositoryIdentity : null),
 			updatedAt: Date.now()
 		};
 		const nextIdentityKey = getSnapshotIdentityKey(snapshot);
@@ -2604,63 +2612,75 @@ export const githubRepositoryCache = {
 				previousHeadSha: snapshot.identity.headSha,
 				previousTreeSha: snapshot.identity.treeSha
 			});
-			const response = await options.fetcher(`/api/repo/configs?${params.toString()}`);
-			if (!response.ok) {
-				throw new Error(`Failed to check repository freshness (${response.status})`);
-			}
+			try {
+				const response = await options.fetcher(`/api/repo/configs?${params.toString()}`);
+				if (!response.ok) {
+					throw new Error(`Failed to check repository freshness (${response.status})`);
+				}
 
-			const bootstrap = (await response.json()) as FreshnessBootstrap;
-			const nextIdentity = bootstrap.repositoryIdentity ?? null;
-			const activeIdentityUnchanged = hasSameRepositoryIdentity(snapshot.identity, nextIdentity);
-			const mainIdentityUnchanged = snapshot.activeDraftBranch
-				? true
-				: hasSameRepositoryIdentity(snapshot.identity, bootstrap.mainRepositoryIdentity ?? nextIdentity);
-			const draftIdentityUnchanged = snapshot.activeDraftBranch
-				? hasSameRepositoryIdentity(
-						snapshot.identity,
-						bootstrap.draftRepositoryIdentity ?? nextIdentity
-					)
-				: true;
-			const unchanged = activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
+				const bootstrap = (await response.json()) as FreshnessBootstrap;
+				const nextIdentity = bootstrap.repositoryIdentity ?? null;
+				const activeIdentityUnchanged = hasSameRepositoryIdentity(snapshot.identity, nextIdentity);
+				const mainIdentityUnchanged = snapshot.activeDraftBranch
+					? true
+					: hasSameRepositoryIdentity(
+							snapshot.identity,
+							bootstrap.mainRepositoryIdentity ?? nextIdentity
+						);
+				const draftIdentityUnchanged = snapshot.activeDraftBranch
+					? hasSameRepositoryIdentity(
+							snapshot.identity,
+							bootstrap.draftRepositoryIdentity ?? nextIdentity
+						)
+					: true;
+				const unchanged = activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
 
-			if (unchanged) {
+				if (unchanged) {
+					const records = await readActiveInventoryRecords();
+					await updateInventoryRecords(records, {
+						lastCheckedAt: Date.now(),
+						error: null
+					});
+					freshnessBackoffIndex = Math.min(
+						freshnessBackoffIndex + 1,
+						FRESHNESS_BACKOFF_INTERVALS_MS.length - 1
+					);
+					return;
+				}
+
+				resetFreshnessBackoff();
+				if (nextIdentity) {
+					await githubRepositoryCache.hydrateFromBootstrap({
+						repoFullName: snapshot.repoFullName,
+						bootstrap
+					});
+				}
+
+				const changedPaths = extractChangedPaths(bootstrap);
+				if (changedPaths.length > 0) {
+					await markInventoryTargetsStaleForPaths(changedPaths);
+				} else {
+					const records = await readActiveInventoryRecords();
+					await updateInventoryRecords(
+						records.filter((record) => record.targetType !== 'snapshot'),
+						{
+							status: 'stale',
+							error: null,
+							lastCheckedAt: Date.now()
+						}
+					);
+				}
+
+				if (options.warmChanged ?? true) {
+					githubRepositoryCache.startIdleSiteWarm({ fetcher: options.fetcher });
+				}
+			} catch (error) {
 				const records = await readActiveInventoryRecords();
 				await updateInventoryRecords(records, {
-					lastCheckedAt: Date.now(),
-					error: null
+					error: error instanceof Error ? error.message : 'Failed to check repository freshness',
+					lastCheckedAt: Date.now()
 				});
-				freshnessBackoffIndex = Math.min(
-					freshnessBackoffIndex + 1,
-					FRESHNESS_BACKOFF_INTERVALS_MS.length - 1
-				);
-				return;
-			}
-
-			resetFreshnessBackoff();
-			if (nextIdentity) {
-				await githubRepositoryCache.hydrateFromBootstrap({
-					repoFullName: snapshot.repoFullName,
-					bootstrap
-				});
-			}
-
-			const changedPaths = extractChangedPaths(bootstrap);
-			if (changedPaths.length > 0) {
-				await markInventoryTargetsStaleForPaths(changedPaths);
-			} else {
-				const records = await readActiveInventoryRecords();
-				await updateInventoryRecords(
-					records.filter((record) => record.targetType !== 'snapshot'),
-					{
-						status: 'stale',
-						error: null,
-						lastCheckedAt: Date.now()
-					}
-				);
-			}
-
-			if (options.warmChanged ?? true) {
-				githubRepositoryCache.startIdleSiteWarm({ fetcher: options.fetcher });
+				throw error;
 			}
 		})().finally(() => {
 			freshnessCheckInFlight = null;

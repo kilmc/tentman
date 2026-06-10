@@ -24,6 +24,8 @@
 		);
 	});
 	const visibleRecords = $derived($githubCacheInventoryStatus.records);
+	const hasErrors = $derived($githubCacheInventoryStatus.errorTargets > 0);
+	const isInventoryRefreshing = $derived($githubCacheInventoryStatus.refreshingTargets > 0);
 
 	function formatBytes(bytes: number | null) {
 		if (!bytes) {
@@ -72,6 +74,22 @@
 			return 'border-amber-200 bg-amber-50 text-amber-800';
 		}
 		return 'border-stone-200 bg-stone-100 text-stone-700';
+	}
+
+	function getStatusTitle(record: GithubCacheInventoryRecord) {
+		if (record.error) {
+			return record.error;
+		}
+
+		if (record.status === 'refreshing') {
+			return 'Refresh in progress';
+		}
+
+		if (record.status === 'skipped-budget') {
+			return 'Skipped by the active full-document cache budget';
+		}
+
+		return record.status;
 	}
 
 	async function refreshAll() {
@@ -214,10 +232,20 @@
 		<div class="h-2 overflow-hidden rounded-full bg-stone-200">
 			<span class="block h-full rounded-full bg-stone-950" style={`width: ${progressPercent}%`}></span>
 		</div>
-		<p class="text-xs text-stone-500">
-			Full document budget: {formatBytes($githubCacheInventoryStatus.documentBudgetBytes)}
+		<p class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-500">
+			<span>Full document budget: {formatBytes($githubCacheInventoryStatus.documentBudgetBytes)}</span>
 			{#if $githubCacheInventoryStatus.budgetLimited}
 				<span class="font-semibold text-amber-700">Budget limited</span>
+			{/if}
+			{#if isInventoryRefreshing}
+				<span class="font-semibold text-blue-700">
+					{$githubCacheInventoryStatus.refreshingTargets} refreshing
+				</span>
+			{/if}
+			{#if hasErrors}
+				<span class="font-semibold text-red-700">
+					{$githubCacheInventoryStatus.errorTargets} error{$githubCacheInventoryStatus.errorTargets === 1 ? '' : 's'}
+				</span>
 			{/if}
 		</p>
 	</section>
@@ -242,9 +270,17 @@
 						<td class="max-w-56 px-4 py-3 font-semibold text-stone-900">{record.label}</td>
 						<td class="px-4 py-3 font-mono text-xs text-stone-600">{record.targetType}</td>
 						<td class="px-4 py-3">
-							<span class={`rounded-full border px-2 py-1 text-xs font-semibold ${getStatusClass(record.status)}`}>
+							<span
+								class={`rounded-full border px-2 py-1 text-xs font-semibold ${getStatusClass(record.status)}`}
+								title={getStatusTitle(record)}
+							>
 								{record.status}
 							</span>
+							{#if record.error}
+								<p class="mt-1 max-w-48 truncate text-xs text-red-700" title={record.error}>
+									{record.error}
+								</p>
+							{/if}
 						</td>
 						<td class="max-w-72 truncate px-4 py-3 font-mono text-xs text-stone-600">
 							{record.path ?? '—'}
