@@ -6,7 +6,8 @@ import { logDevRouting } from '$lib/utils/dev-routing-log';
 import { timeAsync } from '$lib/utils/performance-logging';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ locals, cookies }) => {
+export const GET: RequestHandler = async ({ locals, cookies, url }) => {
+	const searchParams = url?.searchParams ?? new URLSearchParams();
 	if (!locals.isAuthenticated || !locals.githubToken) {
 		logDevRouting('api:repo-configs:unauthorized', {
 			isAuthenticated: locals.isAuthenticated,
@@ -33,7 +34,12 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			{
 				repo: locals.selectedRepo.full_name
 			},
-			() => loadSelectedGitHubRepoConfigs(locals, cookies)
+			() =>
+				loadSelectedGitHubRepoConfigs(locals, cookies, {
+					previousRef: searchParams.get('previousRef'),
+					previousHeadSha: searchParams.get('previousHeadSha'),
+					previousTreeSha: searchParams.get('previousTreeSha')
+				})
 		);
 		return json(configs);
 	} catch (err) {

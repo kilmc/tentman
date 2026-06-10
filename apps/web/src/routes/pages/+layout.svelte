@@ -349,6 +349,7 @@
 
 		let cancelled = false;
 		let stopSiteWarm: (() => void) | null = null;
+		let stopFreshnessScheduler: (() => void) | null = null;
 
 		void (async () => {
 			await githubRepositoryCache.hydrateFromBootstrap({
@@ -358,6 +359,7 @@
 
 			if (!cancelled) {
 				stopSiteWarm = githubRepositoryCache.startIdleSiteWarm({ fetcher: fetch });
+				stopFreshnessScheduler = githubRepositoryCache.startFreshnessScheduler({ fetcher: fetch });
 			}
 		})();
 
@@ -371,6 +373,7 @@
 		return () => {
 			cancelled = true;
 			stopSiteWarm?.();
+			stopFreshnessScheduler?.();
 		};
 	});
 
@@ -545,6 +548,7 @@
 				repoFullName: data.selectedRepo.full_name,
 				bootstrap: data
 			});
+			githubRepositoryCache.resetFreshnessSchedule();
 			githubRepositoryCache.startIdleSiteWarm({ fetcher: fetch });
 			githubCollectionItemsBySlug = {};
 			githubCollectionLoadStatusBySlug = {};

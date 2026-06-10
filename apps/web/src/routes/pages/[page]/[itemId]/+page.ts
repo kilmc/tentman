@@ -41,7 +41,10 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	});
 	const discoveredConfig = parentData.configs?.find((config) => config.slug === params.page) ?? null;
 	if (cachedDocument && discoveredConfig) {
-		const blockSupport = await githubRepositoryCache.getBlockSupport();
+		const blockSupport = await githubRepositoryCache.warmBlockSupport({
+			fetcher: fetch,
+			priority: 'foreground'
+		});
 		return {
 			discoveredConfig,
 			blockConfigs: blockSupport?.blockConfigs ?? parentData.blockConfigs ?? [],

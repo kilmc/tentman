@@ -56,8 +56,10 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		repoFullName: workspace.selectedRepo.full_name,
 		bootstrap: parentData
 	});
-	const cachedSingleton = await githubRepositoryCache.getSingletonDocumentForRoute({
-		slug: params.page
+	const cachedSingleton = await githubRepositoryCache.warmSingletonDocumentRoute({
+		slug: params.page,
+		fetcher: fetch,
+		priority: 'foreground'
 	});
 	if (discoveredConfig && cachedSingleton?.blockSupport) {
 		return {

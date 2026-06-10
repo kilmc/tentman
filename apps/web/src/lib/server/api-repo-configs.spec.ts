@@ -79,7 +79,7 @@ describe('GET /api/repo/configs', () => {
 			cookies
 		} as never);
 
-		expect(await response.json()).toEqual({
+		expect(await response.json()).toMatchObject({
 			configs: [
 				{
 					slug: 'posts',
@@ -102,7 +102,19 @@ describe('GET /api/repo/configs', () => {
 				exists: false,
 				manifest: null,
 				error: null
-			}
+			},
+			repositoryIdentity: {
+				ref: 'main',
+				headSha: 'github:acme/docs?ref=main:main',
+				treeSha: 'github:acme/docs?ref=main:main'
+			},
+			mainRepositoryIdentity: {
+				ref: 'main',
+				headSha: 'github:acme/docs?ref=main:main',
+				treeSha: 'github:acme/docs?ref=main:main'
+			},
+			draftRepositoryIdentity: null,
+			changedPaths: null
 		});
 	});
 

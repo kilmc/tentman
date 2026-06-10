@@ -12,21 +12,34 @@ export interface RepoBootstrapIdentity {
 	resolvedAt: number;
 }
 
+export interface RepoSingletonContentIdentity {
+	path: string;
+	blobSha: string;
+}
+
 export interface RepoConfigsBootstrap {
 	configs: DiscoveredConfig[];
 	blockConfigs: DiscoveredBlockConfig[];
 	rootConfig: RootConfig | null;
 	navigationManifest: NavigationManifestState;
+	singletonContentIdentities: Record<string, RepoSingletonContentIdentity>;
 	activeDraftBranch: string | null;
 	repositoryIdentity?: RepoBootstrapIdentity | null;
+	mainRepositoryIdentity?: RepoBootstrapIdentity | null;
+	draftRepositoryIdentity?: RepoBootstrapIdentity | null;
+	changedPaths?: string[] | null;
 }
 
 export const EMPTY_REPO_CONFIGS_BOOTSTRAP: RepoConfigsBootstrap = {
 	configs: [],
 	blockConfigs: [],
 	rootConfig: null,
+	singletonContentIdentities: {},
 	activeDraftBranch: null,
 	repositoryIdentity: null,
+	mainRepositoryIdentity: null,
+	draftRepositoryIdentity: null,
+	changedPaths: null,
 	navigationManifest: {
 		path: 'tentman/navigation-manifest.json',
 		exists: false,
@@ -42,8 +55,12 @@ export function normalizeRepoConfigsBootstrap(
 		configs: value?.configs ?? [],
 		blockConfigs: value?.blockConfigs ?? [],
 		rootConfig: value?.rootConfig ?? null,
+		singletonContentIdentities: value?.singletonContentIdentities ?? {},
 		activeDraftBranch: value?.activeDraftBranch ?? null,
 		repositoryIdentity: value?.repositoryIdentity ?? null,
+		mainRepositoryIdentity: value?.mainRepositoryIdentity ?? null,
+		draftRepositoryIdentity: value?.draftRepositoryIdentity ?? null,
+		changedPaths: value?.changedPaths ?? null,
 		navigationManifest: value?.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 	};
 }

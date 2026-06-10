@@ -57,6 +57,7 @@ function createBootstrap(): RepoConfigsBootstrap {
 		],
 		blockConfigs: [],
 		rootConfig: null,
+		singletonContentIdentities: {},
 		navigationManifest: {
 			path: 'tentman/navigation-manifest.json',
 			exists: false,
@@ -232,6 +233,47 @@ describe('GitHub collection route cache in the browser', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});
 
+	it('opens a cached singleton route by fetching only missing block support', async () => {
+		const bootstrap = createSingletonBootstrap();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/page-view')) {
+				throw new Error('cached singleton routes should not call page-view');
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [{ id: 'hero', path: 'tentman/blocks/hero.tentman.json', config: {} }],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.setSingletonPageView({
+			slug: 'about',
+			content: {
+				title: 'About Tentman'
+			}
+		});
+
+		await expect(loadCollectionLanding(createLoadEvent(fetch, bootstrap) as never)).resolves
+			.toMatchObject({
+				content: {
+					title: 'About Tentman'
+				},
+				blockConfigs: [{ id: 'hero' }],
+				blockRegistryError: null
+			});
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=about');
+	});
+
 	it('uses a cached item document without calling the item-view endpoint', async () => {
 		const fetch = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
@@ -240,6 +282,13 @@ describe('GitHub collection route cache in the browser', () => {
 			}
 			if (url.startsWith('/api/repo/collection-index')) {
 				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [{ id: 'gallery', path: 'tentman/blocks/gallery.tentman.json', config: {} }],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
 			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		});
@@ -264,6 +313,7 @@ describe('GitHub collection route cache in the browser', () => {
 			item: {
 				title: 'Panorama 4'
 			},
+			blockConfigs: [{ id: 'gallery' }],
 			itemId: 'panorama-4',
 			pageSlug: 'projects'
 		});
@@ -277,8 +327,9 @@ describe('GitHub collection route cache in the browser', () => {
 			pageSlug: 'projects'
 		});
 
-		expect(fetch).toHaveBeenCalledTimes(1);
-		expect(fetch).toHaveBeenCalledWith('/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenNthCalledWith(2, '/api/repo/form-config?slug=projects');
 	});
 
 	it('fetches only the selected item view when an indexed item document is not cached', async () => {
