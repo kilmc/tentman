@@ -56,7 +56,12 @@ describe('repository/config-bootstrap', () => {
 			rootConfig: {
 				siteName: 'Acme Docs'
 			},
+			singletonContentIdentities: {},
 			activeDraftBranch: null,
+			repositoryIdentity: null,
+			mainRepositoryIdentity: null,
+			draftRepositoryIdentity: null,
+			changedPaths: null,
 			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
 		});
 		expect(fetcher).toHaveBeenCalledWith('/api/repo/configs');
