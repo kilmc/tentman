@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { invalidate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { get } from 'svelte/store';
+	import Database from 'lucide-svelte/icons/database';
 	import type { PageData } from './$types';
 	import {
 		getManualNavigationSetupState,
@@ -314,6 +316,27 @@
 						{savingPreviewPort ? 'Saving...' : 'Save port'}
 					</button>
 				</form>
+			</section>
+		{/if}
+
+		{#if !isLocalMode}
+			<section class="rounded-md border border-stone-200 bg-white p-4">
+				<div class="flex flex-wrap items-center justify-between gap-4">
+					<div>
+						<h2 class="text-base font-semibold text-stone-950">Site cache</h2>
+						<p class="mt-2 text-sm text-stone-600">
+							View cached content, refresh stale entries, or clear the GitHub cache for this site.
+						</p>
+					</div>
+
+					<a
+						href={resolve('/pages/cache')}
+						class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-stone-950 px-4 text-sm font-medium text-white transition-colors hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:ring-offset-2 focus-visible:outline-none"
+					>
+						<Database class="h-4 w-4" />
+						View cache
+					</a>
+				</div>
 			</section>
 		{/if}
 

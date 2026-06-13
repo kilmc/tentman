@@ -80,6 +80,11 @@
 	}: Props = $props();
 
 	const flipDurationMs = 150;
+	const showCacheProgress = $derived(
+		Boolean(cacheWarmStatus) &&
+			cacheWarmStatus?.phase !== 'idle' &&
+			cacheWarmStatus?.phase !== 'ready'
+	);
 	const cacheProgress = $derived.by(() => {
 		if (!cacheWarmStatus || cacheWarmStatus.phase === 'idle') {
 			return null;
@@ -342,7 +347,7 @@
 				Add page
 			</a>
 		{/if}
-		{#if !isLocalMode}
+		{#if !isLocalMode && showCacheProgress}
 			<a
 				href={resolve('/pages/cache')}
 				class="grid gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-left transition-colors hover:border-stone-300 hover:bg-white focus-visible:ring-2 focus-visible:ring-stone-950 focus-visible:outline-none"

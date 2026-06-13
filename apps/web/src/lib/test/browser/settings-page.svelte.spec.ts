@@ -113,12 +113,17 @@ const settingsPageMocks = vi.hoisted(() => {
 		localContentStore,
 		localRepoStore,
 		refresh,
+		resolve: vi.fn((path: string) => path),
 		invalidate: vi.fn(async () => {})
 	};
 });
 
 vi.mock('$app/navigation', () => ({
 	invalidate: settingsPageMocks.invalidate
+}));
+
+vi.mock('$app/paths', () => ({
+	resolve: settingsPageMocks.resolve
 }));
 
 vi.mock('$app/state', () => ({
@@ -171,6 +176,25 @@ const data = {
 	}
 };
 
+const githubData = {
+	...data,
+	selectedBackend: {
+		kind: 'github' as const,
+		repo: {
+			owner: 'acme',
+			name: 'docs',
+			defaultBranch: 'main',
+			fullName: 'acme/docs'
+		}
+	},
+	selectedRepo: {
+		owner: 'acme',
+		name: 'docs',
+		defaultBranch: 'main',
+		fullName: 'acme/docs'
+	}
+};
+
 describe('routes/pages/settings/+page.svelte', () => {
 	beforeEach(() => {
 		settingsPageMocks.files['tentman.json'] = JSON.stringify({
@@ -217,5 +241,14 @@ describe('routes/pages/settings/+page.svelte', () => {
 			}
 		});
 		expect(settingsPageMocks.refresh).not.toHaveBeenCalled();
+	});
+
+	it('links GitHub sites to cache management from settings', async () => {
+		const screen = await render(SettingsPage, { data: githubData });
+
+		const cacheLink = screen.getByRole('link', { name: 'View cache' });
+		await expectElement(cacheLink).toBeVisible();
+		expect(cacheLink).toHaveAttribute('href', '/pages/cache');
+		expect(document.body.textContent).not.toContain('Local preview');
 	});
 });

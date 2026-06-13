@@ -705,9 +705,6 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		});
 		vi.stubGlobal('fetch', fetch);
 
-		const screen = await render(PagesLayout, {
-			data: githubLayoutData
-		});
 		githubCacheWarmStatus.set({
 			phase: 'warming',
 			message: 'Caching site data',
@@ -721,6 +718,9 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			showProgress: true,
 			error: null
 		});
+		const screen = await render(PagesLayout, {
+			data: githubLayoutData
+		});
 
 		const cacheLink = screen.getByRole('link', {
 			name: 'Caching site. Open cache details'
@@ -728,6 +728,65 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expectElement(cacheLink).toBeVisible();
 		expect(cacheLink).toHaveAttribute('href', '/pages/cache');
 		await expectElement(screen.getByText('3/8')).toBeVisible();
+	});
+
+	it('hides the GitHub cache sidebar affordance once the site cache is ready', async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createGitHubIndexPayload());
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/page-view')) {
+				return Response.json({
+					content: { title: 'About' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return Response.json({
+					item: { title: 'Cached item' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			return Response.json({
+				indexIdentity: createGitHubIndexPayload().identity,
+				items: createGitHubProjectionItems(['blob-1', 'blob-2'])
+			});
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayout, {
+			data: githubLayoutData
+		});
+		githubCacheWarmStatus.set({
+			phase: 'ready',
+			message: 'Site cache ready',
+			currentCollectionSlug: null,
+			totalCollections: 1,
+			warmedCollections: 1,
+			totalItems: 2,
+			hydratedItems: 2,
+			totalTasks: 8,
+			completedTasks: 8,
+			showProgress: false,
+			error: null
+		});
+
+		expect(document.body.textContent).not.toContain('Site cache ready');
 	});
 
 	it('hydrates visible GitHub collection titles before background rows in the panel', async () => {
