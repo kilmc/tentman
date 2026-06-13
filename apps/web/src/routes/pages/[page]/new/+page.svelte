@@ -571,12 +571,14 @@
 		<form
 			bind:this={currentForm}
 			method="POST"
+			enctype="multipart/form-data"
 			action="?/createToPreview"
 			onsubmit={prepareFormSubmit}
-			use:enhance={({ formData, cancel }) => {
+			use:enhance={async ({ formData, cancel }) => {
 				let submittedRefs: string[] = [];
 				let submittedContent: ContentRecord | null = null;
-				const prepareSubmission = (async () => {
+				try {
+					localError = null;
 					const encoded = formData.get('data');
 					if (typeof encoded !== 'string' || encoded.length === 0) {
 						cancel();
@@ -591,17 +593,16 @@
 					saving = true;
 					formHasUnsavedChanges = false;
 					filenameHasUnsavedChanges = false;
-				})();
+				} catch (error) {
+					localError =
+						error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
+					formHasUnsavedChanges = true;
+					saving = false;
+					cancel();
+					return;
+				}
 
 				return async ({ update, result }) => {
-					try {
-						await prepareSubmission;
-					} catch {
-						formHasUnsavedChanges = true;
-						saving = false;
-						return;
-					}
-
 					if (result.type === 'redirect' || result.type === 'success') {
 						await githubRepositoryCache.invalidatePaths(
 							submittedContent ? getCreatedItemCacheInvalidationPaths(submittedContent) : []

@@ -183,31 +183,24 @@
 		<div class="flex flex-col gap-3 sm:flex-row">
 			<form
 				method="POST"
+				enctype="multipart/form-data"
 				action="?/createPreview"
-				use:enhance={({ formData, cancel }) => {
+				use:enhance={async ({ formData, cancel }) => {
 					let submittedRefs: string[] = [];
-					const prepareSubmission = (async () => {
-						try {
-							draftAssetError = null;
-							const appended = await appendDraftAssetsToFormData(formData, data.contentData);
-							submittedRefs = appended.refs;
-							isSubmitting = true;
-						} catch (error) {
-							draftAssetError =
-								error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
-							cancel();
-							throw error;
-						}
-					})();
+					try {
+						draftAssetError = null;
+						const appended = await appendDraftAssetsToFormData(formData, data.contentData);
+						submittedRefs = appended.refs;
+						isSubmitting = true;
+					} catch (error) {
+						draftAssetError =
+							error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
+						isSubmitting = false;
+						cancel();
+						return;
+					}
 
 					return async ({ update, result }) => {
-						try {
-							await prepareSubmission;
-						} catch {
-							isSubmitting = false;
-							return;
-						}
-
 						await update();
 						if (data.repo && (result.type === 'redirect' || result.type === 'success')) {
 							draftBranch.setBranch(TENTMAN_DRAFT_BRANCH, `${data.repo.owner}/${data.repo.name}`);
@@ -235,31 +228,24 @@
 
 			<form
 				method="POST"
+				enctype="multipart/form-data"
 				action="?/publishNow"
-				use:enhance={({ formData, cancel }) => {
+				use:enhance={async ({ formData, cancel }) => {
 					let submittedRefs: string[] = [];
-					const prepareSubmission = (async () => {
-						try {
-							draftAssetError = null;
-							const appended = await appendDraftAssetsToFormData(formData, data.contentData);
-							submittedRefs = appended.refs;
-							isSubmitting = true;
-						} catch (error) {
-							draftAssetError =
-								error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
-							cancel();
-							throw error;
-						}
-					})();
+					try {
+						draftAssetError = null;
+						const appended = await appendDraftAssetsToFormData(formData, data.contentData);
+						submittedRefs = appended.refs;
+						isSubmitting = true;
+					} catch (error) {
+						draftAssetError =
+							error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
+						isSubmitting = false;
+						cancel();
+						return;
+					}
 
 					return async ({ update, result }) => {
-						try {
-							await prepareSubmission;
-						} catch {
-							isSubmitting = false;
-							return;
-						}
-
 						await update();
 						if (result.type === 'redirect' || result.type === 'success') {
 							draftBranch.clear();

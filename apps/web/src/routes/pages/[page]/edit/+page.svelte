@@ -546,11 +546,13 @@
 		<form
 			bind:this={currentForm}
 			method="POST"
+			enctype="multipart/form-data"
 			action="?/saveToPreview"
 			onsubmit={prepareFormSubmit}
-			use:enhance={({ formData, cancel }) => {
+			use:enhance={async ({ formData, cancel }) => {
 				let submittedRefs: string[] = [];
-				const prepareSubmission = (async () => {
+				try {
+					localError = null;
 					const encoded = formData.get('data');
 					if (typeof encoded !== 'string' || encoded.length === 0) {
 						cancel();
@@ -563,17 +565,16 @@
 					persistRecoveryDraft();
 					saving = true;
 					hasUnsavedChanges = false;
-				})();
+				} catch (error) {
+					localError =
+						error instanceof Error ? error.message : 'Failed to prepare staged draft assets';
+					hasUnsavedChanges = true;
+					saving = false;
+					cancel();
+					return;
+				}
 
 				return async ({ update, result }) => {
-					try {
-						await prepareSubmission;
-					} catch {
-						hasUnsavedChanges = true;
-						saving = false;
-						return;
-					}
-
 					await update();
 					if (result.type === 'redirect' || result.type === 'success') {
 						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));

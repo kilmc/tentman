@@ -27,6 +27,7 @@ vi.mock('$lib/server/repository-data', () => ({
 
 import { actions } from './+page.server';
 import { saveContentDocument } from '$lib/content/service';
+import { materializeDraftAssetsFromFormData } from '$lib/features/draft-assets/server';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 
@@ -63,6 +64,7 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 			discoveredConfig: {
 				slug: 'about',
 				config: {
+					label: 'About',
 					blocks: []
 				},
 				path: 'content/about.tentman.json'
@@ -92,6 +94,97 @@ describe('routes/pages/[page]/edit/+page.server', () => {
 			changedPaths: ['content/about.md'],
 			reason: 'content-write'
 		});
+	});
+
+	it('batches multiple draft assets and content into one repository commit', async () => {
+		const commitChanges = vi.fn(async () => undefined);
+		vi.mocked(materializeDraftAssetsFromFormData).mockImplementationOnce(
+			async ({ backend, content }) => {
+				await backend.writeBinaryFile('static/images/hero.png', new Uint8Array([1, 2, 3]));
+				await backend.writeBinaryFile('static/images/gallery.png', new Uint8Array([4, 5, 6]));
+				return {
+					content: {
+						...content,
+						hero: '/images/hero.png',
+						gallery: '/images/gallery.png'
+					},
+					fileChanges: [],
+					cleanedRefs: ['draft-asset:hero', 'draft-asset:gallery']
+				};
+			}
+		);
+		vi.mocked(saveContentDocument).mockImplementation(async (backend, _config, _path, content) => {
+			await backend.writeTextFile('content/about.md', JSON.stringify(content));
+		});
+		vi.mocked(requireDiscoveredConfig).mockResolvedValue({
+			backend: {
+				cacheKey: 'github:acme/docs',
+				readRootConfig: vi.fn(async () => null),
+				commitChanges
+			},
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			discoveredConfig: {
+				slug: 'about',
+				config: {
+					label: 'About',
+					blocks: []
+				},
+				path: 'content/about.tentman.json'
+			}
+		} as never);
+
+		await expect(
+			actions.saveToPreview({
+				locals: {},
+				params: {
+					page: 'about'
+				},
+				request: createRequest({
+					data: JSON.stringify({
+						title: 'About',
+						hero: 'draft-asset:hero',
+						gallery: 'draft-asset:gallery'
+					})
+				}),
+				cookies: {
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/pages/about/edit?saved=true'
+		});
+
+		expect(commitChanges).toHaveBeenCalledTimes(1);
+		expect(commitChanges).toHaveBeenCalledWith(
+			[
+				{
+					type: 'writeBinary',
+					path: 'static/images/hero.png',
+					content: expect.any(Uint8Array)
+				},
+				{
+					type: 'writeBinary',
+					path: 'static/images/gallery.png',
+					content: expect.any(Uint8Array)
+				},
+				{
+					type: 'writeText',
+					path: 'content/about.md',
+					content: JSON.stringify({
+						title: 'About',
+						hero: '/images/hero.png',
+						gallery: '/images/gallery.png'
+					})
+				}
+			],
+			{
+				message: 'Update About via Tentman CMS',
+				ref: 'tentman-preview'
+			}
+		);
 	});
 
 	it('preserves the current route query when auth expires during save-to-preview', async () => {
