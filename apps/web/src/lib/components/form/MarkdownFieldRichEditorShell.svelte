@@ -1,19 +1,7 @@
 <script lang="ts">
 	import MarkdownContentComponentDialog from '$lib/components/form/MarkdownContentComponentDialog.svelte';
 	import MarkdownContextualPopover from '$lib/components/form/MarkdownContextualPopover.svelte';
-	import MarkdownRichToolbar from '$lib/components/form/MarkdownRichToolbar.svelte';
-	import type {
-		ActionToolbarButton,
-		ContentComponentToolbarButton,
-		InlineFormatValue,
-		InlineToggleButton,
-		ListOption,
-		ListValue,
-		StructureOption,
-		StructureValue
-	} from '$lib/components/form/markdown-field-toolbar';
 	import type { MarkdownToolbarDialogContribution } from '$lib/features/markdown-editor/types';
-	import type { Editor } from '@tiptap/core';
 
 	interface ContextualPopoverViewModel {
 		kind: 'link' | 'component';
@@ -23,17 +11,6 @@
 	}
 
 	interface Props {
-		toolbarDisabled: boolean;
-		activeStructureValue: StructureValue;
-		activeStructureOption: StructureOption;
-		activeListValue: ListValue;
-		activeListIcon: 'bulletList' | 'orderedList';
-		activeInlineValues: InlineFormatValue[];
-		structureOptions: StructureOption[];
-		listOptions: ListOption[];
-		inlineToggleButtons: InlineToggleButton[];
-		actionButtons: ActionToolbarButton[];
-		componentToolbarButtons: ContentComponentToolbarButton[];
 		editorLoadError?: string | null;
 		hasRichEditor: boolean;
 		isInvalid: boolean;
@@ -52,16 +29,6 @@
 		componentDialogValues?: Record<string, string>;
 		componentDialogSerializedValue?: string | null;
 		componentDialogValidationError?: string | null;
-		istoolbaritemactive: (item: {
-			isActive?: ((editor: Editor) => boolean) | undefined;
-		}) => boolean;
-		onapplystructurevalue: (value: StructureValue) => void;
-		onapplylistvalue: (value: ListValue) => void;
-		onhandleinlineformatchange: (values: string[]) => void;
-		onactivatetoolbaritem: (
-			item: ActionToolbarButton | InlineToggleButton | ContentComponentToolbarButton,
-			trigger?: HTMLElement
-		) => void;
 		onimagefilesselected: (files: File[], input: HTMLInputElement) => void | Promise<void>;
 		oneditorhostclick: (event: MouseEvent) => void;
 		oncontextualpopoveropenchange: (open: boolean) => void;
@@ -79,17 +46,6 @@
 	}
 
 	let {
-		toolbarDisabled,
-		activeStructureValue,
-		activeStructureOption,
-		activeListValue,
-		activeListIcon,
-		activeInlineValues,
-		structureOptions,
-		listOptions,
-		inlineToggleButtons,
-		actionButtons,
-		componentToolbarButtons,
 		editorLoadError = null,
 		hasRichEditor,
 		isInvalid,
@@ -108,11 +64,6 @@
 		componentDialogValues = {},
 		componentDialogSerializedValue = null,
 		componentDialogValidationError = null,
-		istoolbaritemactive,
-		onapplystructurevalue,
-		onapplylistvalue,
-		onhandleinlineformatchange,
-		onactivatetoolbaritem,
 		onimagefilesselected,
 		oneditorhostclick,
 		oncontextualpopoveropenchange,
@@ -131,29 +82,10 @@
 </script>
 
 <div
-	class="overflow-hidden rounded border bg-white"
+	class="min-w-0 overflow-x-clip rounded-b border border-t-0 bg-white"
 	class:border-red-300={isInvalid}
 	class:border-gray-300={!isInvalid}
 >
-	<MarkdownRichToolbar
-		{toolbarDisabled}
-		{activeStructureValue}
-		{activeStructureOption}
-		{activeListValue}
-		{activeListIcon}
-		{activeInlineValues}
-		{structureOptions}
-		{listOptions}
-		{inlineToggleButtons}
-		{actionButtons}
-		{componentToolbarButtons}
-		{istoolbaritemactive}
-		{onapplystructurevalue}
-		{onapplylistvalue}
-		{onhandleinlineformatchange}
-		{onactivatetoolbaritem}
-	/>
-
 	<input
 		bind:this={fileInput}
 		type="file"

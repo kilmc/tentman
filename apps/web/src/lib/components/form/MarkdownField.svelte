@@ -8,6 +8,7 @@
 	import MarkdownFieldHeader from '$lib/components/form/MarkdownFieldHeader.svelte';
 	import MarkdownFieldPlainTextarea from '$lib/components/form/MarkdownFieldPlainTextarea.svelte';
 	import MarkdownFieldRichEditorShell from '$lib/components/form/MarkdownFieldRichEditorShell.svelte';
+	import MarkdownRichToolbar from '$lib/components/form/MarkdownRichToolbar.svelte';
 	import {
 		getMarkdownFieldActiveRootConfig,
 		getMarkdownFieldContentItem,
@@ -877,35 +878,56 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="mb-4">
-	<MarkdownFieldHeader
-		{textareaId}
-		{label}
-		{required}
-		{maxLength}
-		{characterCount}
-		{isOverLimit}
-		{activeTab}
-		ontabchange={(tab) => (activeTab = tab)}
-	/>
+	<div
+		class="markdown-field-sticky-chrome z-20 grid min-w-0 gap-2 bg-white pt-2"
+		data-testid="markdown-field-sticky-chrome"
+	>
+		<MarkdownFieldHeader
+			{textareaId}
+			{label}
+			{required}
+			{maxLength}
+			{characterCount}
+			{isOverLimit}
+			{activeTab}
+			ontabchange={(tab) => (activeTab = tab)}
+		/>
 
-	<MarkdownFieldAlerts {uploadError} {componentLoadError} />
+		<MarkdownFieldAlerts {uploadError} {componentLoadError} />
+
+		{#if activeTab === 'rich'}
+			<div
+				class="min-w-0 rounded-t border border-b-0 bg-white"
+				class:border-red-300={isOverLimit || isUnderMin}
+				class:border-gray-300={!(isOverLimit || isUnderMin)}
+			>
+				<MarkdownRichToolbar
+					{toolbarDisabled}
+					{activeStructureValue}
+					{activeStructureOption}
+					{activeListValue}
+					{activeListIcon}
+					{activeInlineValues}
+					{structureOptions}
+					{listOptions}
+					{inlineToggleButtons}
+					{actionButtons}
+					{componentToolbarButtons}
+					istoolbaritemactive={isToolbarItemActive}
+					onapplystructurevalue={applyStructureValue}
+					onapplylistvalue={applyListValue}
+					onhandleinlineformatchange={handleInlineFormatChange}
+					onactivatetoolbaritem={activateToolbarItem}
+				/>
+			</div>
+		{/if}
+	</div>
 
 	<div class:hidden={activeTab !== 'rich'}>
 		<MarkdownFieldRichEditorShell
 			bind:editorHost
 			bind:fileInput
 			bind:contextualPopoverAnchor
-			{toolbarDisabled}
-			{activeStructureValue}
-			{activeStructureOption}
-			{activeListValue}
-			{activeListIcon}
-			{activeInlineValues}
-			{structureOptions}
-			{listOptions}
-			{inlineToggleButtons}
-			{actionButtons}
-			{componentToolbarButtons}
 			{editorLoadError}
 			hasRichEditor={Boolean(richEditor)}
 			isInvalid={isOverLimit || isUnderMin}
@@ -923,11 +945,6 @@
 			componentDialogValues={componentDialogState.values}
 			componentDialogSerializedValue={dialogViewModel.serializedValue}
 			componentDialogValidationError={dialogViewModel.validationError}
-			istoolbaritemactive={isToolbarItemActive}
-			onapplystructurevalue={applyStructureValue}
-			onapplylistvalue={applyListValue}
-			onhandleinlineformatchange={handleInlineFormatChange}
-			onactivatetoolbaritem={activateToolbarItem}
 			onimagefilesselected={handleImageFilesSelected}
 			oneditorhostclick={handleEditorHostClick}
 			oncontextualpopoveropenchange={handleContextualPopoverOpenChange}
@@ -957,3 +974,10 @@
 		/>
 	</div>
 </div>
+
+<style>
+	.markdown-field-sticky-chrome {
+		position: sticky;
+		top: var(--workspace-sticky-top, 0px);
+	}
+</style>

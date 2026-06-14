@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
 	import { page } from '$app/state';
+	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
 	import { onMount } from 'svelte';
 	import MarkdownField from '$lib/components/form/MarkdownField.svelte';
 	import MarkdownFieldPlaywrightHarness from '$lib/test/fixtures/MarkdownFieldPlaywrightHarness.svelte';
@@ -214,6 +215,10 @@
 	}
 
 	const scenario = $derived(page.url.searchParams.get('scenario') ?? 'basic');
+	const longMarkdown = Array.from(
+		{ length: 80 },
+		(_, index) => `## Section ${index + 1}\n\nThis is enough markdown content to make the editor scroll.`
+	).join('\n\n');
 	const initialBasicValue = $derived.by(() => {
 		if (scenario === 'upload') {
 			return '';
@@ -221,6 +226,10 @@
 
 		if (scenario === 'link') {
 			return '[Example](https://example.com/old)';
+		}
+
+		if (scenario === 'long') {
+			return longMarkdown;
 		}
 
 		return '# Hello world';
@@ -617,8 +626,93 @@
 	<title>MarkdownField Playwright Harness</title>
 </svelte:head>
 
+{#snippet basicFieldHarness()}
+	<section
+		data-testid="basic-field"
+		class="space-y-4 rounded-xl border border-stone-300 bg-stone-50 p-4"
+	>
+		<div class="flex flex-wrap gap-2">
+			<button
+				type="button"
+				data-testid="reset-basic-markdown"
+				class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
+				onclick={resetBasicMarkdown}
+			>
+				Reset basic markdown
+			</button>
+			<button
+				type="button"
+				data-testid="reset-link-markdown"
+				class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
+				onclick={resetLinkMarkdown}
+			>
+				Reset link markdown
+			</button>
+			<button
+				type="button"
+				data-testid="reset-upload-markdown"
+				class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
+				onclick={resetUploadMarkdown}
+			>
+				Reset upload markdown
+			</button>
+			<button
+				type="button"
+				data-testid="reset-asset-logs"
+				class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
+				onclick={resetLogs}
+			>
+				Reset asset logs
+			</button>
+		</div>
+
+		<MarkdownField
+			label="Body"
+			bind:value={basicValue}
+			storagePath="static/images/posts/"
+			assetsDir="static/images/posts/"
+			testAdapters={basicAdapters}
+		/>
+
+		<div class="grid gap-3 lg:grid-cols-3">
+			<pre
+				data-testid="basic-markdown-value"
+				class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{basicValue}</pre>
+			<pre
+				data-testid="draft-create-calls"
+				class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{JSON.stringify(
+					createCalls
+				)}</pre>
+			<pre
+				data-testid="draft-delete-calls"
+				class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{JSON.stringify(
+					deleteCalls
+				)}</pre>
+		</div>
+	</section>
+{/snippet}
+
 {#if !dev}
 	<p>This route is only available in development.</p>
+{:else if scenario === 'long'}
+	<div class="fixed inset-0 z-50 grid grid-rows-[auto_minmax(0,1fr)] bg-white">
+		<header class="border-b border-stone-200 bg-white px-6 py-5" data-testid="workspace-header">
+			<h1 class="text-2xl font-semibold text-stone-950">Home</h1>
+		</header>
+
+		<div
+			class="min-h-0 overflow-y-auto px-4 sm:px-6"
+			data-testid="markdown-field-scroll-panel"
+		>
+			<div class="mx-auto max-w-5xl pt-4 sm:pt-6">
+				{@render basicFieldHarness()}
+				<PageStickyFooter>
+					<button type="button" class="tm-btn tm-btn-primary">Save Changes</button>
+					<button type="button" class="tm-btn tm-btn-secondary">Cancel</button>
+				</PageStickyFooter>
+			</div>
+		</div>
+	</div>
 {:else}
 	<div class="mx-auto max-w-5xl space-y-8 px-6 py-8">
 		<header class="space-y-2">
@@ -628,69 +722,7 @@
 			</p>
 		</header>
 
-		<section
-			data-testid="basic-field"
-			class="space-y-4 rounded-xl border border-stone-300 bg-stone-50 p-4"
-		>
-			<div class="flex flex-wrap gap-2">
-				<button
-					type="button"
-					data-testid="reset-basic-markdown"
-					class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
-					onclick={resetBasicMarkdown}
-				>
-					Reset basic markdown
-				</button>
-				<button
-					type="button"
-					data-testid="reset-link-markdown"
-					class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
-					onclick={resetLinkMarkdown}
-				>
-					Reset link markdown
-				</button>
-				<button
-					type="button"
-					data-testid="reset-upload-markdown"
-					class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
-					onclick={resetUploadMarkdown}
-				>
-					Reset upload markdown
-				</button>
-				<button
-					type="button"
-					data-testid="reset-asset-logs"
-					class="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm"
-					onclick={resetLogs}
-				>
-					Reset asset logs
-				</button>
-			</div>
-
-			<MarkdownField
-				label="Body"
-				bind:value={basicValue}
-				storagePath="static/images/posts/"
-				assetsDir="static/images/posts/"
-				testAdapters={basicAdapters}
-			/>
-
-			<div class="grid gap-3 lg:grid-cols-3">
-				<pre
-					data-testid="basic-markdown-value"
-					class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{basicValue}</pre>
-				<pre
-					data-testid="draft-create-calls"
-					class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{JSON.stringify(
-						createCalls
-					)}</pre>
-				<pre
-					data-testid="draft-delete-calls"
-					class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{JSON.stringify(
-						deleteCalls
-					)}</pre>
-			</div>
-		</section>
+		{@render basicFieldHarness()}
 
 		<section
 			data-testid="component-field"

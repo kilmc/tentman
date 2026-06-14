@@ -1135,11 +1135,11 @@
 			{/if}
 
 			<section
-				class="min-h-0 min-w-0 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6 relative"
+				class="relative min-h-0 min-w-0 overflow-y-auto px-4 sm:px-6"
 				data-testid="pages-main-panel"
 			>
 				<div
-					class="mx-auto w-full max-w-(--workspace-content-max-width)"
+					class="mx-auto w-full max-w-(--workspace-content-max-width) pt-4 sm:pt-6"
 					style={`--workspace-content-max-width: ${isEditorRoute ? '72rem' : '44rem'}`}
 				>
 					{#if currentConfigIssues.length > 0}

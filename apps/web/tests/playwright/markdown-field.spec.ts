@@ -9,6 +9,46 @@ test.describe('MarkdownField harness', () => {
 		await expect(field.getByTestId('basic-markdown-value')).toContainText('# Hello world');
 	});
 
+	test('keeps formatting tools available while scrolling long rich content', async ({ page }) => {
+		await page.goto('/__test__/markdown-field?scenario=long');
+		const scrollPanel = page.getByTestId('markdown-field-scroll-panel');
+		const field = page.getByTestId('basic-field');
+		const stickyChrome = field.getByTestId('markdown-field-sticky-chrome');
+		const editor = field.getByTestId('markdown-rich-editor');
+		const finalSection = editor.getByRole('heading', { name: 'Section 80' });
+
+		await finalSection.scrollIntoViewIfNeeded();
+		await expect(finalSection).toBeVisible();
+
+		const stickyChromeBox = await stickyChrome.boundingBox();
+		const scrollPanelBox = await scrollPanel.boundingBox();
+		expect(Math.abs((stickyChromeBox?.y ?? 0) - (scrollPanelBox?.y ?? 0))).toBeLessThanOrEqual(1);
+		await expect(field.getByRole('button', { name: 'Bold' })).toBeVisible();
+		await expect(field.getByRole('button', { name: 'Bold' })).toBeEnabled();
+
+		const contentVisibleAboveChrome = await page.evaluate(() => {
+			const chrome = document.querySelector<HTMLElement>(
+				'[data-testid="markdown-field-sticky-chrome"]'
+			);
+			if (!chrome) {
+				return true;
+			}
+
+			const rect = chrome.getBoundingClientRect();
+			const probe = document.elementFromPoint(rect.left + 12, rect.top - 8);
+			return Boolean(probe?.closest('[data-testid="markdown-rich-editor"]'));
+		});
+		expect(contentVisibleAboveChrome).toBe(false);
+
+		const horizontalOverflow = await page.evaluate(() =>
+			Math.max(
+				document.documentElement.scrollWidth - document.documentElement.clientWidth,
+				document.body.scrollWidth - document.body.clientWidth
+			)
+		);
+		expect(horizontalOverflow).toBeLessThanOrEqual(1);
+	});
+
 	test('stages inline images and serializes the draft ref into markdown', async ({ page }) => {
 		await page.goto('/__test__/markdown-field?scenario=upload');
 		const field = page.getByTestId('basic-field');
