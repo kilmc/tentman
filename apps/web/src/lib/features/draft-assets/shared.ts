@@ -161,6 +161,23 @@ export function normalizeDraftAssetStoragePath(storagePath?: string): string {
 	return withoutLeadingSlash.endsWith('/') ? withoutLeadingSlash : `${withoutLeadingSlash}/`;
 }
 
+export function resolveDraftAssetStoragePath(input: {
+	configPath?: string;
+	storagePath?: string;
+	defaultStoragePath?: string;
+}): string {
+	const storagePath = input.storagePath ?? input.defaultStoragePath;
+	if (!storagePath) {
+		return normalizeDraftAssetStoragePath();
+	}
+
+	const resolvedStoragePath = input.configPath
+		? resolveConfigPath(input.configPath, storagePath)
+		: storagePath;
+
+	return normalizeDraftAssetStoragePath(resolvedStoragePath);
+}
+
 export function buildDraftAssetRef(id: string): string {
 	return `${DRAFT_ASSET_REF_PREFIX}${id}`;
 }
@@ -414,9 +431,10 @@ export function collectAllowedDraftAssetStoragePaths(input: {
 	configPath: string;
 	defaultStoragePath?: string;
 }): Map<string, Set<string>> {
-	const defaultStoragePath = input.defaultStoragePath
-		? resolveConfigPath(input.configPath, input.defaultStoragePath)
-		: 'static/images/';
+	const defaultStoragePath = resolveDraftAssetStoragePath({
+		configPath: input.configPath,
+		defaultStoragePath: input.defaultStoragePath
+	});
 	const allowedPathsByRef = new Map<string, Set<string>>();
 
 	collectAllowedDraftAssetStoragePathsFromBlocks(

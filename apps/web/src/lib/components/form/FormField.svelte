@@ -24,6 +24,7 @@
 	import StructuredObjectPanelField from './StructuredObjectPanelField.svelte';
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import { containsNestedStructuredCollection } from '$lib/features/forms/object-panel';
+	import { resolveDraftAssetStoragePath } from '$lib/features/draft-assets/shared';
 
 	interface Props {
 		block: BlockUsage;
@@ -33,6 +34,8 @@
 		onvaluechange?: (value: any) => void;
 		onvalidationchange?: (errors: string[]) => void;
 		imagePath?: string; // Custom image storage path from config
+		configPath?: string;
+		defaultAssetStoragePath?: string;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
 		onaddselectoption?: (input: {
@@ -51,6 +54,8 @@
 		onvaluechange,
 		onvalidationchange,
 		imagePath,
+		configPath,
+		defaultAssetStoragePath,
 		blockRegistry,
 		navigationManifest,
 		onaddselectoption
@@ -88,6 +93,13 @@
 					(block as TentmanGroupBlockUsage).collection
 				)
 			: []
+	);
+	const assetStoragePath = $derived(
+		resolveDraftAssetStoragePath({
+			configPath,
+			storagePath: block.assetsDir,
+			defaultStoragePath: defaultAssetStoragePath ?? imagePath
+		})
 	);
 
 	function getFallbackValue() {
@@ -163,8 +175,8 @@
 			components={block.components}
 			onchange={handleChange}
 			{onvalidationchange}
-			storagePath={block.assetsDir ?? imagePath}
-			assetsDir={block.assetsDir}
+			storagePath={assetStoragePath}
+			assetsDir={assetStoragePath}
 		/>
 	{:else if fieldType === 'email'}
 		<EmailField {label} bind:value={fieldValue} {required} onchange={handleChange} />
@@ -200,8 +212,8 @@
 			bind:value={fieldValue}
 			{required}
 			onchange={handleChange}
-			storagePath={block.assetsDir ?? imagePath}
-			assetsDir={block.assetsDir ?? imagePath}
+			storagePath={assetStoragePath}
+			assetsDir={assetStoragePath}
 		/>
 	{:else if fieldType === 'array'}
 		<ArrayField
@@ -214,6 +226,8 @@
 			{required}
 			onchange={handleChange}
 			{imagePath}
+			{configPath}
+			{defaultAssetStoragePath}
 			{blockRegistry}
 			{navigationManifest}
 			{onaddselectoption}
@@ -228,6 +242,8 @@
 				editorLayout={structuredBlocks?.editorLayout}
 				{required}
 				{imagePath}
+				{configPath}
+				{defaultAssetStoragePath}
 				{blockRegistry}
 				{navigationManifest}
 				{onaddselectoption}
@@ -242,6 +258,8 @@
 				{required}
 				onchange={handleChange}
 				{imagePath}
+				{configPath}
+				{defaultAssetStoragePath}
 				{blockRegistry}
 				{navigationManifest}
 				{onaddselectoption}

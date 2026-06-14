@@ -5,6 +5,7 @@ import {
 	collectDraftAssetRefsFromContent,
 	collectDraftAssetRefsFromString,
 	mergeChangesSummaryWithDraftAssets,
+	resolveDraftAssetStoragePath,
 	replaceDraftAssetRefsInString,
 	replaceDraftAssetRefsInContent
 } from './shared';
@@ -42,6 +43,23 @@ describe('draft-assets/shared', () => {
 		expect(metadata.storagePath).toBe('static/images/posts/');
 		expect(metadata.targetPath).toBe('static/images/posts/cover-image-asset-12.png');
 		expect(metadata.publicPath).toBe('/images/posts/cover-image-asset-12.png');
+	});
+
+	it('resolves configured storage paths from the owning content config path', () => {
+		expect(
+			resolveDraftAssetStoragePath({
+				configPath: 'tentman/configs/posts.tentman.json',
+				storagePath: './static/images/posts',
+				defaultStoragePath: './static/images'
+			})
+		).toBe('tentman/configs/static/images/posts/');
+
+		expect(
+			resolveDraftAssetStoragePath({
+				configPath: 'tentman/configs/posts.tentman.json',
+				defaultStoragePath: './static/images'
+			})
+		).toBe('tentman/configs/static/images/');
 	});
 
 	it('collects unique draft refs and rewrites them to final public paths', () => {

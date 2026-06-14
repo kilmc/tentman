@@ -38,6 +38,8 @@
 	fieldPath={panel.itemFieldPath ? `${panel.itemFieldPath}.${block.id}` : block.id}
 	bind:value
 	imagePath={panel.imagePath}
+	configPath={panel.configPath}
+	defaultAssetStoragePath={panel.defaultAssetStoragePath}
 	blockRegistry={panel.blockRegistry}
 	navigationManifest={panel.navigationManifest}
 	onaddselectoption={panel.onaddselectoption}

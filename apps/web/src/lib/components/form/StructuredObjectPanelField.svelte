@@ -21,6 +21,8 @@
 		fieldPath?: string;
 		required?: boolean;
 		imagePath?: string;
+		configPath?: string;
+		defaultAssetStoragePath?: string;
 		editorLayout?: EditorLayoutConfig;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
@@ -39,6 +41,8 @@
 		fieldPath,
 		required = false,
 		imagePath,
+		configPath,
+		defaultAssetStoragePath,
 		editorLayout,
 		blockRegistry,
 		navigationManifest,
@@ -90,6 +94,8 @@
 			targetPath: parseFieldPath(fieldPath),
 			itemFieldPath: fieldPath,
 			imagePath,
+			configPath,
+			defaultAssetStoragePath,
 			blockRegistry,
 			navigationManifest,
 			onaddselectoption

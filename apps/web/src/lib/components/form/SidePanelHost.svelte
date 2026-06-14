@@ -136,6 +136,8 @@
 				value={panel.selectedItem}
 				fieldPath={panel.itemFieldPath}
 				imagePath={panel.imagePath}
+				configPath={panel.configPath}
+				defaultAssetStoragePath={panel.defaultAssetStoragePath}
 				blockRegistry={panel.blockRegistry}
 				navigationManifest={panel.navigationManifest}
 				onaddselectoption={panel.onaddselectoption}

@@ -21,6 +21,8 @@ interface BasePanelInput {
 	targetPath: ContentPath;
 	itemFieldPath?: string;
 	imagePath?: string;
+	configPath?: string;
+	defaultAssetStoragePath?: string;
 	blockRegistry: BlockRegistry;
 	navigationManifest?: NavigationManifest | null;
 	onaddselectoption?: (input: {
@@ -86,6 +88,8 @@ export interface FormEditSessionRecoveryPanel {
 	targetPath: ContentPath;
 	itemFieldPath?: string;
 	imagePath?: string;
+	configPath?: string;
+	defaultAssetStoragePath?: string;
 	selectedIndex?: number;
 	arrayPath?: ContentPath;
 	draftItem: ContentRecord;
@@ -509,6 +513,8 @@ function toRecoveryPanel(entry: PanelEntry): FormEditSessionRecoveryPanel {
 		targetPath: [...entry.targetPath],
 		itemFieldPath: entry.itemFieldPath,
 		imagePath: entry.imagePath,
+		configPath: entry.configPath,
+		defaultAssetStoragePath: entry.defaultAssetStoragePath,
 		selectedIndex: entry.kind === 'repeatable' ? entry.selectedIndex : undefined,
 		arrayPath: entry.kind === 'repeatable' ? [...entry.arrayPath] : undefined,
 		draftItem: cloneContentRecord(entry.draftItem),
@@ -534,6 +540,8 @@ function fromRecoveryPanel(
 		targetPath: [...panel.targetPath],
 		itemFieldPath: panel.itemFieldPath,
 		imagePath: panel.imagePath,
+		configPath: panel.configPath,
+		defaultAssetStoragePath: panel.defaultAssetStoragePath,
 		blockRegistry: runtime.blockRegistry,
 		navigationManifest: runtime.navigationManifest,
 		onaddselectoption: runtime.onaddselectoption,

@@ -22,6 +22,27 @@ function createBackend() {
 }
 
 describe('draft-assets/server', () => {
+	function appendDraftAsset(formData: FormData, input: { id: string; storagePath: string }) {
+		const ref = buildDraftAssetRef(input.id);
+
+		formData.set(
+			`draftAssetFile:${input.id}`,
+			new File(['12345'], `${input.id}.png`, { type: 'image/png' })
+		);
+
+		return {
+			id: input.id,
+			ref,
+			storagePath: input.storagePath,
+			originalName: `${input.id}.png`,
+			mimeType: 'image/png',
+			size: 5,
+			targetFilename: `${input.id}-asset.png`,
+			targetPath: `${input.storagePath}${input.id}-asset.png`,
+			publicPath: `/images/${input.id}-asset.png`
+		};
+	}
+
 	it('materializes staged assets from enhanced GitHub preview submissions', async () => {
 		const backend = createBackend();
 		const formData = new FormData();
@@ -70,6 +91,83 @@ describe('draft-assets/server', () => {
 			{ path: 'static/images/hero-hero.png', type: 'create', size: 5 }
 		]);
 		expect(result.cleanedRefs).toEqual([heroRef]);
+	});
+
+	it('allows staged assets using config-relative block storage paths', async () => {
+		const backend = createBackend();
+		const formData = new FormData();
+		const heroRef = buildDraftAssetRef('hero');
+		const heroEntry = appendDraftAsset(formData, {
+			id: 'hero',
+			storagePath: 'content/static/images/posts/'
+		});
+		formData.set('draftAssetManifest', JSON.stringify([heroEntry]));
+
+		const result = await materializeDraftAssetsFromFormData({
+			formData,
+			content: {
+				body: `![Hero](${heroRef})`
+			},
+			configPath: 'content/posts.tentman.json',
+			blocks: [{ id: 'body', type: 'markdown', assetsDir: './static/images/posts' }],
+			backend
+		});
+
+		expect(backend.writeBinaryFile).toHaveBeenCalledWith(
+			'content/static/images/posts/hero-hero.png',
+			expect.any(Uint8Array),
+			undefined
+		);
+		expect(result.content).toEqual({
+			body: '![Hero](/images/posts/hero-hero.png)'
+		});
+	});
+
+	it('materializes multiple staged assets through the same write options', async () => {
+		const backend = createBackend();
+		const formData = new FormData();
+		const heroRef = buildDraftAssetRef('hero');
+		const galleryRef = buildDraftAssetRef('gallery');
+		const entries = [
+			appendDraftAsset(formData, { id: 'hero', storagePath: 'static/images/' }),
+			appendDraftAsset(formData, { id: 'gallery', storagePath: 'static/images/' })
+		];
+		formData.set('draftAssetManifest', JSON.stringify(entries));
+
+		const result = await materializeDraftAssetsFromFormData({
+			formData,
+			content: {
+				hero: heroRef,
+				gallery: galleryRef
+			},
+			configPath: 'content/posts.tentman.json',
+			blocks: [
+				{ id: 'hero', type: 'image' },
+				{ id: 'gallery', type: 'image' }
+			],
+			backend,
+			writeOptions: {
+				ref: 'draft/preview-branch'
+			}
+		});
+
+		expect(backend.writeBinaryFile).toHaveBeenCalledTimes(2);
+		expect(backend.writeBinaryFile).toHaveBeenNthCalledWith(
+			1,
+			'static/images/hero-hero.png',
+			expect.any(Uint8Array),
+			{ ref: 'draft/preview-branch' }
+		);
+		expect(backend.writeBinaryFile).toHaveBeenNthCalledWith(
+			2,
+			'static/images/gallery-gallery.png',
+			expect.any(Uint8Array),
+			{ ref: 'draft/preview-branch' }
+		);
+		expect(result.content).toEqual({
+			hero: '/images/hero-hero.png',
+			gallery: '/images/gallery-gallery.png'
+		});
 	});
 
 	it('throws a clear error when a staged markdown file part is missing', async () => {

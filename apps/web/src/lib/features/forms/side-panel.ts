@@ -28,6 +28,8 @@ export interface FormSidePanelState {
 	selectedIndex?: number;
 	arrayPath?: ContentPath;
 	imagePath?: string;
+	configPath?: string;
+	defaultAssetStoragePath?: string;
 	blockRegistry: BlockRegistry;
 	navigationManifest?: NavigationManifest | null;
 	onaddselectoption?: (input: {

@@ -32,6 +32,8 @@
 		required?: boolean;
 		onchange?: () => void;
 		imagePath?: string;
+		configPath?: string;
+		defaultAssetStoragePath?: string;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
 		onaddselectoption?: (input: {
@@ -59,6 +61,8 @@
 		required = false,
 		onchange,
 		imagePath,
+		configPath,
+		defaultAssetStoragePath,
 		blockRegistry,
 		navigationManifest,
 		onaddselectoption
@@ -204,6 +208,8 @@
 			arrayPath: parseFieldPath(fieldPath),
 			itemFieldPath: `${fieldPath}[${index}]`,
 			imagePath,
+			configPath,
+			defaultAssetStoragePath,
 			blockRegistry,
 			navigationManifest,
 			onaddselectoption
@@ -233,6 +239,8 @@
 			arrayPath: parseFieldPath(fieldPath),
 			itemFieldPath: `${fieldPath}[${draftIndex}]`,
 			imagePath,
+			configPath,
+			defaultAssetStoragePath,
 			blockRegistry,
 			navigationManifest,
 			onaddselectoption

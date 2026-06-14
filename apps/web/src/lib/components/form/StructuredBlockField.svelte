@@ -14,6 +14,8 @@
 		required?: boolean;
 		onchange?: () => void;
 		imagePath?: string;
+		configPath?: string;
+		defaultAssetStoragePath?: string;
 		editorLayout?: EditorLayoutConfig;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
@@ -33,6 +35,8 @@
 		required = false,
 		onchange,
 		imagePath,
+		configPath,
+		defaultAssetStoragePath,
 		editorLayout,
 		blockRegistry,
 		navigationManifest,
@@ -59,6 +63,8 @@
 		bind:value
 		{fieldPath}
 		{imagePath}
+		{configPath}
+		{defaultAssetStoragePath}
 		{blockRegistry}
 		{navigationManifest}
 		{onaddselectoption}

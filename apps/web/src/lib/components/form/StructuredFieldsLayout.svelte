@@ -16,6 +16,8 @@
 		value: ContentRecord;
 		fieldPath?: string;
 		imagePath?: string;
+		configPath?: string;
+		defaultAssetStoragePath?: string;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
 		onaddselectoption?: (input: {
@@ -37,6 +39,8 @@
 		value = $bindable(),
 		fieldPath,
 		imagePath,
+		configPath,
+		defaultAssetStoragePath,
 		blockRegistry,
 		navigationManifest,
 		onaddselectoption,
@@ -116,6 +120,8 @@
 						value={getFieldValue(block)}
 						fieldPath={getFieldPath(block)}
 						{imagePath}
+						{configPath}
+						{defaultAssetStoragePath}
 						{blockRegistry}
 						{navigationManifest}
 						{onaddselectoption}
@@ -182,6 +188,8 @@
 										value={getFieldValue(block)}
 										fieldPath={getFieldPath(block)}
 										{imagePath}
+										{configPath}
+										{defaultAssetStoragePath}
 										{blockRegistry}
 										{navigationManifest}
 										{onaddselectoption}

@@ -34,6 +34,8 @@
 		realtimeValidation?: boolean; // Enable real-time validation on field change
 		blockConfigs?: DiscoveredBlockConfig[];
 		blockRegistry?: BlockRegistry;
+		configPath?: string;
+		defaultAssetStoragePath?: string;
 		// Function to get current form data - called by parent before submit
 		onvalidate?: (data: ContentRecord, errors: ValidationError[]) => void;
 		onchange?: (data: ContentRecord) => void;
@@ -55,6 +57,8 @@
 		realtimeValidation = false,
 		blockConfigs = [],
 		blockRegistry: providedBlockRegistry = undefined,
+		configPath,
+		defaultAssetStoragePath,
 		onvalidate,
 		onchange,
 		ondirtystatechange,
@@ -324,6 +328,8 @@
 			blocks={config.blocks}
 			bind:value={formData}
 			imagePath={config.imagePath}
+			{configPath}
+			defaultAssetStoragePath={defaultAssetStoragePath ?? config.imagePath}
 			{blockRegistry}
 			{navigationManifest}
 			{onaddselectoption}
