@@ -1,6 +1,6 @@
 {
 	"name": "tentman",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Local-first CLI for inspecting and maintaining Tentman-managed sites.",
 	"type": "module",
 	"license": "UNLICENSED",
@@ -27,7 +27,7 @@
 		"tentman": "src/index.js"
 	},
 	"dependencies": {
-		"@tentman/core": "^0.0.1",
+		"@tentman/core": "^0.1.1",
 		"chokidar": "^5.0.0"
 	}
 }

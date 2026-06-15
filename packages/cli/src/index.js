@@ -28,12 +28,20 @@ import {
 	createContentComponentScaffold
 } from '@tentman/core';
 import { watch as createWatcher } from 'chokidar';
+import fs from 'node:fs/promises';
 import path from 'node:path';
+
+async function getCliVersion() {
+	const packageJsonUrl = new URL('../package.json', import.meta.url);
+	const packageJson = JSON.parse(await fs.readFile(packageJsonUrl, 'utf8'));
+	return packageJson.version;
+}
 
 function printHelp() {
 	console.log(`Tentman CLI
 
 Usage:
+  tentman --version
   tentman doctor [project-root]
   tentman component create <name> [project-root]
   tentman component inspect <name> [project-root]
@@ -58,6 +66,7 @@ Usage:
   tentman format --write [project-root]
 
 Options:
+  -v, --version  Show version
   --check     Check formatting without writing files
   --kind      For \`component create\`, scaffold \`inline\` (default) or \`block\`
   --refresh   For \`nav watch\`, preserve manifest structure and refresh references
@@ -415,6 +424,11 @@ async function watchNavigationManifest(projectRoot, flags) {
 
 async function run() {
 	const { flags, positional, optionValues } = parseArgs(process.argv.slice(2));
+
+	if (flags.has('-v') || flags.has('--version')) {
+		console.log(await getCliVersion());
+		return 0;
+	}
 
 	if (flags.has('-h') || flags.has('--help') || positional.length === 0) {
 		printHelp();

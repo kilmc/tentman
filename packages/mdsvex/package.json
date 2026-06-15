@@ -1,6 +1,6 @@
 {
 	"name": "@tentman/mdsvex",
-	"version": "0.0.1",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "Mdsvex integration for Tentman content components and directives.",
 	"license": "UNLICENSED",
@@ -21,6 +21,7 @@
 	},
 	"files": [
 		"src/**/*.js",
+		"src/**/*.d.ts",
 		"!src/**/*.test.js",
 		"README.md"
 	],
@@ -28,10 +29,14 @@
 		"test": "node --test src/*.test.js"
 	},
 	"exports": {
-		".": "./src/index.js"
+		".": {
+			"types": "./src/index.d.ts",
+			"default": "./src/index.js"
+		}
 	},
+	"types": "./src/index.d.ts",
 	"dependencies": {
-		"@tentman/core": "^0.0.1",
+		"@tentman/core": "^0.1.1",
 		"unist-util-visit": "^5.1.0"
 	},
 	"devDependencies": {

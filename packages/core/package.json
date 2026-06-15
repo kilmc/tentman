@@ -1,6 +1,6 @@
 {
 	"name": "@tentman/core",
-	"version": "0.0.1",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "Core Tentman content, schema, navigation, and rendering utilities.",
 	"license": "UNLICENSED",
@@ -21,6 +21,7 @@
 	},
 	"files": [
 		"src/**/*.js",
+		"src/**/*.d.ts",
 		"!src/**/*.test.js",
 		"!src/**/*.test-helper.js",
 		"!src/fixtures/**",
@@ -30,9 +31,16 @@
 		"test": "node --test src/*.test.js"
 	},
 	"exports": {
-		".": "./src/index.js",
-		"./content-components": "./src/content-components.js"
+		".": {
+			"types": "./src/index.d.ts",
+			"default": "./src/index.js"
+		},
+		"./content-components": {
+			"types": "./src/content-components.d.ts",
+			"default": "./src/content-components.js"
+		}
 	},
+	"types": "./src/index.d.ts",
 	"dependencies": {
 		"gray-matter": "^4.0.3",
 		"nunjucks": "^3.2.4"

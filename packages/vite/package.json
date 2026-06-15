@@ -1,6 +1,6 @@
 {
 	"name": "@tentman/vite",
-	"version": "0.0.1",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "Vite helpers for Tentman-driven sites and local authoring workflows.",
 	"license": "UNLICENSED",
@@ -21,6 +21,7 @@
 	},
 	"files": [
 		"src/**/*.js",
+		"src/**/*.d.ts",
 		"!src/**/*.test.js",
 		"README.md"
 	],
@@ -28,8 +29,12 @@
 		"test": "node --test src/*.test.js"
 	},
 	"exports": {
-		".": "./src/index.js"
+		".": {
+			"types": "./src/index.d.ts",
+			"default": "./src/index.js"
+		}
 	},
+	"types": "./src/index.d.ts",
 	"peerDependencies": {
 		"vite": "^7.0.0"
 	}
