@@ -18,7 +18,7 @@
 		"lint": "pnpm --filter @tentman/web run lint",
 		"prepare": "node ./scripts/install-git-hooks.mjs",
 		"prepush": "pnpm run verify:baseline",
-		"tentman": "pnpm --filter @tentman/cli run tentman --",
+		"tentman": "pnpm --filter tentman run tentman --",
 		"test:core": "pnpm --filter @tentman/core run test",
 		"test:unit": "pnpm --filter @tentman/web run test:unit",
 		"test": "pnpm --filter @tentman/web run test",

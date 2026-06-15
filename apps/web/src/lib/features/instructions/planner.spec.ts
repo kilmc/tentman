@@ -417,7 +417,7 @@ describe('instruction planner', () => {
 	});
 
 	it('plans the real fixture instruction without duplicate output paths', async () => {
-		const fixtureRoot = fileURLToPath(new URL('../../../../../test-app', import.meta.url));
+		const fixtureRoot = fileURLToPath(new URL('../../../../../../../test-app', import.meta.url));
 		const backend = createNodeFsBackend(fixtureRoot);
 		const discovery = await discoverInstructions(backend);
 		const instruction = discovery.instructions.find(

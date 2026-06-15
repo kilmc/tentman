@@ -74,7 +74,7 @@ test('writes missing config and collection item ids', async () => {
 	assert.match(aboutConfig, /"_tentmanId": "tent_01KQD800000000000000000001"/);
 	assert.match(
 		aboutConfig,
-		/\{ "id": "title", "type": "text", "label": "Title", "required": true \}/
+		/"id": "title",\n\t\t\t"type": "text",\n\t\t\t"label": "Title",\n\t\t\t"required": true/
 	);
 
 	const post = await fs.readFile(

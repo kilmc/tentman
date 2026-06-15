@@ -10,7 +10,7 @@ It supports two working modes today:
 The current docs live in two places:
 
 - In-app config reference at `/docs`
-- A complete example consumer repo in [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app)
+- A complete example consumer repo in sibling [`test-app`](/Users/kilmc/code/tentman/test-app)
 
 This repo also maintains the installable Codex skill at
 [`skills/tentman-site-integration`](/Users/kilmc/code/tentman/tentman/skills/tentman-site-integration)
@@ -23,13 +23,16 @@ This repo is a pnpm workspace:
 ```txt
 apps/
   web/       # Tentman web app
-  test-app/  # Reference consumer site
 packages/
-  core/      # Shared Tentman behavior, currently a placeholder
-  cli/       # CLI package, currently a placeholder
+  core/      # Shared Tentman behavior
+  cli/       # Published `tentman` CLI package
   mdsvex/    # mdsvex content component integration
   vite/      # Vite helpers for Tentman-backed sites
 ```
+
+The reference consumer app intentionally lives outside this workspace at
+[`../test-app`](/Users/kilmc/code/tentman/test-app) so Tentman can exercise a real Git-rooted
+site shape.
 
 ## Development Setup
 
@@ -565,8 +568,7 @@ Manifest precedence in Tentman:
 - If no manifest exists, Tentman keeps its current discovery-based behavior.
 
 If you want your live site navigation to match Tentman, read the same manifest in your site code.
-The example app in [`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app)
-shows that pattern.
+The sibling example app in [`../test-app`](/Users/kilmc/code/tentman/test-app) shows that pattern.
 
 `tentman ids write` updates stable `_tentmanId` values in configs and content. If a navigation
 manifest already exists, follow it with `tentman nav rebuild` so manifest references and
@@ -704,12 +706,12 @@ Path rules:
 
 ## Best Reference Repo
 
-[`apps/test-app`](/Users/kilmc/code/tentman/tentman/apps/test-app) is the current reference implementation for a consumer repo. It includes:
+[`../test-app`](/Users/kilmc/code/tentman/test-app) is the current reference implementation for a consumer repo. It includes:
 
-- Root config in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman.json)
-- Content configs in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/configs)
-- Reusable blocks in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/blocks)
-- A template file in [`/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/tentman/apps/test-app/tentman/templates/post.md)
+- Root config in [`/Users/kilmc/code/tentman/test-app/tentman.json`](/Users/kilmc/code/tentman/test-app/tentman.json)
+- Content configs in [`/Users/kilmc/code/tentman/test-app/tentman/configs`](/Users/kilmc/code/tentman/test-app/tentman/configs)
+- Reusable blocks in [`/Users/kilmc/code/tentman/test-app/tentman/blocks`](/Users/kilmc/code/tentman/test-app/tentman/blocks)
+- A template file in [`/Users/kilmc/code/tentman/test-app/tentman/templates/post.md`](/Users/kilmc/code/tentman/test-app/tentman/templates/post.md)
 
 ## Scripts
 

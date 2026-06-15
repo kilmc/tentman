@@ -1,16 +1,33 @@
 {
-	"name": "@tentman/cli",
-	"private": true,
-	"version": "0.0.1",
+	"name": "tentman",
+	"version": "0.1.0",
+	"description": "Local-first CLI for inspecting and maintaining Tentman-managed sites.",
 	"type": "module",
+	"license": "UNLICENSED",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/kilmc/tentman.git",
+		"directory": "packages/cli"
+	},
+	"homepage": "https://github.com/kilmc/tentman/tree/main/packages/cli",
+	"bugs": {
+		"url": "https://github.com/kilmc/tentman/issues"
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
+	},
+	"files": [
+		"src/**/*.js",
+		"README.md"
+	],
 	"scripts": {
 		"tentman": "node src/index.js"
 	},
 	"bin": {
-		"tentman": "./src/index.js"
+		"tentman": "src/index.js"
 	},
 	"dependencies": {
-		"@tentman/core": "workspace:*",
+		"@tentman/core": "^0.0.1",
 		"chokidar": "^5.0.0"
 	}
 }

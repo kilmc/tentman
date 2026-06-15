@@ -18,54 +18,11 @@ test('reports current fixture files Tentman would rewrite conservatively', async
 	const project = await loadTentmanProject(await copyFixture());
 	const rewrites = await checkTentmanFormat(project);
 
-	assert.deepEqual(rewrites, [
-		{
-			path: 'tentman/configs/about.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'src/routes/about/+page.md',
-			kind: 'content',
-			configPath: 'tentman/configs/about.tentman.json',
-			formatter: 'markdown'
-		},
-		{
-			path: 'tentman/configs/blog.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/contact.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'src/content/pages/contact.json',
-			kind: 'content',
-			configPath: 'tentman/configs/contact.tentman.json',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/faq.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/news.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/projects.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-	]);
+	assert.deepEqual(rewrites, []);
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 8,
-		configs: 6,
-		content: 2,
+		files: 0,
+		configs: 0,
+		content: 0,
 		navigationManifests: 0
 	});
 });
@@ -96,46 +53,9 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 			formatter: 'json'
 		},
 		{
-			path: 'src/routes/about/+page.md',
-			kind: 'content',
-			configPath: 'tentman/configs/about.tentman.json',
-			formatter: 'markdown'
-		},
-		{
-			path: 'tentman/configs/blog.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/contact.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'src/content/pages/contact.json',
-			kind: 'content',
-			configPath: 'tentman/configs/contact.tentman.json',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/faq.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/news.tentman.json',
-			kind: 'config',
-			formatter: 'json'
-		},
-		{
 			path: 'src/content/pages/news.json',
 			kind: 'content',
 			configPath: 'tentman/configs/news.tentman.json',
-			formatter: 'json'
-		},
-		{
-			path: 'tentman/configs/projects.tentman.json',
-			kind: 'config',
 			formatter: 'json'
 		},
 		{
@@ -145,9 +65,9 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 		},
 	]);
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 10,
-		configs: 6,
-		content: 3,
+		files: 3,
+		configs: 1,
+		content: 1,
 		navigationManifests: 1
 	});
 });
@@ -158,9 +78,9 @@ test('writes Tentman-owned formatting rewrites and becomes clean on recheck', as
 	const rewrites = await writeTentmanFormat(project);
 
 	assert.deepEqual(summarizeFormatCheck(rewrites), {
-		files: 8,
-		configs: 6,
-		content: 2,
+		files: 0,
+		configs: 0,
+		content: 0,
 		navigationManifests: 0
 	});
 

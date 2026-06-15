@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const execFileAsync = promisify(execFile);
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-export const testAppRoot = path.join(repoRoot, 'apps/test-app');
+export const testAppRoot = path.resolve(repoRoot, '../test-app');
 export const contentComponentsFixturesRoot = path.join(
 	repoRoot,
 	'packages/core/src/fixtures/content-components'
