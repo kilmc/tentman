@@ -99,7 +99,6 @@
 			<AssetImage
 				value={String(item[heroImageBlock.id])}
 				alt={heroImageBlock.label ?? 'Content image'}
-				assetsDir={heroImageBlock.assetsDir}
 				class="h-40 w-full object-cover"
 				loading="lazy"
 			/>
@@ -126,7 +125,6 @@
 								<AssetImage
 									value={String(item[block.id])}
 									alt={getBlockLabel(block)}
-									assetsDir={block.assetsDir}
 									class="h-11 w-11 rounded-md border border-stone-200 object-cover"
 									loading="lazy"
 								/>

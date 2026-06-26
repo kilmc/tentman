@@ -27,7 +27,9 @@ const fieldOptions = {
 		repo: 'docs',
 		baseBranch: 'main',
 		draftBranch: 'tentman-preview'
-	}
+	},
+	baseAssets: null,
+	draftAssets: null
 };
 
 describe('review draft config review', () => {

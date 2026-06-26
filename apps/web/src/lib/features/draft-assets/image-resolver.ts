@@ -1,15 +1,9 @@
-import { page } from '$app/state';
 import { draftAssetStore } from '$lib/features/draft-assets/store';
 import { isDraftAssetRef } from '$lib/features/draft-assets/shared';
-import { buildRepoAssetProxyUrl, isAbsoluteAssetUrl, resolveAssetValue } from '$lib/utils/assets';
-
-interface ResolveClientAssetUrlOptions {
-	assets?: {
-		path: string;
-		publicPath: string;
-	};
-	previewBaseUrl?: string | null;
-}
+import {
+	resolveAssetUrlForRender,
+	type AssetRenderContext
+} from '$lib/features/assets/render-context';
 
 const MARKDOWN_IMAGE_PATTERN =
 	/!\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))((?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?)\)/g;
@@ -17,7 +11,7 @@ const HTML_IMAGE_PATTERN = /<img\b([^>]*?)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*?)>/
 
 export async function resolveClientAssetUrl(
 	value: string | null | undefined,
-	options: ResolveClientAssetUrlOptions = {}
+	context: AssetRenderContext
 ): Promise<string | null> {
 	if (!value) {
 		return null;
@@ -27,25 +21,12 @@ export async function resolveClientAssetUrl(
 		return draftAssetStore.resolveUrl(value);
 	}
 
-	if (page.data.selectedBackend?.kind === 'github' && !isAbsoluteAssetUrl(value) && options.assets) {
-		return buildRepoAssetProxyUrl(value, {
-			assets: options.assets,
-			repository: page.data.selectedRepo
-				? {
-						owner: page.data.selectedRepo.owner,
-						name: page.data.selectedRepo.name,
-						defaultBranch: page.data.selectedRepo.default_branch
-					}
-				: null
-		});
-	}
-
-	return resolveAssetValue(value, options);
+	return resolveAssetUrlForRender(value, context);
 }
 
 export async function resolveMarkdownAssetUrls(
 	value: string,
-	options: ResolveClientAssetUrlOptions = {}
+	context: AssetRenderContext
 ): Promise<string> {
 	const replacements = new Map<string, string>();
 	const assetValues = new Set<string>();
@@ -65,7 +46,7 @@ export async function resolveMarkdownAssetUrls(
 
 	await Promise.all(
 		[...assetValues].map(async (assetValue) => {
-			const resolved = await resolveClientAssetUrl(assetValue, options);
+			const resolved = await resolveClientAssetUrl(assetValue, context);
 			if (resolved && resolved !== assetValue) {
 				replacements.set(assetValue, resolved);
 			}

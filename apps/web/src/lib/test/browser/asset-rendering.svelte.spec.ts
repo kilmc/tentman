@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
+import type { RootConfig } from '$lib/config/root-config';
+import type { GitHubRepositoryIdentity } from '$lib/repository/github';
+import type { SelectedBackend } from '$lib/repository/selection';
+
+interface BrowserAssetRenderingPageData {
+	selectedBackend: SelectedBackend | null;
+	selectedRepo: GitHubRepositoryIdentity | null;
+	rootConfig: RootConfig | null;
+}
 
 function createStoreState<T>(initialValue: T) {
-	const value = initialValue;
+	let value = initialValue;
 	const subscribers = new Set<(nextValue: T) => void>();
 
 	return {
@@ -10,6 +19,12 @@ function createStoreState<T>(initialValue: T) {
 			callback(value);
 			subscribers.add(callback);
 			return () => subscribers.delete(callback);
+		},
+		set(nextValue: T) {
+			value = nextValue;
+			for (const subscriber of subscribers) {
+				subscriber(value);
+			}
 		}
 	};
 }
@@ -26,7 +41,7 @@ const assetRenderingMocks = vi.hoisted(() => ({
 }));
 
 const localContentState = vi.hoisted(() =>
-	createStoreState({
+	createStoreState<{ rootConfig: RootConfig | null }>({
 		rootConfig: null
 	})
 );
@@ -35,26 +50,37 @@ const contentComponentLoaderMocks = vi.hoisted(() => ({
 	loadContentComponentRegistryForMode: vi.fn()
 }));
 
-vi.mock('$app/state', () => ({
-	page: {
-		data: {
-			selectedBackend: {
-				kind: 'github',
-				repo: {
-					owner: 'acme',
-					name: 'docs',
-					full_name: 'acme/docs',
-					default_branch: 'main'
-				}
-			},
-			selectedRepo: {
+const pageData = vi.hoisted(
+	(): BrowserAssetRenderingPageData => ({
+		selectedBackend: {
+			kind: 'github',
+			repo: {
 				owner: 'acme',
 				name: 'docs',
 				full_name: 'acme/docs',
 				default_branch: 'main'
-			},
-			rootConfig: null
+			}
+		},
+		selectedRepo: {
+			owner: 'acme',
+			name: 'docs',
+			full_name: 'acme/docs',
+			default_branch: 'main'
+		},
+		rootConfig: {
+			assets: {
+				path: './static/images/projects',
+				publicPath: '/images/projects'
+			}
 		}
+	})
+);
+
+const localPreviewUrlState = vi.hoisted(() => createStoreState<string | null>(null));
+
+vi.mock('$app/state', () => ({
+	page: {
+		data: pageData
 	}
 }));
 
@@ -74,6 +100,12 @@ vi.mock('$lib/features/draft-assets/store', () => ({
 vi.mock('$lib/stores/local-content', () => ({
 	localContent: {
 		subscribe: localContentState.subscribe
+	}
+}));
+
+vi.mock('$lib/stores/local-preview-url', () => ({
+	localPreviewUrl: {
+		subscribe: localPreviewUrlState.subscribe
 	}
 }));
 
@@ -104,6 +136,31 @@ describe('shared draft asset rendering surfaces', () => {
 				return undefined;
 			}
 		});
+		pageData.selectedBackend = {
+			kind: 'github',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			}
+		};
+		pageData.selectedRepo = {
+			owner: 'acme',
+			name: 'docs',
+			full_name: 'acme/docs',
+			default_branch: 'main'
+		};
+		pageData.rootConfig = {
+			assets: {
+				path: './static/images/projects',
+				publicPath: '/images/projects'
+			}
+		};
+		localContentState.set({
+			rootConfig: null
+		});
+		localPreviewUrlState.set(null);
 	});
 
 	it('renders staged draft refs in content display image blocks', async () => {
@@ -155,7 +212,24 @@ describe('shared draft asset rendering surfaces', () => {
 
 		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
 			'src',
-			'/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main'
+			'/api/repo/asset?value=hero.jpg&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
+		);
+	});
+
+	it('routes saved GitHub-backed public asset paths through the repo asset proxy', async () => {
+		const screen = await render(ContentValueDisplay, {
+			block: {
+				id: 'hero',
+				type: 'image',
+				label: 'Hero'
+			},
+			value: '/images/projects/hero.jpg',
+			blockRegistry: new Map() as never
+		});
+
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'/api/repo/asset?value=%2Fimages%2Fprojects%2Fhero.jpg&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
 		);
 	});
 
@@ -174,8 +248,47 @@ describe('shared draft asset rendering surfaces', () => {
 		await expect
 			.poll(() => screen.container.querySelector('img')?.getAttribute('data-src') ?? null)
 			.toBe(
-				'/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main'
+				'/api/repo/asset?value=hero.jpg&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
 			);
+	});
+
+	it('uses the local preview URL for local image blocks', async () => {
+		pageData.selectedBackend = {
+			kind: 'local',
+			repo: {
+				name: 'Docs',
+				pathLabel: '~/docs'
+			}
+		};
+		pageData.selectedRepo = null;
+		pageData.rootConfig = null;
+		localContentState.set({
+			rootConfig: {
+				assets: {
+					path: './static/images/projects',
+					publicPath: '/images/projects'
+				},
+				local: {
+					previewUrl: 'http://localhost:4173/'
+				}
+			}
+		});
+		localPreviewUrlState.set('http://localhost:5173/');
+
+		const screen = await render(ContentValueDisplay, {
+			block: {
+				id: 'hero',
+				type: 'image',
+				label: 'Hero'
+			},
+			value: 'hero.jpg',
+			blockRegistry: new Map() as never
+		});
+
+		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
+			'src',
+			'http://localhost:5173/images/projects/hero.jpg'
+		);
 	});
 
 	it('renders discovered content component directives through fixed authoring chips', async () => {

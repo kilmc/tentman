@@ -187,7 +187,9 @@ export async function buildPublishReviewModel(input: {
 				repo: input.repo.name,
 				baseBranch: input.baseBranch,
 				draftBranch: input.draftBranch
-			}
+			},
+			baseAssets: baseRootConfig?.assets ?? null,
+			draftAssets: draftRootConfig?.assets ?? null
 		};
 		const scopedDocuments = canUseScopedDirectoryReview({
 			config: draftConfig,

@@ -428,12 +428,7 @@
 									aria-hidden="true"
 									data-testid={`repeatable-preview-${index}`}
 								>
-									<AssetImage
-										value={imageValue}
-										alt=""
-										assetsDir={previewImageBlock?.assetsDir ?? imagePath}
-										class="h-full w-full object-cover"
-									/>
+									<AssetImage value={imageValue} alt="" class="h-full w-full object-cover" />
 								</span>
 							{/if}
 							<span class="grid min-w-0 gap-0.5">

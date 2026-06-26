@@ -12,7 +12,6 @@
 		required?: boolean;
 		onchange?: () => void;
 		storagePath?: string;
-		assetsDir?: string;
 	}
 
 	let {
@@ -20,8 +19,7 @@
 		value = $bindable(''),
 		required = false,
 		onchange,
-		storagePath = page.data.rootConfig?.assets?.path ?? '',
-		assetsDir
+		storagePath = page.data.rootConfig?.assets?.path ?? ''
 	}: Props = $props();
 
 	const inputId = `image-field-${Math.random().toString(36).substring(2, 9)}`;
@@ -131,7 +129,6 @@
 				{:else}
 					<AssetImage
 						{value}
-						{assetsDir}
 						alt={label}
 						class="h-32 w-32 rounded border border-gray-300 object-cover"
 						loading="eager"

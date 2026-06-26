@@ -1,4 +1,5 @@
 import type { ParsedContentConfig } from '$lib/config/parse';
+import type { RootConfig } from '$lib/config/root-config';
 
 export function getReviewConfigHref(configSlug: string, isCollection: boolean): string {
 	return isCollection ? `/pages/${configSlug}` : `/pages/${configSlug}/edit`;
@@ -13,15 +14,16 @@ export function buildRepoAssetPreviewUrl(input: {
 	repo: string;
 	ref: string;
 	value: string;
-	assetsDir?: string;
+	assets?: RootConfig['assets'] | null;
 }): string | null {
-	if (!input.assetsDir) {
+	if (!input.assets) {
 		return null;
 	}
 
 	const params = new URLSearchParams({
 		value: input.value,
-		assetsDir: input.assetsDir,
+		assetPath: input.assets.path,
+		publicPath: input.assets.publicPath,
 		owner: input.owner,
 		repo: input.repo,
 		branch: input.ref

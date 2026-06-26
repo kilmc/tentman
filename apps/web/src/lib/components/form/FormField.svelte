@@ -175,7 +175,6 @@
 			onchange={handleChange}
 			{onvalidationchange}
 			storagePath={assetStoragePath}
-			assetsDir={assetStoragePath}
 		/>
 	{:else if fieldType === 'email'}
 		<EmailField {label} bind:value={fieldValue} {required} onchange={handleChange} />
@@ -212,7 +211,6 @@
 			{required}
 			onchange={handleChange}
 			storagePath={assetStoragePath}
-			assetsDir={assetStoragePath}
 		/>
 	{:else if fieldType === 'array'}
 		<ArrayField

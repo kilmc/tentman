@@ -9,10 +9,12 @@
 	import { applyAuthoringContentComponentTransforms } from '$lib/content-components/authoring';
 	import { collectContentComponentReferenceState } from '$lib/content-components/references';
 	import { localContent } from '$lib/stores/local-content';
+	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
+	import { getAssetRenderContext } from '$lib/features/assets/render-context';
 	import { resolveMarkdownAssetUrls } from '$lib/features/draft-assets/image-resolver';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
@@ -72,12 +74,6 @@
 
 	function getActiveComponentsDir(): string | undefined {
 		return getActiveRootConfig()?.componentsDir;
-	}
-
-	function getPreviewBaseUrl(): string | null {
-		return page.data.selectedBackend?.kind === 'local'
-			? (get(localContent).rootConfig?.local?.previewUrl ?? null)
-			: null;
 	}
 
 	function getReferencePreviewOptions() {
@@ -150,10 +146,16 @@
 				);
 				nextMarkdown = componentMarkup.markdown;
 				errors.push(...componentMarkup.errors);
-				nextMarkdown = await resolveMarkdownAssetUrls(nextMarkdown, {
-					assets: get(localContent).rootConfig?.assets ?? page.data.rootConfig?.assets,
-					previewBaseUrl: getPreviewBaseUrl()
-				});
+				nextMarkdown = await resolveMarkdownAssetUrls(
+					nextMarkdown,
+					getAssetRenderContext({
+						selectedBackend: page.data.selectedBackend,
+						selectedRepo: page.data.selectedRepo,
+						rootConfig: page.data.rootConfig ?? null,
+						localRootConfig: get(localContent).rootConfig,
+						localPreviewUrl: get(localPreviewUrl)
+					})
+				);
 
 				if (!cancelled) {
 					renderedMarkdown = nextMarkdown;
@@ -259,7 +261,6 @@
 			<AssetImage
 				{value}
 				alt={block.label ?? block.id}
-				assetsDir={block.assetsDir}
 				class="max-h-96 w-full bg-white object-contain"
 				loading="lazy"
 			/>

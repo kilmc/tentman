@@ -8,6 +8,17 @@ const repoAssetContext = {
 	draftBranch: 'tentman-preview'
 };
 
+const assets = {
+	path: './static/images/projects',
+	publicPath: '/images/projects'
+};
+
+const fieldOptions = {
+	repoAssetContext,
+	baseAssets: assets,
+	draftAssets: assets
+};
+
 describe('review draft field review', () => {
 	it('excludes unchanged fields from edited item detail', () => {
 		const fields = buildFieldChanges(
@@ -23,7 +34,7 @@ describe('review draft field review', () => {
 				title: 'After',
 				body: 'Same body'
 			},
-			{ repoAssetContext }
+			fieldOptions
 		);
 
 		expect(fields).toHaveLength(1);
@@ -56,7 +67,7 @@ describe('review draft field review', () => {
 					{ id: 'intro', heading: 'Intro' }
 				]
 			},
-			{ repoAssetContext }
+			fieldOptions
 		);
 
 		expect(field.presentation).toMatchObject({
@@ -90,7 +101,7 @@ describe('review draft field review', () => {
 					{ id: 'summary', heading: 'Summary' }
 				]
 			},
-			{ repoAssetContext }
+			fieldOptions
 		);
 
 		expect(field.presentation).toMatchObject({
@@ -98,6 +109,38 @@ describe('review draft field review', () => {
 			mode: 'context',
 			beforeSummary: ['Intro (removed)', 'Details (moved to 1, edited)'],
 			afterSummary: ['Details updated (moved from 2, edited)', 'Summary (new)']
+		});
+	});
+
+	it('builds image review previews from root assets instead of block assetsDir', () => {
+		const [field] = buildFieldChanges(
+			[
+				{
+					id: 'hero',
+					type: 'image',
+					label: 'Hero',
+					assetsDir: './legacy-images'
+				}
+			] as never,
+			{
+				hero: 'before.jpg'
+			},
+			{
+				hero: '/images/projects/after.jpg'
+			},
+			fieldOptions
+		);
+
+		expect(field.presentation).toMatchObject({
+			kind: 'media',
+			before: {
+				previewUrl:
+					'/api/repo/asset?value=before.jpg&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
+			},
+			after: {
+				previewUrl:
+					'/api/repo/asset?value=%2Fimages%2Fprojects%2Fafter.jpg&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=tentman-preview'
+			}
 		});
 	});
 });

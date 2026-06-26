@@ -1,4 +1,5 @@
 import type { BlockUsage } from '$lib/config/types';
+import type { RootConfig } from '$lib/config/root-config';
 import { formatContentValue } from '$lib/features/content-management/item';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 import { buildRepoAssetPreviewUrl } from './navigation';
@@ -19,6 +20,8 @@ interface RepoAssetContext {
 
 export interface BuildFieldReviewOptions {
 	repoAssetContext: RepoAssetContext;
+	baseAssets?: RootConfig['assets'] | null;
+	draftAssets?: RootConfig['assets'] | null;
 }
 
 type StructuredBlock = Extract<BlockUsage, { type: 'block' }>;
@@ -395,19 +398,6 @@ function buildPrimitivePresentation(
 		);
 	}
 
-	if (
-		typeof before === 'string' ||
-		typeof after === 'string' ||
-		block?.type === 'text' ||
-		block?.type === 'textarea'
-	) {
-		return getTextPresentation(
-			'text',
-			typeof before === 'string' ? before : before == null ? null : String(before),
-			typeof after === 'string' ? after : after == null ? null : String(after)
-		);
-	}
-
 	if (block?.type === 'image' && (typeof before === 'string' || typeof after === 'string')) {
 		return {
 			kind: 'media',
@@ -420,7 +410,7 @@ function buildPrimitivePresentation(
 								repo: options.repoAssetContext.repo,
 								ref: options.repoAssetContext.baseBranch,
 								value: before,
-								assetsDir: block.assetsDir
+								assets: options.baseAssets
 							})
 						}
 					: null,
@@ -433,11 +423,24 @@ function buildPrimitivePresentation(
 								repo: options.repoAssetContext.repo,
 								ref: options.repoAssetContext.draftBranch,
 								value: after,
-								assetsDir: block.assetsDir
+								assets: options.draftAssets
 							})
 						}
 					: null
 		};
+	}
+
+	if (
+		typeof before === 'string' ||
+		typeof after === 'string' ||
+		block?.type === 'text' ||
+		block?.type === 'textarea'
+	) {
+		return getTextPresentation(
+			'text',
+			typeof before === 'string' ? before : before == null ? null : String(before),
+			typeof after === 'string' ? after : after == null ? null : String(after)
+		);
 	}
 
 	if (isPlainObject(before) || isPlainObject(after)) {
