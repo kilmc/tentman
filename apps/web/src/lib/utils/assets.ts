@@ -1,5 +1,8 @@
 interface ResolveAssetValueOptions {
-	assetsDir?: string;
+	assets?: {
+		path: string;
+		publicPath: string;
+	};
 	previewBaseUrl?: string | null;
 }
 
@@ -18,7 +21,10 @@ function trimLeadingSlash(value: string): string {
 export function buildRepoAssetProxyUrl(
 	value: string,
 	options: {
-		assetsDir?: string;
+		assets?: {
+			path: string;
+			publicPath: string;
+		};
 		repository?: {
 			owner: string;
 			name: string;
@@ -30,9 +36,9 @@ export function buildRepoAssetProxyUrl(
 		value
 	});
 
-	const assetsDir = options.assetsDir?.trim();
-	if (assetsDir) {
-		searchParams.set('assetsDir', assetsDir);
+	if (options.assets) {
+		searchParams.set('assetPath', options.assets.path);
+		searchParams.set('publicPath', options.assets.publicPath);
 	}
 
 	if (options.repository) {
@@ -42,29 +48,6 @@ export function buildRepoAssetProxyUrl(
 	}
 
 	return `/api/repo/asset?${searchParams.toString()}`;
-}
-
-export function getPublicPathFromAssetsDir(assetsDir?: string): string | null {
-	if (!assetsDir) {
-		return null;
-	}
-
-	const normalized = assetsDir.replace(/\\/g, '/').replace(/^(?:\.\/)+/, '');
-	const staticIndex = normalized.lastIndexOf('/static/');
-
-	if (staticIndex >= 0) {
-		return normalized.slice(staticIndex + '/static'.length);
-	}
-
-	if (normalized.startsWith('static/')) {
-		return `/${normalized.slice('static/'.length)}`;
-	}
-
-	if (normalized === 'static') {
-		return '/';
-	}
-
-	return null;
 }
 
 export function resolveAssetValue(
@@ -90,9 +73,11 @@ export function resolveAssetValue(
 		return previewBaseUrl ? new URL(trimmedValue, previewBaseUrl).toString() : trimmedValue;
 	}
 
-	const publicAssetsPath = getPublicPathFromAssetsDir(options.assetsDir);
-	if (publicAssetsPath) {
-		const publicPath = `${trimTrailingSlash(publicAssetsPath)}/${trimLeadingSlash(trimmedValue)}`;
+	if (options.assets) {
+		const publicPath =
+			options.assets.publicPath === '/'
+				? `/${trimLeadingSlash(trimmedValue)}`
+				: `${trimTrailingSlash(options.assets.publicPath)}/${trimLeadingSlash(trimmedValue)}`;
 		return previewBaseUrl ? new URL(publicPath, previewBaseUrl).toString() : publicPath;
 	}
 

@@ -16,6 +16,7 @@ import type {
 	TentmanGroupBlockOptions
 } from '$lib/config/types';
 import { TENTMAN_GROUP_BLOCK_ID } from '$lib/config/tentman-group';
+import { parseRootAssetsConfig } from '@tentman/core/assets-config';
 
 export interface ParsedContentConfig extends ContentConfig {
 	content: FileContentMode | DirectoryContentMode;
@@ -1120,7 +1121,6 @@ export function parseRootConfig(content: string): RootConfig {
 	const siteName = readOptionalString(parsed, 'siteName', 'root');
 	const blocksDir = readOptionalString(parsed, 'blocksDir', 'root');
 	const configsDir = readOptionalString(parsed, 'configsDir', 'root');
-	const assetsDir = readOptionalString(parsed, 'assetsDir', 'root');
 	const componentsDir = readOptionalString(parsed, 'componentsDir', 'root');
 	const blockPackages = readOptionalStringArray(parsed, 'blockPackages', 'root');
 	const debugConfig = parsed.debug;
@@ -1140,8 +1140,12 @@ export function parseRootConfig(content: string): RootConfig {
 		rootConfig.configsDir = configsDir;
 	}
 
-	if (assetsDir) {
-		rootConfig.assetsDir = assetsDir;
+	if (parsed.assets && typeof parsed.assets === 'object' && !Array.isArray(parsed.assets)) {
+		try {
+			rootConfig.assets = parseRootAssetsConfig(parsed.assets, { path: 'tentman.json' });
+		} catch {
+			rootConfig.assets = undefined;
+		}
 	}
 
 	if (componentsDir) {

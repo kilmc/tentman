@@ -133,7 +133,7 @@
 		components = undefined,
 		onchange,
 		onvalidationchange,
-		storagePath = 'static/images/',
+		storagePath = page.data.rootConfig?.assets?.path ?? '',
 		assetsDir,
 		testAdapters = undefined
 	}: Props = $props();
@@ -148,6 +148,9 @@
 	let enabledComponentRegistry = $state<ContentComponentRegistry | null>(null);
 	let uploadError = $state<string | null>(null);
 	let editorUiVersion = $state(0);
+	const rootAssets = $derived(testAdapters?.rootConfig?.assets ?? page.data.rootConfig?.assets ?? null);
+	const uploadDisabledMessage =
+		'Configure assets.path and assets.publicPath in tentman.json to enable uploads';
 	let componentDialogState = $state(createInitialMarkdownFieldComponentDialogState());
 	let popoverState = $state(createInitialMarkdownFieldPopoverState());
 	let contextualPopoverAnchor = $state<HTMLDivElement | null>(null);
@@ -227,10 +230,15 @@
 	}
 
 	async function stageImage(file: File): Promise<{ ref: string }> {
+		if (!storagePath || !rootAssets?.publicPath) {
+			throw new Error(uploadDisabledMessage);
+		}
+
 		return stageMarkdownFieldImage({
 			file,
 			repoKey,
 			storagePath,
+			publicPath: rootAssets.publicPath,
 			draftAssets: testAdapters?.draftAssetStore
 		});
 	}

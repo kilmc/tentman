@@ -46,7 +46,7 @@ export const actions: Actions = {
 						configPath: discoveredConfig.path,
 						blocks: discoveredConfig.config.blocks,
 						backend: batchBackend,
-						defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+						assets: (await batchBackend.readRootConfig())?.assets,
 						writeOptions: {
 							ref: branchName
 						}
@@ -115,7 +115,7 @@ export const actions: Actions = {
 						configPath: discoveredConfig.path,
 						blocks: discoveredConfig.config.blocks,
 						backend: batchBackend,
-						defaultStoragePath: (await batchBackend.readRootConfig())?.assetsDir,
+						assets: (await batchBackend.readRootConfig())?.assets,
 						writeOptions: {
 							ref: branchName
 						}

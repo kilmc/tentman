@@ -211,6 +211,7 @@ test('doctors missing reusable blocks and missing asset directories', async () =
 
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.assetsDir = './static/missing-images';
+	rootConfig.assets.path = './static/missing-images';
 	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));
 
 	const project = await loadTentmanProject(projectRoot);
@@ -220,8 +221,9 @@ test('doctors missing reusable blocks and missing asset directories', async () =
 		diagnostics.map((diagnostic) => diagnostic.code),
 		[
 			'blocks.unresolved',
-			'assets.missing-root-directory',
-			'assets.missing-directory',
+			'assets.legacy-assets-dir',
+			'assets.legacy-assets-dir',
+			'assets.legacy-assets-dir',
 			'assets.missing-directory'
 		]
 	);
@@ -230,24 +232,12 @@ test('doctors missing reusable blocks and missing asset directories', async () =
 		/About config references unknown reusable block type: missingGallery/
 	);
 	assert.match(
-		diagnostics.find((diagnostic) => diagnostic.code === 'assets.missing-root-directory')?.message ?? '',
-		/Configured assets directory does not exist: \.\/static\/missing-images/
+		diagnostics.find((diagnostic) => diagnostic.code === 'assets.missing-directory')?.message ?? '',
+		/Configured assets directory does not exist: static\/missing-images\//
 	);
-	assert.match(
-		diagnostics.find(
-			(diagnostic) =>
-				diagnostic.code === 'assets.missing-directory' &&
-				diagnostic.path === 'tentman/configs/blog.tentman.json'
-		)?.message ?? '',
-		/missing assets directory: static\/images\/missing-posts/
-	);
-	assert.match(
-		diagnostics.find(
-			(diagnostic) =>
-				diagnostic.code === 'assets.missing-directory' &&
-				diagnostic.path === 'tentman/blocks/image-gallery.tentman.json'
-		)?.message ?? '',
-		/missing assets directory: static\/images\/missing-gallery/
+	assert.equal(
+		diagnostics.filter((diagnostic) => diagnostic.code === 'assets.legacy-assets-dir').length,
+		3
 	);
 });
 

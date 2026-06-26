@@ -311,6 +311,7 @@ export function createBrowserDraftAssetStore(
 			id,
 			repoKey: options.repoKey,
 			storagePath: options.storagePath,
+			publicPath: options.publicPath,
 			originalName: file.name,
 			mimeType: file.type,
 			size: file.size,

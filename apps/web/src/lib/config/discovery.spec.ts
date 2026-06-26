@@ -125,6 +125,32 @@ describe('parseDiscoveredConfig', () => {
 		]);
 	});
 
+	it('warns when discovered configs use legacy assetsDir', () => {
+		const discovered = parseDiscoveredConfig(
+			'tentman/configs/projects.tentman.json',
+			`{
+				"type": "content",
+				"label": "Projects",
+				"content": {
+					"mode": "file",
+					"path": "./src/content/projects.json"
+				},
+				"blocks": [
+					{ "id": "hero", "type": "image", "assetsDir": "./static/images" }
+				]
+			}`
+		);
+
+		expect(discovered.issues).toEqual([
+			expect.objectContaining({
+				code: 'assets.legacy-assets-dir',
+				severity: 'warning',
+				category: 'compatibility',
+				blockId: 'hero'
+			})
+		]);
+	});
+
 	it('warns and ignores unsupported explicit item label sources', () => {
 		const discovered = parseDiscoveredConfig(
 			'tentman/configs/projects.tentman.json',

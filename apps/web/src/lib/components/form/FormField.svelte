@@ -97,8 +97,7 @@
 	const assetStoragePath = $derived(
 		resolveDraftAssetStoragePath({
 			configPath,
-			storagePath: block.assetsDir,
-			defaultStoragePath: defaultAssetStoragePath ?? imagePath
+			defaultStoragePath: defaultAssetStoragePath
 		})
 	);
 

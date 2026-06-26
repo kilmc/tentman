@@ -2,6 +2,7 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import { resolveClientAssetUrl } from '$lib/features/draft-assets/image-resolver';
+	import { page } from '$app/state';
 
 	interface Props {
 		value: string | null | undefined;
@@ -19,11 +20,11 @@
 	$effect(() => {
 		const requestId = ++loadRequest;
 		const nextValue = value;
-		const nextAssetsDir = assetsDir;
 		const previewBaseUrl = $localPreviewUrl ?? $localContent.rootConfig?.local?.previewUrl;
+		const assets = $localContent.rootConfig?.assets ?? page.data.rootConfig?.assets;
 
 		void resolveClientAssetUrl(nextValue, {
-			assetsDir: nextAssetsDir,
+			assets,
 			previewBaseUrl
 		}).then((resolved) => {
 			if (requestId !== loadRequest) {

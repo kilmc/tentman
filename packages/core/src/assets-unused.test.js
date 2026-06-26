@@ -15,21 +15,20 @@ test('reports no unused files in configured asset directories for the fixture', 
 
 	assert.deepEqual(
 		unused.map((entry) => [entry.path, entry.unusedCount]),
-		[
-			['static/images/gallery', 0],
-			['static/images/posts', 0]
-		]
+		[['static/images', 2]]
 	);
-	assert.ok(unused.every((entry) => entry.unusedFiles.length === 0));
+	assert.deepEqual(unused[0]?.unusedFiles, [
+		'static/images/untitled-project-arcade-glow-8x-79765380.png',
+		'static/images/untitled-project-arcade-glow-8x-7e99f33d.png'
+	]);
 });
 
-test('ignores loose root assets outside explicit image field directories', async () => {
+test('scans loose root assets inside root assets path', async () => {
 	const project = await loadTentmanProject(await copyFixture());
 	const unused = await findUnusedTentmanAssets(project);
 
-	assert.ok(!unused.some((entry) => entry.path === 'static/images'));
 	assert.ok(
-		!unused.some((entry) =>
+		unused.some((entry) =>
 			entry.unusedFiles.includes('static/images/untitled-project-arcade-glow-8x-79765380.png')
 		)
 	);
@@ -49,8 +48,15 @@ test('finds unused files conservatively in known asset directories', async () =>
 	assert.deepEqual(
 		unused.map((entry) => [entry.path, entry.unusedFiles]),
 		[
-			['static/images/gallery', ['static/images/gallery/orphan.svg']],
-			['static/images/posts', ['static/images/posts/orphan.svg']]
+			[
+				'static/images',
+				[
+					'static/images/gallery/orphan.svg',
+					'static/images/posts/orphan.svg',
+					'static/images/untitled-project-arcade-glow-8x-79765380.png',
+					'static/images/untitled-project-arcade-glow-8x-7e99f33d.png'
+				]
+			]
 		]
 	);
 });
@@ -67,13 +73,32 @@ test('scopes unused asset results to one config when requested', async () => {
 	assert.equal(unused.config.label, 'About');
 	assert.deepEqual(
 		unused.directories.map((entry) => [entry.path, entry.unusedFiles]),
-		[['static/images/gallery', ['static/images/gallery/orphan.svg']]]
+		[
+			[
+				'static/images',
+				[
+					'static/images/gallery/orphan.svg',
+					'static/images/untitled-project-arcade-glow-8x-79765380.png',
+					'static/images/untitled-project-arcade-glow-8x-7e99f33d.png'
+				]
+			]
+		]
 	);
 	assert.deepEqual(unused.unusedFiles, [
 		{
 			path: 'static/images/gallery/orphan.svg',
-			directoryPath: 'static/images/gallery',
-			expectedPrefix: '/images/gallery'
+			directoryPath: 'static/images',
+			expectedPrefix: '/images'
+		},
+		{
+			path: 'static/images/untitled-project-arcade-glow-8x-79765380.png',
+			directoryPath: 'static/images',
+			expectedPrefix: '/images'
+		},
+		{
+			path: 'static/images/untitled-project-arcade-glow-8x-7e99f33d.png',
+			directoryPath: 'static/images',
+			expectedPrefix: '/images'
 		}
 	]);
 });

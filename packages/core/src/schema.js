@@ -77,10 +77,6 @@ function summarizeField(block, blockDefinitions) {
 		summary.itemLabelFormat = { ...block.itemLabelFormat };
 	}
 
-	if (typeof block.assetsDir === 'string' && block.assetsDir.length > 0) {
-		summary.assetsDir = block.assetsDir;
-	}
-
 	if (Array.isArray(block.components) && block.components.length > 0) {
 		summary.components = [...block.components];
 	}

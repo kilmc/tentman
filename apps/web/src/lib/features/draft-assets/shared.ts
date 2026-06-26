@@ -154,8 +154,12 @@ export function replaceDraftAssetRefsInString(
 }
 
 export function normalizeDraftAssetStoragePath(storagePath?: string): string {
+	if (!storagePath?.trim()) {
+		return '';
+	}
+
 	const normalized = normalizeRepoRelativePath(
-		trimDotSlash((storagePath || 'static/images/').trim())
+		trimDotSlash(storagePath.trim())
 	);
 	const withoutLeadingSlash = trimLeadingSlash(normalized);
 	return withoutLeadingSlash.endsWith('/') ? withoutLeadingSlash : `${withoutLeadingSlash}/`;
@@ -168,7 +172,7 @@ export function resolveDraftAssetStoragePath(input: {
 }): string {
 	const storagePath = input.storagePath ?? input.defaultStoragePath;
 	if (!storagePath) {
-		return normalizeDraftAssetStoragePath();
+		return '';
 	}
 
 	const resolvedStoragePath = input.configPath
@@ -201,19 +205,23 @@ export function getDraftAssetFileFieldName(id: string): string {
 export function buildDraftAssetPaths(input: {
 	id: string;
 	storagePath?: string;
+	publicPath?: string;
 	originalName: string;
 	mimeType: string;
 }) {
 	const normalizedStoragePath = normalizeDraftAssetStoragePath(input.storagePath);
+	if (!normalizedStoragePath) {
+		throw new Error('Root assets.path is required for uploads');
+	}
+
 	const extension = getFileExtension(input.originalName, input.mimeType);
 	const baseName = sanitizeFilenamePart(input.originalName.replace(/\.[^/.]+$/, ''));
 	const targetFilename = `${baseName}-${input.id.slice(0, 8)}${extension}`;
 	const targetPath = `${normalizedStoragePath}${targetFilename}`;
-	const staticIndex = normalizedStoragePath.lastIndexOf('static/');
-	const publicBasePath =
-		staticIndex >= 0
-			? `/${trimLeadingSlash(normalizedStoragePath.slice(staticIndex + 'static'.length))}`
-			: `/${trimLeadingSlash(normalizedStoragePath)}`;
+	const publicBasePath = input.publicPath?.trim();
+	if (!publicBasePath) {
+		throw new Error('Root assets.publicPath is required for uploads');
+	}
 	const publicPath = `${trimTrailingSlash(publicBasePath)}/${targetFilename}`;
 
 	return {
@@ -228,6 +236,7 @@ export function buildDraftAssetMetadata(input: {
 	id: string;
 	repoKey: string;
 	storagePath?: string;
+	publicPath?: string;
 	originalName: string;
 	mimeType: string;
 	size: number;
@@ -383,9 +392,7 @@ function collectAllowedDraftAssetStoragePathsFromBlocks(
 ) {
 	for (const block of blocks) {
 		const blockValue = value[block.id];
-		const blockStoragePath = block.assetsDir
-			? resolveConfigPath(configPath, block.assetsDir)
-			: defaultStoragePath;
+		const blockStoragePath = defaultStoragePath;
 
 		if (block.type === 'markdown' || block.type === 'image') {
 			collectAllowedDraftAssetStoragePathsFromValue(

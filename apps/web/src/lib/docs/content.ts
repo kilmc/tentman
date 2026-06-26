@@ -157,11 +157,18 @@ const rootRows = fiveColumnRows([
 		notes: 'Useful when a repo contains unrelated *.tentman.json files.'
 	},
 	{
-		field: 'assetsDir',
+		field: 'assets.path',
 		required: 'No',
 		type: 'string',
-		purpose: 'Provide a default image upload path.',
-		notes: 'A block can still override this locally with its own assetsDir.'
+		purpose: 'Repo-relative directory where Tentman writes uploaded asset files.',
+		notes: 'Tentman writes files here; your site is responsible for serving them.'
+	},
+	{
+		field: 'assets.publicPath',
+		required: 'No',
+		type: 'string',
+		purpose: 'Root-relative URL prefix Tentman writes into content for uploaded assets.',
+		notes: 'Use /images for SvelteKit static/images, or /assets for copied 11ty assets.'
 	},
 	{
 		field: 'componentsDir',
@@ -370,13 +377,6 @@ const blockUsageRows = fiveColumnRows([
 		type: 'number',
 		purpose: 'Length constraints for supported text-style inputs.',
 		notes: ''
-	},
-	{
-		field: 'assetsDir',
-		required: 'No',
-		type: 'string',
-		purpose: 'Overrides the default asset directory for this block.',
-		notes: 'Most relevant for image-oriented blocks.'
 	},
 	{
 		field: 'components',
@@ -614,10 +614,13 @@ const rootConfigExample = `{
   "blocksDir": "./tentman/blocks",
   "configsDir": "./tentman/configs",
   "componentsDir": "./src/lib/content-components",
+  "assets": {
+    "path": "./static/images",
+    "publicPath": "/images"
+  },
   "content": {
     "sorting": "manual"
   },
-  "assetsDir": "./static/images",
   "statePresets": {
     "publication": {
       "cases": [

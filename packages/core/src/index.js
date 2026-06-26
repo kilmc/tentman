@@ -36,6 +36,15 @@ export { checkTentmanFormat, summarizeFormatCheck, writeTentmanFormat } from './
 export { runTentmanCi } from './ci.js';
 export { checkTentmanAssets } from './assets-check.js';
 export { findUnusedTentmanAssets, listTentmanAssets } from './assets.js';
+export {
+	LEGACY_ASSETS_DIR_WARNING,
+	buildManagedAssetPublicPath,
+	buildManagedAssetRepoPath,
+	getRootAssetsConfigDiagnostics,
+	isIgnoredAssetValue,
+	parseRootAssetsConfig,
+	resolveManagedAssetValue
+} from './assets-config.js';
 export { inspectTentmanContent } from './content-inspect.js';
 export { listTentmanContent } from './content-list.js';
 export {

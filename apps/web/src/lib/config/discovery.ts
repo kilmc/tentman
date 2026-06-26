@@ -13,6 +13,7 @@ import type { RootConfig } from '$lib/config/root-config';
 import type { BlockUsage } from '$lib/config/types';
 import { slugify } from '$lib/utils';
 import { logTiming } from '$lib/utils/performance-logging';
+import { LEGACY_ASSETS_DIR_WARNING } from '@tentman/core/assets-config';
 
 export interface DiscoveryIssue {
 	code: string;
@@ -80,6 +81,17 @@ function collectConfigCompatibilityIssues(path: string, blocks: BlockUsage[]): D
 	const issues: DiscoveryIssue[] = [];
 
 	walkBlocks(blocks, (block, structured) => {
+		if (typeof block.assetsDir === 'string') {
+			issues.push({
+				code: 'assets.legacy-assets-dir',
+				message: LEGACY_ASSETS_DIR_WARNING,
+				severity: 'warning',
+				category: 'compatibility',
+				path,
+				blockId: block.id
+			});
+		}
+
 		for (const binding of getReferenceBindings(block.referenceFor)) {
 			if (structured && isQualifiedReferenceBinding(binding)) {
 				issues.push({

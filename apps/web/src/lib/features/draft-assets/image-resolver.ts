@@ -4,7 +4,10 @@ import { isDraftAssetRef } from '$lib/features/draft-assets/shared';
 import { buildRepoAssetProxyUrl, isAbsoluteAssetUrl, resolveAssetValue } from '$lib/utils/assets';
 
 interface ResolveClientAssetUrlOptions {
-	assetsDir?: string;
+	assets?: {
+		path: string;
+		publicPath: string;
+	};
 	previewBaseUrl?: string | null;
 }
 
@@ -24,9 +27,9 @@ export async function resolveClientAssetUrl(
 		return draftAssetStore.resolveUrl(value);
 	}
 
-	if (page.data.selectedBackend?.kind === 'github' && !isAbsoluteAssetUrl(value)) {
+	if (page.data.selectedBackend?.kind === 'github' && !isAbsoluteAssetUrl(value) && options.assets) {
 		return buildRepoAssetProxyUrl(value, {
-			assetsDir: options.assetsDir,
+			assets: options.assets,
 			repository: page.data.selectedRepo
 				? {
 						owner: page.data.selectedRepo.owner,

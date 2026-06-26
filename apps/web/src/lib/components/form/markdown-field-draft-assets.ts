@@ -52,6 +52,7 @@ export async function stageMarkdownFieldImage(options: {
 	file: File;
 	repoKey: string | null | undefined;
 	storagePath: string;
+	publicPath?: string;
 	draftAssets?: DraftAssetStore;
 }): Promise<{ ref: string }> {
 	const validationError = getDraftImageValidationError(options.file);
@@ -66,7 +67,8 @@ export async function stageMarkdownFieldImage(options: {
 	const activeDraftAssetStore = options.draftAssets ?? draftAssetStore;
 	const result = await activeDraftAssetStore.create(options.file, {
 		repoKey: options.repoKey,
-		storagePath: options.storagePath
+		storagePath: options.storagePath,
+		publicPath: options.publicPath
 	});
 
 	return {

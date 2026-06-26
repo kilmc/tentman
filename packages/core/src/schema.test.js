@@ -53,7 +53,7 @@ test('expands effective fields for a selected config schema', async () => {
 		itemLabel: 'Image'
 	});
 	assert.equal(schema.fields[4]?.fields[2]?.fields[0]?.type, 'image');
-	assert.equal(schema.fields[4]?.fields[2]?.fields[0]?.assetsDir, '../../static/images/gallery');
+	assert.equal(schema.fields[4]?.fields[2]?.fields[0]?.assetsDir, undefined);
 });
 
 test('includes collection metadata in selected config schema', async () => {
@@ -65,7 +65,7 @@ test('includes collection metadata in selected config schema', async () => {
 	assert.equal(schema.config.collection.idField, 'slug');
 	assert.deepEqual(schema.config.collection.groups, []);
 	assert.equal(schema.fields[4]?.type, 'image');
-	assert.equal(schema.fields[4]?.assetsDir, '../../static/images/posts');
+	assert.equal(schema.fields[4]?.assetsDir, undefined);
 	assert.deepEqual(schema.fields[6]?.components, undefined);
 });
 

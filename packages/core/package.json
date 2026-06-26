@@ -35,6 +35,10 @@
 			"types": "./src/index.d.ts",
 			"default": "./src/index.js"
 		},
+		"./assets-config": {
+			"types": "./src/index.d.ts",
+			"default": "./src/assets-config.js"
+		},
 		"./content-components": {
 			"types": "./src/content-components.d.ts",
 			"default": "./src/content-components.js"

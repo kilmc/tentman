@@ -17,12 +17,30 @@ export async function checkTentmanAssets(project) {
 					createDiagnostic(
 						'error',
 						'assets.path-mismatch',
-						`${asset.configLabel} item ${asset.itemLabel} field ${asset.fieldPath} uses ${asset.value}, but expected a path under ${asset.expectedPrefix ?? asset.assetsDir}`,
+						`${asset.configLabel} item ${asset.itemLabel} field ${asset.fieldPath} uses ${asset.value}, but expected a path under ${asset.expectedPrefix}`,
 						{
 							path: asset.contentPath,
 							configPath: asset.configPath,
 							fieldPath: asset.fieldPath,
 							value: asset.value
+						}
+					)
+				);
+				continue;
+			}
+
+			if (asset.resolutionError && asset.matchesExpectedPath !== false) {
+				diagnostics.push(
+					createDiagnostic(
+						'error',
+						'assets.invalid-reference',
+						`${asset.configLabel} item ${asset.itemLabel} field ${asset.fieldPath} uses invalid asset reference ${asset.value}`,
+						{
+							path: asset.contentPath,
+							configPath: asset.configPath,
+							fieldPath: asset.fieldPath,
+							value: asset.value,
+							reason: asset.resolutionError
 						}
 					)
 				);

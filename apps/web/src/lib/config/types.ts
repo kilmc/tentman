@@ -190,7 +190,10 @@ export interface RootConfig {
 	siteName?: string;
 	blocksDir?: string;
 	configsDir?: string;
-	assetsDir?: string;
+	assets?: {
+		path: string;
+		publicPath: string;
+	};
 	componentsDir?: string;
 	blockPackages?: string[];
 	validation?: {

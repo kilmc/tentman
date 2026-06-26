@@ -17,11 +17,10 @@ test('checks current fixture assets conservatively', async () => {
 	assert.deepEqual(diagnostics, []);
 });
 
-test('reports missing asset files, path mismatches, and missing asset directories', async () => {
+test('reports missing asset files and path mismatches', async () => {
 	const projectRoot = await copyFixture();
 	const blogPostPath = path.join(projectRoot, 'src/content/posts/designing-a-realistic-fixture.md');
 	const aboutContentPath = path.join(projectRoot, 'src/routes/about/+page.md');
-	const blockConfigPath = path.join(projectRoot, 'tentman/blocks/image-gallery.tentman.json');
 
 	const blogPost = await fs.readFile(blogPostPath, 'utf8');
 	await fs.writeFile(
@@ -32,19 +31,12 @@ test('reports missing asset files, path mismatches, and missing asset directorie
 	const aboutContent = await fs.readFile(aboutContentPath, 'utf8');
 	await fs.writeFile(
 		aboutContentPath,
-		aboutContent.replace('/images/gallery/paper-stack.svg', '/images/posts/fixture-grid.svg')
+		aboutContent.replace('/images/gallery/paper-stack.svg', '/other/fixture-grid.svg')
 	);
-
-	const blockConfig = JSON.parse(await fs.readFile(blockConfigPath, 'utf8'));
-	blockConfig.blocks[0].assetsDir = '../../static/images/missing-gallery';
-	await fs.writeFile(blockConfigPath, serializeJson(blockConfig));
 
 	const project = await loadTentmanProject(projectRoot);
 	const diagnostics = await checkTentmanAssets(project);
 
-	assert.ok(
-		diagnostics.some((diagnostic) => diagnostic.code === 'assets.missing-directory')
-	);
 	assert.ok(
 		diagnostics.some((diagnostic) => diagnostic.code === 'assets.missing-file')
 	);
@@ -57,12 +49,48 @@ test('reports missing asset files, path mismatches, and missing asset directorie
 	);
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.path-mismatch')?.message ?? '',
-		/field gallery\.items\[0\]\.image uses \/images\/posts\/fixture-grid\.svg, but expected a path under \/images\/missing-gallery/
+		/field gallery\.items\[0\]\.image uses \/other\/fixture-grid\.svg, but expected a path under \/images/
 	);
+});
+
+test('reports missing root asset directory', async () => {
+	const projectRoot = await copyFixture();
+	const rootConfigPath = path.join(projectRoot, 'tentman.json');
+	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
+	rootConfig.assets.path = './static/missing-images';
+	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));
+
+	const project = await loadTentmanProject(projectRoot);
+	const diagnostics = await checkTentmanAssets(project);
+
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.missing-directory')?.message ?? '',
-		/missing assets directory: static\/images\/missing-gallery/
+		/Configured assets directory does not exist: static\/missing-images\//
 	);
+});
+
+test('warns for legacy assetsDir without using it for checks', async () => {
+	const projectRoot = await copyFixture();
+	const rootConfigPath = path.join(projectRoot, 'tentman.json');
+	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
+
+	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
+	rootConfig.assetsDir = './static/missing-images';
+	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));
+
+	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
+	blogConfig.blocks[4].assetsDir = '../../static/images/missing-posts';
+	await fs.writeFile(blogConfigPath, serializeJson(blogConfig));
+
+	const project = await loadTentmanProject(projectRoot);
+	const diagnostics = await checkTentmanAssets(project);
+
+	assert.equal(
+		diagnostics.filter((diagnostic) => diagnostic.code === 'assets.legacy-assets-dir').length,
+		2
+	);
+	assert.ok(!diagnostics.some((diagnostic) => diagnostic.message.includes('missing-posts')));
+	assert.ok(!diagnostics.some((diagnostic) => diagnostic.message.includes('missing-images')));
 });
 
 test('includes assets check in tentman ci aggregation', async () => {

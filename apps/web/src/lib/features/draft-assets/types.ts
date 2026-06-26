@@ -38,6 +38,7 @@ export interface DraftAssetSubmissionEntry {
 export interface DraftAssetCreateOptions {
 	repoKey: string;
 	storagePath?: string;
+	publicPath?: string;
 }
 
 export interface DraftAssetStore {

@@ -9,6 +9,10 @@ import { resolveConfigRelativePath, resolveProjectPath } from './paths.js';
 import { NAVIGATION_MANIFEST_PATH } from './manifest.js';
 import { ROOT_CONFIG_PATH } from './project.js';
 import {
+	LEGACY_ASSETS_DIR_WARNING,
+	getRootAssetsConfigDiagnostics
+} from './assets-config.js';
+import {
 	getConfigByReference,
 	getGroupReferences,
 	getItemByReference
@@ -521,56 +525,20 @@ export async function checkContentComponentReferenceBindings(project) {
 
 export async function checkAssetDirectories(project) {
 	const diagnostics = [];
-
-	async function checkAssetDir(ownerPath, ownerLabel, block) {
-		if (
-			!block ||
-			typeof block !== 'object' ||
-			Array.isArray(block) ||
-			typeof block.assetsDir !== 'string' ||
-			block.assetsDir.length === 0
-		) {
-			return;
-		}
-
-		const assetPath = resolveConfigRelativePath(project.rootDir, ownerPath, block.assetsDir);
-
-		if (!(await absolutePathExists(assetPath))) {
-			diagnostics.push(
-				createDiagnostic(
-					'error',
-					'assets.missing-directory',
-					`${ownerLabel} references missing assets directory: ${path.relative(project.rootDir, assetPath)}`,
-					{ path: ownerPath, blockId: block.id, blockType: block.type }
-				)
-			);
-		}
-	}
-
-	if (project.rootConfig.assetsDir) {
-		const rootAssetsPath = resolveProjectPath(project.rootDir, project.rootConfig.assetsDir);
-
-		if (!(await absolutePathExists(rootAssetsPath))) {
-			diagnostics.push(
-				createDiagnostic(
-					'error',
-					'assets.missing-root-directory',
-					`Configured assets directory does not exist: ${project.rootConfig.assetsDir}`,
-					{ path: ROOT_CONFIG_PATH }
-				)
-			);
-		}
-	}
+	diagnostics.push(...getRootAssetsConfigDiagnostics(project.rootConfig.raw));
 
 	for (const config of project.configs) {
-		const blocks = [];
 		walkBlocks(config.raw.blocks, (block) => {
-			blocks.push(block);
+			if (typeof block.assetsDir === 'string') {
+				diagnostics.push(
+					createDiagnostic('warning', 'assets.legacy-assets-dir', LEGACY_ASSETS_DIR_WARNING, {
+						path: config.path,
+						blockId: block.id,
+						blockType: block.type
+					})
+				);
+			}
 		});
-
-		for (const block of blocks) {
-			await checkAssetDir(config.path, `${config.label} config`, block);
-		}
 	}
 
 	for (const block of project.blocks) {
@@ -578,13 +546,31 @@ export async function checkAssetDirectories(project) {
 			continue;
 		}
 
-		const nestedBlocks = [];
 		walkBlocks(block.raw.blocks, (nestedBlock) => {
-			nestedBlocks.push(nestedBlock);
+			if (typeof nestedBlock.assetsDir === 'string') {
+				diagnostics.push(
+					createDiagnostic('warning', 'assets.legacy-assets-dir', LEGACY_ASSETS_DIR_WARNING, {
+						path: block.path,
+						blockId: nestedBlock.id,
+						blockType: nestedBlock.type
+					})
+				);
+			}
 		});
+	}
 
-		for (const nestedBlock of nestedBlocks) {
-			await checkAssetDir(block.path, `${block.label} block`, nestedBlock);
+	if (project.rootConfig.assets) {
+		const rootAssetsPath = resolveProjectPath(project.rootDir, project.rootConfig.assets.path);
+
+		if (!(await absolutePathExists(rootAssetsPath))) {
+			diagnostics.push(
+				createDiagnostic(
+					'error',
+					'assets.missing-directory',
+					`Configured assets directory does not exist: ${project.rootConfig.assets.path}`,
+					{ path: ROOT_CONFIG_PATH }
+				)
+			);
 		}
 	}
 

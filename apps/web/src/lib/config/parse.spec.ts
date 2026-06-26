@@ -764,7 +764,10 @@ describe('parseRootConfig', () => {
 			"siteName": "Field Notes",
 			"blocksDir": "./tentman/blocks",
 			"configsDir": "./tentman/configs",
-			"assetsDir": "./static/images",
+			"assets": {
+				"path": "./static/images",
+				"publicPath": "/images"
+			},
 			"componentsDir": "./src/lib/components/content",
 			"blockPackages": ["@tentman/blocks-media", "@acme/tentman-blocks"],
 			"debug": {
@@ -776,7 +779,10 @@ describe('parseRootConfig', () => {
 			siteName: 'Field Notes',
 			blocksDir: './tentman/blocks',
 			configsDir: './tentman/configs',
-			assetsDir: './static/images',
+			assets: {
+				path: 'static/images/',
+				publicPath: '/images'
+			},
 			componentsDir: './src/lib/components/content',
 			blockPackages: ['@tentman/blocks-media', '@acme/tentman-blocks'],
 			debug: {

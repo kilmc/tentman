@@ -9,9 +9,18 @@ export interface TentmanDiagnostic {
 
 export interface TentmanProject {
 	rootDir: string;
+	rootConfig: {
+		assets?: RootAssetConfig;
+		raw?: Record<string, unknown>;
+	};
 	componentsDir: string;
 	configs: Array<Record<string, unknown>>;
 	contentByConfigPath: Map<string, Record<string, unknown>>;
+}
+
+export interface RootAssetConfig {
+	path: string;
+	publicPath: string;
 }
 
 export interface NavigationManifest {
@@ -60,6 +69,16 @@ export function writeTentmanFormat(project: TentmanProject): Promise<Array<Recor
 export function summarizeFormatCheck(rewrites: Array<Record<string, unknown>>): Record<string, number>;
 export function runTentmanCi(project: TentmanProject): Promise<Record<string, unknown>>;
 export function checkTentmanAssets(project: TentmanProject): Promise<TentmanDiagnostic[]>;
+export const LEGACY_ASSETS_DIR_WARNING: string;
+export function parseRootAssetsConfig(input: unknown, context?: Record<string, unknown>): RootAssetConfig;
+export function getRootAssetsConfigDiagnostics(rawRootConfig: unknown): TentmanDiagnostic[];
+export function resolveManagedAssetValue(
+	value: string,
+	assets?: RootAssetConfig
+): Record<string, unknown>;
+export function buildManagedAssetPublicPath(filename: string, assets: RootAssetConfig): string | null;
+export function buildManagedAssetRepoPath(value: string, assets: RootAssetConfig): string | null;
+export function isIgnoredAssetValue(value: unknown): boolean;
 export function listTentmanAssets(
 	project: TentmanProject,
 	selector?: string
@@ -122,4 +141,3 @@ export function summarizeNavigationRefreshChanges(result: Record<string, unknown
 export function rebuildNavigationManifest(project: TentmanProject): Promise<Record<string, unknown>>;
 export function writeMissingTentmanIds(project: TentmanProject): Promise<Record<string, unknown>>;
 export function summarizeIdWriteChanges(result: Record<string, unknown>): Record<string, number>;
-

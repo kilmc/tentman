@@ -772,7 +772,7 @@
 						bind:this={formGenerator}
 						{config}
 						configPath={discoveredConfig?.path}
-						defaultAssetStoragePath={$localContent.rootConfig?.assetsDir}
+						defaultAssetStoragePath={$localContent.rootConfig?.assets?.path}
 						{blockConfigs}
 						{blockRegistry}
 						initialData={item}
@@ -862,7 +862,7 @@
 						bind:this={formGenerator}
 						{config}
 						configPath={discoveredConfig?.path}
-						defaultAssetStoragePath={data.rootConfig?.assetsDir}
+						defaultAssetStoragePath={data.rootConfig?.assets?.path}
 						{blockConfigs}
 						blockRegistry={githubBlockRegistry}
 						initialData={item}

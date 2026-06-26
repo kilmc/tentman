@@ -5,7 +5,6 @@ import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/servic
 import { isDraftAssetRef } from '$lib/features/draft-assets/shared';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { getAssetContentType, resolveGitHubAssetPath } from '$lib/server/repo-asset-proxy';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { isAbsoluteAssetUrl } from '$lib/utils/assets';
 
 type AssetRepositoryContext = {
@@ -105,21 +104,20 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 	try {
 		const assetsDir = url.searchParams.get('assetsDir');
-		const rootConfig = assetsDir
-			? null
-			: await createGitHubRepositoryBackend(octokit, {
-					owner: repository.owner,
-					name: repository.name,
-					full_name: repository.fullName,
-					default_branch: repository.defaultBranch
-				}).readRootConfig();
-		const allowedAssetDirs = [
-			...(assetsDir ? [assetsDir] : []),
-			...(rootConfig?.assetsDir ? [rootConfig.assetsDir] : [])
-		];
+		if (assetsDir) {
+			throw error(400, 'Legacy asset mapping is not supported');
+		}
+
+		const configuredAssetPath = url.searchParams.get('assetPath')?.trim();
+		const publicPath = url.searchParams.get('publicPath')?.trim();
+		if (!configuredAssetPath || !publicPath) {
+			throw error(400, 'Missing asset mapping');
+		}
+
 		const assetPath = resolveGitHubAssetPath({
 			value,
-			assetsDirs: allowedAssetDirs
+			assetPath: configuredAssetPath,
+			publicPath
 		});
 
 		if (!assetPath) {

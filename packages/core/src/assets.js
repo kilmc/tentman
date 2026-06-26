@@ -7,7 +7,12 @@ import {
 	getPrimaryConfigReference,
 	getPrimaryItemReference
 } from './references.js';
-import { resolveConfigRelativePath, resolveProjectPath, toPosixPath } from './paths.js';
+import { resolveProjectPath, toPosixPath } from './paths.js';
+import { resolveManagedAssetValue } from './assets-config.js';
+
+const MARKDOWN_IMAGE_PATTERN =
+	/!\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/g;
+const MARKDOWN_IMG_SRC_PATTERN = /<img\b[^>]*?\bsrc\s*=\s*(["'])(.*?)\1[^>]*?>/gi;
 
 async function absolutePathExists(absolutePath) {
 	try {
@@ -40,54 +45,6 @@ function getFieldValue(record, key) {
 	return record[key];
 }
 
-export function getPublicAssetMapping(rootDir, ownerPath, assetsDir) {
-	if (typeof assetsDir !== 'string' || assetsDir.length === 0) {
-		return null;
-	}
-
-	const assetDirPath = resolveConfigRelativePath(rootDir, ownerPath, assetsDir);
-
-	for (const publicDir of ['static', 'public']) {
-		const publicRoot = resolveProjectPath(rootDir, publicDir);
-		const relativePath = path.relative(publicRoot, assetDirPath);
-
-		if (
-			relativePath === '' ||
-			(relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`))
-		) {
-			const publicPrefix = relativePath.length === 0 ? '/' : `/${toPosixPath(relativePath)}`;
-			return { assetDirPath, publicPrefix, publicRoot };
-		}
-	}
-
-	return { assetDirPath, publicPrefix: null, publicRoot: null };
-}
-
-export function resolvePublicAssetPath(mapping, value) {
-	if (!mapping || !mapping.publicPrefix || !mapping.publicRoot || typeof value !== 'string') {
-		return null;
-	}
-
-	if (!value.startsWith('/')) {
-		return { matchesPrefix: false };
-	}
-
-	const normalizedPrefix = mapping.publicPrefix === '/' ? '/' : `${mapping.publicPrefix}/`;
-	const matchesPrefix =
-		mapping.publicPrefix === '/'
-			? true
-			: value === mapping.publicPrefix || value.startsWith(normalizedPrefix);
-
-	if (!matchesPrefix) {
-		return { matchesPrefix: false };
-	}
-
-	return {
-		matchesPrefix: true,
-		absolutePath: path.resolve(mapping.publicRoot, `.${value}`)
-	};
-}
-
 function getConfigKind(config) {
 	return config.collection === true || typeof config.collection === 'object' ? 'collection' : 'singleton';
 }
@@ -101,6 +58,84 @@ function getItemLabel(item, index) {
 		item.filename ??
 		`item-${index + 1}`
 	);
+}
+
+function collectMarkdownAssetValues(value) {
+	if (typeof value !== 'string' || value.length === 0) {
+		return [];
+	}
+
+	return [
+		...[...value.matchAll(MARKDOWN_IMAGE_PATTERN)].map((match) => match[1] ?? match[2]),
+		...[...value.matchAll(MARKDOWN_IMG_SRC_PATTERN)].map((match) => match[2])
+	].filter((assetValue) => typeof assetValue === 'string' && assetValue.length > 0);
+}
+
+function summarizeConfig(config, content, assetCount) {
+	return {
+		label: config.label,
+		kind: getConfigKind(config),
+		path: config.path,
+		contentMode: config.content.mode,
+		contentPath: content?.path ?? config.content.path,
+		contentExists: content?.exists ?? false,
+		reference: getPrimaryConfigReference(config) ?? null,
+		references: getConfigReferences(config),
+		itemCount: content?.items?.length ?? 0,
+		assetCount
+	};
+}
+
+function createAssetEntry(project, config, content, context, fieldPath, value) {
+	const resolved = resolveManagedAssetValue(value, project.rootConfig.assets);
+
+	if (resolved.ignored) {
+		return null;
+	}
+
+	const asset = {
+		fieldPath,
+		value,
+		expectedPrefix: project.rootConfig.assets?.publicPath ?? null,
+		matchesExpectedPath: resolved.valid ? true : resolved.reason === 'public-path-mismatch' ? false : null,
+		resolutionError: resolved.valid ? null : resolved.reason,
+		exists: null,
+		projectPath: resolved.valid ? resolved.repoPath : null
+	};
+
+	return {
+		asset,
+		assetEntry: {
+			configPath: config.path,
+			configLabel: config.label,
+			contentPath: content?.path ?? config.content.path,
+			itemPath: context.itemPath,
+			itemLabel: context.itemLabel,
+			itemReference: context.itemReference,
+			itemReferences: context.itemReferences,
+			...asset
+		}
+	};
+}
+
+function addAssetEntry(project, created, context, pendingExistsChecks, assets) {
+	if (!created) {
+		return;
+	}
+
+	const { asset, assetEntry } = created;
+
+	if (asset.projectPath) {
+		pendingExistsChecks.push(
+			absolutePathExists(resolveProjectPath(project.rootDir, asset.projectPath)).then((exists) => {
+				asset.exists = exists;
+				assetEntry.exists = exists;
+			})
+		);
+	}
+
+	context.assets.push(asset);
+	assets.push(assetEntry);
 }
 
 export async function collectTentmanConfigAssets(project, config) {
@@ -123,55 +158,41 @@ export async function collectTentmanConfigAssets(project, config) {
 			const fieldPath = context.fieldPath ? `${context.fieldPath}.${block.id}` : block.id;
 			const value = getFieldValue(itemValue, block.id);
 
-			if (block.type === 'image') {
-				if (typeof value !== 'string' || value.length === 0 || typeof block.assetsDir !== 'string' || block.assetsDir.length === 0) {
-					continue;
-				}
+			if (block.type === 'image' && typeof value === 'string' && value.length > 0) {
+				addAssetEntry(
+					project,
+					createAssetEntry(project, config, content, context, fieldPath, value),
+					context,
+					pendingExistsChecks,
+					assets
+				);
+				continue;
+			}
 
-				const mapping = getPublicAssetMapping(project.rootDir, context.ownerPath, block.assetsDir);
-				const resolved = mapping ? resolvePublicAssetPath(mapping, value) : null;
-				const asset = {
-					fieldPath,
-					value,
-					assetsDir: block.assetsDir,
-					expectedPrefix: mapping?.publicPrefix ?? null,
-					matchesExpectedPath: resolved?.matchesPrefix ?? null,
-					exists: null,
-					projectPath: null
-				};
-
-				const assetEntry = {
-					configPath: config.path,
-					configLabel: config.label,
-					contentPath: content?.path ?? config.content.path,
-					itemPath: context.itemPath,
-					itemLabel: context.itemLabel,
-					itemReference: context.itemReference,
-					itemReferences: context.itemReferences,
-					...asset
-				};
-
-				if (resolved?.matchesPrefix && resolved.absolutePath) {
-					asset.projectPath = toPosixPath(path.relative(project.rootDir, resolved.absolutePath));
-					assetEntry.projectPath = asset.projectPath;
-					pendingExistsChecks.push(
-						absolutePathExists(resolved.absolutePath).then((exists) => {
-							asset.exists = exists;
-							assetEntry.exists = exists;
-						})
+			if (block.type === 'markdown') {
+				for (const [assetIndex, assetValue] of collectMarkdownAssetValues(value).entries()) {
+					addAssetEntry(
+						project,
+						createAssetEntry(
+							project,
+							config,
+							content,
+							context,
+							`${fieldPath}.markdownImages[${assetIndex}]`,
+							assetValue
+						),
+						context,
+						pendingExistsChecks,
+						assets
 					);
 				}
-
-				context.assets.push(asset);
-				assets.push(assetEntry);
 				continue;
 			}
 
 			if (block.type === 'block') {
 				const nestedContext = {
 					...context,
-					fieldPath,
-					ownerPath: context.ownerPath
+					fieldPath
 				};
 
 				if (block.collection === true) {
@@ -195,8 +216,7 @@ export async function collectTentmanConfigAssets(project, config) {
 
 			const nestedContext = {
 				...context,
-				fieldPath,
-				ownerPath: reusableBlock.path
+				fieldPath
 			};
 
 			if (reusableBlock.raw.collection === true) {
@@ -217,7 +237,6 @@ export async function collectTentmanConfigAssets(project, config) {
 		const itemAssets = [];
 		walkFieldBlocks(config.raw.blocks, item, {
 			assets: itemAssets,
-			ownerPath: config.path,
 			fieldPath: '',
 			itemLabel: getItemLabel(item, index),
 			itemReference: getPrimaryItemReference(item) ?? null,
@@ -238,18 +257,7 @@ export async function collectTentmanConfigAssets(project, config) {
 	await Promise.all(pendingExistsChecks);
 
 	return {
-		config: {
-			label: config.label,
-			kind: getConfigKind(config),
-			path: config.path,
-			contentMode: config.content.mode,
-			contentPath: content?.path ?? config.content.path,
-			contentExists: content?.exists ?? false,
-			reference: getPrimaryConfigReference(config) ?? null,
-			references: getConfigReferences(config),
-			itemCount: content?.items?.length ?? 0,
-			assetCount: assets.length
-		},
+		config: summarizeConfig(config, content, assets.length),
 		items,
 		assets
 	};
@@ -277,57 +285,14 @@ async function walkDirectoryFiles(rootDir, currentDir) {
 	return files;
 }
 
-function collectTentmanConfigAssetDirectories(project, config, blockDefinitions) {
-	const directories = new Map();
-
-	function visitBlocks(blocks, ownerPath) {
-		if (!Array.isArray(blocks)) {
-			return;
-		}
-
-		for (const block of blocks) {
-			if (!block || typeof block !== 'object' || Array.isArray(block)) {
-				continue;
-			}
-
-			if (block.type === 'image' && typeof block.assetsDir === 'string' && block.assetsDir.length > 0) {
-				const mapping = getPublicAssetMapping(project.rootDir, ownerPath, block.assetsDir);
-
-				if (mapping) {
-					const directoryPath = toPosixPath(path.relative(project.rootDir, mapping.assetDirPath));
-
-					if (!directories.has(directoryPath)) {
-						directories.set(directoryPath, {
-							path: directoryPath,
-							assetsDir: block.assetsDir,
-							expectedPrefix: mapping.publicPrefix,
-							publicRoot: mapping.publicRoot ? toPosixPath(path.relative(project.rootDir, mapping.publicRoot)) : null
-						});
-					}
-				}
-			}
-
-			if (block.type === 'block') {
-				visitBlocks(block.blocks, ownerPath);
-				continue;
-			}
-
-			const reusableBlock = blockDefinitions.get(block.type);
-			if (!reusableBlock || reusableBlock.error) {
-				continue;
-			}
-
-			visitBlocks(reusableBlock.raw.blocks, reusableBlock.path);
-		}
-	}
-
-	visitBlocks(config.raw.blocks, config.path);
-
-	return [...directories.values()];
+function getRootAssetsDirectory(assets) {
+	return {
+		path: assets.path.replace(/\/+$/, ''),
+		expectedPrefix: assets.publicPath
+	};
 }
 
 export async function findUnusedTentmanAssets(project, configReference) {
-	const blockDefinitions = getBlockDefinitions(project);
 	const allConfigAssets = new Map();
 
 	for (const config of project.configs) {
@@ -341,6 +306,31 @@ export async function findUnusedTentmanAssets(project, configReference) {
 			.map((asset) => asset.projectPath)
 	);
 
+	const rootAssets = project.rootConfig.assets;
+
+	if (!rootAssets) {
+		if (!configReference) {
+			return [];
+		}
+
+		const config = getConfigByReference(project).get(configReference);
+
+		if (!config) {
+			throw new Error(`Unknown content config reference: ${configReference}`);
+		}
+
+		return {
+			config: summarizeConfig(config, project.contentByConfigPath.get(config.path), 0),
+			directories: [],
+			unusedFiles: []
+		};
+	}
+
+	const directory = getRootAssetsDirectory(rootAssets);
+	const absolutePath = resolveProjectPath(project.rootDir, rootAssets.path);
+	const allFiles = await walkDirectoryFiles(project.rootDir, absolutePath);
+	const unusedFilePaths = allFiles.filter((file) => !referencedProjectPaths.has(file));
+
 	if (configReference) {
 		const config = getConfigByReference(project).get(configReference);
 
@@ -348,93 +338,39 @@ export async function findUnusedTentmanAssets(project, configReference) {
 			throw new Error(`Unknown content config reference: ${configReference}`);
 		}
 
-		const detail = allConfigAssets.get(config.path);
-		const directories = [];
-		const unusedFiles = [];
-
-		for (const directory of collectTentmanConfigAssetDirectories(project, config, blockDefinitions)) {
-			const absolutePath = resolveProjectPath(project.rootDir, directory.path);
-			const allFiles = await walkDirectoryFiles(project.rootDir, absolutePath);
-			const directoryUnusedFiles = allFiles.filter((file) => !referencedProjectPaths.has(file));
-
-			directories.push({
-				...directory,
-				fileCount: allFiles.length,
-				unusedCount: directoryUnusedFiles.length,
-				unusedFiles: directoryUnusedFiles
-			});
-
-			for (const file of directoryUnusedFiles) {
-				unusedFiles.push({
-					path: file,
-					directoryPath: directory.path,
-					expectedPrefix: directory.expectedPrefix
-				});
-			}
-		}
+		const unusedFiles = unusedFilePaths.map((file) => ({
+			path: file,
+			directoryPath: directory.path,
+			expectedPrefix: directory.expectedPrefix
+		}));
 
 		return {
-			config: detail?.config ?? {
-				label: config.label,
-				kind: getConfigKind(config),
-				path: config.path,
-				contentMode: config.content.mode,
-				contentPath: config.content.path,
-				contentExists: false,
-				reference: getPrimaryConfigReference(config) ?? null,
-				references: getConfigReferences(config),
-				itemCount: 0,
-				assetCount: 0
-			},
-			directories,
+			config: allConfigAssets.get(config.path)?.config ?? summarizeConfig(config, null, 0),
+			directories: [
+				{
+					...directory,
+					fileCount: allFiles.length,
+					unusedCount: unusedFilePaths.length,
+					unusedFiles: unusedFilePaths
+				}
+			],
 			unusedFiles
 		};
 	}
 
-	const directories = new Map();
-
-	for (const config of project.configs) {
-		for (const directory of collectTentmanConfigAssetDirectories(project, config, blockDefinitions)) {
-			const existing = directories.get(directory.path);
-
-			if (existing) {
-				existing.configs.push({
-					label: config.label,
-					reference: getPrimaryConfigReference(config) ?? null,
-					path: config.path
-				});
-				continue;
-			}
-
-			directories.set(directory.path, {
-				...directory,
-				configs: [
-					{
-						label: config.label,
-						reference: getPrimaryConfigReference(config) ?? null,
-						path: config.path
-					}
-				]
-			});
-		}
-	}
-
-	const summaries = [];
-
-	for (const directory of [...directories.values()].sort((a, b) => a.path.localeCompare(b.path))) {
-		const absolutePath = resolveProjectPath(project.rootDir, directory.path);
-		const allFiles = await walkDirectoryFiles(project.rootDir, absolutePath);
-		const unusedFiles = allFiles.filter((file) => !referencedProjectPaths.has(file));
-
-		summaries.push({
+	return [
+		{
 			...directory,
+			configs: project.configs.map((config) => ({
+				label: config.label,
+				reference: getPrimaryConfigReference(config) ?? null,
+				path: config.path
+			})),
 			fileCount: allFiles.length,
-			unusedCount: unusedFiles.length,
-			unusedFiles
-		});
-	}
-
-	return summaries;
+			unusedCount: unusedFilePaths.length,
+			unusedFiles: unusedFilePaths
+		}
+	];
 }
 
 export async function listTentmanAssets(project, configReference) {

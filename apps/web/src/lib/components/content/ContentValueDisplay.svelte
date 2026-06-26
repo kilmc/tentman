@@ -151,7 +151,7 @@
 				nextMarkdown = componentMarkup.markdown;
 				errors.push(...componentMarkup.errors);
 				nextMarkdown = await resolveMarkdownAssetUrls(nextMarkdown, {
-					assetsDir: block.assetsDir,
+					assets: get(localContent).rootConfig?.assets ?? page.data.rootConfig?.assets,
 					previewBaseUrl: getPreviewBaseUrl()
 				});
 

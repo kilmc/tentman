@@ -20,7 +20,10 @@ export async function materializeDraftAssetsFromFormData(input: {
 	configPath: string;
 	blocks: BlockUsage[];
 	backend: RepositoryBackend;
-	defaultStoragePath?: string;
+	assets?: {
+		path: string;
+		publicPath: string;
+	};
 	writeOptions?: RepositoryWriteOptions;
 }): Promise<DraftAssetMaterializationResult> {
 	const refs = collectDraftAssetRefsFromContent(input.content);
@@ -38,7 +41,7 @@ export async function materializeDraftAssetsFromFormData(input: {
 		content: input.content,
 		blocks: input.blocks,
 		configPath: input.configPath,
-		defaultStoragePath: input.defaultStoragePath
+		defaultStoragePath: input.assets?.path
 	});
 	const replacements = new Map<string, string>();
 	const usedEntries = [];
@@ -59,6 +62,15 @@ export async function materializeDraftAssetsFromFormData(input: {
 		if (!allowedStoragePaths.has(entry.storagePath)) {
 			throw new Error(`Draft asset storage path is not allowed for ${ref}`);
 		}
+		if (!input.assets || entry.storagePath !== input.assets.path) {
+			throw new Error(`Draft asset storage path is stale for ${ref}`);
+		}
+		if (
+			entry.publicPath !== input.assets.publicPath &&
+			!entry.publicPath.startsWith(`${input.assets.publicPath.replace(/\/+$/, '')}/`)
+		) {
+			throw new Error(`Draft asset public path is stale for ${ref}`);
+		}
 
 		const filePart = input.formData.get(getDraftAssetFileFieldName(entry.id));
 		if (!(filePart instanceof File)) {
@@ -68,6 +80,7 @@ export async function materializeDraftAssetsFromFormData(input: {
 		const assetPaths = buildDraftAssetPaths({
 			id: entry.id,
 			storagePath: entry.storagePath,
+			publicPath: input.assets.publicPath,
 			originalName: filePart.name,
 			mimeType: filePart.type
 		});

@@ -43,10 +43,10 @@ describe('draft-assets/image-resolver', () => {
 	it('resolves normal static asset values without using the draft store', async () => {
 		await expect(
 			resolveClientAssetUrl('hero.png', {
-				assetsDir: './static/images'
+				assets: { path: 'static/images/', publicPath: '/images' }
 			})
 		).resolves.toBe(
-			'/api/repo/asset?value=hero.png&assetsDir=.%2Fstatic%2Fimages&owner=acme&repo=docs&branch=main'
+			'/api/repo/asset?value=hero.png&assetPath=static%2Fimages%2F&publicPath=%2Fimages&owner=acme&repo=docs&branch=main'
 		);
 		expect(resolveUrl).not.toHaveBeenCalled();
 	});
@@ -54,10 +54,11 @@ describe('draft-assets/image-resolver', () => {
 	it('routes GitHub-backed public asset paths through the repo proxy', async () => {
 		await expect(
 			resolveClientAssetUrl('/images/projects/hero.jpg', {
+				assets: { path: 'static/images/', publicPath: '/images' },
 				previewBaseUrl: 'http://localhost:4173/'
 			})
 		).resolves.toBe(
-			'/api/repo/asset?value=%2Fimages%2Fprojects%2Fhero.jpg&owner=acme&repo=docs&branch=main'
+			'/api/repo/asset?value=%2Fimages%2Fprojects%2Fhero.jpg&assetPath=static%2Fimages%2F&publicPath=%2Fimages&owner=acme&repo=docs&branch=main'
 		);
 		expect(resolveUrl).not.toHaveBeenCalled();
 	});
@@ -67,10 +68,10 @@ describe('draft-assets/image-resolver', () => {
 
 		await expect(
 			resolveMarkdownAssetUrls('![Hero](hero.jpg)\n\n<img src="draft-asset:hero" alt="Hero">', {
-				assetsDir: 'static/images/posts'
+				assets: { path: 'static/images/posts/', publicPath: '/images/posts' }
 			})
 		).resolves.toBe(
-			'![Hero](/api/repo/asset?value=hero.jpg&assetsDir=static%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)\n\n<img src="blob:draft-hero" alt="Hero">'
+			'![Hero](/api/repo/asset?value=hero.jpg&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)\n\n<img src="blob:draft-hero" alt="Hero">'
 		);
 		expect(resolveUrl).toHaveBeenCalledWith('draft-asset:hero');
 	});

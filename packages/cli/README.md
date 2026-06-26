@@ -49,4 +49,17 @@ Read-only checks print diagnostics and return non-zero exit codes when errors ar
 
 Tentman expects to manage a real Git repository. The repository root should contain `tentman.json`, with optional content configs under `tentman/configs`, reusable blocks under `tentman/blocks`, and a navigation manifest at `tentman/navigation-manifest.json`.
 
+Managed uploads use root asset mapping:
+
+```json
+{
+  "assets": {
+    "path": "./static/images",
+    "publicPath": "/images"
+  }
+}
+```
+
+Tentman writes files to `assets.path` and writes content references under `assets.publicPath`; your site is responsible for serving that public path.
+
 For lower-level programmatic APIs, see `@tentman/core`, but most projects should start with this CLI.

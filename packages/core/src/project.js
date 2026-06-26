@@ -5,6 +5,7 @@ import {
 	readOptionalString,
 	readRequiredString
 } from './json.js';
+import { parseRootAssetsConfig } from './assets-config.js';
 import { isMarkdownContentPath, parseMarkdownContentRecord } from './content-files.js';
 import {
 	getPathRelativeToRoot,
@@ -72,12 +73,21 @@ async function walkDirectory(rootDir, currentDir) {
 
 export function parseRootConfig(source) {
 	const input = parseJsonObject(source, ROOT_CONFIG_PATH);
+	let assets;
+
+	if (input.assets && typeof input.assets === 'object' && !Array.isArray(input.assets)) {
+		try {
+			assets = parseRootAssetsConfig(input.assets, { path: ROOT_CONFIG_PATH });
+		} catch {
+			assets = undefined;
+		}
+	}
 
 	return {
 		siteName: readOptionalString(input, 'siteName', ROOT_CONFIG_PATH),
 		blocksDir: readOptionalString(input, 'blocksDir', ROOT_CONFIG_PATH),
 		configsDir: readOptionalString(input, 'configsDir', ROOT_CONFIG_PATH),
-		assetsDir: readOptionalString(input, 'assetsDir', ROOT_CONFIG_PATH),
+		assets,
 		componentsDir: readOptionalString(input, 'componentsDir', ROOT_CONFIG_PATH),
 		content:
 			input.content && typeof input.content === 'object' && !Array.isArray(input.content)

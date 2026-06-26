@@ -5,10 +5,6 @@ vi.mock('$lib/server/auth/github', () => ({
 	handleGitHubSessionError: vi.fn()
 }));
 
-vi.mock('$lib/repository/github', () => ({
-	createGitHubRepositoryBackend: vi.fn()
-}));
-
 vi.mock('$lib/features/draft-publishing/service', () => ({
 	getTentmanDraftBranchName: vi.fn()
 }));
@@ -16,13 +12,14 @@ vi.mock('$lib/features/draft-publishing/service', () => ({
 import { GET } from './+server';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { createGitHubServerClient } from '$lib/server/auth/github';
-import { createGitHubRepositoryBackend } from '$lib/repository/github';
 
 const routeMocks = vi.hoisted(() => ({
-	readRootConfig: vi.fn(),
 	getContent: vi.fn(),
 	getBlob: vi.fn()
 }));
+
+const DEFAULT_ASSET_QUERY = 'assetPath=static%2Fimages%2F&publicPath=%2Fimages';
+const POSTS_ASSET_QUERY = 'assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts';
 
 function createRequest(
 	search = '',
@@ -52,9 +49,6 @@ function createRequest(
 describe('GET /api/repo/asset', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		routeMocks.readRootConfig.mockResolvedValue({
-			assetsDir: 'static/images'
-		});
 		routeMocks.getContent.mockResolvedValue({
 			data: {
 				type: 'file',
@@ -80,9 +74,6 @@ describe('GET /api/repo/asset', () => {
 			}
 		};
 		vi.mocked(createGitHubServerClient).mockReturnValue(octokit as never);
-		vi.mocked(createGitHubRepositoryBackend).mockReturnValue({
-			readRootConfig: routeMocks.readRootConfig
-		} as never);
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue(undefined);
 	});
 
@@ -90,7 +81,7 @@ describe('GET /api/repo/asset', () => {
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
 
 		const response = await GET(
-			createRequest('?value=hero.jpg&assetsDir=static/images/posts') as never
+			createRequest(`?value=hero.jpg&${POSTS_ASSET_QUERY}`) as never
 		);
 
 		expect(routeMocks.getContent).toHaveBeenCalledWith({
@@ -113,7 +104,7 @@ describe('GET /api/repo/asset', () => {
 		});
 
 		const response = await GET(
-			createRequest('?value=hero.jpg&assetsDir=static/images/posts') as never
+			createRequest(`?value=hero.jpg&${POSTS_ASSET_QUERY}`) as never
 		);
 
 		expect(routeMocks.getContent).toHaveBeenNthCalledWith(1, {
@@ -133,7 +124,7 @@ describe('GET /api/repo/asset', () => {
 
 	it('maps public asset paths back into the repo asset directory', async () => {
 		await GET(
-			createRequest('?value=%2Fimages%2Fposts%2Fhero.jpg&assetsDir=static/images/posts') as never
+			createRequest(`?value=%2Fimages%2Fposts%2Fhero.jpg&${POSTS_ASSET_QUERY}`) as never
 		);
 
 		expect(routeMocks.getContent).toHaveBeenCalledWith({
@@ -147,7 +138,7 @@ describe('GET /api/repo/asset', () => {
 	it('maps public asset paths with trailing asset directories back into the repo asset directory', async () => {
 		await GET(
 			createRequest(
-				'?value=%2Fimages%2Fberlin-illustrated-map-theresa-grieben-a7340abb.png&assetsDir=static%2Fimages%2F'
+				`?value=%2Fimages%2Fberlin-illustrated-map-theresa-grieben-a7340abb.png&${DEFAULT_ASSET_QUERY}`
 			) as never
 		);
 
@@ -162,7 +153,7 @@ describe('GET /api/repo/asset', () => {
 	it('serves assets from explicit repository context instead of the selected repository', async () => {
 		await GET(
 			createRequest(
-				'?owner=other&repo=site&branch=trunk&value=hero.jpg&assetsDir=static/images'
+				`?owner=other&repo=site&branch=trunk&value=hero.jpg&${DEFAULT_ASSET_QUERY}`
 			) as never
 		);
 
@@ -179,7 +170,7 @@ describe('GET /api/repo/asset', () => {
 		await expect(
 			GET(
 				createRequest(
-					'?owner=other&repo=site&branch=trunk&value=hero.jpg&assetsDir=static/images',
+					`?owner=other&repo=site&branch=trunk&value=hero.jpg&${DEFAULT_ASSET_QUERY}`,
 					{
 						locals: {
 							isAuthenticated: false,
@@ -200,7 +191,7 @@ describe('GET /api/repo/asset', () => {
 
 	it('rejects explicit repository context without a branch when it cannot use the selected repo branch', async () => {
 		await expect(
-			GET(createRequest('?owner=other&repo=site&value=hero.jpg&assetsDir=static/images') as never)
+			GET(createRequest(`?owner=other&repo=site&value=hero.jpg&${DEFAULT_ASSET_QUERY}`) as never)
 		).rejects.toMatchObject({
 			status: 400,
 			body: {
@@ -226,7 +217,7 @@ describe('GET /api/repo/asset', () => {
 		});
 
 		const response = await GET(
-			createRequest('?value=large-map.png&assetsDir=static/images') as never
+			createRequest(`?value=large-map.png&${DEFAULT_ASSET_QUERY}`) as never
 		);
 
 		expect(routeMocks.getBlob).toHaveBeenCalledWith({
@@ -240,7 +231,7 @@ describe('GET /api/repo/asset', () => {
 
 	it('rejects asset traversal outside configured public asset roots', async () => {
 		await expect(
-			GET(createRequest('?value=..%2F..%2Fsecret.txt&assetsDir=static/images/posts') as never)
+			GET(createRequest(`?value=..%2F..%2Fsecret.txt&${POSTS_ASSET_QUERY}`) as never)
 		).rejects.toMatchObject({
 			status: 400,
 			body: {

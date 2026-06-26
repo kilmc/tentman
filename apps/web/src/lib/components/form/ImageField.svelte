@@ -20,7 +20,7 @@
 		value = $bindable(''),
 		required = false,
 		onchange,
-		storagePath = 'static/images/',
+		storagePath = page.data.rootConfig?.assets?.path ?? '',
 		assetsDir
 	}: Props = $props();
 
@@ -29,6 +29,10 @@
 	let staging = $state(false);
 	let uploadError = $state<string | null>(null);
 	let previewUrl = $state<string | null>(null);
+	const publicPath = $derived(page.data.rootConfig?.assets?.publicPath);
+	const uploadsDisabled = $derived(!storagePath || !publicPath);
+	const uploadDisabledMessage =
+		'Configure assets.path and assets.publicPath in tentman.json to enable uploads';
 
 	const repoKey = $derived(
 		getDraftAssetRepoKey({
@@ -53,6 +57,11 @@
 
 		uploadError = null;
 
+		if (uploadsDisabled) {
+			uploadError = uploadDisabledMessage;
+			return;
+		}
+
 		const validationError = getDraftImageValidationError(file);
 		if (validationError) {
 			uploadError = validationError;
@@ -70,7 +79,8 @@
 			const previousValue = value;
 			const result = await draftAssetStore.create(file, {
 				repoKey,
-				storagePath
+				storagePath,
+				publicPath
 			});
 			value = result.ref;
 			previewUrl = result.previewUrl;
@@ -158,7 +168,8 @@
 		accept="image/*"
 		required={required && !value}
 		onchange={handleChange}
-		disabled={staging}
+		disabled={staging || uploadsDisabled}
+		title={uploadsDisabled ? uploadDisabledMessage : undefined}
 		class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
 	/>
 

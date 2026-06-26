@@ -69,6 +69,7 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.assetsDir = './static/missing-images';
+	rootConfig.assets.path = './static/missing-images';
 	await fs.writeFile(rootConfigPath, serializeJson(rootConfig));
 
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
@@ -82,7 +83,8 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.deepEqual(
 		new Set(result.checks[0]?.diagnostics.map((diagnostic) => diagnostic.code)),
 		new Set([
-			'assets.missing-root-directory',
+			'assets.legacy-assets-dir',
+			'assets.missing-directory',
 			'manifest.stale-config-reference',
 			'manifest.stale-collection-reference'
 		])
@@ -96,7 +98,7 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.equal(result.checks[3]?.summary.files, 0);
 	assert.ok(result.checks[4]?.errors > 0);
 	assert.deepEqual(new Set(result.summary.failedChecks), new Set(['doctor', 'nav', 'assets']));
-	assert.equal(result.summary.warnings, 1);
+	assert.equal(result.summary.warnings, 3);
 	assert.equal(result.summary.checks, 5);
 	assert.ok(result.summary.errors >= 6);
 });
