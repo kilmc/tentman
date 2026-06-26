@@ -30,7 +30,7 @@ describe('GET /api/session', () => {
 						full_name: 'acme/docs'
 					}
 				},
-				rootConfig: {
+				selectedRepoConfigSummary: {
 					siteName: 'Acme Docs'
 				}
 			}
@@ -58,7 +58,7 @@ describe('GET /api/session', () => {
 					full_name: 'acme/docs'
 				}
 			},
-			rootConfig: {
+			selectedRepoConfigSummary: {
 				siteName: 'Acme Docs'
 			},
 			recentRepos: []

@@ -49,6 +49,7 @@ import {
 	persistGitHubSession,
 	persistSelectedGitHubRepository,
 	readRecentGitHubRepositories,
+	readSelectedGitHubRepositorySession,
 	readGitHubOAuthRequest,
 	readGitHubSession
 } from './github';
@@ -233,7 +234,14 @@ describe('server/auth/github', () => {
 				default_branch: 'trunk'
 			},
 			{
-				siteName: 'Acme Docs'
+				siteName: 'Acme Docs',
+				assets: {
+					path: './static/images',
+					publicPath: '/images'
+				},
+				netlify: {
+					siteName: 'acme-docs'
+				}
 			}
 		);
 
@@ -241,6 +249,14 @@ describe('server/auth/github', () => {
 			'{"owner":"acme","name":"docs","full_name":"acme/docs","default_branch":"trunk"}'
 		);
 		expect(cookies.values.get(GITHUB_REPO_SESSION_COOKIE)).toBeTruthy();
+		expect(readSelectedGitHubRepositorySession(cookies)).toEqual({
+			selectedRepoConfigSummary: {
+				siteName: 'Acme Docs',
+				netlify: {
+					siteName: 'acme-docs'
+				}
+			}
+		});
 		expect(readRecentGitHubRepositories(cookies)).toEqual([
 			{
 				owner: 'acme',
@@ -250,6 +266,25 @@ describe('server/auth/github', () => {
 				openedAt: expect.any(String)
 			}
 		]);
+	});
+
+	it('reads legacy selected repo session cookies that used the rootConfig key', () => {
+		const cookies = createCookieStore({
+			[GITHUB_REPO_SESSION_COOKIE]: Buffer.from(
+				JSON.stringify({
+					v: 1,
+					rootConfig: {
+						siteName: 'Legacy Docs'
+					}
+				})
+			).toString('base64url')
+		});
+
+		expect(readSelectedGitHubRepositorySession(cookies)).toEqual({
+			selectedRepoConfigSummary: {
+				siteName: 'Legacy Docs'
+			}
+		});
 	});
 
 	it('falls back to the GitHub client secret for session encryption when no dedicated session secret is set', () => {

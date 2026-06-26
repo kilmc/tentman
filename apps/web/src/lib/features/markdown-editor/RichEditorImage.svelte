@@ -27,7 +27,8 @@
 			selectedRepo: page.data.selectedRepo,
 			rootConfig: page.data.rootConfig ?? null,
 			localRootConfig: $localContent.rootConfig,
-			localPreviewUrl: $localPreviewUrl
+			localPreviewUrl: $localPreviewUrl,
+			source: 'RichEditorImage'
 		});
 
 		void resolveClientAssetUrl(src, renderContext).then((value) => {

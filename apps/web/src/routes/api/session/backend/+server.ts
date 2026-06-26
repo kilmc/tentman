@@ -52,7 +52,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 					repo: body.repo
 				},
 				selectedRepo: undefined,
-				rootConfig: null
+				selectedRepoConfigSummary: null
 			}),
 			selectionCommitted: true
 		});
@@ -67,7 +67,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 				...locals,
 				selectedBackend: undefined,
 				selectedRepo: undefined,
-				rootConfig: null
+				selectedRepoConfigSummary: null
 			}),
 			selectionCommitted: true
 		});

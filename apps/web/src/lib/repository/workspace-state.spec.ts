@@ -12,7 +12,7 @@ describe('resolveWorkspaceState', () => {
 					full_name: 'acme/docs',
 					default_branch: 'trunk'
 				},
-				rootConfig: {
+				selectedRepoConfigSummary: {
 					siteName: 'Acme Docs'
 				},
 				selectedBackend: {
@@ -34,7 +34,7 @@ describe('resolveWorkspaceState', () => {
 				}
 			},
 			selectedRepo: null,
-			rootConfig: null
+			selectedRepoConfigSummary: null
 		});
 	});
 
@@ -51,7 +51,7 @@ describe('resolveWorkspaceState', () => {
 						default_branch: 'trunk'
 					}
 				},
-				rootConfig: {
+				selectedRepoConfigSummary: {
 					siteName: 'Acme Docs'
 				}
 			})
@@ -73,7 +73,7 @@ describe('resolveWorkspaceState', () => {
 				full_name: 'acme/docs',
 				default_branch: 'trunk'
 			},
-			rootConfig: {
+			selectedRepoConfigSummary: {
 				siteName: 'Acme Docs'
 			}
 		});
@@ -95,7 +95,7 @@ describe('resolveWorkspaceState', () => {
 			isAuthenticated: true,
 			selectedBackend: null,
 			selectedRepo: null,
-			rootConfig: null
+			selectedRepoConfigSummary: null
 		});
 	});
 });

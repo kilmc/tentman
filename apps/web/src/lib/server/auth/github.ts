@@ -4,9 +4,9 @@ import { env } from '$env/dynamic/private';
 import { Octokit } from 'octokit';
 import type { RootConfig } from '$lib/config/root-config';
 import type {
-	GitHubRootConfigSnapshot,
 	GitHubUserSnapshot,
-	RecentGitHubRepositorySnapshot
+	RecentGitHubRepositorySnapshot,
+	SelectedRepoConfigSummary
 } from '$lib/auth/session';
 import { SELECTED_BACKEND_COOKIE } from '$lib/repository/selection';
 import type { GitHubRepositoryIdentity } from '$lib/repository/github';
@@ -35,7 +35,9 @@ interface GitHubSessionPayload {
 
 interface GitHubRepoSessionSnapshot {
 	v: 1;
-	rootConfig: GitHubRootConfigSnapshot | null;
+	selectedRepoConfigSummary?: SelectedRepoConfigSummary | null;
+	// Legacy cookie key from before the session summary was renamed.
+	rootConfig?: SelectedRepoConfigSummary | null;
 }
 
 interface CookieTarget {
@@ -139,7 +141,10 @@ function decodeRepoSessionSnapshot(value: string): GitHubRepoSessionSnapshot | n
 		const parsed = JSON.parse(
 			Buffer.from(value, 'base64url').toString()
 		) as GitHubRepoSessionSnapshot;
-		if (parsed?.v !== 1 || !('rootConfig' in parsed)) {
+		if (
+			parsed?.v !== 1 ||
+			(!('selectedRepoConfigSummary' in parsed) && !('rootConfig' in parsed))
+		) {
 			return null;
 		}
 
@@ -304,10 +309,11 @@ export function persistSelectedGitHubRepository(
 	rootConfig: RootConfig | null
 ): void {
 	const options = getGitHubCookieOptions();
-	const rootConfigSnapshot: GitHubRootConfigSnapshot | null = rootConfig
+	const selectedRepoConfigSummary: SelectedRepoConfigSummary | null = rootConfig
 		? {
 				...(rootConfig.siteName ? { siteName: rootConfig.siteName } : {}),
-				...(rootConfig.componentsDir ? { componentsDir: rootConfig.componentsDir } : {})
+				...(rootConfig.componentsDir ? { componentsDir: rootConfig.componentsDir } : {}),
+				...(rootConfig.netlify ? { netlify: rootConfig.netlify } : {})
 			}
 		: null;
 
@@ -316,7 +322,7 @@ export function persistSelectedGitHubRepository(
 		GITHUB_REPO_SESSION_COOKIE,
 		encodeRepoSessionSnapshot({
 			v: 1,
-			rootConfig: rootConfigSnapshot
+			selectedRepoConfigSummary
 		}),
 		options
 	);
@@ -324,13 +330,14 @@ export function persistSelectedGitHubRepository(
 }
 
 export function readSelectedGitHubRepositorySession(cookies: Pick<Cookies, 'get'>): {
-	rootConfig: GitHubRootConfigSnapshot | null;
+	selectedRepoConfigSummary: SelectedRepoConfigSummary | null;
 } {
 	const rawSession = cookies.get(GITHUB_REPO_SESSION_COOKIE);
 	const snapshot = rawSession ? decodeRepoSessionSnapshot(rawSession) : null;
 
 	return {
-		rootConfig: snapshot?.rootConfig ?? null
+		selectedRepoConfigSummary:
+			snapshot?.selectedRepoConfigSummary ?? snapshot?.rootConfig ?? null
 	};
 }
 

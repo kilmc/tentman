@@ -25,7 +25,8 @@
 			selectedRepo: page.data.selectedRepo,
 			rootConfig: page.data.rootConfig ?? null,
 			localRootConfig: $localContent.rootConfig,
-			localPreviewUrl: $localPreviewUrl
+			localPreviewUrl: $localPreviewUrl,
+			source: 'AssetImage'
 		});
 
 		void resolveClientAssetUrl(nextValue, renderContext).then((resolved) => {

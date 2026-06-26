@@ -51,7 +51,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 			kind: 'github',
 			repo: selectedGitHubRepo
 		};
-		event.locals.rootConfig = githubRepoSession.rootConfig;
+		event.locals.selectedRepoConfigSummary = githubRepoSession.selectedRepoConfigSummary;
 	}
 
 	const response = await resolve(event);

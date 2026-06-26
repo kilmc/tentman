@@ -8,7 +8,7 @@ export function buildSessionBootstrap(locals: App.Locals): SessionBootstrap {
 		user: locals.user ?? null,
 		selectedRepo: locals.selectedRepo ?? null,
 		selectedBackend: locals.selectedBackend ?? null,
-		rootConfig: locals.rootConfig ?? null,
+		selectedRepoConfigSummary: locals.selectedRepoConfigSummary ?? null,
 		recentRepos: locals.recentRepos ?? []
 	});
 }

@@ -153,7 +153,8 @@
 						selectedRepo: page.data.selectedRepo,
 						rootConfig: page.data.rootConfig ?? null,
 						localRootConfig: get(localContent).rootConfig,
-						localPreviewUrl: get(localPreviewUrl)
+						localPreviewUrl: get(localPreviewUrl),
+						source: 'ContentValueDisplay'
 					})
 				);
 

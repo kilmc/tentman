@@ -28,7 +28,7 @@
 			return $localContent.rootConfig?.siteName ?? data.selectedBackend.repo.name;
 		}
 
-		return data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman';
+		return data.selectedRepoConfigSummary?.siteName ?? data.selectedRepo?.name ?? 'Tentman';
 	});
 	const repoLabel = $derived.by(() => {
 		if (data.selectedBackend?.kind === 'github' && data.selectedRepo) {
@@ -46,7 +46,7 @@
 			return $localContent.rootConfig?.local?.previewUrl ?? null;
 		}
 
-		const netlifySiteName = data.rootConfig?.netlify?.siteName;
+		const netlifySiteName = data.selectedRepoConfigSummary?.netlify?.siteName;
 		const branchName = $draftBranch.branchName;
 		return netlifySiteName && branchName ? getNetlifyPreviewUrl(branchName, netlifySiteName) : null;
 	});

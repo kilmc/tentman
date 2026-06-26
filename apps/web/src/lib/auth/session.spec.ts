@@ -39,7 +39,7 @@ describe('auth/session', () => {
 								full_name: 'acme/docs'
 							}
 						},
-						rootConfig: {
+						selectedRepoConfigSummary: {
 							siteName: 'Acme Docs'
 						},
 						recentRepos: [
@@ -76,7 +76,7 @@ describe('auth/session', () => {
 					full_name: 'acme/docs'
 				}
 			},
-			rootConfig: {
+			selectedRepoConfigSummary: {
 				siteName: 'Acme Docs'
 			},
 			recentRepos: [

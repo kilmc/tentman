@@ -106,6 +106,23 @@ describe('features/assets/render-context', () => {
 		);
 	});
 
+	it('routes GitHub public paths through a static fallback when root assets are missing', () => {
+		const context = getAssetRenderContext({
+			selectedBackend: { kind: 'github', repo: githubRepo },
+			selectedRepo: githubRepo,
+			rootConfig: {
+				siteName: 'Docs'
+			},
+			localRootConfig: null,
+			localPreviewUrl: null
+		});
+
+		expect(resolveAssetUrlForRender('/images/hero.jpg', context)).toBe(
+			'/api/repo/asset?value=%2Fimages%2Fhero.jpg&assetPath=static&publicPath=%2F&owner=acme&repo=docs&branch=main'
+		);
+		expect(resolveAssetUrlForRender('hero.jpg', context)).toBeNull();
+	});
+
 	it('does not invent a preview URL when no backend is selected', () => {
 		const context = getAssetRenderContext({
 			selectedBackend: null,

@@ -32,7 +32,7 @@ export const load: LayoutLoad = async ({ parent, fetch }) => {
 		isAuthenticated: parentData.isAuthenticated,
 		selectedBackend: parentData.selectedBackend ?? null,
 		selectedRepo: parentData.selectedRepo ?? null,
-		rootConfig: parentData.rootConfig ?? null
+		selectedRepoConfigSummary: parentData.selectedRepoConfigSummary ?? null
 	});
 
 	logDevRouting('pages-layout:workspace', {

@@ -1,4 +1,4 @@
-import type { GitHubRootConfigSnapshot } from '$lib/auth/session';
+import type { SelectedRepoConfigSummary } from '$lib/auth/session';
 import type { GitHubRepositoryIdentity } from '$lib/repository/github';
 import type { SelectedBackend } from '$lib/repository/selection';
 
@@ -6,7 +6,7 @@ type WorkspaceStateInput = Partial<{
 	isAuthenticated: boolean;
 	selectedBackend: SelectedBackend | null;
 	selectedRepo: GitHubRepositoryIdentity | null;
-	rootConfig: GitHubRootConfigSnapshot | null;
+	selectedRepoConfigSummary: SelectedRepoConfigSummary | null;
 }>;
 
 type NoWorkspaceState = {
@@ -14,7 +14,7 @@ type NoWorkspaceState = {
 	isAuthenticated: boolean;
 	selectedBackend: null;
 	selectedRepo: null;
-	rootConfig: null;
+	selectedRepoConfigSummary: null;
 };
 
 type LocalWorkspaceState = {
@@ -22,7 +22,7 @@ type LocalWorkspaceState = {
 	isAuthenticated: boolean;
 	selectedBackend: Extract<SelectedBackend, { kind: 'local' }>;
 	selectedRepo: null;
-	rootConfig: null;
+	selectedRepoConfigSummary: null;
 };
 
 type GitHubWorkspaceState = {
@@ -30,7 +30,7 @@ type GitHubWorkspaceState = {
 	isAuthenticated: boolean;
 	selectedBackend: Extract<SelectedBackend, { kind: 'github' }>;
 	selectedRepo: GitHubRepositoryIdentity;
-	rootConfig: GitHubRootConfigSnapshot | null;
+	selectedRepoConfigSummary: SelectedRepoConfigSummary | null;
 };
 
 export type WorkspaceState = NoWorkspaceState | LocalWorkspaceState | GitHubWorkspaceState;
@@ -47,7 +47,7 @@ export function resolveWorkspaceState(
 			isAuthenticated,
 			selectedBackend,
 			selectedRepo: null,
-			rootConfig: null
+			selectedRepoConfigSummary: null
 		};
 	}
 
@@ -57,7 +57,7 @@ export function resolveWorkspaceState(
 			isAuthenticated,
 			selectedBackend,
 			selectedRepo: value?.selectedRepo ?? selectedBackend.repo,
-			rootConfig: value?.rootConfig ?? null
+			selectedRepoConfigSummary: value?.selectedRepoConfigSummary ?? null
 		};
 	}
 
@@ -66,6 +66,6 @@ export function resolveWorkspaceState(
 		isAuthenticated,
 		selectedBackend: null,
 		selectedRepo: null,
-		rootConfig: null
+		selectedRepoConfigSummary: null
 	};
 }

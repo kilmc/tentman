@@ -24,7 +24,7 @@ describe('hooks.server', () => {
 			[GITHUB_REPO_SESSION_COOKIE]: Buffer.from(
 				JSON.stringify({
 					v: 1,
-					rootConfig: {
+					selectedRepoConfigSummary: {
 						siteName: 'Acme Docs'
 					}
 				})
@@ -67,7 +67,7 @@ describe('hooks.server', () => {
 				avatar_url: 'https://avatars.example/kilmc',
 				email: 'kilian@example.com'
 			},
-			rootConfig: {
+			selectedRepoConfigSummary: {
 				siteName: 'Acme Docs'
 			},
 			selectedRepo: {
@@ -99,7 +99,7 @@ describe('hooks.server', () => {
 			[GITHUB_REPO_SESSION_COOKIE]: Buffer.from(
 				JSON.stringify({
 					v: 1,
-					rootConfig: {
+					selectedRepoConfigSummary: {
 						siteName: 'Acme Docs'
 					}
 				})
@@ -133,6 +133,6 @@ describe('hooks.server', () => {
 			}
 		});
 		expect(resolvedLocals?.selectedRepo).toBeUndefined();
-		expect(resolvedLocals?.rootConfig).toBeUndefined();
+		expect(resolvedLocals?.selectedRepoConfigSummary).toBeUndefined();
 	});
 });

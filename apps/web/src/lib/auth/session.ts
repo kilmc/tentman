@@ -9,9 +9,10 @@ export interface GitHubUserSnapshot {
 	email: string | null;
 }
 
-export interface GitHubRootConfigSnapshot {
+export interface SelectedRepoConfigSummary {
 	siteName?: RootConfig['siteName'];
 	componentsDir?: RootConfig['componentsDir'];
+	netlify?: RootConfig['netlify'];
 }
 
 export interface RecentGitHubRepositorySnapshot extends GitHubRepositoryIdentity {
@@ -24,9 +25,13 @@ export interface SessionBootstrap {
 	user: GitHubUserSnapshot | null;
 	selectedRepo: GitHubRepositoryIdentity | null;
 	selectedBackend: SelectedBackend | null;
-	rootConfig: GitHubRootConfigSnapshot | null;
+	selectedRepoConfigSummary: SelectedRepoConfigSummary | null;
 	recentRepos: RecentGitHubRepositorySnapshot[];
 }
+
+type LegacySessionBootstrap = Partial<SessionBootstrap> & {
+	rootConfig?: SelectedRepoConfigSummary | null;
+};
 
 export const EMPTY_SESSION_BOOTSTRAP: SessionBootstrap = {
 	isAuthenticated: false,
@@ -34,20 +39,23 @@ export const EMPTY_SESSION_BOOTSTRAP: SessionBootstrap = {
 	user: null,
 	selectedRepo: null,
 	selectedBackend: null,
-	rootConfig: null,
+	selectedRepoConfigSummary: null,
 	recentRepos: []
 };
 
 export function normalizeSessionBootstrap(
 	value: Partial<SessionBootstrap> | null | undefined
 ): SessionBootstrap {
+	const legacyValue = value as LegacySessionBootstrap | null | undefined;
+
 	return {
 		isAuthenticated: value?.isAuthenticated ?? false,
 		githubOAuthConfigured: value?.githubOAuthConfigured ?? false,
 		user: value?.user ?? null,
 		selectedRepo: value?.selectedRepo ?? null,
 		selectedBackend: value?.selectedBackend ?? null,
-		rootConfig: value?.rootConfig ?? null,
+		selectedRepoConfigSummary:
+			value?.selectedRepoConfigSummary ?? legacyValue?.rootConfig ?? null,
 		recentRepos: value?.recentRepos ?? []
 	};
 }

@@ -150,6 +150,21 @@ describe('GET /api/repo/asset', () => {
 		});
 	});
 
+	it('maps public paths through the static fallback asset root', async () => {
+		await GET(
+			createRequest(
+				'?value=%2Fimages%2Ftheresa-grieben-forest-4ec8766f.png&assetPath=static&publicPath=%2F'
+			) as never
+		);
+
+		expect(routeMocks.getContent).toHaveBeenCalledWith({
+			owner: 'acme',
+			repo: 'docs',
+			path: 'static/images/theresa-grieben-forest-4ec8766f.png',
+			ref: 'main'
+		});
+	});
+
 	it('serves assets from explicit repository context instead of the selected repository', async () => {
 		await GET(
 			createRequest(

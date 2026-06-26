@@ -107,6 +107,54 @@ describe('routes/pages/+layout', () => {
 		expect(mocks.loadRepoConfigsBootstrap).toHaveBeenCalledWith(fetcher);
 	});
 
+	it('returns full parsed root config from repo bootstrap instead of the session summary', async () => {
+		const fetcher = vi.fn();
+		const fullRootConfig = {
+			siteName: 'Acme Docs',
+			assets: {
+				path: './static/images/projects',
+				publicPath: '/images/projects'
+			}
+		};
+		mocks.loadRepoConfigsBootstrap.mockResolvedValueOnce({
+			configs: [],
+			blockConfigs: [],
+			rootConfig: fullRootConfig,
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+		});
+
+		expect(
+			await load({
+				parent: async () => ({
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'github',
+						repo: {
+							owner: 'acme',
+							name: 'docs',
+							full_name: 'acme/docs'
+						}
+					},
+					selectedRepoConfigSummary: {
+						siteName: 'Session Shell'
+					}
+				}),
+				fetch: fetcher
+			} as never)
+		).toEqual({
+			configs: [],
+			blockConfigs: [],
+			rootConfig: fullRootConfig,
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			instructionDiscovery: emptyInstructionDiscovery
+		});
+	});
+
 	it('returns empty configs when local mode is active, even if a stale GitHub repo snapshot exists', async () => {
 		expect(
 			await load({
