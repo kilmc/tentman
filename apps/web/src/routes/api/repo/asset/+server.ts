@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { isDraftAssetRef } from '$lib/features/draft-assets/shared';
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
-import { getAssetContentType, resolveGitHubAssetPath } from '$lib/server/repo-asset-proxy';
+import { getAssetContentType, resolveGitHubAssetPathDetailed } from '$lib/server/repo-asset-proxy';
 import { isAbsoluteAssetUrl } from '$lib/utils/assets';
 
 type AssetRepositoryContext = {
@@ -114,16 +114,24 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			throw error(400, 'Missing asset mapping');
 		}
 
-		const assetPath = resolveGitHubAssetPath({
+		const assetPathResolution = resolveGitHubAssetPathDetailed({
 			value,
 			assetPath: configuredAssetPath,
 			publicPath
 		});
 
-		if (!assetPath) {
-			throw error(400, 'Invalid asset path');
+		if (!assetPathResolution.ok) {
+			console.warn('Rejected GitHub-backed asset request:', {
+				reason: assetPathResolution.reason,
+				value,
+				assetPath: configuredAssetPath,
+				publicPath,
+				repository: repository.fullName
+			});
+			throw error(400, `Invalid asset path: ${assetPathResolution.message}`);
 		}
 
+		const assetPath = assetPathResolution.path;
 		const draftBranch =
 			(await getTentmanDraftBranchName(octokit, repository.owner, repository.name)) ?? null;
 		let bytes: Uint8Array | null = null;

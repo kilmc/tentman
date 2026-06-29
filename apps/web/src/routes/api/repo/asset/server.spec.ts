@@ -20,6 +20,8 @@ const routeMocks = vi.hoisted(() => ({
 
 const DEFAULT_ASSET_QUERY = 'assetPath=static%2Fimages%2F&publicPath=%2Fimages';
 const POSTS_ASSET_QUERY = 'assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts';
+const PROJECTS_ASSET_QUERY =
+	'assetPath=static%2Fimages%2Fprojects%2F&publicPath=%2Fimages%2Fprojects';
 
 function createRequest(
 	search = '',
@@ -150,6 +152,21 @@ describe('GET /api/repo/asset', () => {
 		});
 	});
 
+	it('maps legacy parent public paths through a nested asset mapping fallback', async () => {
+		await GET(
+			createRequest(
+				`?value=%2Fimages%2Fberlin-illustrated-map-theresa-grieben-a7340abb.png&${PROJECTS_ASSET_QUERY}`
+			) as never
+		);
+
+		expect(routeMocks.getContent).toHaveBeenCalledWith({
+			owner: 'acme',
+			repo: 'docs',
+			path: 'static/images/berlin-illustrated-map-theresa-grieben-a7340abb.png',
+			ref: 'main'
+		});
+	});
+
 	it('maps public paths through the static fallback asset root', async () => {
 		await GET(
 			createRequest(
@@ -250,7 +267,22 @@ describe('GET /api/repo/asset', () => {
 		).rejects.toMatchObject({
 			status: 400,
 			body: {
-				message: 'Invalid asset path'
+				message: 'Invalid asset path: Asset value resolves outside the configured asset directory'
+			}
+		});
+	});
+
+	it('explains public path mismatches that cannot use a parent asset mapping fallback', async () => {
+		await expect(
+			GET(
+				createRequest(
+					'?value=%2Fuploads%2Fhero.jpg&assetPath=static%2Fimages%2Fprojects%2F&publicPath=%2Fimages%2Fprojects'
+				) as never
+			)
+		).rejects.toMatchObject({
+			status: 400,
+			body: {
+				message: 'Invalid asset path: Asset value does not start with configured publicPath /images/projects'
 			}
 		});
 	});
