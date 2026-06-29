@@ -116,7 +116,10 @@ describe('repository-data route data', () => {
 					{
 						itemId: 'hello-world',
 						title: 'Hello world',
-						sortDate: null
+						sortDate: null,
+						sortValues: {
+							title: 'Hello world'
+						}
 					}
 				],
 				groups: []

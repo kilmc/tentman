@@ -176,7 +176,10 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'hello-world',
 					title: 'Hello world',
-					sortDate: null
+					sortDate: null,
+					sortValues: {
+						title: 'Hello world'
+					}
 				}
 			],
 			groups: []
@@ -229,7 +232,11 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'latest-news',
 					title: 'Latest news',
-					sortDate: new Date('2026-04-03').getTime()
+					sortDate: new Date('2026-04-03').getTime(),
+					sortValues: {
+						title: 'Latest news',
+						date: new Date('2026-04-03').getTime()
+					}
 				}
 			],
 			groups: []
@@ -291,7 +298,11 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'latest-news',
 					title: 'Apr 3, 2026',
-					sortDate: new Date('2026-04-03').getTime()
+					sortDate: new Date('2026-04-03').getTime(),
+					sortValues: {
+						title: 'Apr 3, 2026',
+						publishedOn: new Date('2026-04-03').getTime()
+					}
 				}
 			],
 			groups: []
@@ -365,6 +376,7 @@ describe('GET /api/repo/collection-items', () => {
 					itemId: 'hello-world',
 					title: 'hello world',
 					sortDate: null,
+					sortValues: {},
 					hydration: 'fallback',
 					hrefItemId: 'hello-world'
 				},
@@ -372,6 +384,7 @@ describe('GET /api/repo/collection-items', () => {
 					itemId: 'second',
 					title: 'second',
 					sortDate: null,
+					sortValues: {},
 					hydration: 'fallback',
 					hrefItemId: 'second'
 				}
@@ -463,6 +476,10 @@ describe('GET /api/repo/collection-items', () => {
 					itemId: 'hello-world',
 					title: 'Hello world',
 					sortDate: new Date('2026-04-03').getTime(),
+					sortValues: {
+						title: 'Hello world',
+						date: new Date('2026-04-03').getTime()
+					},
 					hydration: 'hydrated',
 					hrefItemId: 'hello-world'
 				},
@@ -470,6 +487,10 @@ describe('GET /api/repo/collection-items', () => {
 					itemId: 'second',
 					title: 'Second',
 					sortDate: new Date('2026-04-04').getTime(),
+					sortValues: {
+						title: 'Second',
+						date: new Date('2026-04-04').getTime()
+					},
 					hydration: 'hydrated',
 					hrefItemId: 'second'
 				}

@@ -145,6 +145,7 @@ describe('collection navigation repository data layer', () => {
 					itemId: 'second',
 					title: 'second',
 					sortDate: null,
+					sortValues: {},
 					hydration: 'fallback',
 					hrefItemId: 'second'
 				},
@@ -152,6 +153,7 @@ describe('collection navigation repository data layer', () => {
 					itemId: 'first',
 					title: 'first',
 					sortDate: null,
+					sortValues: {},
 					hydration: 'fallback',
 					hrefItemId: 'first'
 				}
@@ -294,6 +296,10 @@ describe('collection navigation repository data layer', () => {
 					itemId: 'post-1',
 					title: 'First',
 					sortDate: new Date('2026-05-01').getTime(),
+					sortValues: {
+						title: 'First',
+						date: new Date('2026-05-01').getTime()
+					},
 					hydration: 'hydrated',
 					hrefItemId: 'post-1',
 					state: {
@@ -312,6 +318,10 @@ describe('collection navigation repository data layer', () => {
 					itemId: 'post-2',
 					title: 'Second',
 					sortDate: new Date('2026-05-02').getTime(),
+					sortValues: {
+						title: 'Second',
+						date: new Date('2026-05-02').getTime()
+					},
 					hydration: 'hydrated',
 					hrefItemId: 'post-2',
 					state: {

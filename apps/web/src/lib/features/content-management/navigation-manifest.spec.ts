@@ -228,7 +228,12 @@ describe('navigation manifest helpers', () => {
 	});
 
 	it('adds root manual sorting to the root config source', () => {
-		expect(addRootManualSortingToSource('{"siteName":"Docs"}')).toContain('"ordering": true');
+		expect(JSON.parse(addRootManualSortingToSource('{"siteName":"Docs"}'))).toEqual({
+			siteName: 'Docs',
+			content: {
+				sorting: 'manual'
+			}
+		});
 	});
 
 	it('syncs edited tentmanGroup selection into the navigation manifest', async () => {
