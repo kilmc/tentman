@@ -8,6 +8,7 @@ import {
 	orderDiscoveredConfigs,
 	resolveContentItemTitle
 } from '$lib/features/content-management/navigation';
+import { resolveCollectionSortCapabilities } from '$lib/features/content-management/collection-sorts';
 import type { ParsedContentConfig } from '$lib/config/parse';
 
 const collectionConfig: ParsedContentConfig = {
@@ -16,7 +17,7 @@ const collectionConfig: ParsedContentConfig = {
 	_tentmanId: 'posts',
 	itemLabel: 'Blog Post',
 	collection: {
-		sorting: 'manual',
+		ordering: true,
 		groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }],
 		state: {
 			blockId: 'published',
@@ -223,8 +224,18 @@ describe('content navigation helpers', () => {
 				{ _tentmanId: 'post-2', title: 'Second Post', slug: 'second-post' }
 			])
 		).toEqual([
-			{ itemId: 'post-1', title: 'Hello World', sortDate: null },
-			{ itemId: 'post-2', title: 'Second Post', sortDate: null }
+			{
+				itemId: 'post-1',
+				title: 'Hello World',
+				sortDate: null,
+				sortValues: { title: 'Hello World' }
+			},
+			{
+				itemId: 'post-2',
+				title: 'Second Post',
+				sortDate: null,
+				sortValues: { title: 'Second Post' }
+			}
 		]);
 	});
 
@@ -245,12 +256,66 @@ describe('content navigation helpers', () => {
 				]
 			)
 		).toEqual([
-			{ itemId: 'latest-news', title: 'Latest News', sortDate: new Date('2026-04-03').getTime() },
-			{ itemId: 'earlier-news', title: 'Earlier News', sortDate: new Date('2026-03-01').getTime() }
+			{
+				itemId: 'latest-news',
+				title: 'Latest News',
+				sortDate: new Date('2026-04-03').getTime(),
+				sortValues: { title: 'Latest News', date: new Date('2026-04-03').getTime() }
+			},
+			{
+				itemId: 'earlier-news',
+				title: 'Earlier News',
+				sortDate: new Date('2026-03-01').getTime(),
+				sortValues: { title: 'Earlier News', date: new Date('2026-03-01').getTime() }
+			}
 		]);
 	});
 
-	it('still requires Tentman ids when manual collection sorting is enabled', () => {
+	it('infers title and multiple date sort capabilities from collection schema', () => {
+		expect(
+			resolveCollectionSortCapabilities({
+				...collectionConfig,
+				collection: true,
+				blocks: [
+					{ id: 'title', type: 'text', label: 'Title' },
+					{ id: 'publishedAt', type: 'date', label: 'Published' },
+					{ id: 'updatedAt', type: 'date', label: 'Updated' }
+				]
+			})
+		).toEqual({
+			sorts: [
+				{ id: 'title', type: 'title', label: 'Title' },
+				{ id: 'publishedAt', type: 'date', blockId: 'publishedAt', label: 'Published' },
+				{ id: 'updatedAt', type: 'date', blockId: 'updatedAt', label: 'Updated' }
+			],
+			defaultSortId: null,
+			ordering: false
+		});
+	});
+
+	it('honors configured default sort id and direction', () => {
+		expect(
+			resolveCollectionSortCapabilities({
+				...collectionConfig,
+				collection: {
+					defaultSort: { id: 'publishedAt', direction: 'asc' },
+					sorts: [
+						{ id: 'title', type: 'title', label: 'Title' },
+						{ id: 'publishedAt', type: 'date', blockId: 'publishedAt', label: 'Published' }
+					]
+				},
+				blocks: [
+					{ id: 'title', type: 'text', label: 'Title' },
+					{ id: 'publishedAt', type: 'date', label: 'Published' }
+				]
+			})
+		).toMatchObject({
+			defaultSortId: 'publishedAt',
+			defaultDirection: 'asc'
+		});
+	});
+
+	it('still requires Tentman ids when collection ordering is enabled', () => {
 		expect(
 			getCollectionNavigationItems(collectionConfig, [
 				{ title: 'Latest News', slug: 'latest-news' }
@@ -276,6 +341,7 @@ describe('content navigation helpers', () => {
 				itemId: 'post-1',
 				title: 'Hello World',
 				sortDate: null,
+				sortValues: { title: 'Hello World' },
 				state: {
 					value: false,
 					label: 'Draft',
@@ -365,12 +431,29 @@ describe('content navigation helpers', () => {
 				{
 					id: 'featured',
 					label: 'Featured',
-					items: [{ itemId: 'post-2', title: 'Second Post', sortDate: null }]
+					items: [
+						{
+							itemId: 'post-2',
+							title: 'Second Post',
+							sortDate: null,
+							sortValues: { title: 'Second Post' }
+						}
+					]
 				}
 			],
 			items: [
-				{ itemId: 'post-1', title: 'Hello World', sortDate: null },
-				{ itemId: 'post-3', title: 'Third Post', sortDate: null }
+				{
+					itemId: 'post-1',
+					title: 'Hello World',
+					sortDate: null,
+					sortValues: { title: 'Hello World' }
+				},
+				{
+					itemId: 'post-3',
+					title: 'Third Post',
+					sortDate: null,
+					sortValues: { title: 'Third Post' }
+				}
 			]
 		});
 	});

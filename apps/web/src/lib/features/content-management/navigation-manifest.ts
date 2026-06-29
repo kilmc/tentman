@@ -12,7 +12,7 @@ import {
 } from '$lib/features/content-management/transforms';
 import { resolveConfigPath } from '$lib/utils/validation';
 import { isTentmanGroupBlock, TENTMAN_GROUP_STORAGE_KEY } from '$lib/config/tentman-group';
-import { getCollectionGroups, isCollectionManualSortingEnabled } from './config';
+import { getCollectionGroups, isCollectionOrderingEnabled } from './config';
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
 import { hasGeneratedTentmanId } from './stable-identity';
 import type { ContentRecord } from './types';
@@ -1315,7 +1315,7 @@ export async function buildNavigationManifestFromRepository(
 
 	const collectionEntries = await Promise.all(
 		configIdentity.configs.map(async (config) => {
-			if (!isCollectionManualSortingEnabled(config.config) || !config.config._tentmanId) {
+			if (!isCollectionOrderingEnabled(config.config) || !config.config._tentmanId) {
 				return null;
 			}
 
@@ -1411,7 +1411,7 @@ export async function reconcileManualNavigationSetup(
 	}
 
 	for (const config of configIdentity.configs) {
-		if (!isCollectionManualSortingEnabled(config.config) || !config.config._tentmanId) {
+		if (!isCollectionOrderingEnabled(config.config) || !config.config._tentmanId) {
 			continue;
 		}
 
@@ -1470,8 +1470,8 @@ export async function saveCollectionOrder(
 		);
 	}
 
-	if (!isCollectionManualSortingEnabled(config.config)) {
-		throw new Error(`${config.config.label} does not have manual collection sorting enabled.`);
+	if (!isCollectionOrderingEnabled(config.config)) {
+		throw new Error(`${config.config.label} does not have collection ordering enabled.`);
 	}
 
 	const content = await fetchContentDocument(backend, config.config, config.path);
@@ -1524,7 +1524,7 @@ export async function syncCollectionItemGroupSelection(
 	existingManifest?: NavigationManifest | null,
 	options?: RepositoryWriteOptions
 ): Promise<NavigationManifest | null> {
-	if (!config.config._tentmanId || !isCollectionManualSortingEnabled(config.config)) {
+	if (!config.config._tentmanId || !isCollectionOrderingEnabled(config.config)) {
 		return existingManifest ?? null;
 	}
 
@@ -1610,8 +1610,8 @@ export function getManualNavigationSetupState(
 			label: config.config.label,
 			configId: config.config._tentmanId ?? null,
 			idField: config.config.idField ?? null,
-			manualSortingEnabled: isCollectionManualSortingEnabled(config.config),
-			canOrderItems: !!config.config._tentmanId && isCollectionManualSortingEnabled(config.config),
+			manualSortingEnabled: isCollectionOrderingEnabled(config.config),
+			canOrderItems: !!config.config._tentmanId && isCollectionOrderingEnabled(config.config),
 			groupCount: getCollectionGroups(config.config).length
 		}));
 

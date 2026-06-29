@@ -16,9 +16,14 @@
 		CollectionNavigationGroup,
 		CollectionNavigationItem
 	} from '$lib/features/content-management/navigation';
+	import type {
+		CollectionSortValue,
+		ResolvedCollectionSort,
+		ResolvedCollectionSortCapabilities
+	} from '$lib/features/content-management/collection-sorts';
 	import type { NavigationDraftCollection } from '$lib/features/content-management/navigation-draft';
 	import { getStateBadgeClassName } from '$lib/features/content-management/state';
-	import type { CollectionIndexItem, CollectionSortType } from './workspace-types';
+	import type { CollectionIndexItem } from './workspace-types';
 
 	interface Props {
 		slug: string;
@@ -29,6 +34,7 @@
 		currentItemId?: string | null;
 		status?: 'idle' | 'loading' | 'ready' | 'error';
 		error?: string | null;
+		sortCapabilities: ResolvedCollectionSortCapabilities;
 		canOrderItems?: boolean;
 		savingCustomOrder?: boolean;
 		onretry?: () => void;
@@ -45,6 +51,7 @@
 		currentItemId = null,
 		status = 'ready',
 		error = null,
+		sortCapabilities,
 		canOrderItems = false,
 		savingCustomOrder = false,
 		onretry,
@@ -62,7 +69,7 @@
 
 	const flipDurationMs = 150;
 
-	let sortType = $state<CollectionSortType>('custom');
+	let sortId = $state<string | null>(null);
 	let sortDirection = $state<'asc' | 'desc'>('asc');
 	let editingCustomOrder = $state(false);
 	let editableGroups = $state<EditableGroup[]>([]);
@@ -72,21 +79,37 @@
 	let collapsedGroupIds = $state<string[]>([]);
 
 	const allItems = $derived([...groups.flatMap((group) => group.items), ...items]);
-	const hasDateSort = $derived(allItems.some((item) => item.sortDate !== null));
+	const availableSorts = $derived(
+		sortCapabilities.sorts.filter((sort) => sort.type !== 'manual' || canOrderItems)
+	);
+	const currentResolvedSort = $derived(
+		sortId === null ? null : (availableSorts.find((sort) => sort.id === sortId) ?? null)
+	);
+	const shouldShowSortMenu = $derived(availableSorts.length > 1);
 	const visibleItems = $derived.by(() => {
 		const flatItems = [...allItems];
+		const sort = currentResolvedSort;
 
-		if (sortType === 'title') {
+		if (!sort || sort.type === 'manual') {
+			return flatItems;
+		}
+
+		if (sort.type === 'title' || sort.type === 'text') {
 			return flatItems.sort((left, right) => {
 				const direction = sortDirection === 'asc' ? 1 : -1;
-				return direction * left.title.localeCompare(right.title);
+				return (
+					direction *
+					String(getSortValue(left, sort) ?? left.title).localeCompare(
+						String(getSortValue(right, sort) ?? right.title)
+					)
+				);
 			});
 		}
 
-		if (sortType === 'date') {
+		if (sort.type === 'date') {
 			return flatItems.sort((left, right) => {
-				const leftDate = left.sortDate ?? Number.NEGATIVE_INFINITY;
-				const rightDate = right.sortDate ?? Number.NEGATIVE_INFINITY;
+				const leftDate = getNumberSortValue(left, sort) ?? Number.NEGATIVE_INFINITY;
+				const rightDate = getNumberSortValue(right, sort) ?? Number.NEGATIVE_INFINITY;
 
 				if (leftDate === rightDate) {
 					return left.title.localeCompare(right.title);
@@ -98,6 +121,45 @@
 
 		return flatItems;
 	});
+
+	$effect(() => {
+		const defaultSort =
+			sortCapabilities.defaultSortId === null
+				? availableSorts.length === 1
+					? availableSorts[0]
+					: null
+				: (availableSorts.find((sort) => sort.id === sortCapabilities.defaultSortId) ?? null);
+
+		if (sortId === null && defaultSort === null) {
+			return;
+		}
+
+		if (currentResolvedSort) {
+			return;
+		}
+
+		sortId = defaultSort?.id ?? null;
+		sortDirection =
+			sortCapabilities.defaultDirection ??
+			defaultSort?.defaultDirection ??
+			(defaultSort?.type === 'date' ? 'desc' : 'asc');
+	});
+
+	function getSortValue(
+		item: CollectionNavigationItem,
+		sort: ResolvedCollectionSort
+	): CollectionSortValue {
+		if (sort.type === 'title') {
+			return item.sortValues?.[sort.id] ?? item.title;
+		}
+
+		return item.sortValues?.[sort.id] ?? null;
+	}
+
+	function getNumberSortValue(item: CollectionNavigationItem, sort: ResolvedCollectionSort) {
+		const value = getSortValue(item, sort);
+		return typeof value === 'number' ? value : null;
+	}
 
 	function toEditableItem(item: CollectionNavigationItem): CollectionIndexItem {
 		return {
@@ -197,7 +259,7 @@
 	}
 
 	function toggleSortDirection() {
-		if (sortType === 'custom') {
+		if (!currentResolvedSort || currentResolvedSort.type === 'manual') {
 			return;
 		}
 
@@ -205,24 +267,32 @@
 	}
 
 	function getSortButtonLabel() {
-		if (sortType === 'title') {
+		if (!currentResolvedSort) {
+			return 'Sort';
+		}
+
+		if (currentResolvedSort.type === 'manual') {
+			return 'Customize';
+		}
+
+		if (currentResolvedSort.type === 'title' || currentResolvedSort.type === 'text') {
 			return sortDirection === 'asc' ? 'A-Z' : 'Z-A';
 		}
 
-		if (sortType === 'date') {
+		if (currentResolvedSort.type === 'date') {
 			return sortDirection === 'asc' ? 'Oldest' : 'Newest';
 		}
 
-		return canOrderItems ? 'Customize' : 'Manual';
+		return currentResolvedSort.label;
 	}
 
-	function chooseSortType(nextSortType: CollectionSortType) {
-		if (nextSortType === 'date' && !hasDateSort) {
+	function chooseSort(nextSort: ResolvedCollectionSort) {
+		if (nextSort.type === 'manual' && !canOrderItems) {
 			return;
 		}
 
-		sortType = nextSortType;
-		sortDirection = nextSortType === 'date' ? 'desc' : 'asc';
+		sortId = nextSort.id;
+		sortDirection = nextSort.defaultDirection ?? (nextSort.type === 'date' ? 'desc' : 'asc');
 
 		if (sortMenu) {
 			sortMenu.open = false;
@@ -248,36 +318,37 @@
 		<header class="border-b border-stone-200 px-3 py-3">
 			<div class="flex items-center justify-between gap-2">
 				<div class="flex min-w-0 items-center gap-2">
-					{#if sortType === 'custom'}
-						{#if canOrderItems}
-							<button
-								type="button"
-								class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs"
-								onclick={beginCustomOrderEditing}
-								disabled={editingCustomOrder}
-								aria-label="Customize order"
-							>
-								<Pencil class="h-3.5 w-3.5" />
-								{getSortButtonLabel()}
-							</button>
-						{:else}
-							<div
-								class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs opacity-60"
-								aria-hidden="true"
-							>
-								{getSortButtonLabel()}
-							</div>
-						{/if}
+					{#if !currentResolvedSort}
+						<button
+							type="button"
+							class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs"
+							disabled={!shouldShowSortMenu}
+							aria-label="Choose sort type"
+						>
+							{getSortButtonLabel()}
+						</button>
+					{:else if currentResolvedSort.type === 'manual'}
+						<button
+							type="button"
+							class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs"
+							onclick={beginCustomOrderEditing}
+							disabled={editingCustomOrder}
+							aria-label="Customize order"
+						>
+							<Pencil class="h-3.5 w-3.5" />
+							{getSortButtonLabel()}
+						</button>
 					{:else}
 						<button
 							type="button"
 							class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs"
 							onclick={toggleSortDirection}
-							aria-label={sortType === 'title'
+							aria-label={currentResolvedSort.type === 'title' ||
+							currentResolvedSort.type === 'text'
 								? `Sort ${sortDirection === 'asc' ? 'Z-A' : 'A-Z'}`
 								: `Sort by date ${sortDirection === 'asc' ? 'newest first' : 'oldest first'}`}
 						>
-							{#if sortType === 'title'}
+							{#if currentResolvedSort.type === 'title' || currentResolvedSort.type === 'text'}
 								{#if sortDirection === 'asc'}
 									<ArrowDownAZ class="h-3.5 w-3.5" />
 								{:else}
@@ -292,38 +363,27 @@
 						</button>
 					{/if}
 
-					<details bind:this={sortMenu} class="relative">
-						<summary class="tm-icon-btn list-none">
-							<span class="sr-only">Choose sort type</span>
-							<ChevronDown class="h-4 w-4" />
-						</summary>
-						<div
-							class="absolute top-full left-0 z-20 mt-2 grid min-w-36 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
-						>
-							<button
-								type="button"
-								class="rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors hover:bg-stone-100"
-								onclick={() => chooseSortType('title')}
+					{#if shouldShowSortMenu}
+						<details bind:this={sortMenu} class="relative">
+							<summary class="tm-icon-btn list-none">
+								<span class="sr-only">Choose sort type</span>
+								<ChevronDown class="h-4 w-4" />
+							</summary>
+							<div
+								class="absolute top-full left-0 z-20 mt-2 grid min-w-36 gap-1 rounded-md border border-stone-200 bg-white p-1.5 shadow-lg"
 							>
-								Alphabetical
-							</button>
-							<button
-								type="button"
-								class="rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400"
-								onclick={() => chooseSortType('date')}
-								disabled={!hasDateSort}
-							>
-								Date
-							</button>
-							<button
-								type="button"
-								class="rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors hover:bg-stone-100"
-								onclick={() => chooseSortType('custom')}
-							>
-								Custom
-							</button>
-						</div>
-					</details>
+								{#each availableSorts as sort (sort.id)}
+									<button
+										type="button"
+										class="rounded-md px-3 py-2 text-left text-sm text-stone-700 transition-colors hover:bg-stone-100"
+										onclick={() => chooseSort(sort)}
+									>
+										{sort.label}
+									</button>
+								{/each}
+							</div>
+						</details>
+					{/if}
 				</div>
 
 				<a href={resolve(`/pages/${slug}/new`)} class="tm-icon-btn" aria-label={`New ${itemLabel}`}>
@@ -509,7 +569,7 @@
 				>
 					No items yet.
 				</p>
-			{:else if sortType === 'custom'}
+			{:else if currentResolvedSort?.type === 'manual'}
 				<div class="grid gap-3">
 					{#each groups as group (group.id)}
 						{#if group.items.length > 0}

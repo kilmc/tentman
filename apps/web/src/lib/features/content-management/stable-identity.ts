@@ -1,7 +1,7 @@
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { RootConfig } from '$lib/config/root-config';
 import type { CollectionGroupConfig } from '$lib/config/types';
-import { isCollectionManualSortingEnabled } from './config';
+import { isCollectionOrderingEnabled } from './config';
 import { isTopLevelManualSortingEnabled } from './config';
 import { getItemFilename, getItemSlug } from './item';
 import type { ContentRecord } from './types';
@@ -82,11 +82,7 @@ function withTentmanId<T extends { _tentmanId?: string }>(
 }
 
 function normalizeRuntimeCollectionGroups(config: ParsedContentConfig): ParsedContentConfig {
-	if (
-		!isCollectionManualSortingEnabled(config) ||
-		config.collection === true ||
-		!config.collection
-	) {
+	if (!isCollectionOrderingEnabled(config) || config.collection === true || !config.collection) {
 		return config;
 	}
 
@@ -141,7 +137,7 @@ export function normalizeRuntimeDiscoveredConfigIdentity<
 	return configs.map((discoveredConfig) => {
 		const needsConfigId =
 			isTopLevelManualSortingEnabled(rootConfig) ||
-			isCollectionManualSortingEnabled(discoveredConfig.config);
+			isCollectionOrderingEnabled(discoveredConfig.config);
 		const currentId = discoveredConfig.config._tentmanId;
 		const uniqueCurrentId =
 			needsConfigId &&
@@ -177,7 +173,7 @@ export function normalizeRuntimeCollectionItemIds(
 	config: ParsedContentConfig,
 	items: ContentRecord[]
 ): ContentRecord[] {
-	if (!isCollectionManualSortingEnabled(config)) {
+	if (!isCollectionOrderingEnabled(config)) {
 		return items;
 	}
 
@@ -217,7 +213,7 @@ export function ensureTentmanItemId(
 	config: { collection?: unknown },
 	item: ContentRecord
 ): ContentRecord {
-	if (!isCollectionManualSortingEnabled(config as never)) {
+	if (!isCollectionOrderingEnabled(config as never)) {
 		return item;
 	}
 

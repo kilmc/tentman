@@ -3,6 +3,7 @@ import type { DraftMetadata } from '$lib/utils/draft-comparison';
 import type { RootConfig } from '$lib/config/root-config';
 import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import type { ResolvedContentState } from '$lib/features/content-management/state';
+import type { CollectionSortValue } from '$lib/features/content-management/collection-sorts';
 import type { ContentRecord } from '$lib/features/content-management/types';
 import type { RepositoryBackend } from '$lib/repository/types';
 
@@ -81,6 +82,7 @@ export interface CollectionIndexItem {
 	index?: number;
 	title: string;
 	sortDate?: number | null;
+	sortValues?: Record<string, CollectionSortValue>;
 	state?: ResolvedContentState | null;
 	hydration?: 'fallback' | 'hydrated';
 	hrefItemId?: string;

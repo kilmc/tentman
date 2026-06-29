@@ -283,10 +283,10 @@ const contentRows = fiveColumnRows([
 	{
 		field: 'collection',
 		required: 'No',
-		type: 'boolean | { sorting?: "manual"; groups?: CollectionGroupConfig[]; state?: StateConfig }',
+		type: 'boolean | { ordering?: boolean; sorts?: CollectionSortConfig[]; defaultSort?: string | { id: string; direction?: "asc" | "desc" }; groups?: CollectionGroupConfig[]; state?: StateConfig }',
 		purpose: 'Marks the config as multi-item content.',
 		notes:
-			'Use true for the simple form, or the object form to opt into manual ordering and groups.'
+			'Use true for the simple form, or the object form to opt into item ordering, explicit sort modes, groups, and state.'
 	},
 	{
 		field: 'state',
@@ -640,7 +640,12 @@ const contentConfigExample = `{
   "label": "Blog Posts",
   "itemLabel": "Blog Post",
   "collection": {
-    "sorting": "manual",
+    "ordering": true,
+    "defaultSort": { "id": "publishedAt", "direction": "desc" },
+    "sorts": [
+      { "id": "title", "type": "title", "label": "Title" },
+      { "id": "publishedAt", "type": "date", "blockId": "publishedAt", "label": "Published" }
+    ],
     "state": {
       "blockId": "published",
       "preset": "publication",
@@ -731,7 +736,7 @@ const faqExample = `{
   "label": "FAQ",
   "itemLabel": "Question",
   "collection": {
-    "sorting": "manual"
+    "ordering": true
   },
   "content": {
     "mode": "file",
@@ -1646,7 +1651,9 @@ const docsPages: DocsPage[] = [
 						kind: 'rich-text',
 						html: `<p>Use ${inlineCode('collection: true')} for the simple case. Use the object form when you need any of these:</p>
 <ul class="list-disc space-y-2 pl-5">
-<li>${inlineCode('sorting: "manual"')}</li>
+<li>${inlineCode('ordering: true')}</li>
+<li>${inlineCode('sorts')}</li>
+<li>${inlineCode('defaultSort')}</li>
 <li>${inlineCode('groups')}</li>
 <li>${inlineCode('state')}</li>
 </ul>`
@@ -1664,8 +1671,9 @@ const docsPages: DocsPage[] = [
 						)}. Top-level manual ordering is enabled with root ${inlineCode(
 							'content.sorting: "manual"'
 						)}. Collection item ordering is enabled with ${inlineCode(
-							'collection: { "sorting": "manual" }'
+							'collection: { "ordering": true }'
 						)}.</p>
+<p>When ${inlineCode('collection.sorts')} is omitted, Tentman infers a title sort and one date sort for each date block. Use ${inlineCode('collection.defaultSort')} as a string or ${inlineCode('{ id, direction }')} object to choose the initial collection panel sort.</p>
 <p>If a manifest section exists, Tentman uses it first. Unlisted existing configs or items are appended in discovered/default order, and missing manifest references are ignored.</p>`
 					},
 					{

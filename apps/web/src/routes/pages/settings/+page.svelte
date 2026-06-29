@@ -399,9 +399,7 @@
 						Top-level order is opted into with root
 						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">content.sorting: "manual"</code>
 						. Collection item order is opted into with
-						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs"
-							>collection.sorting: "manual"</code
-						>
+						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">collection.ordering: true</code>
 						plus an author-facing
 						<code class="rounded bg-stone-100 px-1 py-0.5 text-xs">idField</code>.
 					</p>
@@ -492,7 +490,7 @@
 							<p class="mt-1 text-sm text-stone-500">
 								Add
 								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs"
-									>collection.sorting: "manual"</code
+									>collection.ordering: true</code
 								>, and
 								<code class="rounded bg-stone-200 px-1 py-0.5 text-xs">idField</code>
 								to unlock item reordering.

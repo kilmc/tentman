@@ -185,7 +185,7 @@ describe('parseConfigFile', () => {
 			"_tentmanId": "projects",
 			"itemLabel": "Project",
 			"collection": {
-				"sorting": "manual",
+				"ordering": true,
 				"groups": [
 					{ "_tentmanId": "identity", "label": "Identity", "value": "identity" }
 				]
@@ -208,7 +208,7 @@ describe('parseConfigFile', () => {
 
 		expect(parsed._tentmanId).toBe('projects');
 		expect(parsed.collection).toEqual({
-			sorting: 'manual',
+			ordering: true,
 			groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
 		});
 	});
@@ -226,7 +226,7 @@ describe('parseConfigFile', () => {
 				}
 			},
 			"collection": {
-				"sorting": "manual",
+				"ordering": true,
 				"state": {
 					"blockId": "published",
 					"cases": [
@@ -268,7 +268,7 @@ describe('parseConfigFile', () => {
 			"label": "Projects",
 			"itemLabel": "Project",
 			"collection": {
-				"sorting": "manual",
+				"ordering": true,
 				"groups": [
 					{ "label": "Identity", "value": "identity" }
 				]
@@ -288,9 +288,95 @@ describe('parseConfigFile', () => {
 		}
 
 		expect(parsed.collection).toEqual({
-			sorting: 'manual',
+			ordering: true,
 			groups: [{ label: 'Identity', value: 'identity' }]
 		});
+	});
+
+	it('parses collection sort capabilities and polymorphic default sort', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"itemLabel": "Post",
+			"collection": {
+				"ordering": true,
+				"defaultSort": { "id": "published", "direction": "desc" },
+				"sorts": [
+					{ "id": "title", "type": "title", "label": "Title" },
+					{ "id": "published", "type": "date", "blockId": "publishedAt", "label": "Published" },
+					{ "id": "subtitle", "type": "text", "blockId": "subtitle", "defaultDirection": "desc" }
+				]
+			},
+			"content": {
+				"mode": "directory",
+				"path": "./posts",
+				"template": "./post.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" },
+				{ "id": "subtitle", "type": "text", "label": "Subtitle" },
+				{ "id": "publishedAt", "type": "date", "label": "Published" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed.collection.defaultSort).toEqual({ id: 'published', direction: 'desc' });
+		expect(parsed.collection.sorts).toEqual([
+			{ id: 'title', type: 'title', label: 'Title' },
+			{ id: 'published', type: 'date', blockId: 'publishedAt', label: 'Published' },
+			{ id: 'subtitle', type: 'text', blockId: 'subtitle', defaultDirection: 'desc' }
+		]);
+	});
+
+	it('accepts collection defaultSort shorthand', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"itemLabel": "Post",
+			"collection": {
+				"defaultSort": "title"
+			},
+			"content": {
+				"mode": "directory",
+				"path": "./posts",
+				"template": "./post.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed.collection.defaultSort).toBe('title');
+	});
+
+	it('rejects collection sorts that reference incompatible blocks', () => {
+		expect(() =>
+			parseConfigFile(`{
+				"type": "content",
+				"label": "Posts",
+				"itemLabel": "Post",
+				"collection": {
+					"sorts": [
+						{ "id": "published", "type": "date", "blockId": "title" }
+					]
+				},
+				"content": {
+					"mode": "directory",
+					"path": "./posts",
+					"template": "./post.md"
+				},
+				"blocks": [
+					{ "id": "title", "type": "text", "label": "Title" }
+				]
+			}`)
+		).toThrow('config.collection.sorts[0].blockId must reference a date block');
 	});
 
 	it('parses block configs in the new explicit schema', () => {

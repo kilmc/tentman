@@ -63,7 +63,7 @@
 		addCollectionGroupToConfigSource,
 		addNavigationGroupToManifest
 	} from '$lib/features/content-management/navigation-group-options';
-	import { isCollectionManualSortingEnabled } from '$lib/features/content-management/config';
+	import { isCollectionOrderingEnabled } from '$lib/features/content-management/config';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { resolveConfigPath } from '$lib/utils/validation';
 
@@ -484,7 +484,7 @@
 	function canSaveCurrentItemUpdateNavigationManifest(): boolean {
 		if (
 			!discoveredConfig?.config._tentmanId ||
-			!isCollectionManualSortingEnabled(discoveredConfig.config)
+			!isCollectionOrderingEnabled(discoveredConfig.config)
 		) {
 			return false;
 		}

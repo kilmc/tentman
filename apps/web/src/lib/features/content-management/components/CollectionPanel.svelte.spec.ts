@@ -1,12 +1,58 @@
 import { describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
 import CollectionPanel from './CollectionPanel.svelte';
+import type { ResolvedCollectionSortCapabilities } from '$lib/features/content-management/collection-sorts';
 
 vi.mock('$app/paths', () => ({
 	resolve: (path: string) => path
 }));
 
+const titleSortCapabilities: ResolvedCollectionSortCapabilities = {
+	sorts: [{ id: 'title', type: 'title', label: 'Alphabetical', defaultDirection: 'asc' }],
+	defaultSortId: 'title',
+	defaultDirection: 'asc',
+	ordering: false
+};
+
+const customSortCapabilities: ResolvedCollectionSortCapabilities = {
+	sorts: [
+		{ id: 'manual', type: 'manual', label: 'Custom' },
+		{ id: 'title', type: 'title', label: 'Alphabetical', defaultDirection: 'asc' }
+	],
+	defaultSortId: 'manual',
+	ordering: true
+};
+
 describe('CollectionPanel customize mode', () => {
+	it('shows the single available sort control without a dropdown when no default sort is configured', async () => {
+		const screen = await render(CollectionPanel, {
+			slug: 'posts',
+			label: 'Posts',
+			itemLabel: 'Post',
+			items: [
+				{ itemId: 'zulu', title: 'Zulu', sortDate: null },
+				{ itemId: 'alpha', title: 'Alpha', sortDate: null }
+			],
+			groups: [],
+			sortCapabilities: {
+				sorts: [{ id: 'title', type: 'title', label: 'Alphabetical', defaultDirection: 'asc' }],
+				defaultSortId: null,
+				ordering: false
+			}
+		});
+
+		await expectElement(screen.getByRole('button', { name: 'Sort Z-A' })).toBeEnabled();
+		expect(document.querySelector('summary')).toBeNull();
+		expect(document.body.textContent).not.toContain('Source');
+		expect(document.body.textContent).not.toContain('Source order');
+
+		const itemLinks = Array.from(
+			document.querySelectorAll('a[href^="/pages/posts/"] .truncate.font-medium')
+		).map((node) => node.textContent?.trim());
+
+		expect(itemLinks).toEqual(['Alpha', 'Zulu']);
+	});
+
 	it('sorts by the resolved title values shown in the panel', async () => {
 		const screen = await render(CollectionPanel, {
 			slug: 'projects',
@@ -17,7 +63,16 @@ describe('CollectionPanel customize mode', () => {
 				{ itemId: 'a', title: 'Alpha', sortDate: null },
 				{ itemId: 'm', title: 'Middle', sortDate: null }
 			],
-			groups: []
+			groups: [],
+			sortCapabilities: {
+				sorts: [
+					{ id: 'manual', type: 'manual', label: 'Custom' },
+					{ id: 'title', type: 'title', label: 'Alphabetical', defaultDirection: 'asc' }
+				],
+				defaultSortId: 'manual',
+				ordering: true
+			},
+			canOrderItems: true
 		});
 
 		document.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -38,10 +93,45 @@ describe('CollectionPanel customize mode', () => {
 			items: [
 				{ itemId: 'event-1', title: 'Apr 3, 2026', sortDate: new Date('2026-04-03').getTime() }
 			],
-			groups: []
+			groups: [],
+			sortCapabilities: titleSortCapabilities
 		});
 
 		await expectElement(screen.getByRole('link', { name: 'Apr 3, 2026' })).toBeVisible();
+	});
+
+	it('does not render Date when no date sort capability exists', async () => {
+		await render(CollectionPanel, {
+			slug: 'posts',
+			label: 'Posts',
+			itemLabel: 'Post',
+			items: [{ itemId: 'post-1', title: 'Post 1', sortDate: new Date('2026-04-03').getTime() }],
+			groups: [],
+			sortCapabilities: titleSortCapabilities
+		});
+
+		expect(document.body.textContent).not.toContain('Date');
+	});
+
+	it('does not render Custom when ordering is not enabled', async () => {
+		await render(CollectionPanel, {
+			slug: 'posts',
+			label: 'Posts',
+			itemLabel: 'Post',
+			items: [{ itemId: 'post-1', title: 'Post 1', sortDate: null }],
+			groups: [],
+			sortCapabilities: {
+				sorts: [
+					{ id: 'title', type: 'title', label: 'Alphabetical', defaultDirection: 'asc' },
+					{ id: 'published', type: 'date', label: 'Published', defaultDirection: 'desc' }
+				],
+				defaultSortId: 'title',
+				defaultDirection: 'asc',
+				ordering: false
+			}
+		});
+
+		expect(document.body.textContent).not.toContain('Custom');
 	});
 
 	it('keeps the current panel structure editable and saves the draft order payload', async () => {
@@ -64,6 +154,7 @@ describe('CollectionPanel customize mode', () => {
 					items: [{ itemId: 'launch', title: 'Launch', sortDate: null }]
 				}
 			],
+			sortCapabilities: customSortCapabilities,
 			onsavecustomorder
 		});
 
@@ -93,6 +184,7 @@ describe('CollectionPanel customize mode', () => {
 			canOrderItems: true,
 			items: [{ itemId: 'archive', title: 'Archive', sortDate: null }],
 			groups: [],
+			sortCapabilities: customSortCapabilities,
 			onsavecustomorder
 		});
 
@@ -116,7 +208,8 @@ describe('CollectionPanel customize mode', () => {
 					label: 'Identity',
 					items: [{ itemId: 'brand-system', title: 'Brand system', sortDate: null }]
 				}
-			]
+			],
+			sortCapabilities: customSortCapabilities
 		});
 
 		await screen.getByRole('button', { name: 'Customize order' }).click();
@@ -144,7 +237,9 @@ describe('CollectionPanel customize mode', () => {
 					label: 'Identity',
 					items: [{ itemId: 'brand-system', title: 'Brand system', sortDate: null }]
 				}
-			]
+			],
+			sortCapabilities: customSortCapabilities,
+			canOrderItems: true
 		});
 
 		await expectElement(screen.getByRole('link', { name: 'Brand system' })).toBeVisible();

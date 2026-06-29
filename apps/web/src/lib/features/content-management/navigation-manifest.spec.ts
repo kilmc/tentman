@@ -228,7 +228,7 @@ describe('navigation manifest helpers', () => {
 	});
 
 	it('adds root manual sorting to the root config source', () => {
-		expect(addRootManualSortingToSource('{"siteName":"Docs"}')).toContain('"sorting": "manual"');
+		expect(addRootManualSortingToSource('{"siteName":"Docs"}')).toContain('"ordering": true');
 	});
 
 	it('syncs edited tentmanGroup selection into the navigation manifest', async () => {
@@ -250,7 +250,7 @@ describe('navigation manifest helpers', () => {
 				label: 'Projects',
 				_tentmanId: 'projects',
 				collection: {
-					sorting: 'manual',
+					ordering: true,
 					groups: [
 						{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' },
 						{ _tentmanId: 'study-projects', label: 'Study Projects', value: 'study-projects' }
@@ -282,7 +282,7 @@ describe('navigation manifest helpers', () => {
 					label: 'Projects',
 					_tentmanId: 'projects',
 					collection: {
-						sorting: 'manual',
+						ordering: true,
 						groups: [
 							{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' },
 							{
@@ -351,7 +351,7 @@ describe('navigation manifest helpers', () => {
 				label: 'Projects',
 				_tentmanId: 'projects',
 				collection: {
-					sorting: 'manual',
+					ordering: true,
 					groups: [{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' }]
 				},
 				content: {
@@ -373,7 +373,7 @@ describe('navigation manifest helpers', () => {
 					label: 'Projects',
 					_tentmanId: 'projects',
 					collection: {
-						sorting: 'manual',
+						ordering: true,
 						groups: [{ _tentmanId: 'illustration', label: 'Illustration', value: 'illustration' }]
 					},
 					content: {
@@ -451,7 +451,7 @@ describe('navigation manifest helpers', () => {
 							_tentmanId: 'posts',
 							label: 'Posts',
 							collection: {
-								sorting: 'manual',
+								ordering: true,
 								groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
 							},
 							idField: 'slug',
@@ -522,7 +522,7 @@ describe('navigation manifest helpers', () => {
 							id: 'posts',
 							label: 'Posts',
 							collection: {
-								sorting: 'manual',
+								ordering: true,
 								groups: [{ _tentmanId: 'featured-group', label: 'Featured', value: 'featured' }]
 							},
 							idField: 'slug',
@@ -576,7 +576,7 @@ describe('navigation manifest helpers', () => {
 				label: 'Posts',
 				id: 'posts',
 				collection: {
-					sorting: 'manual'
+					ordering: true
 				},
 				idField: 'slug',
 				content: {
@@ -605,7 +605,7 @@ describe('navigation manifest helpers', () => {
 						id: 'posts',
 						label: 'Posts',
 						collection: {
-							sorting: 'manual'
+							ordering: true
 						},
 						idField: 'slug',
 						content: {
@@ -667,7 +667,7 @@ describe('navigation manifest helpers', () => {
 				label: 'Projects',
 				_tentmanId: 'projects',
 				collection: {
-					sorting: 'manual',
+					ordering: true,
 					groups: [{ label: 'Identity', value: 'identity' }]
 				},
 				idField: 'slug',
@@ -693,7 +693,7 @@ describe('navigation manifest helpers', () => {
 						_tentmanId: 'projects',
 						label: 'Projects',
 						collection: {
-							sorting: 'manual',
+							ordering: true,
 							groups: [{ label: 'Identity', value: 'identity' }]
 						},
 						idField: 'slug',
@@ -738,7 +738,7 @@ describe('navigation manifest helpers', () => {
 					type: 'content',
 					_tentmanId: 'projects',
 					label: 'Projects',
-					collection: { sorting: 'manual' },
+					collection: { ordering: true },
 					content: {
 						mode: 'file',
 						path: 'src/content/projects.json'
@@ -764,7 +764,7 @@ describe('navigation manifest helpers', () => {
 				type: 'content' as const,
 				_tentmanId: 'projects',
 				label: 'Projects',
-				collection: { sorting: 'manual' as const },
+				collection: { ordering: true as const },
 				content: {
 					mode: 'file' as const,
 					path: 'src/content/projects.json'
@@ -803,7 +803,7 @@ describe('navigation manifest helpers', () => {
 				_tentmanId: 'projects',
 				label: 'Projects',
 				collection: {
-					sorting: 'manual',
+					ordering: true,
 					groups: [
 						{ _tentmanId: 'identity', label: 'Identity', value: 'identity' },
 						{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' }
@@ -855,7 +855,7 @@ describe('navigation manifest helpers', () => {
 					_tentmanId: 'projects',
 					label: 'Projects',
 					collection: {
-						sorting: 'manual',
+						ordering: true,
 						groups: [
 							{ _tentmanId: 'identity', label: 'Identity', value: 'identity' },
 							{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' }

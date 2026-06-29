@@ -20,8 +20,8 @@ export function getCollectionConfig(
 	return collection;
 }
 
-export function isCollectionManualSortingEnabled(config: ContentConfig): boolean {
-	return getCollectionConfig(config.collection)?.sorting === 'manual';
+export function isCollectionOrderingEnabled(config: ContentConfig): boolean {
+	return getCollectionConfig(config.collection)?.ordering === true;
 }
 
 export function getCollectionGroups(config: ContentConfig): CollectionGroupConfig[] {

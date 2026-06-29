@@ -47,6 +47,7 @@
 		saveCollectionOrder,
 		writeNavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
+	import { resolveCollectionSortCapabilities } from '$lib/features/content-management/collection-sorts';
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import {
 		githubCacheWarmStatus,
@@ -1111,6 +1112,9 @@
 			{#if showCollectionPanel && currentConfig}
 				{@const navigation = getCollectionItems(currentConfig.slug)}
 				{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
+				{@const sortCapabilities = resolveCollectionSortCapabilities(currentConfig.config, {
+					canOrderItems: !!collectionSetup?.canOrderItems
+				})}
 				<div class="hidden min-h-0 min-w-0 lg:grid">
 					{#key localWorkspaceSurfaceKey}
 						<CollectionPanel
@@ -1122,6 +1126,7 @@
 							{currentItemId}
 							status={getCollectionLoadStatus(currentConfig.slug)}
 							error={getCollectionLoadError(currentConfig.slug)}
+							{sortCapabilities}
 							canOrderItems={!!collectionSetup?.canOrderItems}
 							savingCustomOrder={savingCollectionOrder}
 							onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
@@ -1175,6 +1180,9 @@
 {#if shouldShowCollectionPanel && currentConfig && isMobileCollectionOpen}
 	{@const navigation = getCollectionItems(currentConfig.slug)}
 	{@const collectionSetup = getCollectionSetup(currentConfig.slug)}
+	{@const sortCapabilities = resolveCollectionSortCapabilities(currentConfig.config, {
+		canOrderItems: !!collectionSetup?.canOrderItems
+	})}
 	<div
 		class="fixed inset-0 z-30 grid grid-rows-[auto_minmax(0,1fr)] bg-white lg:hidden"
 		data-testid="pages-mobile-collection-panel"
@@ -1207,6 +1215,7 @@
 					{currentItemId}
 					status={getCollectionLoadStatus(currentConfig.slug)}
 					error={getCollectionLoadError(currentConfig.slug)}
+					{sortCapabilities}
 					canOrderItems={!!collectionSetup?.canOrderItems}
 					savingCustomOrder={savingCollectionOrder}
 					onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}

@@ -154,7 +154,7 @@ describe('navigation group select options', () => {
 				type: 'content',
 				label: 'Projects',
 				collection: {
-					sorting: 'manual',
+					ordering: true,
 					groups: [{ _tentmanId: 'old-group', label: 'Old', value: 'old' }]
 				},
 				content: {

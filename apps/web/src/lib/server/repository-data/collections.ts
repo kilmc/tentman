@@ -90,10 +90,7 @@ function stripFileExtension(filename: string): string {
 }
 
 function getFallbackTitleFromFilename(filename: string): string {
-	return stripFileExtension(filename)
-		.replace(/[-_]+/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
+	return stripFileExtension(filename).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function isWithinDirectory(path: string, directoryPath: string): boolean {
@@ -176,7 +173,9 @@ function getProjectionSchemaIdentity(config: ParsedContentConfig, fieldIds: Set<
 		idField: config.idField ?? null,
 		fields: [...fieldIds].sort(),
 		itemLabel: config.itemLabel ?? null,
-		sorting: collection?.sorting ?? null,
+		ordering: collection?.ordering ?? null,
+		defaultSort: collection?.defaultSort ?? null,
+		sorts: collection?.sorts ?? null,
 		groups:
 			collection?.groups?.map((group) => ({
 				id: group._tentmanId ?? null,
@@ -372,6 +371,7 @@ function toCollectionIndexItems(
 				blobSha: entry.sha,
 				title: navigationItem?.title ?? route,
 				sortDate: navigationItem?.sortDate ?? null,
+				sortValues: navigationItem?.sortValues ?? {},
 				hydration: 'hydrated' as const,
 				hrefItemId: route,
 				...(navigationItem?.state ? { state: navigationItem.state } : {})
@@ -380,7 +380,9 @@ function toCollectionIndexItems(
 	});
 }
 
-function toDirectoryFallbackCollectionIndexItems(entries: RepositoryTreeEntry[]): CollectionIndexItem[] {
+function toDirectoryFallbackCollectionIndexItems(
+	entries: RepositoryTreeEntry[]
+): CollectionIndexItem[] {
 	return entries.map((entry) => {
 		const filename = getFilename(entry.path);
 		const route = stripFileExtension(filename);
@@ -393,6 +395,7 @@ function toDirectoryFallbackCollectionIndexItems(entries: RepositoryTreeEntry[])
 			blobSha: entry.sha,
 			title: getFallbackTitleFromFilename(filename) || route,
 			sortDate: null,
+			sortValues: {},
 			hydration: 'fallback',
 			hrefItemId: route
 		};
@@ -509,6 +512,7 @@ function toFileCollectionIndexItems(input: {
 				index,
 				title: navigationItem?.title ?? route ?? fallbackId,
 				sortDate: navigationItem?.sortDate ?? null,
+				sortValues: navigationItem?.sortValues ?? {},
 				hydration: 'hydrated' as const,
 				hrefItemId: route ?? fallbackId,
 				...(navigationItem?.state ? { state: navigationItem.state } : {})
@@ -539,6 +543,7 @@ function getCollectionIndexItemFromContent(input: {
 		...(typeof input.index === 'number' ? { index: input.index } : {}),
 		title: route,
 		sortDate: null,
+		sortValues: {},
 		hydration: 'hydrated',
 		hrefItemId: route
 	};
@@ -768,9 +773,11 @@ export async function getCollectionIndex(
 	return promise;
 }
 
-export async function hydrateCollectionProjections(input: CollectionNavigationInput & {
-	blobShas: string[];
-}): Promise<CollectionProjectionBatchResult | null> {
+export async function hydrateCollectionProjections(
+	input: CollectionNavigationInput & {
+		blobShas: string[];
+	}
+): Promise<CollectionProjectionBatchResult | null> {
 	if (!canUseGitHubSource(input.backend)) {
 		return null;
 	}
@@ -836,10 +843,11 @@ async function loadCollectionNavigation(
 
 	const navigation = orderCollectionNavigationItems(
 		discoveredConfig.config,
-		index.items.map(({ itemId, title, sortDate, state, hydration, hrefItemId }) => ({
+		index.items.map(({ itemId, title, sortDate, sortValues, state, hydration, hrefItemId }) => ({
 			itemId,
 			title,
 			sortDate,
+			sortValues,
 			...(state ? { state } : {}),
 			...(hydration ? { hydration } : {}),
 			...(hrefItemId ? { hrefItemId } : {})
@@ -933,11 +941,7 @@ export async function resolveCollectionItemDocument(
 	}
 
 	const info = getTemplateInfo(discoveredConfig.path, discoveredConfig.config);
-	const entries = getCandidateItemEntries(
-		snapshot,
-		discoveredConfig.config,
-		discoveredConfig.path
-	);
+	const entries = getCandidateItemEntries(snapshot, discoveredConfig.config, discoveredConfig.path);
 	const directEntry = entries.find((entry) => {
 		const filename = getFilename(entry.path);
 		return filename === input.itemId || stripFileExtension(filename) === input.itemId;

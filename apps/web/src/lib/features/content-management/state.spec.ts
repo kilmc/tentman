@@ -17,7 +17,7 @@ const configWithState: ParsedContentConfig = {
 		}
 	},
 	collection: {
-		sorting: 'manual',
+		ordering: true,
 		state: {
 			blockId: 'published',
 			preset: 'publication',
@@ -82,7 +82,7 @@ describe('content state resolution', () => {
 		const collectionConfig: ParsedContentConfig = {
 			...configWithState,
 			collection: {
-				sorting: 'manual',
+				ordering: true,
 				state: {
 					blockId: 'status',
 					preset: 'releaseStatus',

@@ -11,7 +11,7 @@ const manualCollectionConfig: ParsedContentConfig = {
 	label: 'Projects',
 	itemLabel: 'Project',
 	collection: {
-		sorting: 'manual',
+		ordering: true,
 		groups: [{ label: 'Identity', value: 'identity' }]
 	},
 	idField: 'slug',

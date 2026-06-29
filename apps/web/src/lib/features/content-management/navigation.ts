@@ -3,7 +3,7 @@ import type { ParsedContentConfig } from '$lib/config/parse';
 import type { RootConfig } from '$lib/config/root-config';
 import {
 	getCollectionGroups,
-	isCollectionManualSortingEnabled
+	isCollectionOrderingEnabled
 } from '$lib/features/content-management/config';
 import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import {
@@ -19,6 +19,11 @@ import type {
 	NavigationManifestCollection
 } from '$lib/features/content-management/navigation-manifest';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
+import {
+	getCollectionSortValues,
+	resolveCollectionSortCapabilities,
+	type CollectionSortValue
+} from '$lib/features/content-management/collection-sorts';
 
 export {
 	getConfigItemLabel,
@@ -29,6 +34,7 @@ export interface CollectionNavigationItem {
 	itemId: string;
 	title: string;
 	sortDate?: number | null;
+	sortValues?: Record<string, CollectionSortValue>;
 	state?: ResolvedContentState | null;
 	hydration?: 'fallback' | 'hydrated';
 	hrefItemId?: string;
@@ -44,6 +50,7 @@ export interface OrderedCollectionRecord {
 	itemId: string;
 	title: string;
 	sortDate?: number | null;
+	sortValues?: Record<string, CollectionSortValue>;
 	item: ContentRecord;
 	state?: ResolvedContentState | null;
 }
@@ -68,6 +75,18 @@ export function getContentItemTitle(config: ParsedContentConfig, item: ContentRe
 	return resolveContentItemTitle(config, item).title;
 }
 
+function getFirstDateSortDate(
+	sortValues: Record<string, CollectionSortValue>,
+	firstDateSortId: string | undefined
+): number | null {
+	if (!firstDateSortId) {
+		return null;
+	}
+
+	const value = sortValues[firstDateSortId];
+	return typeof value === 'number' ? value : null;
+}
+
 export function getCollectionNavigationItems(
 	config: ParsedContentConfig,
 	content: ContentDocument,
@@ -77,7 +96,9 @@ export function getCollectionNavigationItems(
 		return [];
 	}
 
-	const dateFieldId = config.blocks.find((block) => block.type === 'date')?.id;
+	const firstDateSort = resolveCollectionSortCapabilities(config).sorts.find(
+		(sort) => sort.type === 'date'
+	);
 
 	return content.flatMap((item) => {
 		const itemId = getCollectionNavigationItemId(config, item);
@@ -87,12 +108,15 @@ export function getCollectionNavigationItems(
 		}
 
 		const state = resolveCollectionItemState(config, item, rootConfig);
+		const title = getContentItemTitle(config, item);
+		const sortValues = getCollectionSortValues(config, item, title);
 
 		return [
 			{
 				itemId,
-				title: getContentItemTitle(config, item),
-				sortDate: getCollectionSortDate(item, dateFieldId),
+				title,
+				sortValues,
+				sortDate: getFirstDateSortDate(sortValues, firstDateSort?.id),
 				...(state ? { state } : {})
 			}
 		];
@@ -108,27 +132,11 @@ function getCollectionNavigationItemId(
 		return stableId;
 	}
 
-	if (isCollectionManualSortingEnabled(config)) {
+	if (isCollectionOrderingEnabled(config)) {
 		return undefined;
 	}
 
 	return getItemRoute(config, item);
-}
-
-function getCollectionSortDate(item: ContentRecord, dateFieldId?: string): number | null {
-	if (!dateFieldId) {
-		return null;
-	}
-
-	const value = item[dateFieldId];
-	if (value === undefined || value === null || value === '') {
-		return null;
-	}
-
-	const parsed = new Date(String(value));
-	const timestamp = parsed.getTime();
-
-	return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 function orderItemsByManifest<T extends { itemId: string }>(
@@ -326,15 +334,18 @@ export function getOrderedCollectionRecords(
 		}
 
 		const state = resolveCollectionItemState(config, item, rootConfig);
+		const title = getContentItemTitle(config, item);
+		const sortValues = getCollectionSortValues(config, item, title);
+		const firstDateSort = resolveCollectionSortCapabilities(config).sorts.find(
+			(sort) => sort.type === 'date'
+		);
 
 		return [
 			{
 				itemId,
-				title: getContentItemTitle(config, item),
-				sortDate: getCollectionSortDate(
-					item,
-					config.blocks.find((block) => block.type === 'date')?.id
-				),
+				title,
+				sortValues,
+				sortDate: getFirstDateSortDate(sortValues, firstDateSort?.id),
 				item,
 				...(state ? { state } : {})
 			}

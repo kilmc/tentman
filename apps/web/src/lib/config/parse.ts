@@ -2,6 +2,8 @@ import type {
 	BlockConfig,
 	BlockUsage,
 	CollectionBehaviorConfig,
+	CollectionSortConfig,
+	CollectionSortDirection,
 	CollectionGroupConfig,
 	ContentConfig,
 	DirectoryContentMode,
@@ -380,8 +382,94 @@ function parseCollectionGroupConfig(input: unknown, context: string): Collection
 	};
 }
 
+function parseCollectionSortDirection(
+	input: unknown,
+	context: string
+): CollectionSortDirection | undefined {
+	if (input === undefined) {
+		return undefined;
+	}
+
+	if (input !== 'asc' && input !== 'desc') {
+		throw new Error(`${context} must be "asc" or "desc" when present`);
+	}
+
+	return input;
+}
+
+function parseCollectionSortConfig(
+	input: unknown,
+	blocks: BlockUsage[],
+	context: string
+): CollectionSortConfig {
+	assertObject(input, `${context} must be an object`);
+
+	const id = readRequiredString(input, 'id', context);
+	const type = readRequiredString(input, 'type', context);
+	const label = readOptionalString(input, 'label', context);
+	const defaultDirection = parseCollectionSortDirection(
+		input.defaultDirection,
+		`${context}.defaultDirection`
+	);
+
+	if (type === 'title') {
+		return {
+			id,
+			type,
+			...(label ? { label } : {}),
+			...(defaultDirection ? { defaultDirection } : {})
+		};
+	}
+
+	if (type !== 'text' && type !== 'date') {
+		throw new Error(`${context}.type must be "title", "text", or "date"`);
+	}
+
+	const blockId = readRequiredString(input, 'blockId', context);
+	const block = blocks.find((candidate) => candidate.id === blockId);
+
+	if (!block) {
+		throw new Error(`${context}.blockId references unknown block id "${blockId}"`);
+	}
+
+	if (block.type !== type) {
+		throw new Error(`${context}.blockId must reference a ${type} block`);
+	}
+
+	return {
+		id,
+		type,
+		blockId,
+		...(label ? { label } : {}),
+		...(defaultDirection ? { defaultDirection } : {})
+	};
+}
+
+function parseCollectionDefaultSort(input: unknown, context: string) {
+	if (input === undefined) {
+		return undefined;
+	}
+
+	if (typeof input === 'string') {
+		if (!input.trim()) {
+			throw new Error(`${context} must be a non-empty string`);
+		}
+
+		return input;
+	}
+
+	assertObject(input, `${context} must be a string or an object`);
+	const direction = parseCollectionSortDirection(input.direction, `${context}.direction`);
+
+	return {
+		id: readRequiredString(input, 'id', context),
+		...(direction ? { direction } : {})
+	};
+}
+
 function parseCollectionBehaviorConfig(
 	input: unknown,
+	blocks: BlockUsage[],
 	context: string
 ): CollectionBehaviorConfig | true | undefined {
 	if (input === undefined) {
@@ -394,9 +482,15 @@ function parseCollectionBehaviorConfig(
 
 	assertObject(input, `${context} must be true or an object`);
 
-	const sorting = input.sorting;
-	if (sorting !== undefined && sorting !== 'manual') {
-		throw new Error(`${context}.sorting must be "manual" when present`);
+	if (input.sorting !== undefined) {
+		throw new Error(`${context}.sorting is no longer supported; use ${context}.ordering`);
+	}
+
+	const ordering = readOptionalBoolean(input, 'ordering', context);
+	const defaultSort = parseCollectionDefaultSort(input.defaultSort, `${context}.defaultSort`);
+	const sorts = input.sorts;
+	if (sorts !== undefined && !Array.isArray(sorts)) {
+		throw new Error(`${context}.sorts must be an array when present`);
 	}
 
 	const groups = input.groups;
@@ -405,9 +499,23 @@ function parseCollectionBehaviorConfig(
 	}
 
 	const state = input.state;
+	const parsedSorts = sorts?.map((sort, index) =>
+		parseCollectionSortConfig(sort, blocks, `${context}.sorts[${index}]`)
+	);
+	const sortIds = new Set<string>();
+
+	for (const sort of parsedSorts ?? []) {
+		if (sortIds.has(sort.id)) {
+			throw new Error(`${context}.sorts contains duplicate sort id "${sort.id}"`);
+		}
+
+		sortIds.add(sort.id);
+	}
 
 	return {
-		...(sorting === 'manual' ? { sorting } : {}),
+		...(ordering !== undefined ? { ordering } : {}),
+		...(defaultSort !== undefined ? { defaultSort } : {}),
+		...(parsedSorts ? { sorts: parsedSorts } : {}),
 		...(groups
 			? {
 					groups: groups.map((group, index) =>
@@ -720,11 +828,11 @@ function parseContentMode(input: unknown, context: string): FileContentMode | Di
 }
 
 function parseContentConfig(input: Record<string, unknown>): ParsedContentConfig {
-	const collection = parseCollectionBehaviorConfig(input.collection, 'config.collection');
 	const content = parseContentMode(input.content, 'config.content');
 	const state =
 		input.state !== undefined ? parseStateConfig(input.state, 'config.state') : undefined;
 	const blocks = readBlocks(input, 'config');
+	const collection = parseCollectionBehaviorConfig(input.collection, blocks, 'config.collection');
 	const editorLayout = parseEditorLayout(input, blocks, 'config');
 
 	const config: ParsedContentConfig = {

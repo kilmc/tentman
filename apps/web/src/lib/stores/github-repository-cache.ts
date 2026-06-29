@@ -356,9 +356,8 @@ export const githubCacheWarmDebugStatus = writable<GithubCacheWarmDebugStatus>(
 	createWarmDebugStatus(get(githubCacheWarmStatus))
 );
 
-export const githubCacheInventoryStatus = writable<GithubCacheInventorySummary>(
-	emptyInventorySummary
-);
+export const githubCacheInventoryStatus =
+	writable<GithubCacheInventorySummary>(emptyInventorySummary);
 
 function openDatabase(): Promise<IDBDatabase> {
 	if (!browser) {
@@ -400,7 +399,9 @@ async function openDatabaseWithStore(storeName: string): Promise<IDBDatabase | n
 		return database;
 	}
 
-	console.warn(`GitHub repository cache store "${storeName}" is unavailable; skipping cache access.`);
+	console.warn(
+		`GitHub repository cache store "${storeName}" is unavailable; skipping cache access.`
+	);
 	return null;
 }
 
@@ -428,7 +429,8 @@ async function writeStore<T extends { key: string }>(storeName: string, value: T
 		const transaction = database.transaction(storeName, 'readwrite');
 		transaction.objectStore(storeName).put(value);
 		transaction.oncomplete = () => resolve();
-		transaction.onerror = () => reject(transaction.error ?? new Error(`Failed to write ${storeName}`));
+		transaction.onerror = () =>
+			reject(transaction.error ?? new Error(`Failed to write ${storeName}`));
 	});
 }
 
@@ -456,7 +458,8 @@ async function deleteStoreRecord(storeName: string, key: string): Promise<void> 
 		const transaction = database.transaction(storeName, 'readwrite');
 		transaction.objectStore(storeName).delete(key);
 		transaction.oncomplete = () => resolve();
-		transaction.onerror = () => reject(transaction.error ?? new Error(`Failed to delete ${storeName}`));
+		transaction.onerror = () =>
+			reject(transaction.error ?? new Error(`Failed to delete ${storeName}`));
 	});
 }
 
@@ -533,7 +536,10 @@ async function updateInventoryTarget(
 		>
 	>
 ): Promise<void> {
-	const existing = await readStore<GithubCacheInventoryRecord>(INVENTORY_STORE, getInventoryKey(targetId));
+	const existing = await readStore<GithubCacheInventoryRecord>(
+		INVENTORY_STORE,
+		getInventoryKey(targetId)
+	);
 	if (!existing) {
 		return;
 	}
@@ -567,7 +573,9 @@ async function updateInventoryRecords(
 	await refreshInventoryStatus();
 }
 
-function createInventorySummary(records: GithubCacheInventoryRecord[]): GithubCacheInventorySummary {
+function createInventorySummary(
+	records: GithubCacheInventoryRecord[]
+): GithubCacheInventorySummary {
 	const snapshot = getActiveSnapshot();
 	const documentRecords = records.filter((record) => record.targetType === 'itemDocument');
 	const storageBytes = records.reduce((total, record) => total + (record.estimatedBytes ?? 0), 0);
@@ -1119,7 +1127,9 @@ function hasSameRepositoryIdentity(
 
 function extractChangedPaths(bootstrap: FreshnessBootstrap): string[] {
 	return Array.isArray(bootstrap.changedPaths)
-		? bootstrap.changedPaths.filter((path): path is string => typeof path === 'string' && path.length > 0)
+		? bootstrap.changedPaths.filter(
+				(path): path is string => typeof path === 'string' && path.length > 0
+			)
 		: [];
 }
 
@@ -1160,7 +1170,8 @@ function updateQueueProgress(nextStatus: Partial<GithubCacheWarmStatus> = {}) {
 	}
 
 	const shouldShowProgress =
-		totalQueuedTasks >= CACHE_PROGRESS_LARGE_TASK_THRESHOLD || get(githubCacheWarmStatus).showProgress;
+		totalQueuedTasks >= CACHE_PROGRESS_LARGE_TASK_THRESHOLD ||
+		get(githubCacheWarmStatus).showProgress;
 	updateWarmStatus({
 		phase: totalQueuedTasks > completedQueuedTasks ? 'warming' : 'ready',
 		totalTasks: totalQueuedTasks,
@@ -1463,9 +1474,7 @@ async function writeBlockSupport(input: {
 	});
 }
 
-async function getCachedCollectionIndex(
-	slug: string
-): Promise<SerializableCollectionIndex | null> {
+async function getCachedCollectionIndex(slug: string): Promise<SerializableCollectionIndex | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
 		return null;
@@ -1667,9 +1676,7 @@ function recordMatchesChangedPath(
 		record.targetType === 'itemDocument' ||
 		record.targetType === 'singletonDocument'
 	) {
-		return changedPathList.some((path) =>
-			pathMatchesConfigSlug(path, record, configPathsBySlug)
-		);
+		return changedPathList.some((path) => pathMatchesConfigSlug(path, record, configPathsBySlug));
 	}
 
 	return false;
@@ -1930,10 +1937,11 @@ export const githubRepositoryCache = {
 		const items = await mergeCachedProjections(index);
 		return orderCollectionNavigationItems(
 			config.config,
-			items.map(({ itemId, title, sortDate, state, hydration, hrefItemId }) => ({
+			items.map(({ itemId, title, sortDate, sortValues, state, hydration, hrefItemId }) => ({
 				itemId,
 				title,
 				sortDate,
+				sortValues,
 				...(state ? { state } : {}),
 				...(hydration ? { hydration } : {}),
 				...(hrefItemId ? { hrefItemId } : {})
@@ -2034,7 +2042,11 @@ export const githubRepositoryCache = {
 
 		const remainingBlobShas = missingBlobShas.slice(visibleLimit);
 		const hydrateRemaining = async () => {
-			for (let index = 0; index < remainingBlobShas.length; index += BACKGROUND_PROJECTION_BATCH_SIZE) {
+			for (
+				let index = 0;
+				index < remainingBlobShas.length;
+				index += BACKGROUND_PROJECTION_BATCH_SIZE
+			) {
 				await hydrateProjectionBatch({
 					fetcher: options.fetcher,
 					slug,
@@ -2633,7 +2645,8 @@ export const githubRepositoryCache = {
 							bootstrap.draftRepositoryIdentity ?? nextIdentity
 						)
 					: true;
-				const unchanged = activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
+				const unchanged =
+					activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
 
 				if (unchanged) {
 					const records = await readActiveInventoryRecords();
@@ -2905,19 +2918,14 @@ export const githubRepositoryCache = {
 		}
 	},
 
-	async refreshInventory(input: {
-		fetcher: typeof fetch;
-		scope?: 'all' | 'stale';
-	}): Promise<void> {
+	async refreshInventory(input: { fetcher: typeof fetch; scope?: 'all' | 'stale' }): Promise<void> {
 		resetFreshnessBackoff();
 		const records = await readActiveInventoryRecords();
 		const targets =
 			input.scope === 'stale'
 				? records.filter(
 						(record) =>
-							record.status === 'stale' ||
-							record.status === 'missing' ||
-							record.status === 'error'
+							record.status === 'stale' || record.status === 'missing' || record.status === 'error'
 					)
 				: records.filter((record) => record.targetType !== 'snapshot');
 
@@ -2962,7 +2970,9 @@ export const githubRepositoryCache = {
 			(index) =>
 				index.items.some((item) => changedPathSet.has(item.path)) ||
 				changedPaths.some((path) => isPathInCollectionIdentity(path, index)) ||
-				(snapshot && indexMatchesActiveSnapshot(index, snapshot) && hasConfigChange(index.configSlug))
+				(snapshot &&
+					indexMatchesActiveSnapshot(index, snapshot) &&
+					hasConfigChange(index.configSlug))
 		);
 		const affectedSlugs = new Set(indexesToDelete.map((index) => index.configSlug));
 		const affectedBlobShas = new Set(
@@ -2978,12 +2988,13 @@ export const githubRepositoryCache = {
 				)
 				.map((projection) => deleteStoreRecord(PROJECTION_STORE, projection.key)),
 			...documents
-				.filter((document) => changedPathSet.has(document.path) || hasConfigChange(document.configSlug))
+				.filter(
+					(document) => changedPathSet.has(document.path) || hasConfigChange(document.configSlug)
+				)
 				.map((document) => deleteStoreRecord(DOCUMENT_STORE, document.key)),
 			...singletonDocuments
 				.filter(
-					(document) =>
-						changedPathSet.has(document.path) || hasConfigChange(document.configSlug)
+					(document) => changedPathSet.has(document.path) || hasConfigChange(document.configSlug)
 				)
 				.map((document) => deleteStoreRecord(SINGLETON_DOCUMENT_STORE, document.key)),
 			...(hasBlockSupportChange && snapshot
@@ -3010,8 +3021,15 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		const [snapshots, indexes, projections, documents, singletonDocuments, blockSupport, inventory] =
-			await Promise.all([
+		const [
+			snapshots,
+			indexes,
+			projections,
+			documents,
+			singletonDocuments,
+			blockSupport,
+			inventory
+		] = await Promise.all([
 			readAllStore<CachedSnapshot>(SNAPSHOT_STORE),
 			readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE),
 			readAllStore<CachedProjection>(PROJECTION_STORE),
@@ -3056,8 +3074,15 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		const [snapshots, indexes, projections, documents, singletonDocuments, blockSupport, inventory] =
-			await Promise.all([
+		const [
+			snapshots,
+			indexes,
+			projections,
+			documents,
+			singletonDocuments,
+			blockSupport,
+			inventory
+		] = await Promise.all([
 			readAllStore<CachedSnapshot>(SNAPSHOT_STORE),
 			readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE),
 			readAllStore<CachedProjection>(PROJECTION_STORE),
@@ -3080,14 +3105,13 @@ export const githubRepositoryCache = {
 				)
 				.map((index) => deleteStoreRecord(COLLECTION_INDEX_STORE, index.key)),
 			...projections
-				.filter(
-					(projection) =>
-						indexes.some(
-							(index) =>
-								index.identity.repoKey.includes(input.repoFullName) &&
-								index.identity.ref === input.ref &&
-								index.identity.schemaIdentity === projection.schemaIdentity
-						)
+				.filter((projection) =>
+					indexes.some(
+						(index) =>
+							index.identity.repoKey.includes(input.repoFullName) &&
+							index.identity.ref === input.ref &&
+							index.identity.schemaIdentity === projection.schemaIdentity
+					)
 				)
 				.map((projection) => deleteStoreRecord(PROJECTION_STORE, projection.key)),
 			...documents

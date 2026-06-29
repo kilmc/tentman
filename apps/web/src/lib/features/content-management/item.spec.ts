@@ -20,7 +20,7 @@ const arrayConfig = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
-	"collection": { "sorting": "manual" },
+	"collection": { "ordering": true },
 	"idField": "slug",
 	"content": {
 		"mode": "file",
@@ -37,7 +37,7 @@ const collectionConfig = parseContentConfigFixture(`{
 	"type": "content",
 	"label": "Posts",
 	"itemLabel": "Post",
-	"collection": { "sorting": "manual" },
+	"collection": { "ordering": true },
 	"idField": "slug",
 	"content": {
 		"mode": "directory",

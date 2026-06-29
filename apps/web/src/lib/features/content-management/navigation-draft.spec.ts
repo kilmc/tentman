@@ -33,7 +33,7 @@ const configs: DiscoveredConfig[] = [
 			_tentmanId: 'blog',
 			label: 'Blog Posts',
 			collection: {
-				sorting: 'manual',
+				ordering: true,
 				groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
 			},
 			idField: 'slug',

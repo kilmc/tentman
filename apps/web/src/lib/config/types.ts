@@ -154,8 +154,41 @@ export interface StateConfig {
 	visibility?: StateVisibility;
 }
 
+export type CollectionSortDirection = 'asc' | 'desc';
+
+export type CollectionSortConfig =
+	| {
+			id: string;
+			type: 'title';
+			label?: string;
+			defaultDirection?: CollectionSortDirection;
+	  }
+	| {
+			id: string;
+			type: 'text';
+			blockId: string;
+			label?: string;
+			defaultDirection?: CollectionSortDirection;
+	  }
+	| {
+			id: string;
+			type: 'date';
+			blockId: string;
+			label?: string;
+			defaultDirection?: CollectionSortDirection;
+	  };
+
+export type CollectionDefaultSortConfig =
+	| string
+	| {
+			id: string;
+			direction?: CollectionSortDirection;
+	  };
+
 export interface CollectionBehaviorConfig {
-	sorting?: 'manual';
+	ordering?: boolean;
+	defaultSort?: CollectionDefaultSortConfig;
+	sorts?: CollectionSortConfig[];
 	groups?: CollectionGroupConfig[];
 	state?: StateConfig;
 }
