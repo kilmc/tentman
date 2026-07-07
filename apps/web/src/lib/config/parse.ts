@@ -2,7 +2,6 @@ import type {
 	BlockConfig,
 	BlockUsage,
 	CollectionBehaviorConfig,
-	CollectionSortConfig,
 	CollectionSortDirection,
 	CollectionGroupConfig,
 	ContentConfig,
@@ -15,12 +14,14 @@ import type {
 	StateConfig,
 	StatePreset,
 	SelectBlockOptions,
-	TentmanGroupBlockOptions
+	TentmanGroupBlockOptions,
+	NormalizedCollectionSortConfig
 } from '$lib/config/types';
 import { TENTMAN_GROUP_BLOCK_ID } from '$lib/config/tentman-group';
 import { parseRootAssetsConfig } from '@tentman/core/assets-config';
 
 export interface ParsedContentConfig extends ContentConfig {
+	collection?: boolean | ParsedCollectionBehaviorConfig;
 	content: FileContentMode | DirectoryContentMode;
 	imagePath?: string;
 }
@@ -28,6 +29,10 @@ export interface ParsedContentConfig extends ContentConfig {
 export type ParsedBlockConfig = BlockConfig;
 
 export type ParsedConfigFile = ParsedContentConfig | ParsedBlockConfig;
+
+type ParsedCollectionBehaviorConfig = Omit<CollectionBehaviorConfig, 'sorts'> & {
+	sorts?: NormalizedCollectionSortConfig[];
+};
 
 type LegacyFieldType = PrimitiveBlockType | 'array';
 type LegacyFieldInput =
@@ -401,10 +406,9 @@ function parseCollectionSortConfig(
 	input: unknown,
 	blocks: BlockUsage[],
 	context: string
-): CollectionSortConfig {
+): NormalizedCollectionSortConfig {
 	assertObject(input, `${context} must be an object`);
 
-	const id = readRequiredString(input, 'id', context);
 	const type = readRequiredString(input, 'type', context);
 	const label = readOptionalString(input, 'label', context);
 	const defaultDirection = parseCollectionSortDirection(
@@ -412,33 +416,41 @@ function parseCollectionSortConfig(
 		`${context}.defaultDirection`
 	);
 
-	if (type === 'title') {
+	if (type === 'title' || (type === 'alphabetical' && input.blockId === undefined)) {
+		const id = readOptionalString(input, 'id', context) ?? 'title';
+
 		return {
 			id,
-			type,
+			type: 'title',
 			...(label ? { label } : {}),
 			...(defaultDirection ? { defaultDirection } : {})
 		};
 	}
 
-	if (type !== 'text' && type !== 'date') {
-		throw new Error(`${context}.type must be "title", "text", or "date"`);
+	const normalizedType =
+		type === 'chronological' ? 'date' : type === 'alphabetical' ? 'text' : type;
+
+	if (normalizedType !== 'text' && normalizedType !== 'date') {
+		throw new Error(
+			`${context}.type must be "alphabetical", "chronological", "title", "text", or "date"`
+		);
 	}
 
 	const blockId = readRequiredString(input, 'blockId', context);
 	const block = blocks.find((candidate) => candidate.id === blockId);
+	const id = readOptionalString(input, 'id', context) ?? blockId;
 
 	if (!block) {
 		throw new Error(`${context}.blockId references unknown block id "${blockId}"`);
 	}
 
-	if (block.type !== type) {
-		throw new Error(`${context}.blockId must reference a ${type} block`);
+	if (block.type !== normalizedType) {
+		throw new Error(`${context}.blockId must reference a ${normalizedType} block`);
 	}
 
 	return {
 		id,
-		type,
+		type: normalizedType,
 		blockId,
 		...(label ? { label } : {}),
 		...(defaultDirection ? { defaultDirection } : {})
@@ -471,7 +483,7 @@ function parseCollectionBehaviorConfig(
 	input: unknown,
 	blocks: BlockUsage[],
 	context: string
-): CollectionBehaviorConfig | true | undefined {
+): ParsedCollectionBehaviorConfig | true | undefined {
 	if (input === undefined) {
 		return undefined;
 	}

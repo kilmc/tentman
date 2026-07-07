@@ -1,4 +1,8 @@
-import type { BlockUsage, CollectionSortConfig, CollectionSortDirection } from '$lib/config/types';
+import type {
+	BlockUsage,
+	CollectionSortDirection,
+	NormalizedCollectionSortConfig
+} from '$lib/config/types';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 
@@ -33,7 +37,7 @@ function getCollectionObject(config: ParsedContentConfig) {
 		: null;
 }
 
-function toExplicitSort(sort: CollectionSortConfig): ResolvedCollectionSort {
+function toExplicitSort(sort: NormalizedCollectionSortConfig): ResolvedCollectionSort {
 	return {
 		id: sort.id,
 		type: sort.type,

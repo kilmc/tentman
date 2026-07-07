@@ -356,6 +356,68 @@ describe('parseConfigFile', () => {
 		expect(parsed.collection.defaultSort).toBe('title');
 	});
 
+	it('accepts authored chronological collection sorts without explicit ids', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "News",
+			"itemLabel": "News Post",
+			"collection": {
+				"sorts": [
+					{ "type": "chronological", "blockId": "date", "defaultDirection": "desc" }
+				]
+			},
+			"content": {
+				"mode": "directory",
+				"path": "./news",
+				"template": "./news.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" },
+				{ "id": "date", "type": "date", "label": "Date" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed.collection.sorts).toEqual([
+			{ id: 'date', type: 'date', blockId: 'date', defaultDirection: 'desc' }
+		]);
+	});
+
+	it('accepts authored alphabetical collection sorts', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "News",
+			"itemLabel": "News Post",
+			"collection": {
+				"sorts": [
+					{ "type": "alphabetical", "label": "Title" },
+					{ "type": "alphabetical", "blockId": "subtitle", "defaultDirection": "desc" }
+				]
+			},
+			"content": {
+				"mode": "directory",
+				"path": "./news",
+				"template": "./news.md"
+			},
+			"blocks": [
+				{ "id": "title", "type": "text", "label": "Title" },
+				{ "id": "subtitle", "type": "text", "label": "Subtitle" }
+			]
+		}`);
+
+		if (parsed.type !== 'content' || parsed.collection === true || !parsed.collection) {
+			throw new Error('Expected collection behavior config');
+		}
+
+		expect(parsed.collection.sorts).toEqual([
+			{ id: 'title', type: 'title', label: 'Title' },
+			{ id: 'subtitle', type: 'text', blockId: 'subtitle', defaultDirection: 'desc' }
+		]);
+	});
+
 	it('rejects collection sorts that reference incompatible blocks', () => {
 		expect(() =>
 			parseConfigFile(`{

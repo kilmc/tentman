@@ -156,7 +156,7 @@ export interface StateConfig {
 
 export type CollectionSortDirection = 'asc' | 'desc';
 
-export type CollectionSortConfig =
+export type NormalizedCollectionSortConfig =
 	| {
 			id: string;
 			type: 'title';
@@ -177,6 +177,24 @@ export type CollectionSortConfig =
 			label?: string;
 			defaultDirection?: CollectionSortDirection;
 	  };
+
+export type AuthoredCollectionSortConfig =
+	| {
+			id?: string;
+			type: 'alphabetical';
+			blockId?: string;
+			label?: string;
+			defaultDirection?: CollectionSortDirection;
+	  }
+	| {
+			id?: string;
+			type: 'chronological';
+			blockId: string;
+			label?: string;
+			defaultDirection?: CollectionSortDirection;
+	  };
+
+export type CollectionSortConfig = NormalizedCollectionSortConfig | AuthoredCollectionSortConfig;
 
 export type CollectionDefaultSortConfig =
 	| string

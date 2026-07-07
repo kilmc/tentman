@@ -286,7 +286,7 @@ const contentRows = fiveColumnRows([
 		type: 'boolean | { ordering?: boolean; sorts?: CollectionSortConfig[]; defaultSort?: string | { id: string; direction?: "asc" | "desc" }; groups?: CollectionGroupConfig[]; state?: StateConfig }',
 		purpose: 'Marks the config as multi-item content.',
 		notes:
-			'Use true for the simple form, or the object form to opt into item ordering, explicit sort modes, groups, and state.'
+			'Use true for the simple form, or the object form to opt into item ordering, authored sort modes, groups, and state.'
 	},
 	{
 		field: 'state',
@@ -643,8 +643,8 @@ const contentConfigExample = `{
     "ordering": true,
     "defaultSort": { "id": "publishedAt", "direction": "desc" },
     "sorts": [
-      { "id": "title", "type": "title", "label": "Title" },
-      { "id": "publishedAt", "type": "date", "blockId": "publishedAt", "label": "Published" }
+      { "type": "alphabetical", "label": "Title" },
+      { "type": "chronological", "blockId": "publishedAt", "label": "Published" }
     ],
     "state": {
       "blockId": "published",
@@ -1673,7 +1673,7 @@ const docsPages: DocsPage[] = [
 						)}. Collection item ordering is enabled with ${inlineCode(
 							'collection: { "ordering": true }'
 						)}.</p>
-<p>When ${inlineCode('collection.sorts')} is omitted, Tentman infers a title sort and one date sort for each date block. Use ${inlineCode('collection.defaultSort')} as a string or ${inlineCode('{ id, direction }')} object to choose the initial collection panel sort.</p>
+<p>When ${inlineCode('collection.sorts')} is omitted, Tentman infers a title sort and one date sort for each date block. Authored sorts can use intent names like ${inlineCode('type: "alphabetical"')} and ${inlineCode('type: "chronological"')}; field-backed sorts derive their id from ${inlineCode('blockId')} when ${inlineCode('id')} is omitted. Use ${inlineCode('collection.defaultSort')} as a string or ${inlineCode('{ id, direction }')} object to choose the initial collection panel sort.</p>
 <p>If a manifest section exists, Tentman uses it first. Unlisted existing configs or items are appended in discovered/default order, and missing manifest references are ignored.</p>`
 					},
 					{

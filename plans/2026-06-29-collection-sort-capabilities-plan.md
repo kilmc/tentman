@@ -38,14 +38,14 @@ The guiding product principle is that Tentman should not tease editors with disa
   "collection": {
     "ordering": true,
     "defaultSort": {
-      "id": "published",
+      "id": "publishedAt",
       "direction": "desc"
     },
     "sorts": [
-      { "id": "title", "type": "text", "blockId": "title", "label": "Title" },
-      { "id": "published", "type": "date", "blockId": "publishedAt", "label": "Published" },
-      { "id": "created", "type": "date", "blockId": "createdAt", "label": "Created" },
-      { "id": "updated", "type": "date", "blockId": "updatedAt", "label": "Updated" }
+      { "type": "alphabetical", "label": "Title" },
+      { "type": "chronological", "blockId": "publishedAt", "label": "Published" },
+      { "type": "chronological", "blockId": "createdAt", "label": "Created" },
+      { "type": "chronological", "blockId": "updatedAt", "label": "Updated" }
     ]
   }
 }
@@ -79,6 +79,20 @@ is equivalent to:
 type CollectionSortDirection = 'asc' | 'desc';
 
 type CollectionSortConfig =
+  | {
+      id?: string;
+      type: 'alphabetical';
+      blockId?: string;
+      label?: string;
+      defaultDirection?: CollectionSortDirection;
+    }
+  | {
+      id?: string;
+      type: 'chronological';
+      blockId: string;
+      label?: string;
+      defaultDirection?: CollectionSortDirection;
+    }
   | {
       id: string;
       type: 'title';
@@ -121,6 +135,8 @@ interface CollectionBehaviorConfig {
 - `collection.ordering: true` enables manual/custom ordering and the Customize UI.
 - `collection.sorting: "manual"` should be removed rather than carried forward; this is early access and existing configs can be migrated.
 - `collection.sorts` declares editor-selectable non-manual sort modes.
+- Authored sorts should prefer intent names: `alphabetical` for title/text sorting and `chronological` for date-backed sorting.
+- Field-backed authored sorts derive a stable sort id from `blockId` when `id` is omitted.
 - `collection.defaultSort` selects the initial collection panel mode.
 - If `defaultSort` is a string, use that sort mode's natural/default direction.
 - If `defaultSort.direction` is provided, it overrides the sort mode's natural/default direction.
