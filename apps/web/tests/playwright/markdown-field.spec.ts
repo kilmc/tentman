@@ -69,6 +69,29 @@ test.describe('MarkdownField harness', () => {
 		await expect(field.getByTestId('basic-markdown-value')).toContainText('draft-asset:uploaded');
 	});
 
+	test('inserts existing images from the rich toolbar picker as public paths', async ({ page }) => {
+		await page.goto('/__test__/markdown-field?scenario=upload');
+		const field = page.getByTestId('basic-field');
+
+		await field.getByRole('button', { name: 'Image' }).click();
+		const picker = page.getByRole('dialog', { name: 'Insert image' });
+		await expect(picker).toBeVisible();
+		await picker.getByLabel('Search assets').fill('library');
+		await picker.getByLabel('Search assets').press('Enter');
+		await expect(picker).toBeVisible();
+		await expect(field.getByTestId('basic-markdown-value')).not.toContainText(
+			'/images/posts/library.jpg'
+		);
+		await picker.getByRole('button', { name: /library.jpg/ }).click();
+		await expect(page.getByText('/images/posts/library.jpg', { exact: true })).toBeVisible();
+		await picker.getByRole('button', { name: 'Insert' }).click();
+
+		await expect(field.getByTestId('basic-markdown-value')).toContainText(
+			'/images/posts/library.jpg'
+		);
+		await expect(field.getByTestId('draft-create-calls')).toContainText('[]');
+	});
+
 	test('inserts buy-button content components in the real browser flow', async ({ page }) => {
 		await page.goto('/__test__/markdown-field?scenario=component-insert');
 		const field = page.getByTestId('component-field');

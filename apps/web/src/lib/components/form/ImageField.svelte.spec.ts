@@ -27,6 +27,12 @@ vi.mock('$app/state', () => ({
 				owner: 'acme',
 				name: 'docs',
 				full_name: 'acme/docs'
+			},
+			rootConfig: {
+				assets: {
+					path: 'static/images/',
+					publicPath: '/images'
+				}
 			}
 		}
 	}
@@ -93,8 +99,9 @@ describe('components/form/ImageField.svelte', () => {
 			'data:image/png;base64,ZXhpc3Rpbmc='
 		);
 
+		await screen.getByRole('button', { name: 'Upload new' }).click();
 		await screen
-			.getByLabelText('Hero image')
+			.getByLabelText('Upload image')
 			.upload(new File(['next-image'], 'hero.png', { type: 'image/png' }));
 
 		await expectElement(screen.getByText('draft-asset:new-image')).toBeVisible();
@@ -115,5 +122,59 @@ describe('components/form/ImageField.svelte', () => {
 
 		expect(draftAssetStoreMocks.delete).toHaveBeenLastCalledWith('draft-asset:new-image');
 		await expectElement(screen.getByRole('img', { name: 'Hero image' })).not.toBeInTheDocument();
+	});
+
+	it('selects an existing image for preview before Insert applies the public path', async () => {
+		draftAssetStoreMocks.resolveUrl.mockResolvedValue('data:image/png;base64,ZXhpc3Rpbmc=');
+		draftAssetStoreMocks.delete.mockResolvedValue(undefined);
+
+		const onchange = vi.fn();
+		const loadAssetEntries = vi.fn().mockResolvedValue([
+			{
+				name: 'hero.jpg',
+				repoPath: 'static/images/hero.jpg',
+				publicPath: '/images/hero.jpg',
+				relativePath: 'hero.jpg',
+				kind: 'image',
+				extension: '.jpg'
+			},
+			{
+				name: 'second.jpg',
+				repoPath: 'static/images/second.jpg',
+				publicPath: '/images/second.jpg',
+				relativePath: 'second.jpg',
+				kind: 'image',
+				extension: '.jpg'
+			}
+		]);
+		const screen = await render(ImageField, {
+			label: 'Hero image',
+			value: 'draft-asset:existing-image',
+			storagePath: 'static/images/posts/',
+			onchange,
+			loadAssetEntries
+		});
+
+		await screen.getByRole('button', { name: 'Choose asset' }).click();
+		await expectElement(screen.getByRole('dialog', { name: 'Choose image' })).toBeVisible();
+		expect(loadAssetEntries).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: {
+					assetPath: 'static/images/',
+					publicPath: '/images'
+				},
+				mode: 'github'
+			})
+		);
+		await screen.getByRole('button', { name: /second.jpg/ }).click();
+
+		await expectElement(screen.getByText('/images/second.jpg', { exact: true })).toBeVisible();
+		expect(onchange).not.toHaveBeenCalled();
+
+		await screen.getByRole('button', { name: 'Insert' }).click();
+
+		await expectElement(screen.getByText('/images/second.jpg', { exact: true })).toBeVisible();
+		expect(onchange).toHaveBeenCalledOnce();
+		expect(draftAssetStoreMocks.delete).toHaveBeenCalledWith('draft-asset:existing-image');
 	});
 });

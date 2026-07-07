@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import AssetPicker from '$lib/components/assets/AssetPicker.svelte';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+	import { imageAssetFilter, type AssetPickerEntry } from '$lib/features/assets/asset-picker';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { getDraftAssetRepoKey, isDraftAssetRef } from '$lib/features/draft-assets/shared';
 	import { getDraftImageValidationError } from '$lib/features/draft-assets/validation';
+	import { localContent } from '$lib/stores/local-content';
 
 	interface Props {
 		label: string;
@@ -12,6 +15,11 @@
 		required?: boolean;
 		onchange?: () => void;
 		storagePath?: string;
+		loadAssetEntries?: (options: {
+			config: { assetPath?: string | null; publicPath?: string | null };
+			filter: typeof imageAssetFilter;
+			mode: 'github' | 'local';
+		}) => Promise<AssetPickerEntry[]>;
 	}
 
 	let {
@@ -19,16 +27,28 @@
 		value = $bindable(''),
 		required = false,
 		onchange,
-		storagePath = page.data.rootConfig?.assets?.path ?? ''
+		storagePath = page.data.rootConfig?.assets?.path ?? '',
+		loadAssetEntries = undefined
 	}: Props = $props();
-
-	const inputId = `image-field-${Math.random().toString(36).substring(2, 9)}`;
 
 	let staging = $state(false);
 	let uploadError = $state<string | null>(null);
 	let previewUrl = $state<string | null>(null);
-	const publicPath = $derived(page.data.rootConfig?.assets?.publicPath);
+	let pickerOpen = $state(false);
+	let pickerInitialTab = $state<'existing' | 'upload'>('existing');
+	const selectedBackendKind = $derived(page.data.selectedBackend?.kind);
+	const activeRootConfig = $derived(
+		selectedBackendKind === 'local'
+			? ($localContent.rootConfig ?? page.data.rootConfig ?? null)
+			: (page.data.rootConfig ?? null)
+	);
+	const publicPath = $derived(activeRootConfig?.assets?.publicPath);
 	const uploadsDisabled = $derived(!storagePath || !publicPath);
+	const pickerConfig = $derived({
+		assetPath: activeRootConfig?.assets?.path,
+		publicPath
+	});
+	const pickerMode = $derived(selectedBackendKind === 'local' ? 'local' : 'github');
 	const uploadDisabledMessage =
 		'Configure assets.path and assets.publicPath in tentman.json to enable uploads';
 
@@ -47,50 +67,72 @@
 		await draftAssetStore.delete(targetValue);
 	}
 
-	async function handleChange(event: Event) {
-		const target = event.target as HTMLInputElement;
-		const file = target.files?.[0];
-
-		if (!file) return;
-
+	async function stageUpload(file: File): Promise<{ value: string; previewUrl?: string | null }> {
 		uploadError = null;
 
 		if (uploadsDisabled) {
 			uploadError = uploadDisabledMessage;
-			return;
+			throw new Error(uploadDisabledMessage);
 		}
 
 		const validationError = getDraftImageValidationError(file);
 		if (validationError) {
 			uploadError = validationError;
-			return;
+			throw new Error(validationError);
 		}
 
 		if (!repoKey) {
 			uploadError = 'Unable to determine the current repository for draft asset storage.';
-			return;
+			throw new Error(uploadError);
 		}
 
 		staging = true;
 
 		try {
-			const previousValue = value;
 			const result = await draftAssetStore.create(file, {
 				repoKey,
 				storagePath,
 				publicPath
 			});
-			value = result.ref;
-			previewUrl = result.previewUrl;
-			onchange?.();
-			await cleanupDraftValue(previousValue);
+			return {
+				value: result.ref,
+				previewUrl: result.previewUrl
+			};
 		} catch (error) {
 			uploadError = error instanceof Error ? error.message : 'Failed to stage image';
 			previewUrl = null;
+			throw error;
 		} finally {
 			staging = false;
-			target.value = '';
 		}
+	}
+
+	async function handlePickerInsert(
+		nextValue: string,
+		result?: { value: string; previewUrl?: string | null }
+	) {
+		const previousValue = value;
+		value = nextValue;
+		previewUrl = result?.previewUrl ?? null;
+		uploadError = null;
+		onchange?.();
+		await cleanupDraftValue(previousValue);
+	}
+
+	function openPicker(tab: 'existing' | 'upload') {
+		console.info('[tentman:asset-picker] image field opening picker', {
+			label,
+			tab,
+			mode: pickerMode,
+			assetPath: pickerConfig.assetPath ?? null,
+			publicPath: pickerConfig.publicPath ?? null,
+			selectedBackendKind: page.data.selectedBackend?.kind ?? null,
+			hasRootAssets: Boolean(activeRootConfig?.assets),
+			hasCustomLoader: Boolean(loadAssetEntries)
+		});
+		uploadError = null;
+		pickerInitialTab = tab;
+		pickerOpen = true;
 	}
 
 	async function removeImage() {
@@ -104,12 +146,12 @@
 </script>
 
 <div class="mb-4">
-	<label for={inputId} class="mb-1 block text-sm font-medium text-gray-700">
+	<div class="mb-1 block text-sm font-medium text-gray-700">
 		{label}
 		{#if required}
 			<span class="text-red-600">*</span>
 		{/if}
-	</label>
+	</div>
 
 	{#if uploadError}
 		<div class="mb-2 rounded border border-red-200 bg-red-50 p-2">
@@ -159,18 +201,41 @@
 		</div>
 	{/if}
 
-	<input
-		id={inputId}
-		type="file"
-		accept="image/*"
-		required={required && !value}
-		onchange={handleChange}
-		disabled={staging || uploadsDisabled}
-		title={uploadsDisabled ? uploadDisabledMessage : undefined}
-		class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
-	/>
+	<div class="flex flex-wrap gap-2">
+		<button
+			type="button"
+			class="rounded-md border border-stone-900 bg-stone-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-100 disabled:shadow-none"
+			disabled={staging}
+			onclick={() => openPicker('existing')}
+		>
+			Choose asset
+		</button>
+		<button
+			type="button"
+			class="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300"
+			disabled={staging || uploadsDisabled}
+			title={uploadsDisabled ? uploadDisabledMessage : undefined}
+			onclick={() => openPicker('upload')}
+		>
+			Upload new
+		</button>
+	</div>
 
 	<p class="mt-1 text-xs text-gray-500">
 		Select an image under 5 MB. The file will be staged locally until you explicitly save.
 	</p>
 </div>
+
+<AssetPicker
+	open={pickerOpen}
+	filter={imageAssetFilter}
+	config={pickerConfig}
+	mode={pickerMode}
+	currentValue={value}
+	initialTab={pickerInitialTab}
+	title="Choose image"
+	oninsert={handlePickerInsert}
+	onupload={stageUpload}
+	onclose={() => (pickerOpen = false)}
+	loadentries={loadAssetEntries}
+/>

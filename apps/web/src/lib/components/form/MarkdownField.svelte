@@ -9,6 +9,7 @@
 	import MarkdownFieldPlainTextarea from '$lib/components/form/MarkdownFieldPlainTextarea.svelte';
 	import MarkdownFieldRichEditorShell from '$lib/components/form/MarkdownFieldRichEditorShell.svelte';
 	import MarkdownRichToolbar from '$lib/components/form/MarkdownRichToolbar.svelte';
+	import AssetPicker from '$lib/components/assets/AssetPicker.svelte';
 	import {
 		getMarkdownFieldActiveRootConfig,
 		getMarkdownFieldContentItem,
@@ -83,6 +84,7 @@
 		StructureValue
 	} from '$lib/components/form/markdown-field-toolbar';
 	import { localContent } from '$lib/stores/local-content';
+	import { imageAssetFilter, type AssetPickerEntry } from '$lib/features/assets/asset-picker';
 	import { getDraftAssetRepoKey } from '$lib/features/draft-assets/shared';
 	import type { MarkdownEditorController } from '$lib/features/markdown-editor/create-editor';
 	import type { DraftAssetStore } from '$lib/features/draft-assets/types';
@@ -115,6 +117,11 @@
 		componentMode?: 'local' | 'github';
 		rootConfig?: RootConfig | null;
 		draftAssetStore?: DraftAssetStore;
+		loadAssetEntries?: (options: {
+			config: { assetPath?: string | null; publicPath?: string | null };
+			filter: typeof imageAssetFilter;
+			mode: 'github' | 'local';
+		}) => Promise<AssetPickerEntry[]>;
 		loadContentComponentRegistryForMode?: (
 			mode: 'local' | 'github',
 			options?: { scopeKey?: string; componentsDir?: string }
@@ -147,8 +154,8 @@
 	let availableComponentRegistry = $state<ContentComponentRegistry | null>(null);
 	let enabledComponentRegistry = $state<ContentComponentRegistry | null>(null);
 	let uploadError = $state<string | null>(null);
+	let assetPickerOpen = $state(false);
 	let editorUiVersion = $state(0);
-	const rootAssets = $derived(testAdapters?.rootConfig?.assets ?? page.data.rootConfig?.assets ?? null);
 	const uploadDisabledMessage =
 		'Configure assets.path and assets.publicPath in tentman.json to enable uploads';
 	let componentDialogState = $state(createInitialMarkdownFieldComponentDialogState());
@@ -179,12 +186,20 @@
 			pageRootConfig: page.data.rootConfig ?? null
 		})
 	);
+	const rootAssets = $derived(activeRootConfig?.assets ?? null);
 	const contentComponentValidationMode = $derived(getMarkdownFieldValidationMode(activeRootConfig));
 	const isOverLimit = $derived(maxLength !== undefined && characterCount > maxLength);
 	const isUnderMin = $derived(
 		minLength !== undefined && characterCount > 0 && characterCount < minLength
 	);
 	const toolbarDisabled = $derived(!richEditor || editorLoadError !== null);
+	const assetPickerMode = $derived(
+		page.data.selectedBackend?.kind === 'local' ? 'local' : 'github'
+	);
+	const assetPickerConfig = $derived({
+		assetPath: rootAssets?.path,
+		publicPath: rootAssets?.publicPath
+	});
 	let componentToolbarButtons = $state<ContentComponentToolbarButton[]>([]);
 
 	function getReferenceState(): MarkdownFieldReferenceState | null {
@@ -241,6 +256,11 @@
 			publicPath: rootAssets.publicPath,
 			draftAssets: testAdapters?.draftAssetStore
 		});
+	}
+
+	async function stagePickerImage(file: File): Promise<{ value: string }> {
+		const staged = await stageImage(file);
+		return { value: staged.ref };
 	}
 
 	function handleToolbarAction(callback: (editor: Editor) => void) {
@@ -303,7 +323,35 @@
 	}
 
 	function openImagePicker() {
-		fileInput?.click();
+		if (!richEditor) {
+			console.warn('[tentman:asset-picker] markdown field open skipped: missing rich editor', {
+				label,
+				activeTab
+			});
+			return;
+		}
+
+		console.info('[tentman:asset-picker] markdown field opening picker', {
+			label,
+			activeTab,
+			mode: assetPickerMode,
+			assetPath: assetPickerConfig.assetPath ?? null,
+			publicPath: assetPickerConfig.publicPath ?? null,
+			hasRootAssets: Boolean(rootAssets),
+			selectedBackendKind: page.data.selectedBackend?.kind ?? null,
+			hasTestLoader: Boolean(testAdapters?.loadAssetEntries)
+		});
+		uploadError = null;
+		assetPickerOpen = true;
+	}
+
+	function handleAssetPickerInsert(nextValue: string) {
+		console.info('[tentman:asset-picker] markdown field inserting asset', {
+			label,
+			value: nextValue
+		});
+		richEditor?.insertImageValue(nextValue);
+		assetPickerOpen = false;
 	}
 
 	function closeContextualPopover() {
@@ -967,6 +1015,19 @@
 			onclosecomponentdialog={closeComponentDialog}
 			onsubmitcomponentdialog={submitComponentDialog}
 			oncomponentdialogvaluechange={setComponentDialogValue}
+		/>
+
+		<AssetPicker
+			open={assetPickerOpen}
+			filter={imageAssetFilter}
+			config={assetPickerConfig}
+			mode={assetPickerMode}
+			currentValue={null}
+			title="Insert image"
+			oninsert={handleAssetPickerInsert}
+			onupload={stagePickerImage}
+			onclose={() => (assetPickerOpen = false)}
+			loadentries={testAdapters?.loadAssetEntries}
 		/>
 	</div>
 

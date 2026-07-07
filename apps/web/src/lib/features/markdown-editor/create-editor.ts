@@ -42,6 +42,7 @@ interface CreateMarkdownEditorOptions {
 export interface MarkdownEditorController {
 	editor: Editor;
 	insertImageFiles(files: File[], position?: number): Promise<void>;
+	insertImageValue(value: string, position?: number): void;
 	setMarkdown(markdown: string): void;
 	destroy(): void;
 }
@@ -400,9 +401,23 @@ export function createMarkdownEditor(
 		}
 	}
 
+	function insertImageValue(value: string, position?: number): void {
+		if (destroyed || !value.trim()) {
+			return;
+		}
+
+		if (typeof position === 'number') {
+			editor.chain().focus().insertContentAt(position, createImageNode(value)).run();
+			return;
+		}
+
+		editor.chain().focus().insertContent(createImageNode(value)).run();
+	}
+
 	return {
 		editor,
 		insertImageFiles,
+		insertImageValue,
 		setMarkdown(markdown: string) {
 			if (destroyed || markdown === lastKnownMarkdown) {
 				return;

@@ -217,7 +217,8 @@
 	const scenario = $derived(page.url.searchParams.get('scenario') ?? 'basic');
 	const longMarkdown = Array.from(
 		{ length: 80 },
-		(_, index) => `## Section ${index + 1}\n\nThis is enough markdown content to make the editor scroll.`
+		(_, index) =>
+			`## Section ${index + 1}\n\nThis is enough markdown content to make the editor scroll.`
 	).join('\n\n');
 	const initialBasicValue = $derived.by(() => {
 		if (scenario === 'upload') {
@@ -470,8 +471,23 @@
 	const basicAdapters = {
 		repoKey: 'github:acme/docs',
 		componentMode: 'github' as const,
-		rootConfig: null,
+		rootConfig: {
+			assets: {
+				path: 'static/images/posts/',
+				publicPath: '/images/posts'
+			}
+		},
 		draftAssetStore: mockDraftAssetStore,
+		loadAssetEntries: async () => [
+			{
+				name: 'library.jpg',
+				repoPath: 'static/images/posts/library.jpg',
+				publicPath: '/images/posts/library.jpg',
+				relativePath: 'library.jpg',
+				kind: 'image' as const,
+				extension: '.jpg'
+			}
+		],
 		loadContentComponentRegistryForMode: async () => emptyRegistry
 	};
 
@@ -700,10 +716,7 @@
 			<h1 class="text-2xl font-semibold text-stone-950">Home</h1>
 		</header>
 
-		<div
-			class="min-h-0 overflow-y-auto px-4 sm:px-6"
-			data-testid="markdown-field-scroll-panel"
-		>
+		<div class="min-h-0 overflow-y-auto px-4 sm:px-6" data-testid="markdown-field-scroll-panel">
 			<div class="mx-auto max-w-5xl pt-4 sm:pt-6">
 				{@render basicFieldHarness()}
 				<PageStickyFooter>
