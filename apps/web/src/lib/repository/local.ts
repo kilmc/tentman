@@ -99,6 +99,11 @@ async function readFileText(root: FileSystemDirectoryHandle, path: string): Prom
 	return file.text();
 }
 
+async function readFileBlob(root: FileSystemDirectoryHandle, path: string): Promise<File> {
+	const handle = await getFileHandle(root, path);
+	return handle.getFile();
+}
+
 async function writeFileText(
 	root: FileSystemDirectoryHandle,
 	path: string,
@@ -274,6 +279,7 @@ export interface LocalRepositoryBackend extends RepositoryBackend {
 	repo: LocalRepositoryIdentity;
 	invalidateDiscoveryCache(): void;
 	getDiscoverySignature(): Promise<LocalDiscoverySignature>;
+	readFile(path: string): Promise<File>;
 }
 
 interface DiscoveryIssue {
@@ -509,6 +515,10 @@ export function createLocalRepositoryBackend(
 
 		readTextFile(path: string, _options?: RepositoryReadOptions) {
 			return readFileText(rootHandle, path);
+		},
+
+		readFile(path: string) {
+			return readFileBlob(rootHandle, path);
 		},
 
 		async writeTextFile(path: string, content: string, _options?: RepositoryWriteOptions) {

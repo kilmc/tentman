@@ -32,12 +32,15 @@ function createStoreState<T>(initialValue: T) {
 const assetRenderingMocks = vi.hoisted(() => ({
 	resolveUrl: vi.fn(),
 	readFile: vi.fn(),
+	readLocalFile: vi.fn(),
 	create: vi.fn(),
 	delete: vi.fn(),
 	getMetadata: vi.fn(),
 	getMetadataForContent: vi.fn(),
 	collectFromContent: vi.fn(),
-	gc: vi.fn()
+	gc: vi.fn(),
+	createObjectURL: vi.fn(),
+	revokeObjectURL: vi.fn()
 }));
 
 const localContentState = vi.hoisted(() =>
@@ -77,6 +80,14 @@ const pageData = vi.hoisted(
 );
 
 const localPreviewUrlState = vi.hoisted(() => createStoreState<string | null>(null));
+const localRepoState = vi.hoisted(() =>
+	createStoreState({
+		backend: null as {
+			cacheKey: string;
+			readFile(path: string): Promise<File>;
+		} | null
+	})
+);
 
 vi.mock('$app/state', () => ({
 	page: {
@@ -109,6 +120,12 @@ vi.mock('$lib/stores/local-preview-url', () => ({
 	}
 }));
 
+vi.mock('$lib/stores/local-repo', () => ({
+	localRepo: {
+		subscribe: localRepoState.subscribe
+	}
+}));
+
 vi.mock('$lib/content-components/browser', () => ({
 	loadContentComponentRegistryForMode:
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode
@@ -121,13 +138,31 @@ describe('shared draft asset rendering surfaces', () => {
 	beforeEach(() => {
 		assetRenderingMocks.resolveUrl.mockReset();
 		assetRenderingMocks.readFile.mockReset();
+		assetRenderingMocks.readLocalFile.mockReset();
 		assetRenderingMocks.create.mockReset();
 		assetRenderingMocks.delete.mockReset();
 		assetRenderingMocks.getMetadata.mockReset();
 		assetRenderingMocks.getMetadataForContent.mockReset();
 		assetRenderingMocks.collectFromContent.mockReset();
 		assetRenderingMocks.gc.mockReset();
+		assetRenderingMocks.createObjectURL.mockReset();
+		assetRenderingMocks.revokeObjectURL.mockReset();
 		assetRenderingMocks.resolveUrl.mockResolvedValue('data:image/png;base64,cmVuZGVyZWQ=');
+		assetRenderingMocks.readLocalFile.mockResolvedValue(
+			new File(['local-image'], 'hero.jpg', {
+				type: 'image/jpeg',
+				lastModified: 1
+			})
+		);
+		assetRenderingMocks.createObjectURL.mockReturnValue('blob:local-hero');
+		Object.defineProperty(URL, 'createObjectURL', {
+			configurable: true,
+			value: assetRenderingMocks.createObjectURL
+		});
+		Object.defineProperty(URL, 'revokeObjectURL', {
+			configurable: true,
+			value: assetRenderingMocks.revokeObjectURL
+		});
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockReset();
 		contentComponentLoaderMocks.loadContentComponentRegistryForMode.mockResolvedValue({
 			components: [],
@@ -161,6 +196,7 @@ describe('shared draft asset rendering surfaces', () => {
 			rootConfig: null
 		});
 		localPreviewUrlState.set(null);
+		localRepoState.set({ backend: null });
 	});
 
 	it('renders staged draft refs in content display image blocks', async () => {
@@ -252,7 +288,7 @@ describe('shared draft asset rendering surfaces', () => {
 			);
 	});
 
-	it('uses the local preview URL for local image blocks', async () => {
+	it('renders local image blocks from browser-backed object URLs', async () => {
 		pageData.selectedBackend = {
 			kind: 'local',
 			repo: {
@@ -274,6 +310,12 @@ describe('shared draft asset rendering surfaces', () => {
 			}
 		});
 		localPreviewUrlState.set('http://localhost:5173/');
+		localRepoState.set({
+			backend: {
+				cacheKey: 'local:~/docs',
+				readFile: assetRenderingMocks.readLocalFile
+			}
+		});
 
 		const screen = await render(ContentValueDisplay, {
 			block: {
@@ -287,8 +329,10 @@ describe('shared draft asset rendering surfaces', () => {
 
 		await expectElement(screen.getByRole('img', { name: 'Hero' })).toHaveAttribute(
 			'src',
-			'http://localhost:5173/images/projects/hero.jpg'
+			'blob:local-hero'
 		);
+		expect(assetRenderingMocks.readLocalFile).toHaveBeenCalledWith('static/images/projects/hero.jpg');
+		expect(assetRenderingMocks.createObjectURL).toHaveBeenCalledOnce();
 	});
 
 	it('renders discovered content component directives through fixed authoring chips', async () => {

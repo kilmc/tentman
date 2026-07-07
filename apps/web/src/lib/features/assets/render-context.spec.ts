@@ -72,7 +72,7 @@ describe('features/assets/render-context', () => {
 		expect(resolved).not.toContain('localhost');
 	});
 
-	it('uses local preview URLs in local mode', () => {
+	it('leaves local saved assets to the browser-backed local resolver', () => {
 		const context = getAssetRenderContext({
 			selectedBackend: {
 				kind: 'local',
@@ -87,9 +87,7 @@ describe('features/assets/render-context', () => {
 			localPreviewUrl: 'http://localhost:5173/'
 		});
 
-		expect(resolveAssetUrlForRender('hero.jpg', context)).toBe(
-			'http://localhost:5173/images/projects/hero.jpg'
-		);
+		expect(resolveAssetUrlForRender('hero.jpg', context)).toBeNull();
 	});
 
 	it('keeps external absolute URLs unchanged', () => {

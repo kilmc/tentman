@@ -4,6 +4,7 @@ import {
 	resolveAssetUrlForRender,
 	type AssetRenderContext
 } from '$lib/features/assets/render-context';
+import { resolveLocalAssetObjectUrl } from '$lib/features/assets/local-asset-resolver';
 
 const MARKDOWN_IMAGE_PATTERN =
 	/!\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))((?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?)\)/g;
@@ -19,6 +20,10 @@ export async function resolveClientAssetUrl(
 
 	if (isDraftAssetRef(value)) {
 		return draftAssetStore.resolveUrl(value);
+	}
+
+	if (context.mode === 'local') {
+		return resolveLocalAssetObjectUrl(value, context.assets);
 	}
 
 	return resolveAssetUrlForRender(value, context);

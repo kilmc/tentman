@@ -2,7 +2,7 @@ import { browser, dev } from '$app/environment';
 import type { RootConfig } from '$lib/config/root-config';
 import type { GitHubRepositoryIdentity } from '$lib/repository/github';
 import type { SelectedBackend } from '$lib/repository/selection';
-import { buildRepoAssetProxyUrl, isAbsoluteAssetUrl, resolveAssetValue } from '$lib/utils/assets';
+import { buildRepoAssetProxyUrl, isAbsoluteAssetUrl } from '$lib/utils/assets';
 
 export type RootAssetsConfig = NonNullable<RootConfig['assets']>;
 export const ASSET_RENDER_TRACE_FLAG = 'tentman:trace-assets';
@@ -218,10 +218,7 @@ export function resolveAssetUrlForRender(
 	}
 
 	if (context.mode === 'local') {
-		const resolved = resolveAssetValue(trimmedValue, {
-			assets: context.assets ?? undefined,
-			previewBaseUrl: context.previewBaseUrl
-		});
+		const resolved = null;
 		logAssetRenderTrace('resolve:local', {
 			source: context.source ?? null,
 			mode: context.mode,
