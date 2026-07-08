@@ -94,37 +94,49 @@ describe('draft-assets/shared', () => {
 		});
 	});
 
-	it('collects draft refs from markdown image destinations and html image tags only', () => {
+	it('collects draft refs from markdown asset destinations and html media tags only', () => {
 		const firstRef = buildDraftAssetRef('first');
 		const secondRef = buildDraftAssetRef('second');
+		const thirdRef = buildDraftAssetRef('third');
+		const fourthRef = buildDraftAssetRef('fourth');
+		const fifthRef = buildDraftAssetRef('fifth');
+		const sixthRef = buildDraftAssetRef('sixth');
 
 		expect(
 			collectDraftAssetRefsFromString(
 				[
 					`Intro prose with ${firstRef} should be ignored.`,
 					`![Hero](${firstRef})`,
+					`[Download](<${thirdRef}>)`,
 					`<img src="${secondRef}" alt="Cover">`,
+					`<audio controls src="${fourthRef}"></audio>`,
+					`<video controls><source src="${fifthRef}"></video>`,
+					`<track src="${sixthRef}" kind="captions">`,
 					`![Gallery](https://example.com/image.png)`
 				].join('\n\n')
 			)
-		).toEqual([firstRef, secondRef]);
+		).toEqual([firstRef, thirdRef, secondRef, fourthRef, fifthRef, sixthRef]);
 	});
 
-	it('rewrites inline markdown and html image refs while preserving exact-string image refs', () => {
+	it('rewrites inline markdown and html media refs while preserving exact-string image refs', () => {
 		const firstRef = buildDraftAssetRef('first');
 		const secondRef = buildDraftAssetRef('second');
+		const thirdRef = buildDraftAssetRef('third');
 		const replacements = new Map([
 			[firstRef, '/images/hero.png'],
-			[secondRef, '/images/cover.png']
+			[secondRef, '/images/cover.png'],
+			[thirdRef, '/media/interview.mp3']
 		]);
 
 		expect(replaceDraftAssetRefsInString(firstRef, replacements)).toBe('/images/hero.png');
 		expect(
 			replaceDraftAssetRefsInString(
-				`![Hero](${firstRef} "Hero title")\n\n<img src="${secondRef}" alt="Cover">`,
+				`![Hero](${firstRef} "Hero title")\n\n<img src="${secondRef}" alt="Cover">\n\n<audio controls src="${thirdRef}"></audio>`,
 				replacements
 			)
-		).toBe('![Hero](/images/hero.png "Hero title")\n\n<img src="/images/cover.png" alt="Cover">');
+		).toBe(
+			'![Hero](/images/hero.png "Hero title")\n\n<img src="/images/cover.png" alt="Cover">\n\n<audio controls src="/media/interview.mp3"></audio>'
+		);
 	});
 
 	it('collects and rewrites multiple markdown image refs inside content fields', () => {

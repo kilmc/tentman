@@ -5,10 +5,11 @@ import type {
 	ListOption,
 	StructureOption
 } from '$lib/components/form/markdown-field-toolbar';
+import type { AssetPickerKind } from '$lib/features/assets/asset-picker';
 
 interface ToolbarConfigOptions {
 	onselectlink: (trigger?: HTMLElement) => void;
-	onselectimage: (trigger?: HTMLElement) => void;
+	onselectasset: (kind: AssetPickerKind, trigger?: HTMLElement) => void;
 }
 
 export function createMarkdownFieldToolbarConfig(options: ToolbarConfigOptions): {
@@ -131,7 +132,25 @@ export function createMarkdownFieldToolbarConfig(options: ToolbarConfigOptions):
 			id: 'image',
 			label: 'Image',
 			icon: 'image',
-			select: options.onselectimage
+			select: (trigger) => options.onselectasset('image', trigger)
+		},
+		{
+			id: 'video',
+			label: 'Video',
+			icon: 'video',
+			select: (trigger) => options.onselectasset('video', trigger)
+		},
+		{
+			id: 'audio',
+			label: 'Audio',
+			icon: 'audio',
+			select: (trigger) => options.onselectasset('audio', trigger)
+		},
+		{
+			id: 'file',
+			label: 'File',
+			icon: 'file',
+			select: (trigger) => options.onselectasset('file', trigger)
 		}
 	];
 

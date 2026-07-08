@@ -34,6 +34,49 @@ export const imageAssetFilter: AssetPickerFilter = {
 	mimePrefix: 'image/'
 };
 
+export const videoAssetFilter: AssetPickerFilter = {
+	kind: 'video',
+	extensions: ['.mp4', '.webm', '.mov', '.m4v'],
+	mimePrefix: 'video/'
+};
+
+export const audioAssetFilter: AssetPickerFilter = {
+	kind: 'audio',
+	extensions: ['.mp3', '.m4a', '.wav', '.ogg', '.oga', '.flac'],
+	mimePrefix: 'audio/'
+};
+
+export const fileAssetFilter: AssetPickerFilter = {
+	kind: 'file',
+	extensions: ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.txt']
+};
+
+export function getAssetPickerFilterForKind(kind: AssetPickerKind): AssetPickerFilter {
+	switch (kind) {
+		case 'image':
+			return imageAssetFilter;
+		case 'video':
+			return videoAssetFilter;
+		case 'audio':
+			return audioAssetFilter;
+		case 'file':
+			return fileAssetFilter;
+	}
+}
+
+export function getAssetPickerKindLabel(kind: AssetPickerKind): string {
+	switch (kind) {
+		case 'image':
+			return 'image';
+		case 'video':
+			return 'video';
+		case 'audio':
+			return 'audio';
+		case 'file':
+			return 'file';
+	}
+}
+
 export function normalizeAssetPickerPath(path: string): string {
 	return path
 		.trim()

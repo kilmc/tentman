@@ -3,8 +3,9 @@ import {
 	collectDraftAssetRefsFromString,
 	getDraftAssetRepoKey
 } from '$lib/features/draft-assets/shared';
-import { getDraftImageValidationError } from '$lib/features/draft-assets/validation';
+import { getDraftAssetValidationError } from '$lib/features/draft-assets/validation';
 import type { DraftAssetStore } from '$lib/features/draft-assets/types';
+import type { AssetPickerKind } from '$lib/features/assets/asset-picker';
 
 export function getMarkdownFieldRemovedDraftAssetRefs(
 	previousMarkdown: string,
@@ -48,14 +49,15 @@ export function queueMarkdownFieldDraftCleanup(options: {
 	});
 }
 
-export async function stageMarkdownFieldImage(options: {
+export async function stageMarkdownFieldAsset(options: {
 	file: File;
+	kind: AssetPickerKind;
 	repoKey: string | null | undefined;
 	storagePath: string;
 	publicPath?: string;
 	draftAssets?: DraftAssetStore;
 }): Promise<{ ref: string }> {
-	const validationError = getDraftImageValidationError(options.file);
+	const validationError = getDraftAssetValidationError(options.file, options.kind);
 	if (validationError) {
 		throw new Error(validationError);
 	}
@@ -74,4 +76,17 @@ export async function stageMarkdownFieldImage(options: {
 	return {
 		ref: result.ref
 	};
+}
+
+export async function stageMarkdownFieldImage(options: {
+	file: File;
+	repoKey: string | null | undefined;
+	storagePath: string;
+	publicPath?: string;
+	draftAssets?: DraftAssetStore;
+}): Promise<{ ref: string }> {
+	return stageMarkdownFieldAsset({
+		...options,
+		kind: 'image'
+	});
 }

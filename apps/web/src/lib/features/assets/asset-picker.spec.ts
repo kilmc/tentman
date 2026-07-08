@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	assetPickerEntryMatchesFilter,
+	audioAssetFilter,
 	createAssetPickerPublicPath,
+	fileAssetFilter,
 	imageAssetFilter,
-	listAssetPickerEntries
+	listAssetPickerEntries,
+	videoAssetFilter
 } from '$lib/features/assets/asset-picker';
 import type { RepoEntry, RepositoryBackend } from '$lib/repository/types';
 
@@ -21,6 +24,11 @@ describe('asset picker helpers', () => {
 	it('matches configured extensions case-insensitively', () => {
 		expect(assetPickerEntryMatchesFilter('static/images/Hero.JPG', imageAssetFilter)).toBe(true);
 		expect(assetPickerEntryMatchesFilter('static/images/Hero.txt', imageAssetFilter)).toBe(false);
+		expect(assetPickerEntryMatchesFilter('static/assets/Trailer.MP4', videoAssetFilter)).toBe(true);
+		expect(assetPickerEntryMatchesFilter('static/assets/Interview.M4A', audioAssetFilter)).toBe(
+			true
+		);
+		expect(assetPickerEntryMatchesFilter('static/assets/Brief.PDF', fileAssetFilter)).toBe(true);
 	});
 
 	it('lists matching assets recursively and sorts by relative path', async () => {

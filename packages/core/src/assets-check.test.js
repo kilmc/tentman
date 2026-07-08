@@ -25,7 +25,7 @@ test('reports missing asset files and path mismatches', async () => {
 	const blogPost = await fs.readFile(blogPostPath, 'utf8');
 	await fs.writeFile(
 		blogPostPath,
-		blogPost.replace("/images/posts/fixture-grid.svg", "/images/posts/missing-cover.svg")
+		blogPost.replace('/images/posts/fixture-grid.svg', '/images/posts/missing-cover.svg')
 	);
 
 	const aboutContent = await fs.readFile(aboutContentPath, 'utf8');
@@ -37,12 +37,8 @@ test('reports missing asset files and path mismatches', async () => {
 	const project = await loadTentmanProject(projectRoot);
 	const diagnostics = await checkTentmanAssets(project);
 
-	assert.ok(
-		diagnostics.some((diagnostic) => diagnostic.code === 'assets.missing-file')
-	);
-	assert.ok(
-		diagnostics.some((diagnostic) => diagnostic.code === 'assets.path-mismatch')
-	);
+	assert.ok(diagnostics.some((diagnostic) => diagnostic.code === 'assets.missing-file'));
+	assert.ok(diagnostics.some((diagnostic) => diagnostic.code === 'assets.path-mismatch'));
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.missing-file')?.message ?? '',
 		/field coverImage references missing asset \/images\/posts\/missing-cover\.svg/
@@ -50,6 +46,49 @@ test('reports missing asset files and path mismatches', async () => {
 	assert.match(
 		diagnostics.find((diagnostic) => diagnostic.code === 'assets.path-mismatch')?.message ?? '',
 		/field gallery\.items\[0\]\.image uses \/other\/fixture-grid\.svg, but expected a path under \/images/
+	);
+});
+
+test('reports missing non-image assets referenced from markdown links and html media', async () => {
+	const projectRoot = await copyFixture();
+	const aboutContentPath = path.join(projectRoot, 'src/routes/about/+page.md');
+	const aboutContent = await fs.readFile(aboutContentPath, 'utf8');
+	await fs.writeFile(
+		aboutContentPath,
+		aboutContent.replace(
+			'</section>',
+			[
+				'[Download the brief](/images/media/missing-brief.pdf)',
+				'<audio controls src="/images/media/missing-interview.mp3"></audio>',
+				'<video controls><source src="/images/media/missing-trailer.mp4" type="video/mp4"></video>',
+				'</section>'
+			].join('\n\n')
+		)
+	);
+
+	const project = await loadTentmanProject(projectRoot);
+	const diagnostics = await checkTentmanAssets(project);
+
+	assert.ok(
+		diagnostics.some((diagnostic) =>
+			diagnostic.message.includes(
+				'body.markdownLinks[0] references missing asset /images/media/missing-brief.pdf'
+			)
+		)
+	);
+	assert.ok(
+		diagnostics.some((diagnostic) =>
+			diagnostic.message.includes(
+				'body.htmlMedia[0] references missing asset /images/media/missing-interview.mp3'
+			)
+		)
+	);
+	assert.ok(
+		diagnostics.some((diagnostic) =>
+			diagnostic.message.includes(
+				'body.htmlMedia[1] references missing asset /images/media/missing-trailer.mp4'
+			)
+		)
 	);
 });
 

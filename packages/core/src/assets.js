@@ -12,7 +12,20 @@ import { resolveManagedAssetValue } from './assets-config.js';
 
 const MARKDOWN_IMAGE_PATTERN =
 	/!\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/g;
-const MARKDOWN_IMG_SRC_PATTERN = /<img\b[^>]*?\bsrc\s*=\s*(["'])(.*?)\1[^>]*?>/gi;
+const MARKDOWN_LINK_PATTERN =
+	/(?<!!)\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/g;
+const HTML_MEDIA_SRC_PATTERN =
+	/<(?:img|audio|video|source|embed|track)\b[^>]*?\bsrc\s*=\s*(["'])(.*?)\1[^>]*?>/gi;
+
+function isFileLikeMarkdownDestination(value) {
+	if (typeof value !== 'string') {
+		return false;
+	}
+
+	const pathname = value.split(/[?#]/, 1)[0] ?? value;
+	const filename = pathname.split('/').filter(Boolean).at(-1) ?? '';
+	return /\.[a-z0-9]{1,12}$/i.test(filename);
+}
 
 async function absolutePathExists(absolutePath) {
 	try {
@@ -46,17 +59,14 @@ function getFieldValue(record, key) {
 }
 
 function getConfigKind(config) {
-	return config.collection === true || typeof config.collection === 'object' ? 'collection' : 'singleton';
+	return config.collection === true || typeof config.collection === 'object'
+		? 'collection'
+		: 'singleton';
 }
 
 function getItemLabel(item, index) {
 	return (
-		item.title ??
-		item.label ??
-		item.slug ??
-		item._tentmanId ??
-		item.filename ??
-		`item-${index + 1}`
+		item.title ?? item.label ?? item.slug ?? item._tentmanId ?? item.filename ?? `item-${index + 1}`
 	);
 }
 
@@ -65,10 +75,33 @@ function collectMarkdownAssetValues(value) {
 		return [];
 	}
 
-	return [
-		...[...value.matchAll(MARKDOWN_IMAGE_PATTERN)].map((match) => match[1] ?? match[2]),
-		...[...value.matchAll(MARKDOWN_IMG_SRC_PATTERN)].map((match) => match[2])
-	].filter((assetValue) => typeof assetValue === 'string' && assetValue.length > 0);
+	const assetValues = [
+		...[...value.matchAll(MARKDOWN_IMAGE_PATTERN)].map((match) => ({
+			kind: 'markdownImages',
+			value: match[1] ?? match[2]
+		})),
+		...[...value.matchAll(MARKDOWN_LINK_PATTERN)]
+			.map((match) => ({
+				kind: 'markdownLinks',
+				value: match[1] ?? match[2]
+			}))
+			.filter((asset) => isFileLikeMarkdownDestination(asset.value)),
+		...[...value.matchAll(HTML_MEDIA_SRC_PATTERN)].map((match) => ({
+			kind: 'htmlMedia',
+			value: match[2]
+		}))
+	].filter((asset) => typeof asset.value === 'string' && asset.value.length > 0);
+
+	const seen = new Set();
+	return assetValues.filter((asset) => {
+		const key = `${asset.kind}:${asset.value}`;
+		if (seen.has(key)) {
+			return false;
+		}
+
+		seen.add(key);
+		return true;
+	});
 }
 
 function summarizeConfig(config, content, assetCount) {
@@ -97,7 +130,11 @@ function createAssetEntry(project, config, content, context, fieldPath, value) {
 		fieldPath,
 		value,
 		expectedPrefix: project.rootConfig.assets?.publicPath ?? null,
-		matchesExpectedPath: resolved.valid ? true : resolved.reason === 'public-path-mismatch' ? false : null,
+		matchesExpectedPath: resolved.valid
+			? true
+			: resolved.reason === 'public-path-mismatch'
+				? false
+				: null,
 		resolutionError: resolved.valid ? null : resolved.reason,
 		exists: null,
 		projectPath: resolved.valid ? resolved.repoPath : null
@@ -146,7 +183,12 @@ export async function collectTentmanConfigAssets(project, config) {
 	const pendingExistsChecks = [];
 
 	function walkFieldBlocks(blocks, itemValue, context) {
-		if (!Array.isArray(blocks) || !itemValue || typeof itemValue !== 'object' || Array.isArray(itemValue)) {
+		if (
+			!Array.isArray(blocks) ||
+			!itemValue ||
+			typeof itemValue !== 'object' ||
+			Array.isArray(itemValue)
+		) {
 			return;
 		}
 
@@ -170,7 +212,10 @@ export async function collectTentmanConfigAssets(project, config) {
 			}
 
 			if (block.type === 'markdown') {
-				for (const [assetIndex, assetValue] of collectMarkdownAssetValues(value).entries()) {
+				const assetKindCounts = new Map();
+				for (const assetRef of collectMarkdownAssetValues(value)) {
+					const assetKindIndex = assetKindCounts.get(assetRef.kind) ?? 0;
+					assetKindCounts.set(assetRef.kind, assetKindIndex + 1);
 					addAssetEntry(
 						project,
 						createAssetEntry(
@@ -178,8 +223,8 @@ export async function collectTentmanConfigAssets(project, config) {
 							config,
 							content,
 							context,
-							`${fieldPath}.markdownImages[${assetIndex}]`,
-							assetValue
+							`${fieldPath}.${assetRef.kind}[${assetKindIndex}]`,
+							assetRef.value
 						),
 						context,
 						pendingExistsChecks,
@@ -302,7 +347,9 @@ export async function findUnusedTentmanAssets(project, configReference) {
 	const referencedProjectPaths = new Set(
 		[...allConfigAssets.values()]
 			.flatMap((detail) => detail.assets)
-			.filter((asset) => asset.matchesExpectedPath === true && typeof asset.projectPath === 'string')
+			.filter(
+				(asset) => asset.matchesExpectedPath === true && typeof asset.projectPath === 'string'
+			)
 			.map((asset) => asset.projectPath)
 	);
 

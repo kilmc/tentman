@@ -5,7 +5,10 @@ import Placeholder from '@tiptap/extension-placeholder';
 import FileHandler from '@tiptap/extension-file-handler';
 import { Markdown } from '@tiptap/markdown';
 import { createMarkdownImageNodeView } from './image-node-view';
+import { MarkdownAudio } from './audio-extension';
+import { MarkdownVideo } from './video-extension';
 import type { ContentComponentToolbarButton } from '$lib/components/form/markdown-field-toolbar';
+import type { AssetPickerKind } from '$lib/features/assets/asset-picker';
 import {
 	createMarkdownEditorContentComponentActivationRequest,
 	isMarkdownEditorContentComponentNode,
@@ -43,6 +46,13 @@ export interface MarkdownEditorController {
 	editor: Editor;
 	insertImageFiles(files: File[], position?: number): Promise<void>;
 	insertImageValue(value: string, position?: number): void;
+	insertAudioValue(value: string, position?: number): void;
+	insertVideoValue(value: string, position?: number): void;
+	insertFileLinkValue(input: { href: string; label: string }, position?: number): void;
+	insertAssetValue(
+		input: { kind: AssetPickerKind; value: string; label?: string },
+		position?: number
+	): void;
 	getDocumentFingerprint(): string;
 	getMarkdownDocumentFingerprint(markdown: string): string;
 	setMarkdown(markdown: string): void;
@@ -79,6 +89,50 @@ function createImageNode(ref: string): JSONContent {
 			src: ref,
 			alt: ''
 		}
+	};
+}
+
+function createAudioNode(ref: string): JSONContent {
+	return {
+		type: 'markdownAudio',
+		attrs: {
+			src: ref,
+			controls: true,
+			sources: [],
+			tracks: []
+		}
+	};
+}
+
+function createVideoNode(ref: string): JSONContent {
+	return {
+		type: 'markdownVideo',
+		attrs: {
+			src: ref,
+			controls: true,
+			sources: [],
+			tracks: []
+		}
+	};
+}
+
+function createFileLinkNode(input: { href: string; label: string }): JSONContent {
+	return {
+		type: 'paragraph',
+		content: [
+			{
+				type: 'text',
+				text: input.label || input.href,
+				marks: [
+					{
+						type: 'link',
+						attrs: {
+							href: input.href
+						}
+					}
+				]
+			}
+		]
 	};
 }
 
@@ -190,7 +244,10 @@ function normalizeMarkdownDocument(content: JSONContent): JSONContent {
 	}
 
 	const normalizedContent = [...content.content];
-	while (normalizedContent.length > 0 && isBlankParagraph(normalizedContent.at(-1) as JSONContent)) {
+	while (
+		normalizedContent.length > 0 &&
+		isBlankParagraph(normalizedContent.at(-1) as JSONContent)
+	) {
 		normalizedContent.pop();
 	}
 
@@ -388,6 +445,14 @@ export function createMarkdownEditor(
 				assetsDir: options.assetsDir,
 				storagePath: options.storagePath
 			}),
+			MarkdownAudio.configure({
+				assetsDir: options.assetsDir,
+				storagePath: options.storagePath
+			}),
+			MarkdownVideo.configure({
+				assetsDir: options.assetsDir,
+				storagePath: options.storagePath
+			}),
 			Placeholder.configure({
 				placeholder: options.placeholder ?? 'Write in Markdown'
 			}),
@@ -431,6 +496,21 @@ export function createMarkdownEditor(
 	});
 	lastKnownMarkdown = editor.getMarkdown();
 
+	function insertJsonContent(content: JSONContent, position?: number): void {
+		if (typeof position === 'number') {
+			editor.chain().focus().insertContentAt(position, content).run();
+			return;
+		}
+
+		const selection = editor.state.selection as { node?: unknown; to: number };
+		if (selection.node) {
+			editor.chain().focus().insertContentAt(selection.to, content).run();
+			return;
+		}
+
+		editor.chain().focus().insertContent(content).run();
+	}
+
 	async function insertImageFiles(files: File[], position?: number): Promise<void> {
 		for (const [index, file] of files.entries()) {
 			const staged = await options.stageImage(file);
@@ -439,13 +519,7 @@ export function createMarkdownEditor(
 			}
 
 			const targetPosition = index === 0 ? position : undefined;
-
-			if (typeof targetPosition === 'number') {
-				editor.chain().focus().insertContentAt(targetPosition, createImageNode(staged.ref)).run();
-				continue;
-			}
-
-			editor.chain().focus().insertContent(createImageNode(staged.ref)).run();
+			insertJsonContent(createImageNode(staged.ref), targetPosition);
 		}
 	}
 
@@ -454,18 +528,67 @@ export function createMarkdownEditor(
 			return;
 		}
 
-		if (typeof position === 'number') {
-			editor.chain().focus().insertContentAt(position, createImageNode(value)).run();
+		insertJsonContent(createImageNode(value), position);
+	}
+
+	function insertAudioValue(value: string, position?: number): void {
+		if (destroyed || !value.trim()) {
 			return;
 		}
 
-		editor.chain().focus().insertContent(createImageNode(value)).run();
+		insertJsonContent(createAudioNode(value), position);
+	}
+
+	function insertVideoValue(value: string, position?: number): void {
+		if (destroyed || !value.trim()) {
+			return;
+		}
+
+		insertJsonContent(createVideoNode(value), position);
+	}
+
+	function insertFileLinkValue(input: { href: string; label: string }, position?: number): void {
+		if (destroyed || !input.href.trim()) {
+			return;
+		}
+
+		insertJsonContent(createFileLinkNode(input), position);
+	}
+
+	function insertAssetValue(
+		input: { kind: AssetPickerKind; value: string; label?: string },
+		position?: number
+	): void {
+		switch (input.kind) {
+			case 'image':
+				insertImageValue(input.value, position);
+				return;
+			case 'audio':
+				insertAudioValue(input.value, position);
+				return;
+			case 'video':
+				insertVideoValue(input.value, position);
+				return;
+			case 'file':
+				insertFileLinkValue(
+					{
+						href: input.value,
+						label: input.label?.trim() || input.value
+					},
+					position
+				);
+				return;
+		}
 	}
 
 	return {
 		editor,
 		insertImageFiles,
 		insertImageValue,
+		insertAudioValue,
+		insertVideoValue,
+		insertFileLinkValue,
+		insertAssetValue,
 		getDocumentFingerprint() {
 			return getEditorDocumentFingerprint();
 		},

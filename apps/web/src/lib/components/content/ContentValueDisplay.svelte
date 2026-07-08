@@ -11,11 +11,13 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import ContentValueDisplay from './ContentValueDisplay.svelte';
+	import MarkdownAudioRenderer from './MarkdownAudioRenderer.svelte';
+	import MarkdownVideoRenderer from './MarkdownVideoRenderer.svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage } from '$lib/config/types';
 	import { getAssetRenderContext } from '$lib/features/assets/render-context';
-	import { resolveMarkdownAssetUrls } from '$lib/features/draft-assets/image-resolver';
+	import { resolveMarkdownAssetUrls } from '$lib/features/draft-assets/markdown-asset-resolver';
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import type { ContentRecord, ContentValue } from '$lib/features/content-management/types';
 
@@ -247,7 +249,15 @@
 		class="markdown-content prose max-w-none text-sm prose-stone prose-headings:font-semibold prose-code:rounded prose-code:bg-stone-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.875em] prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-stone-200 prose-pre:bg-stone-100 prose-pre:px-4 prose-pre:py-3 prose-pre:font-mono prose-pre:text-stone-800"
 	>
 		{#key renderedMarkdown}
-			<SvelteMarkdown source={renderedMarkdown} />
+			<SvelteMarkdown
+				source={renderedMarkdown}
+				renderers={{
+					html: {
+						audio: MarkdownAudioRenderer,
+						video: MarkdownVideoRenderer
+					}
+				}}
+			/>
 		{/key}
 	</div>
 	{#if contentComponentIssue}

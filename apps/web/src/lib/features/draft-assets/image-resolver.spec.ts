@@ -55,17 +55,32 @@ describe('draft-assets/image-resolver', () => {
 		resolveUrl.mockResolvedValue('blob:draft-hero');
 
 		await expect(
-			resolveMarkdownAssetUrls('![Hero](hero.jpg)\n\n<img src="draft-asset:hero" alt="Hero">', {
-				mode: 'github',
-				assets: { path: 'static/images/posts/', publicPath: '/images/posts' },
-				repository: {
-					owner: 'acme',
-					name: 'docs',
-					defaultBranch: 'main'
+			resolveMarkdownAssetUrls(
+				[
+					'![Hero](hero.jpg)',
+					'[Download](brief.pdf)',
+					'<img src="draft-asset:hero" alt="Hero">',
+					'<audio controls src="interview.mp3"></audio>',
+					'<video controls><source src="/images/trailer.mp4" type="video/mp4"><track src="captions.vtt"></video>'
+				].join('\n\n'),
+				{
+					mode: 'github',
+					assets: { path: 'static/images/posts/', publicPath: '/images/posts' },
+					repository: {
+						owner: 'acme',
+						name: 'docs',
+						defaultBranch: 'main'
+					}
 				}
-			})
+			)
 		).resolves.toBe(
-			'![Hero](/api/repo/asset?value=hero.jpg&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)\n\n<img src="blob:draft-hero" alt="Hero">'
+			[
+				'![Hero](/api/repo/asset?value=hero.jpg&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)',
+				'[Download](/api/repo/asset?value=brief.pdf&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)',
+				'<img src="blob:draft-hero" alt="Hero">',
+				'<audio controls src="/api/repo/asset?value=interview.mp3&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main"></audio>',
+				'<video controls><source src="/api/repo/asset?value=%2Fimages%2Ftrailer.mp4&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main" type="video/mp4"><track src="/api/repo/asset?value=captions.vtt&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main"></video>'
+			].join('\n\n')
 		);
 		expect(resolveUrl).toHaveBeenCalledWith('draft-asset:hero');
 	});

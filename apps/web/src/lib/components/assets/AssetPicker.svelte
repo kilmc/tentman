@@ -1,5 +1,9 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import FileIcon from 'lucide-svelte/icons/file';
+	import FileAudio from 'lucide-svelte/icons/file-audio';
+	import FileText from 'lucide-svelte/icons/file-text';
+	import FileVideo from 'lucide-svelte/icons/file-video';
 	import AssetImage from '$lib/components/AssetImage.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import {
@@ -23,7 +27,11 @@
 		initialTab?: 'existing' | 'upload';
 		currentValue?: string | null;
 		title?: string;
-		oninsert: (value: string, result?: UploadResult) => void | Promise<void>;
+		oninsert: (
+			value: string,
+			result?: UploadResult,
+			entry?: AssetPickerEntry
+		) => void | Promise<void>;
 		onupload?: (file: File) => Promise<UploadResult>;
 		onclose: () => void;
 		loadentries?: (options: {
@@ -69,6 +77,16 @@
 				entry.relativePath.toLowerCase().includes(query)
 			);
 		})
+	);
+	const pickerDescription = $derived(
+		filter.kind === 'image'
+			? 'Pick an existing image or upload a new one.'
+			: `Pick an existing ${filter.kind} asset or upload a new one.`
+	);
+	const acceptValue = $derived(
+		filter.mimePrefix
+			? `${filter.mimePrefix}*,${filter.extensions.join(',')}`
+			: filter.extensions.join(',')
 	);
 
 	function logPicker(message: string, payload?: Record<string, unknown>) {
@@ -149,8 +167,28 @@
 			repoPath: selectedEntry.repoPath,
 			publicPath: selectedEntry.publicPath
 		});
-		await oninsert(selectedEntry.publicPath);
+		await oninsert(selectedEntry.publicPath, undefined, selectedEntry);
 		onclose();
+	}
+
+	function getEntryKindLabel(entry: AssetPickerEntry): string {
+		return entry.extension ? entry.extension.replace(/^\./, '').toUpperCase() : entry.kind;
+	}
+
+	function getNonImageEntryIcon(entry: AssetPickerEntry) {
+		if (entry.kind === 'audio') {
+			return FileAudio;
+		}
+
+		if (entry.kind === 'video') {
+			return FileVideo;
+		}
+
+		if (entry.extension === '.pdf' || entry.extension === '.txt') {
+			return FileText;
+		}
+
+		return FileIcon;
 	}
 
 	async function uploadFile(file: File | null | undefined) {
@@ -241,9 +279,7 @@
 						{title}
 					</h2>
 					<p class="mt-1 text-sm text-stone-500">
-						{filter.kind === 'image'
-							? 'Pick an existing image or upload a new one.'
-							: 'Pick an asset.'}
+						{pickerDescription}
 					</p>
 				</div>
 				<button
@@ -312,7 +348,7 @@
 								</div>
 							{:else if filteredEntries.length === 0}
 								<p class="py-8 text-sm text-stone-500">No matching assets found.</p>
-							{:else}
+							{:else if filter.kind === 'image'}
 								<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
 									{#each filteredEntries as entry (entry.repoPath)}
 										<button
@@ -338,25 +374,96 @@
 										</button>
 									{/each}
 								</div>
+							{:else}
+								<div class="space-y-2">
+									{#each filteredEntries as entry (entry.repoPath)}
+										{@const EntryIcon = getNonImageEntryIcon(entry)}
+										<button
+											type="button"
+											class="flex w-full min-w-0 items-center gap-3 rounded-md border bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-stone-400 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-none"
+											class:border-stone-900={selectedEntry?.repoPath === entry.repoPath}
+											class:border-stone-200={selectedEntry?.repoPath !== entry.repoPath}
+											class:bg-stone-50={selectedEntry?.repoPath === entry.repoPath}
+											aria-pressed={selectedEntry?.repoPath === entry.repoPath}
+											onclick={() => (selectedEntry = entry)}
+										>
+											<span
+												class="flex size-9 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-stone-50 text-stone-600"
+											>
+												<EntryIcon class="size-4" />
+											</span>
+											<span class="min-w-0 flex-1">
+												<span class="block truncate text-sm font-medium text-stone-900">
+													{entry.name}
+												</span>
+												<span class="mt-0.5 block truncate font-mono text-xs text-stone-500">
+													{entry.relativePath}
+												</span>
+											</span>
+											<span
+												class="shrink-0 rounded border border-stone-200 px-1.5 py-0.5 text-[10px] font-semibold text-stone-500 uppercase"
+											>
+												{getEntryKindLabel(entry)}
+											</span>
+										</button>
+									{/each}
+								</div>
 							{/if}
 						{/if}
 					</div>
 
 					<div class="min-h-0 overflow-y-auto p-5">
 						{#if selectedEntry}
-							<div class="overflow-hidden rounded-md border border-stone-200 bg-stone-50">
-								<AssetImage
-									value={selectedEntry.publicPath}
-									alt={selectedEntry.name}
-									class="max-h-64 w-full object-contain"
-									loading="eager"
-								/>
-							</div>
+							{#if selectedEntry.kind === 'image'}
+								<div class="overflow-hidden rounded-md border border-stone-200 bg-stone-50">
+									<AssetImage
+										value={selectedEntry.publicPath}
+										alt={selectedEntry.name}
+										class="max-h-64 w-full object-contain"
+										loading="eager"
+									/>
+								</div>
+							{:else if selectedEntry.kind === 'video'}
+								<div class="overflow-hidden rounded-md border border-stone-200 bg-stone-950">
+									<!-- svelte-ignore a11y_media_has_caption -->
+									<video
+										src={selectedEntry.publicPath}
+										controls
+										preload="metadata"
+										class="aspect-video w-full object-contain"
+									></video>
+								</div>
+							{:else if selectedEntry.kind === 'audio'}
+								<div class="rounded-md border border-stone-200 bg-stone-50 p-3">
+									<audio src={selectedEntry.publicPath} controls preload="metadata" class="w-full"
+									></audio>
+								</div>
+							{:else}
+								{@const DetailIcon = getNonImageEntryIcon(selectedEntry)}
+								<div
+									class="flex min-h-40 items-center justify-center rounded-md border border-stone-200 bg-stone-50 text-stone-500"
+								>
+									<div class="text-center">
+										<DetailIcon class="mx-auto size-10" />
+										<p class="mt-2 text-xs font-semibold tracking-wide uppercase">
+											{getEntryKindLabel(selectedEntry)}
+										</p>
+									</div>
+								</div>
+							{/if}
 							<div class="mt-4 space-y-3 text-sm">
 								<div>
 									<p class="font-medium text-stone-950">{selectedEntry.name}</p>
 									<p class="mt-1 break-all font-mono text-xs text-stone-600">
 										{selectedEntry.publicPath}
+									</p>
+								</div>
+								<div>
+									<p class="text-xs font-medium tracking-wide text-stone-500 uppercase">
+										Relative path
+									</p>
+									<p class="mt-1 break-all font-mono text-xs text-stone-600">
+										{selectedEntry.relativePath}
 									</p>
 								</div>
 								<div>
@@ -401,7 +508,7 @@
 							<input
 								bind:this={fileInput}
 								type="file"
-								accept={filter.mimePrefix ? `${filter.mimePrefix}*` : filter.extensions.join(',')}
+								accept={acceptValue}
 								disabled={uploading}
 								class="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-stone-100"
 								onchange={(event) => {

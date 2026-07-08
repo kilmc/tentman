@@ -10,6 +10,7 @@ import {
 	type DraftAssetMetadata,
 	type DraftAssetSubmissionEntry
 } from './types';
+import { collectMarkdownDraftAssetRefs, replaceMarkdownAssetValues } from './markdown-refs';
 
 function trimTrailingSlash(value: string): string {
 	return value.replace(/\/+$/, '');
@@ -73,34 +74,33 @@ function getFileExtension(originalName: string, mimeType: string): string {
 			return '.gif';
 		case 'image/svg+xml':
 			return '.svg';
+		case 'video/mp4':
+			return '.mp4';
+		case 'video/webm':
+			return '.webm';
+		case 'video/quicktime':
+			return '.mov';
+		case 'audio/mpeg':
+			return '.mp3';
+		case 'audio/mp4':
+			return '.m4a';
+		case 'audio/wav':
+			return '.wav';
+		case 'audio/ogg':
+			return '.ogg';
+		case 'audio/flac':
+			return '.flac';
+		case 'application/pdf':
+			return '.pdf';
+		case 'text/plain':
+			return '.txt';
 		default:
 			return '';
 	}
 }
 
-const MARKDOWN_DRAFT_IMAGE_PATTERN =
-	/!\[[^\]]*]\((?:<(draft-asset:[^>\s]+)>|(draft-asset:[^\s)]+))((?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?)\)/g;
-const HTML_DRAFT_IMAGE_PATTERN =
-	/<img\b([^>]*?)\bsrc\s*=\s*(["'])(draft-asset:[^"']+)\2([^>]*?)>/gi;
-
 function collectDraftAssetRefsFromMarkdownString(value: string): string[] {
-	const refs: string[] = [];
-
-	for (const match of value.matchAll(MARKDOWN_DRAFT_IMAGE_PATTERN)) {
-		const ref = match[1] ?? match[2];
-		if (ref) {
-			refs.push(ref);
-		}
-	}
-
-	for (const match of value.matchAll(HTML_DRAFT_IMAGE_PATTERN)) {
-		const ref = match[3];
-		if (ref) {
-			refs.push(ref);
-		}
-	}
-
-	return refs;
+	return collectMarkdownDraftAssetRefs(value);
 }
 
 export function collectDraftAssetRefsFromString(value: string): string[] {
@@ -115,31 +115,7 @@ function replaceDraftAssetRefsInMarkdownString(
 	value: string,
 	replacements: Map<string, string>
 ): string {
-	let nextValue = value.replace(MARKDOWN_DRAFT_IMAGE_PATTERN, (match, angleRef, plainRef) => {
-		const ref = angleRef ?? plainRef;
-		const replacement = replacements.get(ref);
-
-		if (!replacement) {
-			return match;
-		}
-
-		return match.replace(ref, replacement);
-	});
-
-	nextValue = nextValue.replace(
-		HTML_DRAFT_IMAGE_PATTERN,
-		(match, beforeSrc, quote, ref, afterSrc) => {
-			const replacement = replacements.get(ref);
-
-			if (!replacement) {
-				return match;
-			}
-
-			return `<img${beforeSrc}src=${quote}${replacement}${quote}${afterSrc}>`;
-		}
-	);
-
-	return nextValue;
+	return replaceMarkdownAssetValues(value, replacements);
 }
 
 export function replaceDraftAssetRefsInString(
@@ -158,9 +134,7 @@ export function normalizeDraftAssetStoragePath(storagePath?: string): string {
 		return '';
 	}
 
-	const normalized = normalizeRepoRelativePath(
-		trimDotSlash(storagePath.trim())
-	);
+	const normalized = normalizeRepoRelativePath(trimDotSlash(storagePath.trim()));
 	const withoutLeadingSlash = trimLeadingSlash(normalized);
 	return withoutLeadingSlash.endsWith('/') ? withoutLeadingSlash : `${withoutLeadingSlash}/`;
 }

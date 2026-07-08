@@ -17,6 +17,9 @@ export type ToolbarIconName =
 	| 'divider'
 	| 'link'
 	| 'image'
+	| 'video'
+	| 'audio'
+	| 'file'
 	| 'chevronDown'
 	| 'check';
 

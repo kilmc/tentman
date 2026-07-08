@@ -155,6 +155,49 @@
 		<circle cx="5.5" cy="6" r="1"></circle>
 		<path d="m3.75 11 2.75-2.75 2 2 1.5-1.5 2.25 2.25"></path>
 	</svg>
+{:else if name === 'video'}
+	<svg
+		viewBox="0 0 16 16"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		class={className}
+		aria-hidden="true"
+	>
+		<rect x="2.25" y="4" width="8.5" height="8" rx="1.5"></rect>
+		<path d="m10.75 6.5 3-1.75v6.5l-3-1.75"></path>
+	</svg>
+{:else if name === 'audio'}
+	<svg
+		viewBox="0 0 16 16"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		class={className}
+		aria-hidden="true"
+	>
+		<path d="M6.5 11.5A2.5 2.5 0 1 1 4 9h2.5V3.5l6-1v6"></path>
+		<path d="M12.5 8.5A2.5 2.5 0 1 1 10 6"></path>
+	</svg>
+{:else if name === 'file'}
+	<svg
+		viewBox="0 0 16 16"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		class={className}
+		aria-hidden="true"
+	>
+		<path d="M4.25 2.5h4.5l3 3v8H4.25z"></path>
+		<path d="M8.75 2.5v3h3"></path>
+		<path d="M6 9h4M6 11.25h3"></path>
+	</svg>
 {:else if name === 'chevronDown'}
 	<svg
 		viewBox="0 0 16 16"
