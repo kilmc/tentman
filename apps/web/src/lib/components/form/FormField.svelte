@@ -166,6 +166,7 @@
 	{:else if fieldType === 'markdown'}
 		<MarkdownField
 			fieldId={block.id}
+			{fieldPath}
 			{label}
 			bind:value={fieldValue}
 			{required}

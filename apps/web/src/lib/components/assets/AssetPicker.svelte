@@ -57,6 +57,7 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let dialog = $state<HTMLDivElement | null>(null);
 	let loadRequest = 0;
+	let wasOpen = false;
 
 	const hasConfig = $derived(hasAssetPickerConfig(config));
 	const filteredEntries = $derived(
@@ -89,7 +90,6 @@
 			requestId,
 			hasConfig,
 			mode,
-			activeTab,
 			currentValue,
 			assetPath: config.assetPath ?? null,
 			publicPath: config.publicPath ?? null,
@@ -193,9 +193,15 @@
 
 	$effect(() => {
 		if (!open) {
+			wasOpen = false;
 			return;
 		}
 
+		if (wasOpen) {
+			return;
+		}
+
+		wasOpen = true;
 		logPicker('opened', {
 			initialTab,
 			mode,

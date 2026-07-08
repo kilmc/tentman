@@ -279,8 +279,13 @@ describe('routes/pages/[page]/edit/+page.svelte', () => {
 		});
 
 		await expectElement(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
+		const saveButton = screen.getByRole('button', { name: 'Save Changes' });
+		await expectElement(saveButton).toBeDisabled();
+		await expectElement(screen.getByRole('link', { name: 'Cancel' })).not.toBeInTheDocument();
 
-		await screen.getByRole('button', { name: 'Save Changes' }).click();
+		await screen.getByTestId('mock-form-dirty').click();
+		await expectElement(saveButton).toBeEnabled();
+		await saveButton.click();
 
 		await expect.poll(() => localFlowMocks.saveContentDocument.mock.calls.length).toBe(1);
 		expect(localFlowMocks.saveContentDocument).toHaveBeenCalledWith(

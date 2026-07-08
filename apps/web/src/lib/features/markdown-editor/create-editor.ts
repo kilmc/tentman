@@ -43,6 +43,8 @@ export interface MarkdownEditorController {
 	editor: Editor;
 	insertImageFiles(files: File[], position?: number): Promise<void>;
 	insertImageValue(value: string, position?: number): void;
+	getDocumentFingerprint(): string;
+	getMarkdownDocumentFingerprint(markdown: string): string;
 	setMarkdown(markdown: string): void;
 	destroy(): void;
 }
@@ -167,6 +169,37 @@ function openEditorHref(href: unknown): boolean {
 	return true;
 }
 
+function isBlankParagraphContent(node: JSONContent): boolean {
+	if (node.type === 'text') {
+		return (node.text ?? '').replace(/\u00a0/g, '').trim() === '';
+	}
+
+	return node.type === 'hardBreak';
+}
+
+function isBlankParagraph(node: JSONContent): boolean {
+	return (
+		node.type === 'paragraph' &&
+		(!node.content || node.content.every((child) => isBlankParagraphContent(child)))
+	);
+}
+
+function normalizeMarkdownDocument(content: JSONContent): JSONContent {
+	if (content.type !== 'doc' || !content.content) {
+		return content;
+	}
+
+	const normalizedContent = [...content.content];
+	while (normalizedContent.length > 0 && isBlankParagraph(normalizedContent.at(-1) as JSONContent)) {
+		normalizedContent.pop();
+	}
+
+	return {
+		...content,
+		content: normalizedContent
+	};
+}
+
 export function createMarkdownEditor(
 	options: CreateMarkdownEditorOptions
 ): MarkdownEditorController {
@@ -208,6 +241,17 @@ export function createMarkdownEditor(
 		}
 
 		delete selectionDom.dataset.tentmanSelectedNodeType;
+	}
+
+	function getMarkdownDocumentFingerprint(markdown: string): string {
+		const markdownManager = editor.markdown;
+		return JSON.stringify(
+			markdownManager ? normalizeMarkdownDocument(markdownManager.parse(markdown)) : markdown
+		);
+	}
+
+	function getEditorDocumentFingerprint(): string {
+		return JSON.stringify(normalizeMarkdownDocument(editor.state.doc.toJSON()));
 	}
 
 	const editor = new Editor({
@@ -364,6 +408,9 @@ export function createMarkdownEditor(
 		},
 		onTransaction: () => {
 			syncSelectionDataAttributes();
+			if (syncingFromOutside) {
+				return;
+			}
 			reportUiChange();
 		},
 		onUpdate: ({ editor: activeEditor }) => {
@@ -382,6 +429,7 @@ export function createMarkdownEditor(
 			});
 		}
 	});
+	lastKnownMarkdown = editor.getMarkdown();
 
 	async function insertImageFiles(files: File[], position?: number): Promise<void> {
 		for (const [index, file] of files.entries()) {
@@ -418,18 +466,30 @@ export function createMarkdownEditor(
 		editor,
 		insertImageFiles,
 		insertImageValue,
+		getDocumentFingerprint() {
+			return getEditorDocumentFingerprint();
+		},
+		getMarkdownDocumentFingerprint(markdown: string) {
+			return getMarkdownDocumentFingerprint(markdown);
+		},
 		setMarkdown(markdown: string) {
 			if (destroyed || markdown === lastKnownMarkdown) {
 				return;
 			}
 
-			lastKnownMarkdown = markdown;
+			const previousMarkdown = editor.getMarkdown();
 			syncingFromOutside = true;
-			editor.commands.setContent(markdown, {
-				contentType: 'markdown'
-			});
-			syncingFromOutside = false;
-			reportUiChange();
+			try {
+				editor.commands.setContent(markdown, {
+					contentType: 'markdown'
+				});
+				lastKnownMarkdown = editor.getMarkdown();
+			} finally {
+				syncingFromOutside = false;
+			}
+			if (lastKnownMarkdown !== previousMarkdown) {
+				reportUiChange();
+			}
 		},
 		destroy() {
 			destroyed = true;

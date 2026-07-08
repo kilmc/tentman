@@ -61,6 +61,55 @@ describe('features/forms/edit-session', () => {
 		expect(session.getDirtyState().isDirty).toBe(false);
 	});
 
+	it('uses semantic field fingerprints for markdown dirty state', () => {
+		const session = createFormEditSession({ body: 'Original body\n' });
+
+		session.updateSemanticFieldFingerprint({
+			kind: 'markdown',
+			path: 'body',
+			baselineFingerprint: 'doc:original',
+			currentFingerprint: 'doc:original'
+		});
+		session.updateData({ body: 'Original body' });
+
+		expect(session.getDirtyState().isDirty).toBe(false);
+
+		session.updateSemanticFieldFingerprint({
+			kind: 'markdown',
+			path: 'body',
+			baselineFingerprint: 'doc:original',
+			currentFingerprint: 'doc:changed'
+		});
+
+		expect(session.getDirtyState().isDirty).toBe(true);
+	});
+
+	it('preserves baseline markdown on submit when only serialized markdown changed', () => {
+		const session = createFormEditSession({
+			title: 'About',
+			body: 'Original body\n'
+		});
+
+		session.updateSemanticFieldFingerprint({
+			kind: 'markdown',
+			path: 'body',
+			baselineFingerprint: 'doc:original',
+			currentFingerprint: 'doc:original'
+		});
+		session.updateData({
+			title: 'About us',
+			body: 'Original body'
+		});
+
+		expect(session.prepareSubmit()).toEqual({
+			ok: true,
+			data: {
+				title: 'About us',
+				body: 'Original body\n'
+			}
+		});
+	});
+
 	it('tracks dirty edits inside an open repeatable panel before panel save', () => {
 		const session = createFormEditSession({
 			sections: [{ title: 'Intro' }]

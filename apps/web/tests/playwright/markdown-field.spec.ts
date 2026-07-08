@@ -9,6 +9,30 @@ test.describe('MarkdownField harness', () => {
 		await expect(field.getByTestId('basic-markdown-value')).toContainText('# Hello world');
 	});
 
+	test('returns to semantic clean after typing and deleting in the trailing empty line', async ({
+		page
+	}) => {
+		await page.goto('/__test__/markdown-field?scenario=basic');
+		const field = page.getByTestId('basic-field');
+		const emptyLine = field.locator('.ProseMirror p').last();
+
+		await expect(field.getByTestId('basic-semantic-dirty-state')).toHaveText('clean');
+
+		await emptyLine.click();
+		await page.keyboard.type('p');
+		await expect(field.getByTestId('basic-semantic-dirty-state')).toHaveText('dirty');
+
+		await page.keyboard.press('Backspace');
+		await expect(field.getByTestId('basic-semantic-dirty-state')).toHaveText('clean');
+
+		await emptyLine.click();
+		await page.keyboard.type('p');
+		await expect(field.getByTestId('basic-semantic-dirty-state')).toHaveText('dirty');
+
+		await page.keyboard.press('ControlOrMeta+Z');
+		await expect(field.getByTestId('basic-semantic-dirty-state')).toHaveText('clean');
+	});
+
 	test('keeps formatting tools available while scrolling long rich content', async ({ page }) => {
 		await page.goto('/__test__/markdown-field?scenario=long');
 		const scrollPanel = page.getByTestId('markdown-field-scroll-panel');

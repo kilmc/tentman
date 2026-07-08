@@ -177,4 +177,34 @@ describe('components/form/ImageField.svelte', () => {
 		expect(onchange).toHaveBeenCalledOnce();
 		expect(draftAssetStoreMocks.delete).toHaveBeenCalledWith('draft-asset:existing-image');
 	});
+
+	it('keeps the picker on the upload tab when Upload new is pressed inside the dialog', async () => {
+		const loadAssetEntries = vi.fn().mockResolvedValue([
+			{
+				name: 'hero.jpg',
+				repoPath: 'static/images/hero.jpg',
+				publicPath: '/images/hero.jpg',
+				relativePath: 'hero.jpg',
+				kind: 'image',
+				extension: '.jpg'
+			}
+		]);
+		const screen = await render(ImageField, {
+			label: 'Hero image',
+			value: '',
+			storagePath: 'static/images/posts/',
+			loadAssetEntries
+		});
+
+		await screen.getByRole('button', { name: 'Choose asset' }).click();
+		const picker = screen.getByRole('dialog', { name: 'Choose image' });
+		await expectElement(picker).toBeVisible();
+		expect(loadAssetEntries).toHaveBeenCalledOnce();
+
+		await picker.getByRole('button', { name: 'Upload new' }).click();
+
+		await expectElement(screen.getByLabelText('Upload image')).toBeVisible();
+		await expectElement(screen.getByLabelText('Search assets')).not.toBeInTheDocument();
+		expect(loadAssetEntries).toHaveBeenCalledOnce();
+	});
 });

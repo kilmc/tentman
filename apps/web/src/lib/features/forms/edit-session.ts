@@ -71,6 +71,13 @@ export interface FormDirtyState {
 	hasCreatePanelDraft: boolean;
 }
 
+export interface SemanticFieldFingerprint {
+	kind: 'markdown';
+	path: string;
+	baselineFingerprint: string;
+	currentFingerprint: string;
+}
+
 export type PrepareSubmitResult =
 	| { ok: true; data: ContentRecord }
 	| { ok: false; data: ContentRecord; message: string };
@@ -109,6 +116,13 @@ type PanelEntry = (OpenRepeatablePanelInput | OpenObjectPanelInput) & {
 	submitError?: string;
 };
 
+type SemanticFingerprintSide = 'baseline' | 'current';
+
+type StoredSemanticFieldFingerprint = SemanticFieldFingerprint & {
+	parsedPath: ContentPath;
+	pathKey: string;
+};
+
 interface FormEditSessionOptions {
 	onChange?: (state: FormDirtyState) => void;
 	onPanelChange?: (panel: FormPanelView | null) => void;
@@ -118,6 +132,8 @@ export interface FormEditSession {
 	getData: () => ContentRecord;
 	setData: (data: ContentRecord) => void;
 	updateData: (data: ContentRecord) => void;
+	getBaselineFieldValue: (path: string) => ContentValue | undefined;
+	updateSemanticFieldFingerprint: (fingerprint: SemanticFieldFingerprint) => void;
 	getDirtyState: () => FormDirtyState;
 	getActivePanel: () => FormPanelView | null;
 	openPanel: (panel: OpenPanelInput) => void;
@@ -148,13 +164,17 @@ export function createFormEditSession(
 	let data = cloneContentRecord(initialData);
 	let baseline = cloneContentRecord(initialData);
 	let panelStack: PanelEntry[] = [];
+	let semanticFieldFingerprints = new Map<string, StoredSemanticFieldFingerprint>();
 
 	function getDirtyState(): FormDirtyState {
 		return {
-			isDirty: getFingerprint(data) !== getFingerprint(baseline) || panelStack.some(isPanelDirty),
-			hasPanelDraft: panelStack.some(isPanelDirty),
+			isDirty:
+				getFingerprint(data, [], 'current', semanticFieldFingerprints) !==
+					getFingerprint(baseline, [], 'baseline', semanticFieldFingerprints) ||
+				panelStack.some((panel) => isPanelDirty(panel, semanticFieldFingerprints)),
+			hasPanelDraft: panelStack.some((panel) => isPanelDirty(panel, semanticFieldFingerprints)),
 			hasCreatePanelDraft: panelStack.some(
-				(panel) => panel.mode === 'create' && isPanelDirty(panel)
+				(panel) => panel.mode === 'create' && isPanelDirty(panel, semanticFieldFingerprints)
 			)
 		};
 	}
@@ -169,7 +189,7 @@ export function createFormEditSession(
 			return null;
 		}
 
-		return toPanelView(active, getParentEntry(active));
+		return toPanelView(active, getParentEntry(active), semanticFieldFingerprints);
 	}
 
 	function notify() {
@@ -184,6 +204,37 @@ export function createFormEditSession(
 
 	function updateData(nextData: ContentRecord) {
 		data = nextData;
+		notify();
+	}
+
+	function getBaselineFieldValue(path: string): ContentValue | undefined {
+		const parsedPath = parseFieldPath(path);
+		const active = getActiveEntry();
+		if (active && pathStartsWith(parsedPath, active.targetPath)) {
+			return getValueAtPath(active.initialItem, getRelativePath(active, parsedPath));
+		}
+
+		return getValueAtPath(baseline, parsedPath);
+	}
+
+	function updateSemanticFieldFingerprint(fingerprint: SemanticFieldFingerprint) {
+		const parsedPath = parseFieldPath(fingerprint.path);
+		if (parsedPath.length === 0) {
+			return;
+		}
+
+		const pathKey = getPathKey(parsedPath);
+		const nextFingerprint: StoredSemanticFieldFingerprint = {
+			...fingerprint,
+			parsedPath,
+			pathKey
+		};
+		const previousFingerprint = semanticFieldFingerprints.get(pathKey);
+		if (getFingerprint(previousFingerprint) === getFingerprint(nextFingerprint)) {
+			return;
+		}
+
+		semanticFieldFingerprints = new Map(semanticFieldFingerprints).set(pathKey, nextFingerprint);
 		notify();
 	}
 
@@ -211,7 +262,7 @@ export function createFormEditSession(
 		}
 
 		const nested = isNestedPanel(active, normalizedPanel);
-		if (!nested && active.mode === 'edit' && isPanelDirty(active)) {
+		if (!nested && active.mode === 'edit' && isPanelDirty(active, semanticFieldFingerprints)) {
 			commitEntry(active);
 		}
 
@@ -270,7 +321,7 @@ export function createFormEditSession(
 
 	function commitPanel() {
 		const active = getActiveEntry();
-		if (!active || !isPanelDirty(active)) {
+		if (!active || !isPanelDirty(active, semanticFieldFingerprints)) {
 			return;
 		}
 
@@ -285,7 +336,7 @@ export function createFormEditSession(
 			return;
 		}
 
-		if (active.mode === 'edit' && isPanelDirty(active)) {
+		if (active.mode === 'edit' && isPanelDirty(active, semanticFieldFingerprints)) {
 			commitEntry(active);
 		}
 
@@ -318,7 +369,7 @@ export function createFormEditSession(
 
 	function prepareSubmit(): PrepareSubmitResult {
 		const active = getActiveEntry();
-		if (active?.mode === 'create' && isPanelDirty(active)) {
+		if (active?.mode === 'create' && isPanelDirty(active, semanticFieldFingerprints)) {
 			active.submitError = `Add ${active.title} or cancel before saving the page.`;
 			notify();
 			return {
@@ -330,7 +381,7 @@ export function createFormEditSession(
 
 		while (panelStack.length > 0) {
 			const nextActive = getActiveEntry();
-			if (nextActive?.mode === 'edit' && isPanelDirty(nextActive)) {
+			if (nextActive?.mode === 'edit' && isPanelDirty(nextActive, semanticFieldFingerprints)) {
 				commitEntry(nextActive);
 			}
 			panelStack = panelStack.slice(0, -1);
@@ -339,7 +390,7 @@ export function createFormEditSession(
 		notify();
 		return {
 			ok: true,
-			data
+			data: getSubmissionData()
 		};
 	}
 
@@ -347,6 +398,15 @@ export function createFormEditSession(
 		data = cloneContentRecord(nextData);
 		baseline = cloneContentRecord(nextData);
 		panelStack = [];
+		semanticFieldFingerprints = new Map(
+			[...semanticFieldFingerprints].map(([key, fingerprint]) => [
+				key,
+				{
+					...fingerprint,
+					baselineFingerprint: fingerprint.currentFingerprint
+				}
+			])
+		);
 		notify();
 	}
 
@@ -374,7 +434,11 @@ export function createFormEditSession(
 	}
 
 	function commitEntry(entry: PanelEntry) {
-		const nextItem = cloneContentRecord(entry.draftItem);
+		const nextItem = preserveSemanticallyCleanFields(
+			entry.draftItem,
+			entry.initialItem,
+			entry.targetPath
+		);
 		if (entry.kind === 'object') {
 			applyValueForEntry(entry, nextItem);
 			entry.initialItem = nextItem;
@@ -397,6 +461,23 @@ export function createFormEditSession(
 		entry.initialItem = nextItem;
 		entry.draftItem = cloneContentRecord(nextItem);
 		entry.submitError = undefined;
+	}
+
+	function getSubmissionData(): ContentRecord {
+		return preserveSemanticallyCleanFields(data, baseline, []);
+	}
+
+	function preserveSemanticallyCleanFields(
+		current: ContentRecord,
+		initial: ContentRecord,
+		basePath: ContentPath
+	): ContentRecord {
+		return preserveSemanticallyCleanFieldsForMap(
+			current,
+			initial,
+			basePath,
+			semanticFieldFingerprints
+		);
 	}
 
 	function getCurrentArrayForEntry(
@@ -434,6 +515,8 @@ export function createFormEditSession(
 		getData: () => data,
 		setData,
 		updateData,
+		getBaselineFieldValue,
+		updateSemanticFieldFingerprint,
 		getDirtyState,
 		getActivePanel,
 		openPanel,
@@ -487,12 +570,16 @@ function cloneContentValue<T extends ContentValue | ContentRecord | undefined>(v
 	}
 }
 
-function toPanelView(entry: PanelEntry, parent: PanelEntry | null): FormPanelView {
+function toPanelView(
+	entry: PanelEntry,
+	parent: PanelEntry | null,
+	semanticFingerprints: Map<string, StoredSemanticFieldFingerprint>
+): FormPanelView {
 	const { draftItem, initialItem, submitError, ...panel } = entry;
 	return {
 		...panel,
 		selectedItem: draftItem,
-		isDirty: isPanelDirty(entry),
+		isDirty: isPanelDirty(entry, semanticFingerprints),
 		submitError,
 		hasParentPanel: parent !== null,
 		parentPanelTitle: parent?.title
@@ -565,12 +652,90 @@ function fromRecoveryPanel(
 	};
 }
 
-function isPanelDirty(panel: PanelEntry): boolean {
-	return getFingerprint(panel.draftItem) !== getFingerprint(panel.initialItem);
+function isPanelDirty(
+	panel: PanelEntry,
+	semanticFingerprints: Map<string, StoredSemanticFieldFingerprint>
+): boolean {
+	return (
+		getFingerprint(panel.draftItem, panel.targetPath, 'current', semanticFingerprints) !==
+		getFingerprint(panel.initialItem, panel.targetPath, 'baseline', semanticFingerprints)
+	);
 }
 
-function getFingerprint(value: unknown): string {
-	return JSON.stringify(value);
+function getPathKey(path: ContentPath): string {
+	return JSON.stringify(path);
+}
+
+function getFingerprint(
+	value: unknown,
+	basePath: ContentPath = [],
+	side: SemanticFingerprintSide = 'current',
+	semanticFingerprints: Map<string, StoredSemanticFieldFingerprint> = new Map()
+): string {
+	return JSON.stringify(getComparableValue(value, basePath, side, semanticFingerprints));
+}
+
+function getComparableValue(
+	value: unknown,
+	basePath: ContentPath,
+	side: SemanticFingerprintSide,
+	semanticFingerprints: Map<string, StoredSemanticFieldFingerprint> = new Map()
+): unknown {
+	const semanticFingerprint = semanticFingerprints.get(getPathKey(basePath));
+	if (semanticFingerprint) {
+		return {
+			_tentmanSemanticKind: semanticFingerprint.kind,
+			fingerprint:
+				side === 'baseline'
+					? semanticFingerprint.baselineFingerprint
+					: semanticFingerprint.currentFingerprint
+		};
+	}
+
+	if (Array.isArray(value)) {
+		return value.map((item, index) =>
+			getComparableValue(item, [...basePath, index], side, semanticFingerprints)
+		);
+	}
+
+	if (value && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.entries(value).map(([key, childValue]) => [
+				key,
+				getComparableValue(childValue, [...basePath, key], side, semanticFingerprints)
+			])
+		);
+	}
+
+	return value;
+}
+
+function preserveSemanticallyCleanFieldsForMap(
+	current: ContentRecord,
+	baseline: ContentRecord,
+	basePath: ContentPath,
+	semanticFingerprints: Map<string, StoredSemanticFieldFingerprint>
+): ContentRecord {
+	let next = cloneContentRecord(current);
+
+	for (const fingerprint of semanticFingerprints.values()) {
+		if (
+			!pathStartsWith(fingerprint.parsedPath, basePath) ||
+			fingerprint.baselineFingerprint !== fingerprint.currentFingerprint
+		) {
+			continue;
+		}
+
+		const relativePath = fingerprint.parsedPath.slice(basePath.length);
+		if (relativePath.length === 0) {
+			continue;
+		}
+
+		const baselineValue = getValueAtPath(baseline, relativePath);
+		next = setValueAtPath(next, relativePath, baselineValue as ContentValue) as ContentRecord;
+	}
+
+	return next;
 }
 
 function isNestedPanel(parent: PanelEntry, child: PanelEntry): boolean {

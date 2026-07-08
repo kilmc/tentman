@@ -129,6 +129,12 @@
 		},
 		getBlockRegistry() {
 			return blockRegistry;
+		},
+		getBaselineFieldValue(path) {
+			return editSession.getBaselineFieldValue(path);
+		},
+		updateSemanticFieldFingerprint(fingerprint) {
+			editSession.updateSemanticFieldFingerprint(fingerprint);
 		}
 	});
 

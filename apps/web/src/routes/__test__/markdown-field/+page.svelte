@@ -2,8 +2,12 @@
 	import { dev } from '$app/environment';
 	import { page } from '$app/state';
 	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, setContext } from 'svelte';
 	import MarkdownField from '$lib/components/form/MarkdownField.svelte';
+	import {
+		FORM_CONTENT_CONTEXT,
+		type FormContentContext
+	} from '$lib/components/form/form-content-context';
 	import MarkdownFieldPlaywrightHarness from '$lib/test/fixtures/MarkdownFieldPlaywrightHarness.svelte';
 	import type { ContentComponentRegistry } from '$lib/content-components/registry';
 	import type { BlockUsage } from '$lib/config/types';
@@ -265,6 +269,7 @@
 	let staticMarkerErrors = $state<string[]>([]);
 	let deleteCalls = $state<string[]>([]);
 	let createCalls = $state<Array<{ name: string; repoKey: string; storagePath?: string }>>([]);
+	let basicSemanticDirty = $state(false);
 
 	const urlByRef = new Map([
 		['draft-asset:hero', 'blob:hero'],
@@ -277,6 +282,34 @@
 	const heroEmbedRegistry = createHeroEmbedRegistry();
 	const socialCardEmbedRegistry = createSocialCardEmbedRegistry();
 	const staticMarkerRegistry = createStaticMarkerRegistry();
+
+	setContext<FormContentContext>(FORM_CONTENT_CONTEXT, {
+		getRootBlocks() {
+			return [];
+		},
+		getRootData() {
+			return { body: basicValue };
+		},
+		getBlockRegistry() {
+			return {
+				entries: [],
+				get: () => undefined,
+				has: () => false,
+				getAdapter: () => undefined
+			};
+		},
+		getBaselineFieldValue(path) {
+			return path === 'body' ? initialBasicValue : undefined;
+		},
+		updateSemanticFieldFingerprint(fingerprint) {
+			if (fingerprint.path !== 'body') {
+				return;
+			}
+
+			basicSemanticDirty = fingerprint.baselineFingerprint !== fingerprint.currentFingerprint;
+		}
+	});
+
 	const referenceBlocks: BlockUsage[] = [
 		{
 			id: 'body',
@@ -683,6 +716,7 @@
 		</div>
 
 		<MarkdownField
+			fieldPath="body"
 			label="Body"
 			bind:value={basicValue}
 			storagePath="static/images/posts/"
@@ -690,10 +724,15 @@
 			testAdapters={basicAdapters}
 		/>
 
-		<div class="grid gap-3 lg:grid-cols-3">
+		<div class="grid gap-3 lg:grid-cols-4">
 			<pre
 				data-testid="basic-markdown-value"
 				class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{basicValue}</pre>
+			<pre
+				data-testid="basic-semantic-dirty-state"
+				class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{basicSemanticDirty
+					? 'dirty'
+					: 'clean'}</pre>
 			<pre
 				data-testid="draft-create-calls"
 				class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-50">{JSON.stringify(

@@ -97,6 +97,7 @@
 
 	interface Props {
 		fieldId?: string;
+		fieldPath?: string;
 		label: string;
 		value: string;
 		required?: boolean;
@@ -130,6 +131,7 @@
 
 	let {
 		fieldId = undefined,
+		fieldPath = undefined,
 		label,
 		value = $bindable(''),
 		required = false,
@@ -233,7 +235,29 @@
 		});
 	}
 
-	function applyMarkdownChange(nextMarkdown: string) {
+	function getBaselineMarkdown(): string {
+		const baselineValue = fieldPath
+			? formContentContext?.getBaselineFieldValue?.(fieldPath)
+			: undefined;
+		return typeof baselineValue === 'string' ? baselineValue : '';
+	}
+
+	function updateSemanticFingerprint(nextMarkdown: string, currentFingerprint?: string) {
+		if (!fieldPath || !richEditor || !formContentContext?.updateSemanticFieldFingerprint) {
+			return;
+		}
+
+		formContentContext.updateSemanticFieldFingerprint({
+			kind: 'markdown',
+			path: fieldPath,
+			baselineFingerprint: richEditor.getMarkdownDocumentFingerprint(getBaselineMarkdown()),
+			currentFingerprint:
+				currentFingerprint ?? richEditor.getMarkdownDocumentFingerprint(nextMarkdown)
+		});
+	}
+
+	function applyMarkdownChange(nextMarkdown: string, currentFingerprint?: string) {
+		updateSemanticFingerprint(nextMarkdown, currentFingerprint);
 		if (nextMarkdown === value) {
 			return;
 		}
@@ -318,7 +342,8 @@
 	function handleMarkdownInput(event: Event) {
 		uploadError = null;
 		const nextMarkdown = (event.currentTarget as HTMLTextAreaElement).value;
-		applyMarkdownChange(nextMarkdown);
+		const nextFingerprint = richEditor?.getMarkdownDocumentFingerprint(nextMarkdown);
+		applyMarkdownChange(nextMarkdown, nextFingerprint);
 		richEditor?.setMarkdown(nextMarkdown);
 	}
 
@@ -845,7 +870,9 @@
 				stageImage,
 				onLinkClick: ({ href, rect }) => openLinkPopoverFromEditorClick(href, rect),
 				onContentComponentActivate: activateContentComponent,
-				onMarkdownChange: applyMarkdownChange,
+				onMarkdownChange: (markdown) => {
+					applyMarkdownChange(markdown, richEditor?.getDocumentFingerprint());
+				},
 				onUiChange() {
 					editorUiVersion += 1;
 				},
@@ -863,6 +890,7 @@
 			enabledComponentRegistry = editorState.enabledRegistry;
 			componentToolbarButtons = editorState.componentToolbarButtons;
 			richEditor = editorState.richEditor;
+			updateSemanticFingerprint(value, editorState.richEditor.getDocumentFingerprint());
 			editorLoadError = null;
 		}
 
@@ -890,6 +918,7 @@
 			return;
 		}
 
+		updateSemanticFingerprint(value);
 		syncMarkdownFieldRichEditorMarkdown(richEditor, value);
 	});
 

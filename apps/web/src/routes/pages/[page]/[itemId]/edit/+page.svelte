@@ -130,6 +130,10 @@
 			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
+	const canSaveChanges = $derived.by(() => {
+		const registryReady = isLocalMode ? !!blockRegistry : !!githubBlockRegistry;
+		return hasUnsavedChanges && !saving && registryReady && !blockRegistryError;
+	});
 	const saveStatus = $derived.by<EditorSaveStatus>(() => {
 		if (saving) {
 			return 'saving';
@@ -789,12 +793,11 @@
 				<button
 					type="button"
 					onclick={() => void handleLocalSave()}
-					disabled={saving || !blockRegistry || !!blockRegistryError}
+					disabled={!canSaveChanges}
 					class="tm-btn tm-btn-primary"
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
-				<a href={resolve(`/pages/${data.pageSlug}`)} class="tm-btn tm-btn-secondary"> Cancel </a>
 			</PageStickyFooter>
 		</form>
 	{:else}
@@ -878,14 +881,11 @@
 			<PageStickyFooter>
 				<button
 					type="submit"
-					disabled={saving || !githubBlockRegistry || !!blockRegistryError}
+					disabled={!canSaveChanges}
 					class="tm-btn tm-btn-primary"
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
-				<a href={resolve(`/pages/${data.pageSlug}/${data.itemId}`)} class="tm-btn tm-btn-secondary">
-					Cancel
-				</a>
 			</PageStickyFooter>
 		</form>
 	{/if}
