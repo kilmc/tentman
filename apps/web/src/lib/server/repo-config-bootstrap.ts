@@ -83,6 +83,10 @@ function getSingletonContentIdentities(
 	return identities;
 }
 
+function isGitHubNotFoundError(error: unknown): boolean {
+	return Boolean(error && typeof error === 'object' && 'status' in error && error.status === 404);
+}
+
 async function loadChangedPaths(input: {
 	backend: SelectedGitHubRepoBootstrapContext['backend'];
 	currentTree: RepositoryTree | undefined;
@@ -109,7 +113,15 @@ async function loadChangedPaths(input: {
 		treeSha: input.previousTreeSha,
 		resolvedAt: input.currentIdentity.resolvedAt
 	};
-	const previousTree = await getRepositoryTree(input.backend, previousIdentity);
+	let previousTree: RepositoryTree;
+	try {
+		previousTree = await getRepositoryTree(input.backend, previousIdentity);
+	} catch (error) {
+		if (isGitHubNotFoundError(error)) {
+			return null;
+		}
+		throw error;
+	}
 
 	return getChangedTreePaths(previousTree, input.currentTree);
 }
