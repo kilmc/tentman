@@ -76,6 +76,47 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 			}
 		};
 	}),
+	manageCollectionGroups: vi.fn(async (backend) => {
+		await backend.writeTextFile(
+			'content/projects.tentman.json',
+			JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					groupManagement: true,
+					groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
+				},
+				content: {
+					mode: 'directory',
+					path: './projects',
+					template: './project.md'
+				},
+				blocks: []
+			})
+		);
+		await backend.writeTextFile(
+			'tentman/navigation-manifest.json',
+			JSON.stringify({
+				version: 1,
+				collections: {
+					projects: {
+						items: [],
+						groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
+					}
+				}
+			})
+		);
+		return {
+			version: 1,
+			collections: {
+				projects: {
+					items: [],
+					groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
+				}
+			}
+		};
+	}),
 	writeRootManualSorting: vi.fn(async (backend) => {
 		await backend.writeTextFile('tentman.json', JSON.stringify({ content: { sorting: 'manual' } }));
 	}),
@@ -154,6 +195,7 @@ import { invalidateCache } from '$lib/stores/config-cache';
 import { getRepositorySnapshot, invalidateRepositoryData } from '$lib/server/repository-data';
 import {
 	loadNavigationManifestState,
+	manageCollectionGroups,
 	reconcileManualNavigationSetup,
 	saveCollectionOrder,
 	writeMissingContentConfigIds,
@@ -277,7 +319,12 @@ describe('POST /api/repo/navigation-manifest', () => {
 			navigationManifest: await loadNavigationManifestState({} as never, {
 				ref: 'tentman-preview'
 			}),
-			branchName: 'tentman-preview'
+			branchName: 'tentman-preview',
+			changedPaths: [
+				'content/about.tentman.json',
+				'tentman.json',
+				'tentman/navigation-manifest.json'
+			]
 		});
 	});
 
@@ -312,7 +359,6 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			cookies: createCookies()
 		} as never);
-
 		expect(writeNavigationManifest).toHaveBeenCalledWith(
 			expect.anything(),
 			{
@@ -353,18 +399,21 @@ describe('POST /api/repo/navigation-manifest', () => {
 				}
 			}
 		]);
-		await POST({
+		const response = await POST({
 			request: new Request('http://localhost/api/repo/navigation-manifest', {
 				method: 'POST',
 				headers: {
 					'content-type': 'application/json'
 				},
 				body: JSON.stringify({
-					action: 'add-collection-group',
+					action: 'manage-collection-groups',
 					collection: 'projects',
-					id: 'tent_group_identity',
-					value: 'identity',
-					label: 'Identity'
+					mutation: {
+						action: 'create',
+						id: 'tent_group_identity',
+						value: 'identity',
+						label: 'Identity'
+					}
 				})
 			}),
 			locals: {
@@ -379,19 +428,21 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			cookies: createCookies()
 		} as never);
+		const body = await response.json();
 
-		expect(writeNavigationManifest).toHaveBeenCalledWith(
+		expect(manageCollectionGroups).toHaveBeenCalledWith(
 			expect.anything(),
+			expect.objectContaining({ slug: 'projects' }),
+			{
+				action: 'create',
+				id: 'tent_group_identity',
+				value: 'identity',
+				label: 'Identity'
+			},
 			{
 				version: 1,
 				content: {
 					items: ['about', 'posts']
-				},
-				collections: {
-					projects: {
-						items: [],
-						groups: [{ id: 'tent_group_identity', label: 'Identity', value: 'identity', items: [] }]
-					}
 				}
 			},
 			{
@@ -405,6 +456,10 @@ describe('POST /api/repo/navigation-manifest', () => {
 			changedPaths: ['content/projects.tentman.json', 'tentman/navigation-manifest.json'],
 			reason: 'navigation-manifest'
 		});
+		expect(body.changedPaths).toEqual([
+			'content/projects.tentman.json',
+			'tentman/navigation-manifest.json'
+		]);
 	});
 
 	it('saves collection order through the manifest endpoint', async () => {

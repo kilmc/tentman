@@ -123,6 +123,50 @@ function collectConfigCompatibilityIssues(path: string, blocks: BlockUsage[]): D
 	return issues;
 }
 
+function collectLegacyTentmanGroupAddOptionIssues(path: string, content: string): DiscoveryIssue[] {
+	let parsed: unknown;
+
+	try {
+		parsed = JSON.parse(content);
+	} catch {
+		return [];
+	}
+
+	const issues: DiscoveryIssue[] = [];
+	const visit = (blocks: unknown) => {
+		if (!Array.isArray(blocks)) {
+			return;
+		}
+
+		for (const block of blocks) {
+			if (!block || typeof block !== 'object' || Array.isArray(block)) {
+				continue;
+			}
+
+			const record = block as Record<string, unknown>;
+			if (record.type === 'tentmanGroup' && 'addOption' in record) {
+				issues.push({
+					code: 'tentman-group.add-option-replaced',
+					message:
+						'tentmanGroup.addOption has been replaced by collection.groupManagement. Add "groupManagement": true to the target collection config.',
+					severity: 'warning',
+					category: 'compatibility',
+					path,
+					blockId: 'tentmanGroup'
+				});
+			}
+
+			visit(record.blocks);
+		}
+	};
+
+	if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+		visit((parsed as Record<string, unknown>).blocks);
+	}
+
+	return issues;
+}
+
 function collectItemLabelIssues(
 	path: string,
 	blocks: BlockUsage[],
@@ -226,6 +270,7 @@ export function parseDiscoveredConfig(path: string, content: string): Discovered
 		slug: slugify(parsed.label),
 		config: parsed,
 		issues: [
+			...collectLegacyTentmanGroupAddOptionIssues(path, content),
 			...collectConfigCompatibilityIssues(path, parsed.blocks),
 			...collectItemLabelIssues(path, parsed.blocks, `Config at ${path}`)
 		]
@@ -244,6 +289,7 @@ export function parseDiscoveredBlockConfig(path: string, content: string): Disco
 		id: parsed.id,
 		config: parsed,
 		issues: [
+			...collectLegacyTentmanGroupAddOptionIssues(path, content),
 			...collectConfigCompatibilityIssues(path, parsed.blocks),
 			...collectItemLabelIssues(path, parsed.blocks, `Reusable block config at ${path}`)
 		]

@@ -466,6 +466,39 @@ function checkBlocks(project) {
 	return diagnostics;
 }
 
+function checkLegacyTentmanGroupAddOption(project) {
+	const diagnostics = [];
+
+	function checkBlockTree(blocks, ownerPath) {
+		walkBlocks(blocks, (block) => {
+			if (block.type !== 'tentmanGroup' || !Object.hasOwn(block, 'addOption')) {
+				return;
+			}
+
+			diagnostics.push(
+				createDiagnostic(
+					'warning',
+					'tentman-group.add-option-replaced',
+					'tentmanGroup.addOption has been replaced by collection.groupManagement. Add "groupManagement": true to the target collection config.',
+					{ path: ownerPath, blockId: 'tentmanGroup' }
+				)
+			);
+		});
+	}
+
+	for (const config of project.configs) {
+		checkBlockTree(config.raw.blocks, config.path);
+	}
+
+	for (const block of project.blocks) {
+		if (!block.error) {
+			checkBlockTree(block.raw.blocks, block.path);
+		}
+	}
+
+	return diagnostics;
+}
+
 export async function checkContentComponentReferenceBindings(project) {
 	const componentsDirPath = resolveProjectPath(project.rootDir, project.componentsDir);
 
@@ -672,6 +705,7 @@ export async function doctorTentmanProject(project, options = {}) {
 	}
 
 	diagnostics.push(...checkBlocks(project));
+	diagnostics.push(...checkLegacyTentmanGroupAddOption(project));
 	diagnostics.push(...(await checkAssetDirectories(project)));
 	diagnostics.push(...checkNavigationManifestReferences(project));
 

@@ -142,11 +142,11 @@ describe('components/form/SelectField.svelte', () => {
 						id: 'tentmanGroup',
 						type: 'tentmanGroup',
 						label: 'Group',
-						collection: 'projects',
-						addOption: true
+						collection: 'projects'
 					}
 				]
 			},
+			groupManagementCollections: ['projects'],
 			navigationManifest: {
 				version: 1,
 				collections: {
@@ -210,11 +210,11 @@ describe('components/form/SelectField.svelte', () => {
 						id: 'tentmanGroup',
 						type: 'tentmanGroup',
 						label: 'Group',
-						collection: 'projects',
-						addOption: true
+						collection: 'projects'
 					}
 				]
 			},
+			groupManagementCollections: ['projects'],
 			navigationManifest: {
 				version: 1,
 				collections: {

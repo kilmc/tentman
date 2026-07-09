@@ -97,9 +97,6 @@ function summarizeField(block, blockDefinitions) {
 		summary.schemaKind = 'tentman-owned-field';
 		summary.storageField = TENTMAN_GROUP_STORAGE_KEY;
 		summary.collection = block.collection;
-		if (block.addOption === true) {
-			summary.addOption = true;
-		}
 		return summary;
 	}
 
@@ -156,6 +153,16 @@ export function getTentmanSchema(project, configReference) {
 							itemLabel:
 								typeof config.raw.itemLabel === 'string' ? config.raw.itemLabel : null,
 							idField: typeof config.raw.idField === 'string' ? config.raw.idField : null,
+							ordering:
+								config.raw.collection &&
+								typeof config.raw.collection === 'object' &&
+								!Array.isArray(config.raw.collection) &&
+								config.raw.collection.ordering === true,
+							groupManagement:
+								config.raw.collection &&
+								typeof config.raw.collection === 'object' &&
+								!Array.isArray(config.raw.collection) &&
+								config.raw.collection.groupManagement === true,
 							groups: config.groups.map((group) => ({
 								label: group.label,
 								value: group.value ?? null,

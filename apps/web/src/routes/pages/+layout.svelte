@@ -35,6 +35,7 @@
 	import {
 		getConfigItemLabel,
 		getOrderedCollectionNavigation,
+		orderCollectionNavigationItems,
 		orderDiscoveredConfigs,
 		type OrderedCollectionNavigation
 	} from '$lib/features/content-management/navigation';
@@ -391,11 +392,23 @@
 	}
 
 	function getCollectionItems(slug: string) {
-		return (
-			collectionItemsBySlug[slug] ?? {
-				items: [],
-				groups: []
-			}
+		const navigation = collectionItemsBySlug[slug] ?? {
+			items: [],
+			groups: []
+		};
+		const config = configs.find((entry: DiscoveredConfig) => entry.slug === slug);
+
+		if (!config?.config.collection) {
+			return navigation;
+		}
+
+		return orderCollectionNavigationItems(
+			config.config,
+			[
+				...navigation.items,
+				...navigation.groups.flatMap((group) => group.items)
+			],
+			navigationManifest
 		);
 	}
 
@@ -1128,6 +1141,7 @@
 							error={getCollectionLoadError(currentConfig.slug)}
 							{sortCapabilities}
 							canOrderItems={!!collectionSetup?.canOrderItems}
+							canManageGroups={!!collectionSetup?.groupManagementEnabled}
 							savingCustomOrder={savingCollectionOrder}
 							onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
 							onpromoteitem={(item) =>
@@ -1217,6 +1231,7 @@
 					error={getCollectionLoadError(currentConfig.slug)}
 					{sortCapabilities}
 					canOrderItems={!!collectionSetup?.canOrderItems}
+					canManageGroups={!!collectionSetup?.groupManagementEnabled}
 					savingCustomOrder={savingCollectionOrder}
 					onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
 					onpromoteitem={(item) =>

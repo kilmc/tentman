@@ -6,6 +6,7 @@ import {
 	clearNavigationManifestStateCache,
 	detectCollectionGroupField,
 	getManualNavigationSetupState,
+	manageCollectionGroups,
 	getMissingContentConfigIds,
 	parseNavigationManifest,
 	reconcileManualNavigationSetup,
@@ -973,5 +974,170 @@ describe('navigation manifest helpers', () => {
 				}
 			]
 		});
+	});
+
+	it('creates a managed collection group using one stable id in config and manifest', async () => {
+		const files = {
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					groupManagement: true,
+					groups: []
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: []
+			}),
+			'src/content/projects.json': JSON.stringify([{ _tentmanId: 'brand-system', title: 'Brand' }])
+		};
+		const backend = createBackend(files);
+		const config = {
+			slug: 'projects',
+			path: 'content/projects.tentman.json',
+			config: JSON.parse(files['content/projects.tentman.json'])
+		};
+
+		const manifest = await manageCollectionGroups(
+			backend,
+			config,
+			{ action: 'create', id: 'identity', label: 'Identity', value: 'identity' },
+			null
+		);
+
+		expect(JSON.parse(files['content/projects.tentman.json']).collection.groups).toEqual([
+			{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }
+		]);
+		expect(manifest.collections?.projects.groups).toEqual([
+			{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
+		]);
+	});
+
+	it('deletes a managed group and appends its items to ungrouped', async () => {
+		const files = {
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					groupManagement: true,
+					groups: [
+						{ _tentmanId: 'identity', label: 'Identity', value: 'identity' },
+						{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' }
+					]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: []
+			}),
+			'src/content/projects.json': JSON.stringify([
+				{ _tentmanId: 'brand-system', title: 'Brand', _tentmanGroupId: 'identity' },
+				{ _tentmanId: 'archive', title: 'Archive' },
+				{ _tentmanId: 'launch', title: 'Launch', _tentmanGroupId: 'campaigns' }
+			])
+		};
+		const backend = createBackend(files);
+		const config = {
+			slug: 'projects',
+			path: 'content/projects.tentman.json',
+			config: JSON.parse(files['content/projects.tentman.json'])
+		};
+
+		const manifest = await manageCollectionGroups(
+			backend,
+			config,
+			{ action: 'delete', groupId: 'identity' },
+			{
+				version: 1,
+				collections: {
+					projects: {
+						items: ['brand-system', 'launch', 'archive'],
+						groups: [
+							{ id: 'identity', label: 'Identity', value: 'identity', items: ['brand-system'] },
+							{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: ['launch'] }
+						]
+					}
+				}
+			}
+		);
+
+		expect(manifest.collections?.projects).toEqual({
+			id: 'projects',
+			label: 'Projects',
+			slug: 'projects',
+			items: ['launch', 'archive', 'brand-system'],
+			groups: [{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: ['launch'] }]
+		});
+		expect(JSON.parse(files['src/content/projects.json'])[0]).not.toHaveProperty(
+			'_tentmanGroupId'
+		);
+	});
+
+	it('merges a managed source group into a target group', async () => {
+		const files = {
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					groupManagement: true,
+					groups: [
+						{ _tentmanId: 'identity', label: 'Identity', value: 'identity' },
+						{ _tentmanId: 'campaigns', label: 'Campaigns', value: 'campaigns' }
+					]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: []
+			}),
+			'src/content/projects.json': JSON.stringify([
+				{ _tentmanId: 'brand-system', title: 'Brand', _tentmanGroupId: 'identity' },
+				{ _tentmanId: 'launch', title: 'Launch', _tentmanGroupId: 'campaigns' }
+			])
+		};
+		const backend = createBackend(files);
+		const config = {
+			slug: 'projects',
+			path: 'content/projects.tentman.json',
+			config: JSON.parse(files['content/projects.tentman.json'])
+		};
+
+		const manifest = await manageCollectionGroups(
+			backend,
+			config,
+			{ action: 'merge', sourceGroupId: 'identity', targetGroupId: 'campaigns' },
+			{
+				version: 1,
+				collections: {
+					projects: {
+						items: ['launch', 'brand-system'],
+						groups: [
+							{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: ['launch'] },
+							{ id: 'identity', label: 'Identity', value: 'identity', items: ['brand-system'] }
+						]
+					}
+				}
+			}
+		);
+
+		expect(manifest.collections?.projects.groups).toEqual([
+			{
+				id: 'campaigns',
+				label: 'Campaigns',
+				value: 'campaigns',
+				items: ['launch', 'brand-system']
+			}
+		]);
+		expect(JSON.parse(files['src/content/projects.json'])[0]._tentmanGroupId).toBe('campaigns');
 	});
 });

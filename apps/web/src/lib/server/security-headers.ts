@@ -6,6 +6,7 @@ export function buildSecurityHeaders(): Record<string, string> {
 			"frame-ancestors 'none'",
 			"form-action 'self' https://github.com",
 			"img-src 'self' data: blob: https:",
+			"media-src 'self' blob: https:",
 			"script-src 'self' 'unsafe-inline'",
 			"style-src 'self' 'unsafe-inline'",
 			"connect-src 'self' https://api.github.com https://github.com ws: wss:",

@@ -20,7 +20,7 @@ export type StaticSelectBlockOptions = SelectBlockOption[];
 
 export interface TentmanGroupBlockOptions {
 	collection: string;
-	addOption?: boolean;
+	canAddOption?: boolean;
 }
 
 export interface NavigationManifestCollection {
@@ -78,7 +78,6 @@ export interface TentmanGroupBlockUsage extends Omit<
 	id: 'tentmanGroup';
 	type: 'tentmanGroup';
 	collection: string;
-	addOption?: boolean;
 	options?: never;
 }
 
@@ -205,6 +204,7 @@ export type CollectionDefaultSortConfig =
 
 export interface CollectionBehaviorConfig {
 	ordering?: boolean;
+	groupManagement?: boolean;
 	defaultSort?: CollectionDefaultSortConfig;
 	sorts?: CollectionSortConfig[];
 	groups?: CollectionGroupConfig[];

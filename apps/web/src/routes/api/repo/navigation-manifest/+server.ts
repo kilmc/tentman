@@ -4,6 +4,7 @@ import type { RequestHandler } from './$types';
 import {
 	invalidateNavigationManifestStateCache,
 	loadNavigationManifestState,
+	manageCollectionGroups,
 	parseNavigationManifest,
 	reconcileManualNavigationSetup,
 	saveCollectionOrder,
@@ -11,11 +12,10 @@ import {
 	writeMissingContentConfigIds,
 	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
-import type { CollectionOrderDraft } from '$lib/features/content-management/navigation-manifest';
-import {
-	addCollectionGroupToConfigSource,
-	addNavigationGroupToManifest
-} from '$lib/features/content-management/navigation-group-options';
+import type {
+	CollectionGroupManagementMutation,
+	CollectionOrderDraft
+} from '$lib/features/content-management/navigation-manifest';
 import { ensureDraftBranch } from '$lib/features/draft-publishing/service';
 import { ensureDraftPullRequest } from '$lib/github/pull-request';
 import { withTrackedBatchedRepositoryWrites } from '$lib/repository/batch';
@@ -45,11 +45,9 @@ type NavigationManifestMutation =
 			manifest: unknown;
 	  }
 	| {
-			action: 'add-collection-group';
+			action: 'manage-collection-groups';
 			collection: string;
-			id: string;
-			value: string;
-			label: string;
+			mutation: CollectionGroupManagementMutation;
 	  }
 	| {
 			action: 'save-collection-order';
@@ -66,9 +64,7 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		action?: unknown;
 		manifest?: unknown;
 		collection?: unknown;
-		id?: unknown;
-		value?: unknown;
-		label?: unknown;
+		mutation?: unknown;
 		order?: unknown;
 	};
 
@@ -84,19 +80,12 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 		return mutation as NavigationManifestMutation;
 	}
 
-	if (mutation.action === 'add-collection-group') {
-		if (
-			typeof mutation.collection !== 'string' ||
-			mutation.collection.length === 0 ||
-			typeof mutation.id !== 'string' ||
-			mutation.id.length === 0 ||
-			typeof mutation.value !== 'string' ||
-			mutation.value.length === 0 ||
-			typeof mutation.label !== 'string' ||
-			mutation.label.length === 0
-		) {
-			throw error(400, 'New navigation group requires collection, id, value, and label');
+	if (mutation.action === 'manage-collection-groups') {
+		if (typeof mutation.collection !== 'string' || mutation.collection.length === 0) {
+			throw error(400, 'Collection group management requires a collection');
 		}
+
+		assertCollectionGroupManagementMutation(mutation.mutation);
 
 		return mutation as NavigationManifestMutation;
 	}
@@ -114,6 +103,51 @@ function assertMutation(value: unknown): NavigationManifestMutation {
 	}
 
 	throw error(400, 'Unknown navigation manifest action');
+}
+
+function assertNonEmptyString(value: unknown, message: string): asserts value is string {
+	if (typeof value !== 'string' || value.length === 0) {
+		throw error(400, message);
+	}
+}
+
+function assertCollectionGroupManagementMutation(
+	value: unknown
+): asserts value is CollectionGroupManagementMutation {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw error(400, 'Collection group management requires a mutation payload');
+	}
+
+	const mutation = value as Record<string, unknown>;
+
+	if (mutation.action === 'create') {
+		assertNonEmptyString(mutation.label, 'Create group requires a label');
+		assertNonEmptyString(mutation.value, 'Create group requires a value');
+		if (mutation.id !== undefined) {
+			assertNonEmptyString(mutation.id, 'Create group id must be a non-empty string');
+		}
+		return;
+	}
+
+	if (mutation.action === 'edit') {
+		assertNonEmptyString(mutation.groupId, 'Edit group requires a group id');
+		assertNonEmptyString(mutation.label, 'Edit group requires a label');
+		assertNonEmptyString(mutation.value, 'Edit group requires a value');
+		return;
+	}
+
+	if (mutation.action === 'delete') {
+		assertNonEmptyString(mutation.groupId, 'Delete group requires a group id');
+		return;
+	}
+
+	if (mutation.action === 'merge') {
+		assertNonEmptyString(mutation.sourceGroupId, 'Merge group requires a source group id');
+		assertNonEmptyString(mutation.targetGroupId, 'Merge group requires a target group id');
+		return;
+	}
+
+	throw error(400, 'Unknown collection group management action');
 }
 
 function readStringArray(value: unknown, field: string): string[] {
@@ -277,7 +311,7 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 					});
 				}
 
-				if (mutation.action === 'add-collection-group') {
+				if (mutation.action === 'manage-collection-groups') {
 					const collectionConfig = nextConfigs.find(
 						(config) => config.slug === mutation.collection
 					);
@@ -285,36 +319,16 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 						throw error(404, 'Collection config not found');
 					}
 
-					const configSource = await batchBackend.readTextFile(collectionConfig.path);
-					await batchBackend.writeTextFile(
-						collectionConfig.path,
-						addCollectionGroupToConfigSource(configSource, {
-							collection: mutation.collection,
-							id: mutation.id,
-							value: mutation.value,
-							label: mutation.label
-						}),
+					await manageCollectionGroups(
+						batchBackend,
+						collectionConfig,
+						mutation.mutation,
+						manifestState.manifest,
 						{
 							message: MANIFEST_COMMIT_MESSAGE,
 							...writeOptions
 						}
 					);
-
-					const manifestState = await loadNavigationManifestState(batchBackend, writeOptions);
-					if (manifestState.error) {
-						throw error(400, `Could not parse navigation manifest: ${manifestState.error}`);
-					}
-
-					const manifest = addNavigationGroupToManifest(manifestState.manifest, {
-						collection: mutation.collection,
-						id: mutation.id,
-						value: mutation.value,
-						label: mutation.label
-					});
-					await writeNavigationManifest(batchBackend, manifest, {
-						message: MANIFEST_COMMIT_MESSAGE,
-						...writeOptions
-					});
 				}
 
 				if (mutation.action === 'save-collection-order') {
@@ -374,7 +388,8 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 
 		return json({
 			navigationManifest: await loadNavigationManifestState(backend, writeOptions),
-			branchName: draftBranch?.branchName ?? null
+			branchName: draftBranch?.branchName ?? null,
+			changedPaths: changedPaths.length > 0 ? changedPaths : ['tentman/navigation-manifest.json']
 		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);

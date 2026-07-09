@@ -22,6 +22,7 @@ function createStoreState<T>(initialValue: T) {
 }
 
 const localFlowMocks = vi.hoisted(() => {
+	type EnhanceResultType = 'success' | 'redirect' | 'failure' | 'error';
 	type LocalRepoState = {
 		status: 'ready';
 		repo: { name: string; pathLabel: string };
@@ -41,9 +42,16 @@ const localFlowMocks = vi.hoisted(() => {
 			path: string;
 			config: {
 				label: string;
-				collection: boolean;
+				_tentmanId?: string;
+				collection:
+					| boolean
+					| {
+							ordering?: boolean;
+							groupManagement?: boolean;
+							groups?: Array<{ _tentmanId: string; label: string; value?: string }>;
+					  };
 				idField?: string;
-				blocks: unknown[];
+				blocks: Array<Record<string, unknown>>;
 				content: {
 					mode: string;
 				};
@@ -62,6 +70,16 @@ const localFlowMocks = vi.hoisted(() => {
 		instructionDiscovery: unknown;
 		error: string | null;
 	};
+	type EnhanceSubmit = (input: {
+		formData: FormData;
+		cancel: () => void;
+	}) => Promise<
+		| ((input: {
+				update: () => Promise<void>;
+				result: { type: EnhanceResultType };
+		  }) => Promise<void>)
+		| void
+	>;
 
 	const backend = {
 		kind: 'local' as const,
@@ -69,7 +87,7 @@ const localFlowMocks = vi.hoisted(() => {
 		label: 'Local docs',
 		supportsDraftBranches: false
 	};
-	const discoveredConfig = {
+	const discoveredConfig: LocalContentState['configs'][number] = {
 		slug: 'posts',
 		path: 'content/posts.json',
 		config: {
@@ -142,10 +160,45 @@ const localFlowMocks = vi.hoisted(() => {
 		materializeDraftAssets: vi.fn(),
 		fetchContentDocument: vi.fn(),
 		saveContentDocument: vi.fn(),
+		syncCollectionItemGroupSelection: vi.fn(),
 		deleteDraftAsset: vi.fn(),
+		invalidate: vi.fn(),
+		invalidatePaths: vi.fn(),
+		warmCollection: vi.fn(),
 		goto: vi.fn(),
 		resolve: vi.fn((path: string) => path),
-		beforeNavigateCallbacks: [] as Array<(navigation: { cancel: () => void }) => void>
+		beforeNavigateCallbacks: [] as Array<(navigation: { cancel: () => void }) => void>,
+		enhanceResult: { type: 'redirect' as EnhanceResultType },
+		enhanceUpdate: vi.fn(async () => undefined),
+		createEnhanceAction: (form: HTMLFormElement, submit?: EnhanceSubmit) => {
+			const handleSubmit = async (event: SubmitEvent) => {
+				event.preventDefault();
+				const formData = new FormData(form);
+				const cancelled = { value: false };
+				const callback = await submit?.({
+					formData,
+					cancel: () => {
+						cancelled.value = true;
+					}
+				});
+
+				if (cancelled.value || !callback) {
+					return;
+				}
+
+				await callback({
+					update: localFlowMocks.enhanceUpdate,
+					result: localFlowMocks.enhanceResult
+				});
+			};
+
+			form.addEventListener('submit', handleSubmit);
+			return {
+				destroy() {
+					form.removeEventListener('submit', handleSubmit);
+				}
+			};
+		}
 	};
 });
 
@@ -154,9 +207,7 @@ const pageState = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/forms', () => ({
-	enhance: () => ({
-		destroy() {}
-	})
+	enhance: localFlowMocks.createEnhanceAction
 }));
 
 vi.mock('$app/state', () => ({
@@ -165,6 +216,7 @@ vi.mock('$app/state', () => ({
 
 vi.mock('$app/navigation', () => ({
 	goto: localFlowMocks.goto,
+	invalidate: localFlowMocks.invalidate,
 	beforeNavigate: (callback: (navigation: { cancel: () => void }) => void) => {
 		localFlowMocks.beforeNavigateCallbacks.push(callback);
 	}
@@ -193,6 +245,16 @@ vi.mock('$lib/features/draft-assets/store', () => ({
 	}
 }));
 
+vi.mock('$lib/features/content-management/navigation-manifest', async () => {
+	const actual = await vi.importActual<object>(
+		'$lib/features/content-management/navigation-manifest'
+	);
+	return {
+		...actual,
+		syncCollectionItemGroupSelection: localFlowMocks.syncCollectionItemGroupSelection
+	};
+});
+
 vi.mock('$lib/stores/local-content', () => ({
 	localContent: {
 		subscribe: localFlowMocks.localContentStore.subscribe,
@@ -212,7 +274,15 @@ vi.mock('$lib/content/service', () => ({
 	saveContentDocument: localFlowMocks.saveContentDocument
 }));
 
+vi.mock('$lib/stores/github-repository-cache', () => ({
+	githubRepositoryCache: {
+		invalidatePaths: localFlowMocks.invalidatePaths,
+		warmCollection: localFlowMocks.warmCollection
+	}
+}));
+
 import ItemEditPage from '../../../routes/pages/[page]/[itemId]/edit/+page.svelte';
+import { syncCollectionItemGroupSelection } from '$lib/features/content-management/navigation-manifest';
 
 describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 	beforeEach(() => {
@@ -221,10 +291,19 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		localFlowMocks.materializeDraftAssets.mockReset();
 		localFlowMocks.fetchContentDocument.mockReset();
 		localFlowMocks.saveContentDocument.mockReset();
+		localFlowMocks.syncCollectionItemGroupSelection.mockReset();
 		localFlowMocks.deleteDraftAsset.mockReset();
+		localFlowMocks.invalidate.mockReset();
+		localFlowMocks.invalidatePaths.mockReset();
+		localFlowMocks.warmCollection.mockReset();
+		localFlowMocks.enhanceUpdate.mockClear();
 		localFlowMocks.goto.mockReset();
 		localFlowMocks.resolve.mockClear();
 		localFlowMocks.beforeNavigateCallbacks = [];
+		localFlowMocks.enhanceResult = { type: 'redirect' };
+		delete localFlowMocks.discoveredConfig.config._tentmanId;
+		localFlowMocks.discoveredConfig.config.collection = true;
+		localFlowMocks.discoveredConfig.config.blocks = [];
 		pageState.url = new URL('http://localhost/pages/posts/hello-world/edit');
 		localFlowMocks.localContentStore.set({
 			status: 'idle',
@@ -271,7 +350,11 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			cleanedRefs: ['draft-asset:hero']
 		});
 		localFlowMocks.saveContentDocument.mockResolvedValue(undefined);
+		localFlowMocks.syncCollectionItemGroupSelection.mockResolvedValue(null);
 		localFlowMocks.deleteDraftAsset.mockResolvedValue(undefined);
+		localFlowMocks.invalidatePaths.mockResolvedValue(undefined);
+		localFlowMocks.warmCollection.mockResolvedValue(undefined);
+		localFlowMocks.invalidate.mockResolvedValue(undefined);
 		localFlowMocks.goto.mockResolvedValue(undefined);
 	});
 
@@ -319,6 +402,155 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		expect(localFlowMocks.goto).toHaveBeenCalledWith(
 			'/pages/posts/hello-world/edit?published=true'
 		);
+	});
+
+	it('syncs local item group selection into the navigation manifest after saving', async () => {
+		localFlowMocks.discoveredConfig.config._tentmanId = 'posts';
+		localFlowMocks.discoveredConfig.config.collection = {
+			groupManagement: true,
+			groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
+		};
+		localFlowMocks.discoveredConfig.config.blocks = [
+			{ id: 'title', type: 'text', label: 'Title' },
+			{ type: 'tentmanGroup', collection: 'posts', label: 'Group' }
+		];
+		setMockFormGeneratorResult({
+			data: {
+				slug: 'hello-world',
+				title: 'Updated post',
+				_tentmanGroupId: 'featured'
+			},
+			errors: []
+		});
+		localFlowMocks.materializeDraftAssets.mockResolvedValue({
+			content: {
+				slug: 'hello-world',
+				title: 'Updated post',
+				_tentmanGroupId: 'featured'
+			},
+			fileChanges: [],
+			cleanedRefs: []
+		});
+
+		const screen = await render(ItemEditPage, {
+			data: {
+				mode: 'local',
+				pageSlug: 'posts',
+				itemId: 'hello-world',
+				discoveredConfig: null,
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null,
+				item: null,
+				contentError: null,
+				navigationManifest: null,
+				rootConfig: null,
+				branch: null
+			},
+			form: undefined as never
+		});
+
+		await screen.getByTestId('mock-form-dirty').click();
+		await screen.getByRole('button', { name: 'Save Changes' }).click();
+
+		await expect.poll(() => localFlowMocks.saveContentDocument.mock.calls.length).toBe(1);
+		expect(syncCollectionItemGroupSelection).toHaveBeenCalledWith(
+			localFlowMocks.backend,
+			expect.objectContaining({ slug: 'posts' }),
+			{
+				slug: 'hello-world',
+				title: 'Updated post',
+				_tentmanGroupId: 'featured'
+			},
+			null,
+			{ message: 'Update Tentman navigation manifest' }
+		);
+	});
+
+	it('refreshes GitHub navigation after saving a group-managed collection without ordering', async () => {
+		const discoveredConfig = {
+			slug: 'posts',
+			path: 'content/posts.tentman.json',
+			config: {
+				label: 'Posts',
+				_tentmanId: 'posts',
+				collection: {
+					groupManagement: true,
+					groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
+				},
+				idField: 'slug',
+				blocks: [
+					{ id: 'title', type: 'text', label: 'Title' },
+					{ type: 'tentmanGroup', collection: 'posts', label: 'Group' }
+				],
+				content: {
+					mode: 'file',
+					path: './posts.json'
+				}
+			}
+		};
+		setMockFormGeneratorResult({
+			data: {
+				slug: 'hello-world',
+				title: 'Updated post',
+				_tentmanGroupId: 'featured'
+			},
+			errors: []
+		});
+
+		const screen = await render(ItemEditPage, {
+			data: {
+				mode: 'github',
+				pageSlug: 'posts',
+				itemId: 'hello-world',
+				discoveredConfig,
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null,
+				item: {
+					slug: 'hello-world',
+					title: 'Hello world'
+				},
+				contentError: null,
+				navigationManifest: {
+					path: 'tentman/navigation-manifest.json',
+					exists: true,
+					manifest: {
+						version: 1,
+						collections: {
+							posts: {
+								items: ['hello-world'],
+								groups: [{ id: 'featured', items: [] }]
+							}
+						}
+					},
+					error: null
+				},
+				rootConfig: null,
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				},
+				branch: 'tentman-preview'
+			},
+			form: undefined as never
+		});
+
+		await screen.getByTestId('mock-form-dirty').click();
+		await screen.getByRole('button', { name: 'Save Changes' }).click();
+
+		await expect.poll(() => localFlowMocks.invalidatePaths.mock.calls.length).toBe(1);
+		expect(localFlowMocks.invalidatePaths).toHaveBeenCalledWith([
+			'content/posts.json',
+			'tentman/navigation-manifest.json'
+		]);
+		expect(localFlowMocks.enhanceUpdate).toHaveBeenCalled();
+		expect(localFlowMocks.warmCollection).toHaveBeenCalledWith('posts', {
+			fetcher: expect.any(Function),
+			force: true
+		});
+		expect(localFlowMocks.invalidate).toHaveBeenCalledWith('app:content');
 	});
 
 	it('recovers unsaved local item edits after interruption', async () => {

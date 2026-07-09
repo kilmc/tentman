@@ -85,7 +85,8 @@ const sidebarEditorMocks = vi.hoisted(() => {
 					_tentmanId: 'blog-posts',
 					label: 'Blog Posts',
 					collection: {
-						sorting: 'manual' as const,
+						ordering: true,
+						groupManagement: false,
 						groups: [
 							{
 								_tentmanId: 'featured',
@@ -380,6 +381,13 @@ function createGitHubIndexPayload(items = createGitHubFallbackItems(2)) {
 	};
 }
 
+function getCollectionGroupSectionText(label: string): string {
+	const headings = Array.from(document.querySelectorAll('h3'));
+	const heading = headings.find((entry) => entry.textContent?.trim() === label);
+
+	return heading?.closest('section')?.textContent ?? '';
+}
+
 describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 	beforeEach(async () => {
 		await githubRepositoryCacheTestApi.reset();
@@ -480,6 +488,9 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		});
 
 		await expectElement(screen.getByRole('link', { name: 'New Blog Post' })).toBeVisible();
+		await expectElement(
+			screen.getByRole('link', { name: 'Manage groups' })
+		).not.toBeInTheDocument();
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
 		await expectElement(screen.getByText('Second post')).toBeVisible();
 		await expectElement(screen.getByRole('link', { name: 'Blog Posts' })).toBeVisible();
@@ -488,6 +499,85 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expectElement(screen.getByRole('button', { name: 'Save order' })).toBeVisible();
 		await expectElement(screen.getByText('Ungrouped')).toBeVisible();
 		expect(sidebarEditorMocks.fetchContentDocument).toHaveBeenCalled();
+	});
+
+	it('regroups collection panel items from the live navigation manifest', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog',
+			itemId: 'hello-world'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
+
+		await render(PagesLayout, {
+			data: layoutData
+		});
+
+		await expect.poll(() => document.body.textContent ?? '').toContain('Hello world');
+		expect(getCollectionGroupSectionText('Featured')).toContain('Second post');
+		expect(getCollectionGroupSectionText('Featured')).not.toContain('Hello world');
+
+		sidebarEditorMocks.localContentStore.set({
+			...sidebarEditorMocks.localContentReadyState,
+			navigationManifest: {
+				...sidebarEditorMocks.localContentReadyState.navigationManifest,
+				manifest: {
+					...sidebarEditorMocks.localContentReadyState.navigationManifest.manifest,
+					collections: {
+						'blog-posts': {
+							items: ['second-post', 'hello-world', 'third-post'],
+							groups: [
+								{
+									id: 'featured',
+									label: 'Featured',
+									items: ['hello-world']
+								}
+							]
+						}
+					}
+				}
+			}
+		});
+
+		await expect.poll(() => getCollectionGroupSectionText('Featured')).toContain('Hello world');
+		expect(getCollectionGroupSectionText('Featured')).not.toContain('Second post');
+	});
+
+	it('shows the Manage Groups button only when group management is enabled', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'blog',
+			itemId: 'hello-world'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/blog/hello-world/edit');
+		sidebarEditorMocks.localContentStore.set({
+			...sidebarEditorMocks.localContentReadyState,
+			configs: sidebarEditorMocks.localContentReadyState.configs.map((config) =>
+				config.slug === 'blog'
+					? {
+							...config,
+							config: {
+								...config.config,
+								collection: {
+									ordering: true,
+									groups:
+										typeof config.config.collection === 'object' &&
+										config.config.collection !== null
+											? config.config.collection.groups
+											: [],
+									groupManagement: true
+								}
+							}
+						}
+					: config
+			) as typeof sidebarEditorMocks.localContentReadyState.configs
+		});
+
+		const screen = await render(PagesLayout, {
+			data: layoutData
+		});
+
+		const manageGroupsLink = screen.getByRole('link', { name: 'Manage groups' });
+		await expectElement(manageGroupsLink).toBeVisible();
+		expect(manageGroupsLink).toHaveAttribute('href', '/pages/blog/groups');
 	});
 
 	it('opens and closes the mobile sidebar from the header', async () => {

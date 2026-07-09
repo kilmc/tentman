@@ -3,7 +3,7 @@ import type { ParsedContentConfig } from '$lib/config/parse';
 import type { RootConfig } from '$lib/config/root-config';
 import {
 	getCollectionGroups,
-	isCollectionOrderingEnabled
+	isCollectionManifestBacked
 } from '$lib/features/content-management/config';
 import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import {
@@ -132,7 +132,7 @@ function getCollectionNavigationItemId(
 		return stableId;
 	}
 
-	if (isCollectionOrderingEnabled(config)) {
+	if (isCollectionManifestBacked(config)) {
 		return undefined;
 	}
 

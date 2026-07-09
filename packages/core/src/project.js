@@ -179,6 +179,16 @@ function parseContentConfig(source, configPath) {
 	}
 
 	const collection = input.collection;
+	if (
+		collection &&
+		typeof collection === 'object' &&
+		!Array.isArray(collection) &&
+		collection.groupManagement !== undefined &&
+		typeof collection.groupManagement !== 'boolean'
+	) {
+		throw new Error(`${configPath}.collection.groupManagement must be a boolean`);
+	}
+
 	const collectionGroups =
 		collection && typeof collection === 'object' && !Array.isArray(collection)
 			? Array.isArray(collection.groups)

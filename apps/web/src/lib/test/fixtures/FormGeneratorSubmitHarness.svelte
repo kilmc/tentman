@@ -11,6 +11,7 @@
 		initialData?: ContentRecord;
 		blockRegistry?: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
+		groupManagementCollections?: string[];
 		width?: number;
 		onaddselectoption?: (input: {
 			collection: string;
@@ -25,6 +26,7 @@
 		initialData = {},
 		blockRegistry,
 		navigationManifest,
+		groupManagementCollections = [],
 		width,
 		onaddselectoption
 	}: Props = $props();
@@ -62,6 +64,7 @@
 		{initialData}
 		{blockRegistry}
 		{navigationManifest}
+		{groupManagementCollections}
 		{onaddselectoption}
 		ondirtystatechange={handleDirtyStateChange}
 	/>

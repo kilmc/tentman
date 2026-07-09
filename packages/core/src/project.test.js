@@ -162,6 +162,11 @@ test('doctor accepts newer built-in block types', async () => {
 		diagnostics.filter((diagnostic) => diagnostic.code === 'blocks.unresolved').length,
 		0
 	);
+	assert.equal(
+		diagnostics.filter((diagnostic) => diagnostic.code === 'tentman-group.add-option-replaced')
+			.length,
+		1
+	);
 });
 
 test('doctor reports a missing configured content config directory', async () => {

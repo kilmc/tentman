@@ -243,7 +243,7 @@ function readTentmanGroupBlockOptions(
 	context: string
 ): TentmanGroupBlockOptions {
 	const collection = readRequiredString(value, 'collection', context);
-	const addOption = readOptionalBoolean(value, 'addOption', context);
+	readOptionalBoolean(value, 'addOption', context);
 	const supportedKeys = new Set(['type', 'label', 'required', 'show', 'collection', 'addOption']);
 	const unsupportedKeys = Object.keys(value).filter((key) => !supportedKeys.has(key));
 
@@ -254,8 +254,7 @@ function readTentmanGroupBlockOptions(
 	}
 
 	return {
-		collection,
-		...(addOption !== undefined && { addOption })
+		collection
 	};
 }
 
@@ -499,6 +498,7 @@ function parseCollectionBehaviorConfig(
 	}
 
 	const ordering = readOptionalBoolean(input, 'ordering', context);
+	const groupManagement = readOptionalBoolean(input, 'groupManagement', context);
 	const defaultSort = parseCollectionDefaultSort(input.defaultSort, `${context}.defaultSort`);
 	const sorts = input.sorts;
 	if (sorts !== undefined && !Array.isArray(sorts)) {
@@ -526,6 +526,7 @@ function parseCollectionBehaviorConfig(
 
 	return {
 		...(ordering !== undefined ? { ordering } : {}),
+		...(groupManagement !== undefined ? { groupManagement } : {}),
 		...(defaultSort !== undefined ? { defaultSort } : {}),
 		...(parsedSorts ? { sorts: parsedSorts } : {}),
 		...(groups
@@ -712,7 +713,6 @@ function parseBlockUsage(input: unknown, context: string): BlockUsage {
 			...(label && { label }),
 			...(required !== undefined && { required }),
 			collection: options.collection,
-			...(options.addOption !== undefined && { addOption: options.addOption }),
 			...(isItemLabel !== undefined && { isItemLabel }),
 			...(itemLabelFormat && { itemLabelFormat }),
 			...(show && { show })

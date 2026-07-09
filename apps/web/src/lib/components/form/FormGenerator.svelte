@@ -23,6 +23,10 @@
 		FORM_CONTENT_CONTEXT,
 		type FormContentContext
 	} from '$lib/components/form/form-content-context';
+	import {
+		FORM_GROUP_MANAGEMENT_COLLECTIONS,
+		type FormGroupManagementCollections
+	} from '$lib/components/form/group-management-context';
 	import SidePanelHost from './SidePanelHost.svelte';
 	import StructuredFieldsLayout from './StructuredFieldsLayout.svelte';
 
@@ -41,6 +45,7 @@
 		onchange?: (data: ContentRecord) => void;
 		ondirtystatechange?: (state: FormDirtyState) => void;
 		navigationManifest?: NavigationManifest | null;
+		groupManagementCollections?: string[];
 		onaddselectoption?: (input: {
 			collection: string;
 			id: string;
@@ -63,6 +68,7 @@
 		onchange,
 		ondirtystatechange,
 		navigationManifest,
+		groupManagementCollections = [],
 		onaddselectoption
 	}: Props = $props();
 
@@ -96,6 +102,15 @@
 	if (ownsSidePanel) {
 		setContext<FormSidePanelContext>(FORM_SIDE_PANEL, sidePanel);
 	}
+
+	setContext<FormGroupManagementCollections>(
+		FORM_GROUP_MANAGEMENT_COLLECTIONS,
+		{
+			getCollections() {
+				return groupManagementCollections;
+			}
+		}
+	);
 
 	function createInitialFormData() {
 		return buildFormData(config, cloneInitialData(initialData), blockRegistry);

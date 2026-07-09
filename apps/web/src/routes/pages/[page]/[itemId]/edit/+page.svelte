@@ -7,7 +7,7 @@
 	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
@@ -57,13 +57,13 @@
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 	import {
 		detectCollectionGroupField,
-		writeNavigationManifest
+		manageCollectionGroups,
+		syncCollectionItemGroupSelection
 	} from '$lib/features/content-management/navigation-manifest';
 	import {
-		addCollectionGroupToConfigSource,
-		addNavigationGroupToManifest
-	} from '$lib/features/content-management/navigation-group-options';
-	import { isCollectionOrderingEnabled } from '$lib/features/content-management/config';
+		getCollectionConfigReferences,
+		isCollectionManifestBacked
+	} from '$lib/features/content-management/config';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { resolveConfigPath } from '$lib/utils/validation';
 
@@ -121,6 +121,14 @@
 	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
+	const groupManagementCollections = $derived(
+		discoveredConfig
+			? getCollectionConfigReferences({
+					...discoveredConfig.config,
+					slug: discoveredConfig.slug
+				})
+			: []
+	);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
 	const isDraftView = $derived(!isLocalMode && !!data.branch);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
@@ -360,13 +368,17 @@
 				throw new Error('Collection config not found.');
 			}
 
-			const configSource = await repoState.backend.readTextFile(discoveredConfig.path);
-			await repoState.backend.writeTextFile(
-				discoveredConfig.path,
-				addCollectionGroupToConfigSource(configSource, input)
+			await manageCollectionGroups(
+				repoState.backend,
+				discoveredConfig,
+				{
+					action: 'create',
+					id: input.id,
+					label: input.label,
+					value: input.value
+				},
+				navigationManifest?.manifest
 			);
-			const manifest = addNavigationGroupToManifest(navigationManifest?.manifest, input);
-			await writeNavigationManifest(repoState.backend, manifest);
 			await localContent.refresh({ force: true });
 			navigationManifest = get(localContent).navigationManifest;
 			return;
@@ -378,8 +390,14 @@
 				'content-type': 'application/json'
 			},
 			body: JSON.stringify({
-				action: 'add-collection-group',
-				...input
+				action: 'manage-collection-groups',
+				collection: input.collection,
+				mutation: {
+					action: 'create',
+					id: input.id,
+					label: input.label,
+					value: input.value
+				}
 			})
 		});
 
@@ -488,7 +506,7 @@
 	function canSaveCurrentItemUpdateNavigationManifest(): boolean {
 		if (
 			!discoveredConfig?.config._tentmanId ||
-			!isCollectionOrderingEnabled(discoveredConfig.config)
+			!isCollectionManifestBacked(discoveredConfig.config)
 		) {
 			return false;
 		}
@@ -575,6 +593,15 @@
 				discoveredConfig.config.content.mode === 'directory'
 					? { filename: item?._filename }
 					: { itemId: data.itemId }
+			);
+			await syncCollectionItemGroupSelection(
+				repoState.backend,
+				discoveredConfig,
+				materialized.content,
+				navigationManifest?.manifest,
+				{
+					message: 'Update Tentman navigation manifest'
+				}
 			);
 			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
 			clearRecoveryDraft();
@@ -783,6 +810,7 @@
 						existingItems={[]}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
 						navigationManifest={navigationManifest?.manifest}
+						{groupManagementCollections}
 						onaddselectoption={handleAddSelectOption}
 						onchange={handleFormChange}
 						ondirtystatechange={handleDirtyStateChange}
@@ -834,12 +862,20 @@
 
 				return async ({ update, result }) => {
 					if (result.type === 'redirect' || result.type === 'success') {
+						const includeNavigationManifest = canSaveCurrentItemUpdateNavigationManifest();
 						await githubRepositoryCache.invalidatePaths(
 							getCurrentItemCacheInvalidationPaths({
-								includeNavigationManifest: canSaveCurrentItemUpdateNavigationManifest()
+								includeNavigationManifest
 							})
 						);
 						await update();
+						if (includeNavigationManifest && discoveredConfig) {
+							await githubRepositoryCache.warmCollection(discoveredConfig.slug, {
+								fetcher: fetch,
+								force: true
+							});
+							await invalidate('app:content');
+						}
 						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
 						clearRecoveryDraft();
 					} else {
@@ -872,6 +908,7 @@
 						existingItems={[]}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
 						navigationManifest={navigationManifest?.manifest}
+						{groupManagementCollections}
 						onaddselectoption={handleAddSelectOption}
 						onchange={handleFormChange}
 						ondirtystatechange={handleDirtyStateChange}

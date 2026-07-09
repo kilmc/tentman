@@ -2,10 +2,10 @@ import type {
 	NavigationManifestCollection,
 	SelectBlockOption,
 	SelectBlockOptions,
+	TentmanGroupBlockOptions,
 	TentmanGroupBlockUsage
 } from '$lib/config/types';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
-import { createTentmanId } from '$lib/features/content-management/stable-identity';
 
 export interface NewNavigationGroupInput {
 	collection: string;
@@ -19,11 +19,12 @@ export function isStaticSelectOptions(options: SelectBlockOptions | undefined): 
 }
 
 export function getTentmanGroupOptions(
-	block: TentmanGroupBlockUsage
-): Pick<TentmanGroupBlockUsage, 'collection' | 'addOption'> {
+	block: TentmanGroupBlockUsage,
+	groupManagementCollectionIds: string[] = []
+): TentmanGroupBlockOptions {
 	return {
 		collection: block.collection,
-		...(block.addOption !== undefined ? { addOption: block.addOption } : {})
+		canAddOption: groupManagementCollectionIds.includes(block.collection)
 	};
 }
 
@@ -194,7 +195,7 @@ export function addCollectionGroupToConfigSource(
 
 	const collection = config.collection;
 	const nextGroup = {
-		_tentmanId: createTentmanId(),
+		_tentmanId: input.id.trim(),
 		label: input.label.trim(),
 		value: input.value.trim()
 	};
@@ -215,13 +216,11 @@ export function addCollectionGroupToConfigSource(
 		? (collectionConfig.groups as Array<Record<string, unknown>>)
 		: [];
 
-	if (
-		currentGroups.some(
-			(group) =>
-				(typeof group.value === 'string' && group.value === nextGroup.value) ||
-				(typeof group.label === 'string' && group.label === nextGroup.label)
-		)
-	) {
+	if (currentGroups.some((group) => typeof group._tentmanId === 'string' && group._tentmanId === nextGroup._tentmanId)) {
+		throw new Error(`A group with id "${nextGroup._tentmanId}" already exists`);
+	}
+
+	if (currentGroups.some((group) => typeof group.value === 'string' && group.value === nextGroup.value)) {
 		throw new Error(`A group with value "${nextGroup.value}" already exists`);
 	}
 

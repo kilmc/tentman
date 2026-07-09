@@ -63,6 +63,8 @@ test('includes collection metadata in selected config schema', async () => {
 	assert.equal(schema.config.collection.enabled, true);
 	assert.equal(schema.config.collection.itemLabel, 'Blog Post');
 	assert.equal(schema.config.collection.idField, 'slug');
+	assert.equal(schema.config.collection.ordering, false);
+	assert.equal(schema.config.collection.groupManagement, false);
 	assert.deepEqual(schema.config.collection.groups, []);
 	assert.equal(schema.fields[4]?.type, 'image');
 	assert.equal(schema.fields[4]?.assetsDir, undefined);

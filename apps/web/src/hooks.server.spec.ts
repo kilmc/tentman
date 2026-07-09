@@ -90,6 +90,9 @@ describe('hooks.server', () => {
 		expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
 		expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
 		expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
+		expect(response.headers.get('Content-Security-Policy')).toContain(
+			"media-src 'self' blob: https:"
+		);
 	});
 
 	it('keeps local backend selection when the local repo cookie is present', async () => {

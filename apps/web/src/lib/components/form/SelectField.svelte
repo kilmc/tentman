@@ -31,7 +31,7 @@
 
 	const ADD_GROUP_VALUE = '__tentman_add_group__';
 	const selectId = `select-field-${Math.random().toString(36).substring(2, 9)}`;
-	const canAddOption = $derived(sourceOptions?.addOption === true && !!onaddoption);
+	const canAddOption = $derived(sourceOptions?.canAddOption === true && !!onaddoption);
 
 	let showingAddForm = $state(false);
 	let newLabel = $state('');

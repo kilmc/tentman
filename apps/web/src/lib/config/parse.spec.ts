@@ -667,9 +667,9 @@ describe('parseConfigFile', () => {
 		expect(parsed.blocks[0]).toMatchObject({
 			id: 'tentmanGroup',
 			type: 'tentmanGroup',
-			collection: 'projects',
-			addOption: true
+			collection: 'projects'
 		});
+		expect(parsed.blocks[0]).not.toHaveProperty('addOption');
 	});
 
 	it('rejects ids on tentmanGroup blocks', () => {

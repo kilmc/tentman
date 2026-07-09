@@ -38,11 +38,10 @@
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-	import { writeNavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import {
-		addCollectionGroupToConfigSource,
-		addNavigationGroupToManifest
-	} from '$lib/features/content-management/navigation-group-options';
+		manageCollectionGroups
+	} from '$lib/features/content-management/navigation-manifest';
+	import { getCollectionConfigReferences } from '$lib/features/content-management/config';
 	import {
 		buildCollectionFilePath,
 		getCollectionFilenameBase,
@@ -93,6 +92,14 @@
 	let recoveryWriteTimer = $state<number | null>(null);
 
 	const config = $derived(discoveredConfig?.config ?? null);
+	const groupManagementCollections = $derived(
+		discoveredConfig
+			? getCollectionConfigReferences({
+					...discoveredConfig.config,
+					slug: discoveredConfig.slug
+				})
+			: []
+	);
 	const requiresFilename = $derived(false);
 	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
@@ -334,13 +341,17 @@
 				throw new Error('Collection config not found.');
 			}
 
-			const configSource = await repoState.backend.readTextFile(discoveredConfig.path);
-			await repoState.backend.writeTextFile(
-				discoveredConfig.path,
-				addCollectionGroupToConfigSource(configSource, input)
+			await manageCollectionGroups(
+				repoState.backend,
+				discoveredConfig,
+				{
+					action: 'create',
+					id: input.id,
+					label: input.label,
+					value: input.value
+				},
+				navigationManifest?.manifest
 			);
-			const manifest = addNavigationGroupToManifest(navigationManifest?.manifest, input);
-			await writeNavigationManifest(repoState.backend, manifest);
 			await localContent.refresh({ force: true });
 			navigationManifest = get(localContent).navigationManifest;
 			return;
@@ -352,8 +363,14 @@
 				'content-type': 'application/json'
 			},
 			body: JSON.stringify({
-				action: 'add-collection-group',
-				...input
+				action: 'manage-collection-groups',
+				collection: input.collection,
+				mutation: {
+					action: 'create',
+					id: input.id,
+					label: input.label,
+					value: input.value
+				}
 			})
 		});
 
@@ -551,6 +568,7 @@
 					existingItems={[]}
 					currentItemId={undefined}
 					navigationManifest={navigationManifest?.manifest}
+					{groupManagementCollections}
 					onaddselectoption={handleAddSelectOption}
 					onchange={handleFormChange}
 					ondirtystatechange={handleDirtyStateChange}
@@ -672,6 +690,7 @@
 					existingItems={[]}
 					currentItemId={undefined}
 					navigationManifest={navigationManifest?.manifest}
+					{groupManagementCollections}
 					onaddselectoption={handleAddSelectOption}
 					onchange={handleFormChange}
 					ondirtystatechange={handleDirtyStateChange}

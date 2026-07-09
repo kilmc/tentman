@@ -9,6 +9,7 @@
 	import ChevronDown from 'lucide-svelte/icons/chevron-down';
 	import ChevronRight from 'lucide-svelte/icons/chevron-right';
 	import GripVertical from 'lucide-svelte/icons/grip-vertical';
+	import ListTree from 'lucide-svelte/icons/list-tree';
 	import Pencil from 'lucide-svelte/icons/pencil';
 	import Plus from 'lucide-svelte/icons/plus';
 	import X from 'lucide-svelte/icons/x';
@@ -36,6 +37,7 @@
 		error?: string | null;
 		sortCapabilities: ResolvedCollectionSortCapabilities;
 		canOrderItems?: boolean;
+		canManageGroups?: boolean;
 		savingCustomOrder?: boolean;
 		onretry?: () => void;
 		onsavecustomorder?: (collection: NavigationDraftCollection) => void;
@@ -53,6 +55,7 @@
 		error = null,
 		sortCapabilities,
 		canOrderItems = false,
+		canManageGroups = false,
 		savingCustomOrder = false,
 		onretry,
 		onsavecustomorder,
@@ -386,9 +389,20 @@
 					{/if}
 				</div>
 
-				<a href={resolve(`/pages/${slug}/new`)} class="tm-icon-btn" aria-label={`New ${itemLabel}`}>
-					<Plus class="h-4 w-4" />
-				</a>
+				<div class="flex items-center gap-1">
+					{#if canManageGroups}
+						<a
+							href={resolve(`/pages/${slug}/groups`)}
+							class="tm-icon-btn"
+							aria-label="Manage groups"
+						>
+							<ListTree class="h-4 w-4" />
+						</a>
+					{/if}
+					<a href={resolve(`/pages/${slug}/new`)} class="tm-icon-btn" aria-label={`New ${itemLabel}`}>
+						<Plus class="h-4 w-4" />
+					</a>
+				</div>
 			</div>
 		</header>
 

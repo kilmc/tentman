@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getContext, hasContext } from 'svelte';
 	import type { BlockRegistry } from '$lib/blocks/registry';
 	import { getStructuredBlocksForUsage } from '$lib/blocks/registry';
 	import type { BlockUsage, TentmanGroupBlockUsage } from '$lib/config/types';
@@ -25,6 +26,10 @@
 	import { buildBlockFormData } from '$lib/features/forms/helpers';
 	import { containsNestedStructuredCollection } from '$lib/features/forms/object-panel';
 	import { resolveDraftAssetStoragePath } from '$lib/features/draft-assets/shared';
+	import {
+		FORM_GROUP_MANAGEMENT_COLLECTIONS,
+		type FormGroupManagementCollections
+	} from './group-management-context';
 
 	interface Props {
 		block: BlockUsage;
@@ -83,8 +88,14 @@
 			containsNestedStructuredCollection(structuredBlocks.blocks, blockRegistry)
 	);
 	const selectOptions = $derived(resolveSelectOptions(block.options, navigationManifest));
+	const groupManagementContext = hasContext(FORM_GROUP_MANAGEMENT_COLLECTIONS)
+		? getContext<FormGroupManagementCollections>(FORM_GROUP_MANAGEMENT_COLLECTIONS)
+		: null;
+	const groupManagementCollections = $derived(groupManagementContext?.getCollections() ?? []);
 	const tentmanGroupOptions = $derived(
-		isTentmanGroupBlock(block) ? getTentmanGroupOptions(block as TentmanGroupBlockUsage) : undefined
+		isTentmanGroupBlock(block)
+			? getTentmanGroupOptions(block as TentmanGroupBlockUsage, groupManagementCollections)
+			: undefined
 	);
 	const tentmanGroupSelectOptions = $derived(
 		isTentmanGroupBlock(block)

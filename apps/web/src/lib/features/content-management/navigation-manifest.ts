@@ -12,9 +12,14 @@ import {
 } from '$lib/features/content-management/transforms';
 import { resolveConfigPath } from '$lib/utils/validation';
 import { isTentmanGroupBlock, TENTMAN_GROUP_STORAGE_KEY } from '$lib/config/tentman-group';
-import { getCollectionGroups, isCollectionOrderingEnabled } from './config';
+import {
+	getCollectionGroups,
+	isCollectionGroupManagementEnabled,
+	isCollectionManifestBacked,
+	isCollectionOrderingEnabled
+} from './config';
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
-import { hasGeneratedTentmanId } from './stable-identity';
+import { createTentmanId, hasGeneratedTentmanId } from './stable-identity';
 import type { ContentRecord } from './types';
 import type { BlockUsage, ContentConfig } from '$lib/config/types';
 import type { RootConfig } from '$lib/config/root-config';
@@ -64,6 +69,12 @@ export interface CollectionOrderDraft {
 	groups: CollectionOrderDraftGroup[];
 }
 
+export type CollectionGroupManagementMutation =
+	| { action: 'create'; label: string; value: string; id?: string }
+	| { action: 'edit'; groupId: string; label: string; value: string }
+	| { action: 'delete'; groupId: string }
+	| { action: 'merge'; sourceGroupId: string; targetGroupId: string };
+
 export interface NavigationManifestState {
 	path: string;
 	exists: boolean;
@@ -84,6 +95,7 @@ export interface ManualNavigationCollectionSetup {
 	configId: string | null;
 	idField: string | null;
 	manualSortingEnabled: boolean;
+	groupManagementEnabled: boolean;
 	canOrderItems: boolean;
 	groupCount: number;
 }
@@ -986,6 +998,289 @@ function setManifestCollectionOrder(
 	return nextManifest;
 }
 
+function getExistingGroupValues(
+	groups: CollectionGroupConfig[],
+	ignoredGroupId?: string
+): Set<string> {
+	return new Set(
+		groups.flatMap((group) =>
+			group._tentmanId !== ignoredGroupId && group.value ? [group.value] : []
+		)
+	);
+}
+
+function validateCollectionGroupFields(input: { label: string; value: string }): {
+	label: string;
+	value: string;
+} {
+	const label = input.label.trim();
+	const value = input.value.trim();
+
+	if (!label) {
+		throw new Error('Group label is required');
+	}
+
+	if (!value) {
+		throw new Error('Group value is required');
+	}
+
+	return { label, value };
+}
+
+function assertGroupManagementEnabled(config: DiscoveredConfig): void {
+	if (!config.config._tentmanId) {
+		throw new Error(
+			`${config.config.label} needs a Tentman-managed id before its groups can be managed.`
+		);
+	}
+
+	if (!isCollectionGroupManagementEnabled(config.config)) {
+		throw new Error(`${config.config.label} does not have collection group management enabled.`);
+	}
+}
+
+function getGroupById(groups: CollectionGroupConfig[], groupId: string): CollectionGroupConfig {
+	const group = groups.find((candidate) => candidate._tentmanId === groupId);
+	if (!group) {
+		throw new Error(`Unknown collection group: ${groupId}`);
+	}
+
+	return group;
+}
+
+function createManifestCollectionFromItems(
+	config: DiscoveredConfig,
+	items: ContentRecord[],
+	manifestCollection: NavigationManifestCollection | null | undefined,
+	groups: CollectionGroupConfig[]
+): NavigationManifestCollection {
+	const itemIds = items.flatMap((item) => {
+		const itemId = getItemId(item);
+		return itemId ? [itemId] : [];
+	});
+	const orderedItems = appendRemainingIds(manifestCollection?.items ?? [], itemIds);
+	const itemGroups = getCurrentItemGroupMap(items, TENTMAN_GROUP_STORAGE_KEY);
+	const manifestGroups = groups.flatMap((group) => {
+		if (!group._tentmanId) {
+			return [];
+		}
+
+		const existingItems =
+			manifestCollection?.groups?.find((candidate) => candidate.id === group._tentmanId)?.items ??
+			orderedItems.filter((itemId) => itemGroups.get(itemId) === group._tentmanId);
+
+		return [
+			{
+				id: group._tentmanId,
+				label: group.label,
+				...(group.value ? { value: group.value } : {}),
+				items: existingItems.filter((itemId) => orderedItems.includes(itemId))
+			}
+		];
+	});
+
+	return {
+		...(manifestCollection ? cloneManifestCollection(manifestCollection) : {}),
+		id: config.config._tentmanId!,
+		label: config.config.label,
+		slug: config.slug,
+		...(config.config.id ? { configId: config.config.id } : {}),
+		items: orderedItems,
+		...(manifestGroups.length > 0 ? { groups: manifestGroups } : {})
+	};
+}
+
+function setManifestCollection(
+	manifest: NavigationManifest | null | undefined,
+	configId: string,
+	collection: NavigationManifestCollection
+): NavigationManifest {
+	const nextManifest: NavigationManifest = {
+		version: 1,
+		...(manifest?.content ? { content: { items: [...manifest.content.items] } } : {}),
+		...(manifest?.collections
+			? {
+					collections: Object.fromEntries(
+						Object.entries(manifest.collections).map(([id, currentCollection]) => [
+							id,
+							cloneManifestCollection(currentCollection)!
+						])
+					)
+				}
+			: {})
+	};
+
+	nextManifest.collections = {
+		...(nextManifest.collections ?? {}),
+		[configId]: collection
+	};
+
+	return nextManifest;
+}
+
+function getUngroupedManifestItems(collection: NavigationManifestCollection): string[] {
+	const groupedItems = new Set(collection.groups?.flatMap((group) => group.items) ?? []);
+	return collection.items.filter((itemId) => !groupedItems.has(itemId));
+}
+
+function applyCollectionGroupMutationToConfig(
+	groups: CollectionGroupConfig[],
+	mutation: CollectionGroupManagementMutation
+): CollectionGroupConfig[] {
+	if (mutation.action === 'create') {
+		const id = mutation.id?.trim() || createTentmanId();
+		const fields = validateCollectionGroupFields(mutation);
+
+		if (groups.some((group) => group._tentmanId === id)) {
+			throw new Error(`A group with id "${id}" already exists`);
+		}
+
+		if (getExistingGroupValues(groups).has(fields.value)) {
+			throw new Error(`A group with value "${fields.value}" already exists`);
+		}
+
+		return [
+			...groups,
+			{
+				_tentmanId: id,
+				label: fields.label,
+				value: fields.value
+			}
+		];
+	}
+
+	if (mutation.action === 'edit') {
+		const fields = validateCollectionGroupFields(mutation);
+		getGroupById(groups, mutation.groupId);
+
+		if (getExistingGroupValues(groups, mutation.groupId).has(fields.value)) {
+			throw new Error(`A group with value "${fields.value}" already exists`);
+		}
+
+		return groups.map((group) =>
+			group._tentmanId === mutation.groupId
+				? {
+						...group,
+						label: fields.label,
+						value: fields.value
+					}
+				: group
+		);
+	}
+
+	if (mutation.action === 'delete') {
+		getGroupById(groups, mutation.groupId);
+		return groups.filter((group) => group._tentmanId !== mutation.groupId);
+	}
+
+	getGroupById(groups, mutation.sourceGroupId);
+	getGroupById(groups, mutation.targetGroupId);
+	return groups.filter((group) => group._tentmanId !== mutation.sourceGroupId);
+}
+
+function applyCollectionGroupMutationToManifest(
+	collection: NavigationManifestCollection,
+	groups: CollectionGroupConfig[],
+	mutation: CollectionGroupManagementMutation
+): NavigationManifestCollection {
+	if (mutation.action === 'delete') {
+		const deletedGroup = collection.groups?.find((group) => group.id === mutation.groupId);
+		const nextGroups = (collection.groups ?? []).filter((group) => group.id !== mutation.groupId);
+		const ungroupedItems = [...getUngroupedManifestItems(collection), ...(deletedGroup?.items ?? [])];
+		return {
+			...collection,
+			items: [...nextGroups.flatMap((group) => group.items), ...ungroupedItems],
+			...(nextGroups.length > 0 ? { groups: nextGroups } : { groups: undefined })
+		};
+	}
+
+	if (mutation.action === 'merge') {
+		if (mutation.sourceGroupId === mutation.targetGroupId) {
+			throw new Error('Source and target groups must be different');
+		}
+
+		const sourceGroup = collection.groups?.find((group) => group.id === mutation.sourceGroupId);
+		const targetGroup = collection.groups?.find((group) => group.id === mutation.targetGroupId);
+		if (!sourceGroup || !targetGroup) {
+			throw new Error('Unknown collection group');
+		}
+
+		const nextGroups = (collection.groups ?? [])
+			.filter((group) => group.id !== mutation.sourceGroupId)
+			.map((group) =>
+				group.id === mutation.targetGroupId
+					? {
+							...group,
+							items: [...group.items, ...sourceGroup.items]
+						}
+					: group
+			);
+		const ungroupedItems = getUngroupedManifestItems(collection);
+
+		return {
+			...collection,
+			items: [...nextGroups.flatMap((group) => group.items), ...ungroupedItems],
+			...(nextGroups.length > 0 ? { groups: nextGroups } : { groups: undefined })
+		};
+	}
+
+	const groupsById = new Map(groups.flatMap((group) => (group._tentmanId ? [[group._tentmanId, group]] : [])));
+	const existingGroupsById = new Map((collection.groups ?? []).map((group) => [group.id, group]));
+	const nextGroups = groups.flatMap((group) => {
+		if (!group._tentmanId) {
+			return [];
+		}
+
+		const existingGroup = existingGroupsById.get(group._tentmanId);
+		return [
+			{
+				id: group._tentmanId,
+				label: group.label,
+				...(group.value ? { value: group.value } : {}),
+				items: [...(existingGroup?.items ?? [])]
+			}
+		];
+	});
+	const knownGroupIds = new Set(groupsById.keys());
+	const groupedItems = new Set(nextGroups.flatMap((group) => group.items));
+	const ungroupedItems = collection.items.filter((itemId) => !groupedItems.has(itemId));
+
+	return {
+		...collection,
+		items: [...nextGroups.flatMap((group) => group.items), ...ungroupedItems],
+		...(nextGroups.length > 0 ? { groups: nextGroups.filter((group) => knownGroupIds.has(group.id)) } : {})
+	};
+}
+
+function applyCollectionGroupMutationToItems(
+	items: ContentRecord[],
+	mutation: CollectionGroupManagementMutation
+): ContentRecord[] {
+	if (mutation.action === 'delete') {
+		return items.map((item) =>
+			item[TENTMAN_GROUP_STORAGE_KEY] === mutation.groupId
+				? (() => {
+						const { [TENTMAN_GROUP_STORAGE_KEY]: _removed, ...rest } = item;
+						return rest;
+					})()
+				: item
+		);
+	}
+
+	if (mutation.action === 'merge') {
+		return items.map((item) =>
+			item[TENTMAN_GROUP_STORAGE_KEY] === mutation.sourceGroupId
+				? {
+						...item,
+						[TENTMAN_GROUP_STORAGE_KEY]: mutation.targetGroupId
+					}
+				: item
+		);
+	}
+
+	return items;
+}
+
 async function writeReconciledCollectionItems(
 	backend: RepositoryBackend,
 	config: DiscoveredConfig,
@@ -1315,7 +1610,7 @@ export async function buildNavigationManifestFromRepository(
 
 	const collectionEntries = await Promise.all(
 		configIdentity.configs.map(async (config) => {
-			if (!isCollectionOrderingEnabled(config.config) || !config.config._tentmanId) {
+			if (!isCollectionManifestBacked(config.config) || !config.config._tentmanId) {
 				return null;
 			}
 
@@ -1411,7 +1706,7 @@ export async function reconcileManualNavigationSetup(
 	}
 
 	for (const config of configIdentity.configs) {
-		if (!isCollectionOrderingEnabled(config.config) || !config.config._tentmanId) {
+		if (!isCollectionManifestBacked(config.config) || !config.config._tentmanId) {
 			continue;
 		}
 
@@ -1517,6 +1812,53 @@ export async function saveCollectionOrder(
 	return manifest;
 }
 
+export async function manageCollectionGroups(
+	backend: RepositoryBackend,
+	config: DiscoveredConfig,
+	mutation: CollectionGroupManagementMutation,
+	existingManifest: NavigationManifest | null | undefined,
+	options?: RepositoryWriteOptions
+): Promise<NavigationManifest> {
+	assertGroupManagementEnabled(config);
+
+	if (mutation.action === 'merge' && mutation.sourceGroupId === mutation.targetGroupId) {
+		throw new Error('Source and target groups must be different');
+	}
+
+	const currentGroups = getCollectionGroups(config.config);
+	const nextGroups = applyCollectionGroupMutationToConfig(currentGroups, mutation);
+	const configSource = await backend.readTextFile(config.path, options);
+	await backend.writeTextFile(config.path, setCollectionGroupsInSource(configSource, nextGroups), options);
+
+	const content = await fetchContentDocument(backend, config.config, config.path);
+	const contentItems = Array.isArray(content) ? (content as ContentRecord[]) : [];
+	const manifestCollection = createManifestCollectionFromItems(
+		config,
+		contentItems,
+		getConfigManifestCollection(existingManifest, config),
+		currentGroups
+	);
+	const nextManifestCollection = applyCollectionGroupMutationToManifest(
+		manifestCollection,
+		nextGroups,
+		mutation
+	);
+	const nextItems = applyCollectionGroupMutationToItems(contentItems, mutation);
+
+	if (mutation.action === 'delete' || mutation.action === 'merge') {
+		await writeReconciledCollectionItems(backend, config, nextItems, options);
+	}
+
+	const manifest = setManifestCollection(
+		existingManifest,
+		config.config._tentmanId!,
+		nextManifestCollection
+	);
+	await writeNavigationManifest(backend, manifest, options);
+
+	return manifest;
+}
+
 export async function syncCollectionItemGroupSelection(
 	backend: RepositoryBackend,
 	config: DiscoveredConfig,
@@ -1524,7 +1866,7 @@ export async function syncCollectionItemGroupSelection(
 	existingManifest?: NavigationManifest | null,
 	options?: RepositoryWriteOptions
 ): Promise<NavigationManifest | null> {
-	if (!config.config._tentmanId || !isCollectionOrderingEnabled(config.config)) {
+	if (!config.config._tentmanId || !isCollectionManifestBacked(config.config)) {
 		return existingManifest ?? null;
 	}
 
@@ -1612,13 +1954,16 @@ export function getManualNavigationSetupState(
 			idField: config.config.idField ?? null,
 			manualSortingEnabled: isCollectionOrderingEnabled(config.config),
 			canOrderItems: !!config.config._tentmanId && isCollectionOrderingEnabled(config.config),
+			groupManagementEnabled: isCollectionGroupManagementEnabled(config.config),
 			groupCount: getCollectionGroups(config.config).length
 		}));
 
 	const topLevelManualSortingEnabled = rootConfig?.content?.sorting === 'manual';
 	const hasConfiguredManualFeatures =
 		topLevelManualSortingEnabled ||
-		collections.some((collection) => collection.manualSortingEnabled);
+		collections.some(
+			(collection) => collection.manualSortingEnabled || collection.groupManagementEnabled
+		);
 	const hasAnyConfigId = configs.some((config) => !!config.config._tentmanId);
 
 	let status: ManualNavigationSetupState['status'] = 'inactive';
