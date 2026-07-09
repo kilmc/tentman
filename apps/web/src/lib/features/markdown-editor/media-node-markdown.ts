@@ -46,6 +46,7 @@ function renderOpeningAttrs(attrs: MarkdownMediaAttrs): string {
 	return [
 		renderBooleanAttribute('controls', attrs.controls),
 		renderStringAttribute('src', attrs.src),
+		renderStringAttribute('poster', attrs.poster),
 		renderStringAttribute('title', attrs.title),
 		renderStringAttribute('aria-label', attrs.ariaLabel)
 	].join('');
@@ -123,6 +124,7 @@ export function normalizeMarkdownMediaAttrs(attrs: MarkdownMediaAttrs): Markdown
 
 	return {
 		src: normalizeOptionalString(attrs.src),
+		poster: normalizeOptionalString(attrs.poster),
 		title: normalizeOptionalString(attrs.title),
 		ariaLabel: normalizeOptionalString(attrs.ariaLabel),
 		controls: attrs.controls === false ? false : Boolean(attrs.controls),
@@ -156,6 +158,7 @@ export function parseMediaElementAttributes(
 
 	return normalizeMarkdownMediaAttrs({
 		src: getAttr(element, 'src'),
+		poster: kind === 'video' ? getAttr(element, 'poster') : null,
 		title: getAttr(element, 'title'),
 		ariaLabel: getAttr(element, 'aria-label'),
 		controls: getBooleanAttr(element, 'controls'),
@@ -171,7 +174,8 @@ function renderMediaMarkdown(kind: MarkdownMediaKind, attrs: MarkdownMediaAttrs)
 	const hasChildren = sources.length > 0 || tracks.length > 0;
 	const openingAttrs = renderOpeningAttrs({
 		...normalized,
-		src: hasChildren ? null : normalized.src
+		src: hasChildren ? null : normalized.src,
+		poster: kind === 'video' ? normalized.poster : null
 	});
 
 	if (!hasChildren) {

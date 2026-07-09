@@ -61,6 +61,7 @@ test('reports missing non-image assets referenced from markdown links and html m
 				'[Download the brief](/images/media/missing-brief.pdf)',
 				'<audio controls src="/images/media/missing-interview.mp3"></audio>',
 				'<video controls><source src="/images/media/missing-trailer.mp4" type="video/mp4"></video>',
+				'<video poster="/images/media/missing-trailer-poster.jpg"></video>',
 				'</section>'
 			].join('\n\n')
 		)
@@ -87,6 +88,13 @@ test('reports missing non-image assets referenced from markdown links and html m
 		diagnostics.some((diagnostic) =>
 			diagnostic.message.includes(
 				'body.htmlMedia[1] references missing asset /images/media/missing-trailer.mp4'
+			)
+		)
+	);
+	assert.ok(
+		diagnostics.some((diagnostic) =>
+			diagnostic.message.includes(
+				'body.htmlMedia[2] references missing asset /images/media/missing-trailer-poster.jpg'
 			)
 		)
 	);

@@ -61,7 +61,7 @@ describe('draft-assets/image-resolver', () => {
 					'[Download](brief.pdf)',
 					'<img src="draft-asset:hero" alt="Hero">',
 					'<audio controls src="interview.mp3"></audio>',
-					'<video controls><source src="/images/trailer.mp4" type="video/mp4"><track src="captions.vtt"></video>'
+					'<video controls poster="trailer-poster.jpg"><source src="/images/trailer.mp4" type="video/mp4"><track src="captions.vtt"></video>'
 				].join('\n\n'),
 				{
 					mode: 'github',
@@ -79,7 +79,7 @@ describe('draft-assets/image-resolver', () => {
 				'[Download](/api/repo/asset?value=brief.pdf&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main)',
 				'<img src="blob:draft-hero" alt="Hero">',
 				'<audio controls src="/api/repo/asset?value=interview.mp3&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main"></audio>',
-				'<video controls><source src="/api/repo/asset?value=%2Fimages%2Ftrailer.mp4&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main" type="video/mp4"><track src="/api/repo/asset?value=captions.vtt&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main"></video>'
+				'<video controls poster="/api/repo/asset?value=trailer-poster.jpg&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main"><source src="/api/repo/asset?value=%2Fimages%2Ftrailer.mp4&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main" type="video/mp4"><track src="/api/repo/asset?value=captions.vtt&assetPath=static%2Fimages%2Fposts%2F&publicPath=%2Fimages%2Fposts&owner=acme&repo=docs&branch=main"></video>'
 			].join('\n\n')
 		);
 		expect(resolveUrl).toHaveBeenCalledWith('draft-asset:hero');

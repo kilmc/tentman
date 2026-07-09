@@ -8,12 +8,13 @@
 
 	let { children, attributes = {} }: Props = $props();
 
+	function hasAttribute(name: string): boolean {
+		return Object.hasOwn(attributes, name);
+	}
+
 	const audioAttributes = $derived({
 		...attributes,
-		controls:
-			attributes.controls === undefined && !attributes.autoplay
-				? true
-				: attributes.controls !== false && attributes.controls !== undefined
+		controls: hasAttribute('controls') || !hasAttribute('autoplay')
 	} as Omit<svelteHTML.IntrinsicElements['audio'], 'children'>);
 </script>
 

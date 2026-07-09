@@ -288,6 +288,48 @@ describe('shared draft asset rendering surfaces', () => {
 			);
 	});
 
+	it('routes markdown audio and video HTML through the repo asset proxy', async () => {
+		const screen = await render(ContentValueDisplay, {
+			block: {
+				id: 'body',
+				type: 'markdown',
+				label: 'Body',
+				assetsDir: 'static/images/posts'
+			},
+			value: [
+				'<audio src="interview.mp3"></audio>',
+				'<video poster="trailer-poster.jpg" src="/images/projects/trailer.mp4"></video>',
+				'<video autoplay src="loop.mp4"></video>'
+			].join('\n\n'),
+			blockRegistry: new Map() as never
+		});
+
+		await expect
+			.poll(() => screen.container.querySelector('audio')?.getAttribute('src') ?? null)
+			.toBe(
+				'/api/repo/asset?value=interview.mp3&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
+			);
+
+		await expect
+			.poll(
+				() =>
+					screen.container.querySelectorAll('video')[0]?.getAttribute('src') ?? null
+			)
+			.toBe(
+				'/api/repo/asset?value=%2Fimages%2Fprojects%2Ftrailer.mp4&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
+			);
+
+		const audio = screen.container.querySelector('audio');
+		const video = screen.container.querySelectorAll('video')[0];
+		const autoplayVideo = screen.container.querySelectorAll('video')[1];
+		expect(video?.getAttribute('poster')).toBe(
+			'/api/repo/asset?value=trailer-poster.jpg&assetPath=.%2Fstatic%2Fimages%2Fprojects&publicPath=%2Fimages%2Fprojects&owner=acme&repo=docs&branch=main'
+		);
+		expect(audio?.hasAttribute('controls')).toBe(true);
+		expect(video?.hasAttribute('controls')).toBe(true);
+		expect(autoplayVideo?.hasAttribute('controls')).toBe(false);
+	});
+
 	it('renders local image blocks from browser-backed object URLs', async () => {
 		pageData.selectedBackend = {
 			kind: 'local',

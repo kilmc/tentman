@@ -69,6 +69,7 @@ test('treats non-image markdown link and html media assets as referenced', async
 	await fs.writeFile(path.join(mediaDir, 'brief.pdf'), '');
 	await fs.writeFile(path.join(mediaDir, 'interview.mp3'), '');
 	await fs.writeFile(path.join(mediaDir, 'trailer.mp4'), '');
+	await fs.writeFile(path.join(mediaDir, 'trailer-poster.jpg'), '');
 
 	const aboutContent = await fs.readFile(aboutContentPath, 'utf8');
 	await fs.writeFile(
@@ -79,6 +80,7 @@ test('treats non-image markdown link and html media assets as referenced', async
 				'[Download the brief](/images/media/brief.pdf)',
 				'<audio controls src="/images/media/interview.mp3"></audio>',
 				'<video controls><source src="/images/media/trailer.mp4" type="video/mp4"></video>',
+				'<video poster="/images/media/trailer-poster.jpg" src="/images/media/trailer.mp4"></video>',
 				'</section>'
 			].join('\n\n')
 		)
@@ -91,6 +93,7 @@ test('treats non-image markdown link and html media assets as referenced', async
 	assert.ok(!unusedFiles.includes('static/images/media/brief.pdf'));
 	assert.ok(!unusedFiles.includes('static/images/media/interview.mp3'));
 	assert.ok(!unusedFiles.includes('static/images/media/trailer.mp4'));
+	assert.ok(!unusedFiles.includes('static/images/media/trailer-poster.jpg'));
 });
 
 test('scopes unused asset results to one config when requested', async () => {

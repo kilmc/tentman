@@ -16,6 +16,8 @@ const MARKDOWN_LINK_PATTERN =
 	/(?<!!)\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/g;
 const HTML_MEDIA_SRC_PATTERN =
 	/<(?:img|audio|video|source|embed|track)\b[^>]*?\bsrc\s*=\s*(["'])(.*?)\1[^>]*?>/gi;
+const HTML_VIDEO_POSTER_PATTERN =
+	/<video\b[^>]*?\bposter\s*=\s*(["'])(.*?)\1[^>]*?>/gi;
 
 function isFileLikeMarkdownDestination(value) {
 	if (typeof value !== 'string') {
@@ -87,6 +89,10 @@ function collectMarkdownAssetValues(value) {
 			}))
 			.filter((asset) => isFileLikeMarkdownDestination(asset.value)),
 		...[...value.matchAll(HTML_MEDIA_SRC_PATTERN)].map((match) => ({
+			kind: 'htmlMedia',
+			value: match[2]
+		})),
+		...[...value.matchAll(HTML_VIDEO_POSTER_PATTERN)].map((match) => ({
 			kind: 'htmlMedia',
 			value: match[2]
 		}))

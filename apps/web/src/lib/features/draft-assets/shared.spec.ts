@@ -101,6 +101,7 @@ describe('draft-assets/shared', () => {
 		const fourthRef = buildDraftAssetRef('fourth');
 		const fifthRef = buildDraftAssetRef('fifth');
 		const sixthRef = buildDraftAssetRef('sixth');
+		const seventhRef = buildDraftAssetRef('seventh');
 
 		expect(
 			collectDraftAssetRefsFromString(
@@ -112,30 +113,33 @@ describe('draft-assets/shared', () => {
 					`<audio controls src="${fourthRef}"></audio>`,
 					`<video controls><source src="${fifthRef}"></video>`,
 					`<track src="${sixthRef}" kind="captions">`,
+					`<video poster="${seventhRef}" src="/media/trailer.mp4"></video>`,
 					`![Gallery](https://example.com/image.png)`
 				].join('\n\n')
 			)
-		).toEqual([firstRef, thirdRef, secondRef, fourthRef, fifthRef, sixthRef]);
+		).toEqual([firstRef, thirdRef, secondRef, fourthRef, fifthRef, sixthRef, seventhRef]);
 	});
 
 	it('rewrites inline markdown and html media refs while preserving exact-string image refs', () => {
 		const firstRef = buildDraftAssetRef('first');
 		const secondRef = buildDraftAssetRef('second');
 		const thirdRef = buildDraftAssetRef('third');
+		const fourthRef = buildDraftAssetRef('fourth');
 		const replacements = new Map([
 			[firstRef, '/images/hero.png'],
 			[secondRef, '/images/cover.png'],
-			[thirdRef, '/media/interview.mp3']
+			[thirdRef, '/media/interview.mp3'],
+			[fourthRef, '/media/trailer-poster.jpg']
 		]);
 
 		expect(replaceDraftAssetRefsInString(firstRef, replacements)).toBe('/images/hero.png');
 		expect(
 			replaceDraftAssetRefsInString(
-				`![Hero](${firstRef} "Hero title")\n\n<img src="${secondRef}" alt="Cover">\n\n<audio controls src="${thirdRef}"></audio>`,
+				`![Hero](${firstRef} "Hero title")\n\n<img src="${secondRef}" alt="Cover">\n\n<audio controls src="${thirdRef}"></audio>\n\n<video poster="${fourthRef}" src="/media/trailer.mp4"></video>`,
 				replacements
 			)
 		).toBe(
-			'![Hero](/images/hero.png "Hero title")\n\n<img src="/images/cover.png" alt="Cover">\n\n<audio controls src="/media/interview.mp3"></audio>'
+			'![Hero](/images/hero.png "Hero title")\n\n<img src="/images/cover.png" alt="Cover">\n\n<audio controls src="/media/interview.mp3"></audio>\n\n<video poster="/media/trailer-poster.jpg" src="/media/trailer.mp4"></video>'
 		);
 	});
 

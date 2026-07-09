@@ -23,6 +23,7 @@
 	let { attrs, assetsDir, storagePath }: Props = $props();
 
 	let resolvedSrc = $state<string | null>(null);
+	let resolvedPoster = $state<string | null>(null);
 	let resolvedSources = $state<MarkdownMediaSource[]>([]);
 	let resolvedTracks = $state<MarkdownMediaTrack[]>([]);
 	let requestId = 0;
@@ -59,6 +60,7 @@
 		const tracks = normalizedAttrs.tracks ?? [];
 		void Promise.all([
 			resolveClientAssetUrl(normalizedAttrs.src, renderContext),
+			resolveClientAssetUrl(normalizedAttrs.poster, renderContext),
 			Promise.all(
 				sources.map(async (source) => ({
 					...source,
@@ -71,12 +73,13 @@
 					src: (await resolveClientAssetUrl(track.src, renderContext)) ?? track.src
 				}))
 			)
-		]).then(([nextSrc, nextSources, nextTracks]) => {
+		]).then(([nextSrc, nextPoster, nextSources, nextTracks]) => {
 			if (nextRequestId !== requestId) {
 				return;
 			}
 
 			resolvedSrc = nextSrc;
+			resolvedPoster = nextPoster;
 			resolvedSources = nextSources;
 			resolvedTracks = nextTracks;
 		});
@@ -90,6 +93,7 @@
 			controls={normalizedAttrs.controls !== false}
 			preload="metadata"
 			src={resolvedSrc ?? undefined}
+			poster={resolvedPoster ?? undefined}
 			title={normalizedAttrs.title ?? undefined}
 			aria-label={normalizedAttrs.ariaLabel ?? undefined}
 			class="aspect-video w-full bg-stone-950 object-contain"

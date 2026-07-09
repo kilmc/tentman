@@ -15,6 +15,7 @@ export interface MarkdownMediaTrack {
 
 export interface MarkdownMediaAttrs {
 	src?: string | null;
+	poster?: string | null;
 	title?: string | null;
 	ariaLabel?: string | null;
 	controls?: boolean;

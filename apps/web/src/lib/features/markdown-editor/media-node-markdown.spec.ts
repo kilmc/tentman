@@ -40,6 +40,15 @@ describe('media-node-markdown', () => {
 		expect(renderVideoMarkdown({ src: '/video/trailer.mp4', controls: true })).toBe(
 			'<video controls src="/video/trailer.mp4"></video>'
 		);
+		expect(
+			renderVideoMarkdown({
+				src: '/video/trailer.mp4',
+				poster: '/video/trailer-poster.jpg',
+				controls: true
+			})
+		).toBe(
+			'<video controls src="/video/trailer.mp4" poster="/video/trailer-poster.jpg"></video>'
+		);
 	});
 
 	it('escapes attribute values', () => {
@@ -88,6 +97,7 @@ describe('media-node-markdown', () => {
 			)
 		).toEqual({
 			src: null,
+			poster: null,
 			title: 'Trailer',
 			ariaLabel: null,
 			controls: true,
@@ -101,6 +111,25 @@ describe('media-node-markdown', () => {
 					default: true
 				}
 			]
+		});
+	});
+
+	it('parses and preserves video poster attributes', () => {
+		expect(
+			parseMediaElementAttributes(
+				createElement(
+					'<video controls src="/media/trailer.mp4" poster="/media/trailer-poster.jpg"></video>'
+				),
+				'video'
+			)
+		).toEqual({
+			src: '/media/trailer.mp4',
+			poster: '/media/trailer-poster.jpg',
+			title: null,
+			ariaLabel: null,
+			controls: true,
+			sources: [],
+			tracks: []
 		});
 	});
 

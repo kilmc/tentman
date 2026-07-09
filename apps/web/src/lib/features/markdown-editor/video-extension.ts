@@ -29,6 +29,7 @@ export const MarkdownVideo = Node.create<MarkdownVideoOptions>({
 	addAttributes() {
 		return {
 			src: { default: null },
+			poster: { default: null },
 			title: { default: null },
 			ariaLabel: { default: null },
 			controls: { default: true },
@@ -55,6 +56,9 @@ export const MarkdownVideo = Node.create<MarkdownVideoOptions>({
 		}
 		if (attrs.src) {
 			htmlAttrs.src = attrs.src;
+		}
+		if (attrs.poster) {
+			htmlAttrs.poster = attrs.poster;
 		}
 		if (attrs.title) {
 			htmlAttrs.title = attrs.title;

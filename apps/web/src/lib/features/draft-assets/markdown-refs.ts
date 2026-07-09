@@ -4,6 +4,8 @@ const MARKDOWN_LINK_DESTINATION_PATTERN =
 	/(?<!!)\[[^\]]*]\((?:<([^>\s]+)>|([^\s)]+))((?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?)\)/g;
 const HTML_ASSET_SRC_PATTERN =
 	/<(img|audio|video|source|embed|track)\b([^>]*?)\bsrc\s*=\s*(["'])([^"']+)\3([^>]*?)>/gi;
+const HTML_VIDEO_POSTER_PATTERN =
+	/<(video)\b([^>]*?)\bposter\s*=\s*(["'])([^"']+)\3([^>]*?)>/gi;
 
 function isFileLikeMarkdownDestination(value: string): boolean {
 	if (value.startsWith('draft-asset:')) {
@@ -33,6 +35,13 @@ export function collectMarkdownAssetValues(value: string): string[] {
 	}
 
 	for (const match of value.matchAll(HTML_ASSET_SRC_PATTERN)) {
+		const assetValue = match[4];
+		if (assetValue) {
+			values.push(assetValue);
+		}
+	}
+
+	for (const match of value.matchAll(HTML_VIDEO_POSTER_PATTERN)) {
 		const assetValue = match[4];
 		if (assetValue) {
 			values.push(assetValue);
@@ -86,6 +95,16 @@ export function replaceMarkdownAssetValues(
 			const replacement = replacements.get(assetValue);
 			return replacement
 				? `<${tagName}${beforeSrc}src=${quote}${replacement}${quote}${afterSrc}>`
+				: match;
+		}
+	);
+
+	nextValue = nextValue.replace(
+		HTML_VIDEO_POSTER_PATTERN,
+		(match, tagName, beforePoster, quote, assetValue, afterPoster) => {
+			const replacement = replacements.get(assetValue);
+			return replacement
+				? `<${tagName}${beforePoster}poster=${quote}${replacement}${quote}${afterPoster}>`
 				: match;
 		}
 	);
