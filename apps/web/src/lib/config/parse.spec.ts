@@ -186,6 +186,7 @@ describe('parseConfigFile', () => {
 			"itemLabel": "Project",
 			"collection": {
 				"ordering": true,
+				"search": true,
 				"groups": [
 					{ "_tentmanId": "identity", "label": "Identity", "value": "identity" }
 				]
@@ -209,6 +210,7 @@ describe('parseConfigFile', () => {
 		expect(parsed._tentmanId).toBe('projects');
 		expect(parsed.collection).toEqual({
 			ordering: true,
+			search: true,
 			groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
 		});
 	});

@@ -12,6 +12,7 @@
 	import ListTree from 'lucide-svelte/icons/list-tree';
 	import Pencil from 'lucide-svelte/icons/pencil';
 	import Plus from 'lucide-svelte/icons/plus';
+	import Search from 'lucide-svelte/icons/search';
 	import X from 'lucide-svelte/icons/x';
 	import type {
 		CollectionNavigationGroup,
@@ -36,6 +37,7 @@
 		status?: 'idle' | 'loading' | 'ready' | 'error';
 		error?: string | null;
 		sortCapabilities: ResolvedCollectionSortCapabilities;
+		searchEnabled?: boolean;
 		canOrderItems?: boolean;
 		canManageGroups?: boolean;
 		savingCustomOrder?: boolean;
@@ -55,6 +57,7 @@
 		status = 'ready',
 		error = null,
 		sortCapabilities,
+		searchEnabled = false,
 		canOrderItems = false,
 		canManageGroups = false,
 		savingCustomOrder = false,
@@ -83,8 +86,10 @@
 	let sortMenu = $state<HTMLDetailsElement | null>(null);
 	let collapsedGroupIds = $state<string[]>([]);
 	let requestedSortHydrationKey = $state<string | null>(null);
+	let searchQuery = $state('');
 
 	const allItems = $derived([...groups.flatMap((group) => group.items), ...items]);
+	const normalizedSearchQuery = $derived(searchQuery.trim().toLowerCase());
 	const availableSorts = $derived(getAvailableSorts(sortCapabilities, canOrderItems));
 	const defaultSort = $derived(getDefaultSort(sortCapabilities, canOrderItems));
 	const currentSortId = $derived(selectedSortId ?? defaultSort?.id ?? null);
@@ -105,13 +110,14 @@
 	const visibleItems = $derived.by(() => {
 		const flatItems = [...allItems];
 		const sort = currentResolvedSort;
+		let sortedItems = flatItems;
 
 		if (!sort || sort.type === 'manual') {
-			return flatItems;
+			return filterCollectionItems(sortedItems);
 		}
 
 		if (isAlphabeticalSort(sort)) {
-			return flatItems.sort((left, right) => {
+			sortedItems = flatItems.sort((left, right) => {
 				const direction = sortDirection === 'asc' ? 1 : -1;
 				return (
 					direction *
@@ -120,10 +126,11 @@
 					)
 				);
 			});
+			return filterCollectionItems(sortedItems);
 		}
 
 		if (sort.type === 'date') {
-			return flatItems.sort((left, right) => {
+			sortedItems = flatItems.sort((left, right) => {
 				const leftDate = getNumberSortValue(left, sort) ?? Number.NEGATIVE_INFINITY;
 				const rightDate = getNumberSortValue(right, sort) ?? Number.NEGATIVE_INFINITY;
 
@@ -133,10 +140,22 @@
 
 				return sortDirection === 'asc' ? leftDate - rightDate : rightDate - leftDate;
 			});
+			return filterCollectionItems(sortedItems);
 		}
 
-		return flatItems;
+		return filterCollectionItems(sortedItems);
 	});
+	const visibleManualGroups = $derived.by(() =>
+		groups
+			.map((group) => ({
+				...group,
+				items: filterCollectionItems(group.items)
+			}))
+			.filter((group) => group.items.length > 0)
+	);
+	const visibleManualItems = $derived.by(() => filterCollectionItems(items));
+	const hasSearchQuery = $derived(normalizedSearchQuery.length > 0);
+	const noSearchResults = $derived(hasSearchQuery && allItems.length > 0 && visibleItems.length === 0);
 
 	$effect(() => {
 		if (selectedSortId === null || currentResolvedSort) {
@@ -234,6 +253,26 @@
 			item.hydration === 'fallback' ||
 			(item.hydration === 'hydrated' && !(sort.id in (item.sortValues ?? {})))
 		);
+	}
+
+	function filterCollectionItems(itemsToFilter: CollectionNavigationItem[]) {
+		if (!normalizedSearchQuery) {
+			return itemsToFilter;
+		}
+
+		return itemsToFilter.filter((item) => matchesSearch(item));
+	}
+
+	function matchesSearch(item: CollectionNavigationItem) {
+		const values = [
+			item.title,
+			item.itemId,
+			item.hrefItemId,
+			item.state?.label,
+			...Object.values(item.sortValues ?? {}).map((value) => String(value ?? ''))
+		];
+
+		return values.some((value) => value?.toLowerCase().includes(normalizedSearchQuery));
 	}
 
 	function toEditableItem(item: CollectionNavigationItem): CollectionIndexItem {
@@ -480,6 +519,20 @@
 					</a>
 				</div>
 			</div>
+			{#if searchEnabled && !editingCustomOrder}
+				<label
+					class="mt-3 grid min-h-9 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border border-stone-200 bg-white px-2.5 text-sm text-stone-500 focus-within:border-stone-400 focus-within:ring-2 focus-within:ring-stone-200"
+				>
+					<Search class="h-4 w-4" aria-hidden="true" />
+					<span class="sr-only">Search {label}</span>
+					<input
+						type="search"
+						class="min-w-0 border-0 bg-transparent p-0 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none"
+						placeholder={`Search ${label}`}
+						bind:value={searchQuery}
+					/>
+				</label>
+			{/if}
 		</header>
 
 		<div class="min-h-0 overflow-y-auto p-3">
@@ -661,9 +714,15 @@
 				>
 					No items yet.
 				</p>
+			{:else if noSearchResults}
+				<p
+					class="rounded-md border border-dashed border-stone-300 px-3 py-4 text-center text-sm text-stone-500"
+				>
+					No items match your search.
+				</p>
 			{:else if currentResolvedSort?.type === 'manual'}
 				<div class="grid gap-3">
-					{#each groups as group (group.id)}
+					{#each visibleManualGroups as group (group.id)}
 						{#if group.items.length > 0}
 							<section class="grid gap-1">
 								<div
@@ -719,9 +778,9 @@
 						{/if}
 					{/each}
 
-					{#if items.length > 0}
+					{#if visibleManualItems.length > 0}
 						<section class="grid gap-1">
-							{#each items as item (item.itemId)}
+							{#each visibleManualItems as item (item.itemId)}
 								<a
 									href={getItemHref(item)}
 									onfocus={() => promoteItem(item)}

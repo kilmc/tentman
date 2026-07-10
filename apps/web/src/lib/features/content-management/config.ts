@@ -28,6 +28,10 @@ export function isCollectionGroupManagementEnabled(config: ContentConfig): boole
 	return getCollectionConfig(config.collection)?.groupManagement === true;
 }
 
+export function isCollectionSearchEnabled(config: ContentConfig): boolean {
+	return getCollectionConfig(config.collection)?.search === true;
+}
+
 export function isCollectionManifestBacked(config: ContentConfig): boolean {
 	const collection = getCollectionConfig(config.collection);
 	return collection?.ordering === true || collection?.groupManagement === true;

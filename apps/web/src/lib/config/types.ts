@@ -206,6 +206,7 @@ export type CollectionDefaultSortConfig =
 export interface CollectionBehaviorConfig {
 	ordering?: boolean;
 	groupManagement?: boolean;
+	search?: boolean;
 	defaultSort?: CollectionDefaultSortConfig;
 	sorts?: CollectionSortConfig[];
 	groups?: CollectionGroupConfig[];

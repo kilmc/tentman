@@ -49,6 +49,7 @@
 		writeNavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import { resolveCollectionSortCapabilities } from '$lib/features/content-management/collection-sorts';
+	import { isCollectionSearchEnabled } from '$lib/features/content-management/config';
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import {
 		githubCacheWarmStatus,
@@ -1144,6 +1145,7 @@
 							status={getCollectionLoadStatus(currentConfig.slug)}
 							error={getCollectionLoadError(currentConfig.slug)}
 							{sortCapabilities}
+							searchEnabled={isCollectionSearchEnabled(currentConfig.config)}
 							canOrderItems={!!collectionSetup?.canOrderItems}
 							canManageGroups={!!collectionSetup?.groupManagementEnabled}
 							savingCustomOrder={savingCollectionOrder}
@@ -1240,6 +1242,7 @@
 					status={getCollectionLoadStatus(currentConfig.slug)}
 					error={getCollectionLoadError(currentConfig.slug)}
 					{sortCapabilities}
+					searchEnabled={isCollectionSearchEnabled(currentConfig.config)}
 					canOrderItems={!!collectionSetup?.canOrderItems}
 					canManageGroups={!!collectionSetup?.groupManagementEnabled}
 					savingCustomOrder={savingCollectionOrder}

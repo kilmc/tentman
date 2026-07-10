@@ -499,6 +499,7 @@ function parseCollectionBehaviorConfig(
 
 	const ordering = readOptionalBoolean(input, 'ordering', context);
 	const groupManagement = readOptionalBoolean(input, 'groupManagement', context);
+	const search = readOptionalBoolean(input, 'search', context);
 	const defaultSort = parseCollectionDefaultSort(input.defaultSort, `${context}.defaultSort`);
 	const sorts = input.sorts;
 	if (sorts !== undefined && !Array.isArray(sorts)) {
@@ -527,6 +528,7 @@ function parseCollectionBehaviorConfig(
 	return {
 		...(ordering !== undefined ? { ordering } : {}),
 		...(groupManagement !== undefined ? { groupManagement } : {}),
+		...(search !== undefined ? { search } : {}),
 		...(defaultSort !== undefined ? { defaultSort } : {}),
 		...(parsedSorts ? { sorts: parsedSorts } : {}),
 		...(groups

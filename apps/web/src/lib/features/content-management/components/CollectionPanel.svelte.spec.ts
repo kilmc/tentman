@@ -153,6 +153,37 @@ describe('CollectionPanel customize mode', () => {
 		await expectElement(screen.getByRole('link', { name: 'Apr 3, 2026' })).toBeVisible();
 	});
 
+	it('filters collection items when search is enabled', async () => {
+		const screen = await render(CollectionPanel, {
+			slug: 'posts',
+			label: 'Posts',
+			itemLabel: 'Post',
+			searchEnabled: true,
+			items: [
+				{ itemId: 'launch-notes', title: 'Launch notes', sortDate: null },
+				{ itemId: 'release-plan', title: 'Release plan', sortDate: null }
+			],
+			groups: [
+				{
+					id: 'archive',
+					label: 'Archive',
+					items: [{ itemId: 'old-draft', title: 'Old draft', sortDate: null }]
+				}
+			],
+			sortCapabilities: titleSortCapabilities
+		});
+
+		await expectElement(screen.getByLabelText('Search Posts')).toBeVisible();
+		await screen.getByLabelText('Search Posts').fill('release');
+
+		await expectElement(screen.getByRole('link', { name: 'Release plan' })).toBeVisible();
+		expect(document.body.textContent).not.toContain('Launch notes');
+		expect(document.body.textContent).not.toContain('Old draft');
+
+		await screen.getByLabelText('Search Posts').fill('missing');
+		await expectElement(screen.getByText('No items match your search.')).toBeVisible();
+	});
+
 	it('does not render Date when no date sort capability exists', async () => {
 		await render(CollectionPanel, {
 			slug: 'posts',
