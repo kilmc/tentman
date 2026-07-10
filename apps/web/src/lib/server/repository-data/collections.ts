@@ -7,6 +7,7 @@ import {
 	orderCollectionNavigationItems
 } from '$lib/features/content-management/navigation';
 import type { OrderedCollectionNavigation } from '$lib/features/content-management/navigation';
+import { resolveCollectionSortCapabilities } from '$lib/features/content-management/collection-sorts';
 import { normalizeRuntimeCollectionItemIds } from '$lib/features/content-management/stable-identity';
 import {
 	getTemplateInfo,
@@ -381,8 +382,13 @@ function toCollectionIndexItems(
 }
 
 function toDirectoryFallbackCollectionIndexItems(
+	config: DirectoryBackedConfig,
 	entries: RepositoryTreeEntry[]
 ): CollectionIndexItem[] {
+	const filenameSort = resolveCollectionSortCapabilities(config).sorts.find(
+		(sort) => sort.type === 'filename'
+	);
+
 	return entries.map((entry) => {
 		const filename = getFilename(entry.path);
 		const route = stripFileExtension(filename);
@@ -395,7 +401,7 @@ function toDirectoryFallbackCollectionIndexItems(
 			blobSha: entry.sha,
 			title: getFallbackTitleFromFilename(filename) || route,
 			sortDate: null,
-			sortValues: {},
+			sortValues: filenameSort ? { [filenameSort.id]: filename } : {},
 			hydration: 'fallback',
 			hrefItemId: route
 		};
@@ -568,7 +574,7 @@ async function buildDirectoryCollectionIndex(
 		config,
 		configPath,
 		input.slug,
-		toDirectoryFallbackCollectionIndexItems(entries),
+		toDirectoryFallbackCollectionIndexItems(config, entries),
 		schemaIdentity
 	);
 }

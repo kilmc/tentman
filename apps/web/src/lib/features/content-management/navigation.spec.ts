@@ -259,19 +259,19 @@ describe('content navigation helpers', () => {
 			{
 				itemId: 'latest-news',
 				title: 'Latest News',
-				sortDate: new Date('2026-04-03').getTime(),
-				sortValues: { title: 'Latest News', date: new Date('2026-04-03').getTime() }
+				sortDate: null,
+				sortValues: { title: 'Latest News' }
 			},
 			{
 				itemId: 'earlier-news',
 				title: 'Earlier News',
-				sortDate: new Date('2026-03-01').getTime(),
-				sortValues: { title: 'Earlier News', date: new Date('2026-03-01').getTime() }
+				sortDate: null,
+				sortValues: { title: 'Earlier News' }
 			}
 		]);
 	});
 
-	it('infers title and multiple date sort capabilities from collection schema', () => {
+	it('infers title sort capabilities before date or filename fallbacks', () => {
 		expect(
 			resolveCollectionSortCapabilities({
 				...collectionConfig,
@@ -283,14 +283,70 @@ describe('content navigation helpers', () => {
 				]
 			})
 		).toEqual({
-			sorts: [
-				{ id: 'title', type: 'title', label: 'Title' },
-				{ id: 'publishedAt', type: 'date', blockId: 'publishedAt', label: 'Published' },
-				{ id: 'updatedAt', type: 'date', blockId: 'updatedAt', label: 'Updated' }
-			],
+			sorts: [{ id: 'title', type: 'title', label: 'Title' }],
 			defaultSortId: null,
 			ordering: false
 		});
+	});
+
+	it('infers a date sort when the collection has no title source', () => {
+		expect(
+			resolveCollectionSortCapabilities({
+				...collectionConfig,
+				collection: true,
+				blocks: [
+					{ id: 'publishedAt', type: 'date', label: 'Published' },
+					{ id: 'updatedAt', type: 'date', label: 'Updated' }
+				]
+			})
+		).toEqual({
+			sorts: [{ id: 'publishedAt', type: 'date', blockId: 'publishedAt', label: 'Published' }],
+			defaultSortId: null,
+			ordering: false
+		});
+	});
+
+	it('infers a filename sort only when no title or date source exists', () => {
+		expect(
+			resolveCollectionSortCapabilities({
+				...collectionConfig,
+				collection: true,
+				blocks: [{ id: 'published', type: 'toggle', label: 'Published' }]
+			})
+		).toEqual({
+			sorts: [{ id: 'filename', type: 'filename', label: 'Filename' }],
+			defaultSortId: null,
+			ordering: false
+		});
+	});
+
+	it('uses filenames as alphabetical sort values only for filename fallback collections', () => {
+		expect(
+			getCollectionNavigationItems(
+				{
+					...collectionConfig,
+					collection: true,
+					blocks: [{ id: 'published', type: 'toggle', label: 'Published' }]
+				},
+				[
+					{ _filename: 'zulu.md', published: true },
+					{ _filename: 'alpha.md', published: false }
+				]
+			)
+		).toEqual([
+			{
+				itemId: 'zulu',
+				title: 'zulu',
+				sortDate: null,
+				sortValues: { filename: 'zulu.md' }
+			},
+			{
+				itemId: 'alpha',
+				title: 'alpha',
+				sortDate: null,
+				sortValues: { filename: 'alpha.md' }
+			}
+		]);
 	});
 
 	it('honors configured default sort id and direction', () => {

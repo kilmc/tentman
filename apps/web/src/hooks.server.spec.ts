@@ -138,4 +138,40 @@ describe('hooks.server', () => {
 		expect(resolvedLocals?.selectedRepo).toBeUndefined();
 		expect(resolvedLocals?.selectedRepoConfigSummary).toBeUndefined();
 	});
+
+	it('ignores a stale GitHub repo cookie when no backend is selected', async () => {
+		const cookies = createCookies({
+			[GITHUB_REPO_SESSION_COOKIE]: Buffer.from(
+				JSON.stringify({
+					v: 1,
+					selectedRepoConfigSummary: {
+						siteName: 'Acme Docs'
+					}
+				})
+			).toString('base64url'),
+			selected_repo:
+				'{"owner":"acme","name":"repo","full_name":"acme/repo","default_branch":"trunk"}'
+		});
+
+		let resolvedLocals: App.Locals | undefined;
+		const resolve = vi.fn(async (event: { locals: App.Locals }) => {
+			resolvedLocals = event.locals;
+			return new Response('ok');
+		});
+
+		await handle({
+			event: {
+				cookies,
+				locals: {}
+			} as never,
+			resolve
+		});
+
+		expect(resolvedLocals).toMatchObject({
+			isAuthenticated: false
+		});
+		expect(resolvedLocals?.selectedBackend).toBeUndefined();
+		expect(resolvedLocals?.selectedRepo).toBeUndefined();
+		expect(resolvedLocals?.selectedRepoConfigSummary).toBeUndefined();
+	});
 });

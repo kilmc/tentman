@@ -144,6 +144,34 @@ function isIdentityTitleField(config: ParsedContentConfig, blockId: string): boo
 	return ['slug', 'route', 'path', 'filename', '_filename'].includes(blockId);
 }
 
+function isTitleBlock(block: BlockUsage): boolean {
+	return (
+		['text', 'textarea', 'markdown'].includes(block.type) &&
+		(block.id === 'title' || block.label?.trim().toLowerCase() === 'title')
+	);
+}
+
+function getAutomaticTitleCandidateBlocks(config: ParsedContentConfig): BlockUsage[] {
+	const cardFields = getCardFields(config);
+	const candidates = [...cardFields.primary, ...cardFields.secondary, ...config.blocks];
+	const seenFieldIds = new Set<string>();
+	const uniqueCandidates: BlockUsage[] = [];
+
+	for (const block of candidates) {
+		if (seenFieldIds.has(block.id)) {
+			continue;
+		}
+
+		seenFieldIds.add(block.id);
+		uniqueCandidates.push(block);
+	}
+
+	return [
+		...uniqueCandidates.filter(isTitleBlock),
+		...uniqueCandidates.filter((block) => block.type === 'date')
+	];
+}
+
 export function analyzeItemLabelSchemaUnit(blocks: BlockUsage[]): ItemLabelSchemaAnalysis {
 	const issues: ItemLabelSchemaAnalysisIssue[] = [];
 	const explicitBlocks = blocks.filter((block) => block.isItemLabel === true);
@@ -251,16 +279,7 @@ export function resolveContentItemTitle(
 		};
 	}
 
-	const cardFields = getCardFields(config);
-	const seenFieldIds = new Set<string>();
-
-	for (const block of [...cardFields.primary, ...cardFields.secondary, ...config.blocks]) {
-		if (seenFieldIds.has(block.id)) {
-			continue;
-		}
-
-		seenFieldIds.add(block.id);
-
+	for (const block of getAutomaticTitleCandidateBlocks(config)) {
 		const value = item[block.id];
 		if (value === undefined || value === null || value === '') {
 			continue;

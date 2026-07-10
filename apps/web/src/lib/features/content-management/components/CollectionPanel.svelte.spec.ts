@@ -21,6 +21,12 @@ const dateSortCapabilities: ResolvedCollectionSortCapabilities = {
 	ordering: false
 };
 
+const filenameSortCapabilities: ResolvedCollectionSortCapabilities = {
+	sorts: [{ id: 'filename', type: 'filename', label: 'Filename', defaultDirection: 'asc' }],
+	defaultSortId: null,
+	ordering: false
+};
+
 const customSortCapabilities: ResolvedCollectionSortCapabilities = {
 	sorts: [
 		{ id: 'manual', type: 'manual', label: 'Custom' },
@@ -58,6 +64,46 @@ describe('CollectionPanel customize mode', () => {
 		).map((node) => node.textContent?.trim());
 
 		expect(itemLinks).toEqual(['Alpha', 'Zulu']);
+	});
+
+	it('treats filename fallback sorting as an alphabetical A-Z control', async () => {
+		const screen = await render(CollectionPanel, {
+			slug: 'notes',
+			label: 'Notes',
+			itemLabel: 'Note',
+			items: [
+				{
+					itemId: 'zulu',
+					title: 'zulu',
+					sortDate: null,
+					sortValues: { filename: 'zulu.md' },
+					hydration: 'fallback'
+				},
+				{
+					itemId: 'alpha',
+					title: 'alpha',
+					sortDate: null,
+					sortValues: { filename: 'alpha.md' },
+					hydration: 'fallback'
+				}
+			],
+			groups: [],
+			sortCapabilities: filenameSortCapabilities
+		});
+
+		await expectElement(screen.getByRole('button', { name: 'Sort Z-A' })).toBeEnabled();
+		let itemLinks = Array.from(
+			document.querySelectorAll('a[href^="/pages/notes/"] .truncate.font-medium')
+		).map((node) => node.textContent?.trim());
+
+		expect(itemLinks).toEqual(['alpha', 'zulu']);
+
+		await screen.getByRole('button', { name: 'Sort Z-A' }).click();
+		itemLinks = Array.from(
+			document.querySelectorAll('a[href^="/pages/notes/"] .truncate.font-medium')
+		).map((node) => node.textContent?.trim());
+
+		expect(itemLinks).toEqual(['zulu', 'alpha']);
 	});
 
 	it('sorts by the resolved title values shown in the panel', async () => {
@@ -144,7 +190,7 @@ describe('CollectionPanel customize mode', () => {
 	it('requests sort hydration when the active sort has fallback items', async () => {
 		const onrequestsorthydration = vi.fn();
 
-		await render(CollectionPanel, {
+		const screen = await render(CollectionPanel, {
 			slug: 'posts',
 			label: 'Posts',
 			itemLabel: 'Post',
@@ -170,6 +216,9 @@ describe('CollectionPanel customize mode', () => {
 		});
 
 		await expect.poll(() => onrequestsorthydration.mock.calls.length).toBe(1);
+		await expectElement(screen.getByText('Loading items...')).toBeVisible();
+		expect(document.body.textContent).not.toContain('first');
+		expect(document.body.textContent).not.toContain('second');
 	});
 
 	it('does not request sort hydration when hydrated items have explicit empty sort values', async () => {

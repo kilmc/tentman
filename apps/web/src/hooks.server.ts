@@ -45,7 +45,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 				// Ignore invalid local repo metadata.
 			}
 		}
-	} else if (selectedGitHubRepo && (selectedBackendKind === 'github' || !selectedBackendKind)) {
+	} else if (selectedGitHubRepo && selectedBackendKind === 'github') {
 		event.locals.selectedRepo = selectedGitHubRepo;
 		event.locals.selectedBackend = {
 			kind: 'github',

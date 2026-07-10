@@ -232,10 +232,9 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'latest-news',
 					title: 'Latest news',
-					sortDate: new Date('2026-04-03').getTime(),
+					sortDate: null,
 					sortValues: {
-						title: 'Latest news',
-						date: new Date('2026-04-03').getTime()
+						title: 'Latest news'
 					}
 				}
 			],
@@ -300,7 +299,6 @@ describe('GET /api/repo/collection-items', () => {
 					title: 'Apr 3, 2026',
 					sortDate: new Date('2026-04-03').getTime(),
 					sortValues: {
-						title: 'Apr 3, 2026',
 						publishedOn: new Date('2026-04-03').getTime()
 					}
 				}
@@ -475,10 +473,9 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'hello-world',
 					title: 'Hello world',
-					sortDate: new Date('2026-04-03').getTime(),
+					sortDate: null,
 					sortValues: {
-						title: 'Hello world',
-						date: new Date('2026-04-03').getTime()
+						title: 'Hello world'
 					},
 					hydration: 'hydrated',
 					hrefItemId: 'hello-world'
@@ -486,10 +483,9 @@ describe('GET /api/repo/collection-items', () => {
 				{
 					itemId: 'second',
 					title: 'Second',
-					sortDate: new Date('2026-04-04').getTime(),
+					sortDate: null,
 					sortValues: {
-						title: 'Second',
-						date: new Date('2026-04-04').getTime()
+						title: 'Second'
 					},
 					hydration: 'hydrated',
 					hrefItemId: 'second'

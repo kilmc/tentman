@@ -1675,7 +1675,7 @@ const docsPages: DocsPage[] = [
 						)} is required unique metadata within the collection. Ungrouped is computed from items without ${inlineCode(
 							'_tentmanGroupId'
 						)}, not configured as a group. Deleting a group unassigns its items; merging appends source group items to the target group.</p>
-<p>When ${inlineCode('collection.sorts')} is omitted, Tentman infers a title sort and one date sort for each date block. Authored sorts can use intent names like ${inlineCode('type: "alphabetical"')} and ${inlineCode('type: "chronological"')}; field-backed sorts derive their id from ${inlineCode('blockId')} when ${inlineCode('id')} is omitted. Use ${inlineCode('collection.defaultSort')} as a string or ${inlineCode('{ id, direction }')} object to choose the initial collection panel sort.</p>
+<p>When ${inlineCode('collection.sorts')} is omitted, Tentman infers one default sort: title when a title label source exists, the first date block when there is no title source, and filename only when neither title nor date is available. Authored sorts can use intent names like ${inlineCode('type: "alphabetical"')} and ${inlineCode('type: "chronological"')}; field-backed sorts derive their id from ${inlineCode('blockId')} when ${inlineCode('id')} is omitted. Use ${inlineCode('collection.defaultSort')} as a string or ${inlineCode('{ id, direction }')} object to choose the initial collection panel sort.</p>
 <p>If a manifest section exists, Tentman uses it first. Unlisted existing configs or items are appended in discovered/default order, and missing manifest references are ignored.</p>`
 					},
 					{

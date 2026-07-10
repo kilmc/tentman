@@ -74,8 +74,8 @@
 
 	const flipDurationMs = 150;
 
-	let sortId = $state<string | null>(null);
-	let sortDirection = $state<'asc' | 'desc'>('asc');
+	let selectedSortId = $state<string | null>(null);
+	let sortDirectionOverride = $state<'asc' | 'desc' | null>(null);
 	let editingCustomOrder = $state(false);
 	let editableGroups = $state<EditableGroup[]>([]);
 	let editableUngroupedItems = $state<CollectionIndexItem[]>([]);
@@ -85,13 +85,23 @@
 	let requestedSortHydrationKey = $state<string | null>(null);
 
 	const allItems = $derived([...groups.flatMap((group) => group.items), ...items]);
-	const availableSorts = $derived(
-		sortCapabilities.sorts.filter((sort) => sort.type !== 'manual' || canOrderItems)
-	);
+	const availableSorts = $derived(getAvailableSorts(sortCapabilities, canOrderItems));
+	const defaultSort = $derived(getDefaultSort(sortCapabilities, canOrderItems));
+	const currentSortId = $derived(selectedSortId ?? defaultSort?.id ?? null);
 	const currentResolvedSort = $derived(
-		sortId === null ? null : (availableSorts.find((sort) => sort.id === sortId) ?? null)
+		currentSortId === null
+			? null
+			: (availableSorts.find((sort) => sort.id === currentSortId) ?? null)
+	);
+	const sortDirection = $derived(
+		sortDirectionOverride ??
+			getDefaultSortDirection(sortCapabilities, currentResolvedSort ?? defaultSort)
 	);
 	const shouldShowSortMenu = $derived(availableSorts.length > 1);
+	const shouldWaitForSortHydration = $derived.by(() => {
+		const sort = currentResolvedSort;
+		return sort ? allItems.some((item) => needsSortHydration(item, sort)) : false;
+	});
 	const visibleItems = $derived.by(() => {
 		const flatItems = [...allItems];
 		const sort = currentResolvedSort;
@@ -100,7 +110,7 @@
 			return flatItems;
 		}
 
-		if (sort.type === 'title' || sort.type === 'text') {
+		if (isAlphabeticalSort(sort)) {
 			return flatItems.sort((left, right) => {
 				const direction = sortDirection === 'asc' ? 1 : -1;
 				return (
@@ -129,33 +139,19 @@
 	});
 
 	$effect(() => {
-		const defaultSort =
-			sortCapabilities.defaultSortId === null
-				? availableSorts.length === 1
-					? availableSorts[0]
-					: null
-				: (availableSorts.find((sort) => sort.id === sortCapabilities.defaultSortId) ?? null);
-
-		if (sortId === null && defaultSort === null) {
+		if (selectedSortId === null || currentResolvedSort) {
 			return;
 		}
 
-		if (currentResolvedSort) {
-			return;
-		}
-
-		sortId = defaultSort?.id ?? null;
-		sortDirection =
-			sortCapabilities.defaultDirection ??
-			defaultSort?.defaultDirection ??
-			(defaultSort?.type === 'date' ? 'desc' : 'asc');
+		selectedSortId = null;
+		sortDirectionOverride = null;
 	});
 
 	$effect(() => {
 		const sort = currentResolvedSort;
 		const requestKey = sort ? `${slug}:${sort.id}` : null;
 
-		if (!sort || sort.type === 'manual') {
+		if (!sort || sort.type === 'manual' || sort.type === 'filename') {
 			requestedSortHydrationKey = null;
 			return;
 		}
@@ -175,11 +171,49 @@
 		onrequestsorthydration?.();
 	});
 
+	function getAvailableSorts(
+		capabilities: ResolvedCollectionSortCapabilities,
+		orderingEnabled: boolean
+	) {
+		return capabilities.sorts.filter((sort) => sort.type !== 'manual' || orderingEnabled);
+	}
+
+	function getDefaultSort(
+		capabilities: ResolvedCollectionSortCapabilities,
+		orderingEnabled: boolean
+	) {
+		const sorts = getAvailableSorts(capabilities, orderingEnabled);
+		return capabilities.defaultSortId === null
+			? sorts.length === 1
+				? sorts[0]
+				: null
+			: (sorts.find((sort) => sort.id === capabilities.defaultSortId) ?? null);
+	}
+
+	function getDefaultSortDirection(
+		capabilities: ResolvedCollectionSortCapabilities,
+		sort: ResolvedCollectionSort | null | undefined
+	): 'asc' | 'desc' {
+		return (
+			capabilities.defaultDirection ??
+			sort?.defaultDirection ??
+			(sort?.type === 'date' ? 'desc' : 'asc')
+		);
+	}
+
+	function isAlphabeticalSort(sort: ResolvedCollectionSort) {
+		return sort.type === 'title' || sort.type === 'text' || sort.type === 'filename';
+	}
+
 	function getSortValue(
 		item: CollectionNavigationItem,
 		sort: ResolvedCollectionSort
 	): CollectionSortValue {
 		if (sort.type === 'title') {
+			return item.sortValues?.[sort.id] ?? item.title;
+		}
+
+		if (sort.type === 'filename') {
 			return item.sortValues?.[sort.id] ?? item.title;
 		}
 
@@ -192,7 +226,14 @@
 	}
 
 	function needsSortHydration(item: CollectionNavigationItem, sort: ResolvedCollectionSort) {
-		return item.hydration === 'fallback' || !(sort.id in (item.sortValues ?? {}));
+		if (sort.type === 'manual' || sort.type === 'filename') {
+			return false;
+		}
+
+		return (
+			item.hydration === 'fallback' ||
+			(item.hydration === 'hydrated' && !(sort.id in (item.sortValues ?? {})))
+		);
 	}
 
 	function toEditableItem(item: CollectionNavigationItem): CollectionIndexItem {
@@ -297,7 +338,7 @@
 			return;
 		}
 
-		sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+		sortDirectionOverride = sortDirection === 'asc' ? 'desc' : 'asc';
 	}
 
 	function getSortButtonLabel() {
@@ -309,7 +350,7 @@
 			return 'Customize';
 		}
 
-		if (currentResolvedSort.type === 'title' || currentResolvedSort.type === 'text') {
+		if (isAlphabeticalSort(currentResolvedSort)) {
 			return sortDirection === 'asc' ? 'A-Z' : 'Z-A';
 		}
 
@@ -325,8 +366,9 @@
 			return;
 		}
 
-		sortId = nextSort.id;
-		sortDirection = nextSort.defaultDirection ?? (nextSort.type === 'date' ? 'desc' : 'asc');
+		selectedSortId = nextSort.id;
+		sortDirectionOverride =
+			nextSort.defaultDirection ?? (nextSort.type === 'date' ? 'desc' : 'asc');
 
 		if (sortMenu) {
 			sortMenu.open = false;
@@ -377,12 +419,11 @@
 							type="button"
 							class="tm-btn tm-btn-secondary min-h-9 px-3 text-xs"
 							onclick={toggleSortDirection}
-							aria-label={currentResolvedSort.type === 'title' ||
-							currentResolvedSort.type === 'text'
+							aria-label={isAlphabeticalSort(currentResolvedSort)
 								? `Sort ${sortDirection === 'asc' ? 'Z-A' : 'A-Z'}`
 								: `Sort by date ${sortDirection === 'asc' ? 'newest first' : 'oldest first'}`}
 						>
-							{#if currentResolvedSort.type === 'title' || currentResolvedSort.type === 'text'}
+							{#if isAlphabeticalSort(currentResolvedSort)}
 								{#if sortDirection === 'asc'}
 									<ArrowDownAZ class="h-3.5 w-3.5" />
 								{:else}
@@ -430,7 +471,11 @@
 							<ListTree class="h-4 w-4" />
 						</a>
 					{/if}
-					<a href={resolve(`/pages/${slug}/new`)} class="tm-icon-btn" aria-label={`New ${itemLabel}`}>
+					<a
+						href={resolve(`/pages/${slug}/new`)}
+						class="tm-icon-btn"
+						aria-label={`New ${itemLabel}`}
+					>
 						<Plus class="h-4 w-4" />
 					</a>
 				</div>
@@ -600,6 +645,8 @@
 					</div>
 				</div>
 			{:else if status === 'loading' && allItems.length === 0}
+				<p class="rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-500">Loading items...</p>
+			{:else if shouldWaitForSortHydration}
 				<p class="rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-500">Loading items...</p>
 			{:else if status === 'error' && allItems.length === 0}
 				<div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">

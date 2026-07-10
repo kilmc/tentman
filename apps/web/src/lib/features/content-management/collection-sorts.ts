@@ -10,7 +10,7 @@ export type CollectionSortValue = string | number | null;
 
 export interface ResolvedCollectionSort {
 	id: string;
-	type: 'manual' | 'title' | 'text' | 'date';
+	type: 'manual' | 'title' | 'text' | 'date' | 'filename';
 	label: string;
 	defaultDirection?: CollectionSortDirection;
 	blockId?: string;
@@ -63,30 +63,73 @@ function getUniqueSortId(baseId: string, usedIds: Set<string>): string {
 	return id;
 }
 
+function getExplicitItemLabelBlock(blocks: BlockUsage[]): BlockUsage | null {
+	const explicitBlocks = blocks.filter((block) => block.isItemLabel === true);
+	return explicitBlocks.length === 1 ? (explicitBlocks[0] ?? null) : null;
+}
+
+function isTitleBlock(block: BlockUsage): boolean {
+	return (
+		['text', 'textarea', 'markdown'].includes(block.type) &&
+		(block.id === 'title' || block.label?.trim().toLowerCase() === 'title')
+	);
+}
+
 function getInferredSorts(blocks: BlockUsage[]): ResolvedCollectionSort[] {
 	const usedIds = new Set<string>();
-	const sorts: ResolvedCollectionSort[] = [
-		{
-			id: getUniqueSortId('title', usedIds),
-			type: 'title',
-			label: 'Title'
-		}
-	];
+	const explicitLabelBlock = getExplicitItemLabelBlock(blocks);
 
-	for (const block of blocks) {
-		if (block.type !== 'date') {
-			continue;
-		}
-
-		sorts.push({
-			id: getUniqueSortId(block.id, usedIds),
-			type: 'date',
-			blockId: block.id,
-			label: block.label ?? block.id
-		});
+	if (explicitLabelBlock?.type === 'date') {
+		return [
+			{
+				id: getUniqueSortId(explicitLabelBlock.id, usedIds),
+				type: 'date',
+				blockId: explicitLabelBlock.id,
+				label: explicitLabelBlock.label ?? explicitLabelBlock.id
+			}
+		];
 	}
 
-	return sorts;
+	if (explicitLabelBlock && ['text', 'textarea', 'markdown'].includes(explicitLabelBlock.type)) {
+		return [
+			{
+				id: getUniqueSortId('title', usedIds),
+				type: 'title',
+				label: explicitLabelBlock.label ?? 'Title'
+			}
+		];
+	}
+
+	const titleBlock = blocks.find(isTitleBlock);
+	if (titleBlock) {
+		return [
+			{
+				id: getUniqueSortId('title', usedIds),
+				type: 'title',
+				label: titleBlock.label ?? 'Title'
+			}
+		];
+	}
+
+	const dateBlock = blocks.find((block) => block.type === 'date');
+	if (dateBlock) {
+		return [
+			{
+				id: getUniqueSortId(dateBlock.id, usedIds),
+				type: 'date',
+				blockId: dateBlock.id,
+				label: dateBlock.label ?? dateBlock.id
+			}
+		];
+	}
+
+	return [
+		{
+			id: getUniqueSortId('filename', usedIds),
+			type: 'filename',
+			label: 'Filename'
+		}
+	];
 }
 
 export function resolveCollectionSortCapabilities(
@@ -156,6 +199,11 @@ export function getCollectionSortValues(
 
 		if (sort.type === 'title') {
 			values[sort.id] = title;
+			continue;
+		}
+
+		if (sort.type === 'filename') {
+			values[sort.id] = normalizeTextSortValue(item._filename) ?? title;
 			continue;
 		}
 

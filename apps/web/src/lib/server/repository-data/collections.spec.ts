@@ -295,10 +295,9 @@ describe('collection navigation repository data layer', () => {
 				{
 					itemId: 'post-1',
 					title: 'First',
-					sortDate: new Date('2026-05-01').getTime(),
+					sortDate: null,
 					sortValues: {
-						title: 'First',
-						date: new Date('2026-05-01').getTime()
+						title: 'First'
 					},
 					hydration: 'hydrated',
 					hrefItemId: 'post-1',
@@ -317,10 +316,9 @@ describe('collection navigation repository data layer', () => {
 				{
 					itemId: 'post-2',
 					title: 'Second',
-					sortDate: new Date('2026-05-02').getTime(),
+					sortDate: null,
 					sortValues: {
-						title: 'Second',
-						date: new Date('2026-05-02').getTime()
+						title: 'Second'
 					},
 					hydration: 'hydrated',
 					hrefItemId: 'post-2',
