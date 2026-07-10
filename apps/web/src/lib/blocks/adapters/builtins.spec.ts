@@ -14,6 +14,9 @@ describe('BUILT_IN_BLOCK_ADAPTERS', () => {
 		expect(BUILT_IN_BLOCK_ADAPTERS.image.getDefaultValue({ id: 'heroImage', type: 'image' })).toBe(
 			''
 		);
+		expect(BUILT_IN_BLOCK_ADAPTERS.tags.getDefaultValue({ id: 'topics', type: 'tags' })).toEqual(
+			[]
+		);
 	});
 
 	it('validates built-in primitive values with usage metadata', () => {
@@ -50,5 +53,21 @@ describe('BUILT_IN_BLOCK_ADAPTERS', () => {
 				label: 'Published'
 			})
 		).toEqual(['Published must be true or false']);
+
+		expect(
+			BUILT_IN_BLOCK_ADAPTERS.tags.validate?.(['design-system', 'field_notes'], {
+				id: 'topics',
+				type: 'tags',
+				label: 'Topics'
+			})
+		).toEqual([]);
+
+		expect(
+			BUILT_IN_BLOCK_ADAPTERS.tags.validate?.(['Design System'], {
+				id: 'topics',
+				type: 'tags',
+				label: 'Topics'
+			})
+		).toEqual(['Topics tags can use lowercase letters, numbers, hyphens, and underscores']);
 	});
 });

@@ -9,7 +9,8 @@ export type PrimitiveBlockType =
 	| 'boolean'
 	| 'toggle'
 	| 'image'
-	| 'select';
+	| 'select'
+	| 'tags';
 
 export interface SelectBlockOption {
 	value: string;

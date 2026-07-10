@@ -20,6 +20,7 @@
 		defaultAssetStoragePath?: string;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
+		tagSuggestionsByField?: Record<string, string[]>;
 		onaddselectoption?: (input: {
 			collection: string;
 			id: string;
@@ -43,6 +44,7 @@
 		defaultAssetStoragePath,
 		blockRegistry,
 		navigationManifest,
+		tagSuggestionsByField = {},
 		onaddselectoption,
 		onchange,
 		onfieldvaluechange,
@@ -87,6 +89,10 @@
 		return value?.[getBlockStorageKey(block)] as ContentValue | undefined;
 	}
 
+	function getTagSuggestions(block: BlockUsage): string[] {
+		return tagSuggestionsByField[getFieldPath(block)] ?? tagSuggestionsByField[block.id] ?? [];
+	}
+
 	function handleFieldValueChange(block: BlockUsage, nextValue: ContentValue | undefined) {
 		const storageKey = getBlockStorageKey(block);
 		value = {
@@ -124,6 +130,7 @@
 						{defaultAssetStoragePath}
 						{blockRegistry}
 						{navigationManifest}
+						tagSuggestions={getTagSuggestions(block)}
 						{onaddselectoption}
 						onvaluechange={(nextValue) => handleFieldValueChange(block, nextValue)}
 						onvalidationchange={(errors) => onvalidationchange?.(getFieldPath(block), errors)}
@@ -192,6 +199,7 @@
 										{defaultAssetStoragePath}
 										{blockRegistry}
 										{navigationManifest}
+										tagSuggestions={getTagSuggestions(block)}
 										{onaddselectoption}
 										onvaluechange={(nextValue) => handleFieldValueChange(block, nextValue)}
 										onvalidationchange={(errors) =>

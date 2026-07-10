@@ -491,6 +491,33 @@ describe('parseConfigFile', () => {
 		]);
 	});
 
+	it('parses tags blocks as flexible primitive fields', () => {
+		const parsed = parseConfigFile(`{
+			"type": "content",
+			"label": "Posts",
+			"content": {
+				"mode": "file",
+				"path": "./posts.json"
+			},
+			"blocks": [
+				{ "id": "topics", "type": "tags", "label": "Topics", "required": true }
+			]
+		}`);
+
+		if (parsed.type !== 'content') {
+			throw new Error('Expected content config');
+		}
+
+		expect(parsed.blocks).toEqual([
+			{
+				id: 'topics',
+				type: 'tags',
+				label: 'Topics',
+				required: true
+			}
+		]);
+	});
+
 	it('parses select blocks with explicit option labels', () => {
 		const parsed = parseConfigFile(`{
 			"type": "content",

@@ -3,6 +3,21 @@ import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
 import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import type { BlockUsage } from '$lib/config/types';
+import {
+	hasTagsBlock,
+	loadCollectionExistingItems
+} from '$lib/features/content-management/collection-existing-items';
+
+async function loadTagSuggestionItems(
+	fetcher: typeof fetch,
+	discoveredConfig: { config?: { blocks?: BlockUsage[] } } | null,
+	slug: string
+) {
+	return discoveredConfig && hasTagsBlock(discoveredConfig.config?.blocks)
+		? await loadCollectionExistingItems(fetcher, slug)
+		: [];
+}
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
@@ -49,6 +64,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			blockRegistryError: blockSupport?.blockRegistryError ?? null,
 			navigationManifest: parentData.navigationManifest,
 			item: cachedDocument.content,
+			existingItems: await loadTagSuggestionItems(fetch, discoveredConfig, params.page),
 			contentError: null,
 			itemId: params.itemId,
 			branch: parentData.activeDraftBranch,
@@ -72,6 +88,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			blockRegistryError: warmedBlockSupport.blockRegistryError,
 			navigationManifest: parentData.navigationManifest,
 			item: warmedDocument.content,
+			existingItems: await loadTagSuggestionItems(fetch, discoveredConfig, params.page),
 			contentError: null,
 			itemId: params.itemId,
 			branch: parentData.activeDraftBranch,
@@ -116,5 +133,8 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		content: data.item ?? null
 	});
 
-	return data;
+	return {
+		...data,
+		existingItems: await loadTagSuggestionItems(fetch, data.discoveredConfig ?? null, params.page)
+	};
 };

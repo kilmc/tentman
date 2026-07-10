@@ -19,6 +19,7 @@
 	import { validateFormData, type ValidationError } from '$lib/utils/validation';
 	import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { buildTagSuggestionsByField } from '$lib/features/forms/tags';
 	import {
 		FORM_CONTENT_CONTEXT,
 		type FormContentContext
@@ -117,6 +118,7 @@
 	}
 
 	const initialFormData = createInitialFormData();
+	const tagSuggestionsByField = $derived(buildTagSuggestionsByField(config.blocks, existingItems));
 	const editSession = createFormEditSession(initialFormData, {
 		onChange(state) {
 			formData = editSession.getData();
@@ -353,6 +355,7 @@
 			defaultAssetStoragePath={defaultAssetStoragePath ?? config.imagePath}
 			{blockRegistry}
 			{navigationManifest}
+			{tagSuggestionsByField}
 			{onaddselectoption}
 			editorLayout={config.editorLayout}
 			showValidationErrors={showErrors}

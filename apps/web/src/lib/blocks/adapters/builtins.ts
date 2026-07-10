@@ -233,6 +233,63 @@ const selectAdapter: BlockAdapter = {
 	}
 };
 
+export const TAG_VALUE_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
+
+function validateTagValue(value: string, usage: BlockAdapterUsage): string[] {
+	if (!TAG_VALUE_PATTERN.test(value)) {
+		return [
+			`${getBlockLabel(usage)} tags can use lowercase letters, numbers, hyphens, and underscores`
+		];
+	}
+
+	return [];
+}
+
+const tagsAdapter: BlockAdapter = {
+	type: 'tags',
+	getDefaultValue() {
+		return [];
+	},
+	validate(value, usage) {
+		if (usage.required && (!Array.isArray(value) || value.length === 0)) {
+			return [`${getBlockLabel(usage)} is required`];
+		}
+
+		if (value === undefined || value === null || value === '') {
+			return [];
+		}
+
+		if (!Array.isArray(value)) {
+			return [`${getBlockLabel(usage)} must be a list of tags`];
+		}
+
+		const seenTags = new Set<string>();
+		const errors: string[] = [];
+
+		for (const tag of value) {
+			if (typeof tag !== 'string') {
+				errors.push(`${getBlockLabel(usage)} must be a list of tags`);
+				continue;
+			}
+
+			const normalizedTag = tag.trim().toLowerCase();
+			if (normalizedTag.length === 0) {
+				errors.push(`${getBlockLabel(usage)} cannot include empty tags`);
+				continue;
+			}
+
+			errors.push(...validateTagValue(normalizedTag, usage));
+
+			if (seenTags.has(normalizedTag)) {
+				errors.push(`${getBlockLabel(usage)} cannot include duplicate tags`);
+			}
+			seenTags.add(normalizedTag);
+		}
+
+		return errors;
+	}
+};
+
 export const BUILT_IN_BLOCK_ADAPTERS: Record<PrimitiveBlockType, BlockAdapter> = {
 	text: textAdapter,
 	textarea: textareaAdapter,
@@ -244,5 +301,6 @@ export const BUILT_IN_BLOCK_ADAPTERS: Record<PrimitiveBlockType, BlockAdapter> =
 	boolean: booleanAdapter,
 	toggle: toggleAdapter,
 	image: imageAdapter,
-	select: selectAdapter
+	select: selectAdapter,
+	tags: tagsAdapter
 };

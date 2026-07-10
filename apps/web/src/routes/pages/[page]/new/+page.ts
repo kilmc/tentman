@@ -2,6 +2,21 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
+import type { BlockUsage } from '$lib/config/types';
+import {
+	hasTagsBlock,
+	loadCollectionExistingItems
+} from '$lib/features/content-management/collection-existing-items';
+
+async function loadTagSuggestionItems(
+	fetcher: typeof fetch,
+	discoveredConfig: { config?: { blocks?: BlockUsage[] } } | null,
+	slug: string
+) {
+	return discoveredConfig && hasTagsBlock(discoveredConfig.config?.blocks)
+		? await loadCollectionExistingItems(fetcher, slug)
+		: [];
+}
 
 export const load: PageLoad = async ({ parent, fetch, params, depends, url }) => {
 	const workspace = resolveWorkspaceState(await parent());
@@ -49,5 +64,8 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 		throw redirect(302, `/pages/${params.page}`);
 	}
 
-	return data;
+	return {
+		...data,
+		existingItems: await loadTagSuggestionItems(fetch, data.discoveredConfig ?? null, params.page)
+	};
 };

@@ -18,6 +18,7 @@
 	import EmailField from './EmailField.svelte';
 	import UrlField from './UrlField.svelte';
 	import SelectField from './SelectField.svelte';
+	import TagsField from './TagsField.svelte';
 	import MarkdownField from './MarkdownField.svelte';
 	import ImageField from './ImageField.svelte';
 	import ArrayField from './ArrayField.svelte';
@@ -43,6 +44,7 @@
 		defaultAssetStoragePath?: string;
 		blockRegistry: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
+		tagSuggestions?: string[];
 		onaddselectoption?: (input: {
 			collection: string;
 			id: string;
@@ -63,6 +65,7 @@
 		defaultAssetStoragePath,
 		blockRegistry,
 		navigationManifest,
+		tagSuggestions = [],
 		onaddselectoption
 	}: Props = $props();
 
@@ -124,6 +127,8 @@
 			case 'date':
 			case 'image':
 				return '';
+			case 'tags':
+				return [];
 			case 'number':
 				return 0;
 			case 'boolean':
@@ -209,6 +214,14 @@
 			{required}
 			onchange={handleChange}
 			onaddoption={onaddselectoption}
+		/>
+	{:else if fieldType === 'tags'}
+		<TagsField
+			{label}
+			bind:value={fieldValue}
+			suggestions={tagSuggestions}
+			{required}
+			onchange={handleChange}
 		/>
 	{:else if fieldType === 'number'}
 		<NumberField {label} bind:value={fieldValue} {required} onchange={handleChange} />

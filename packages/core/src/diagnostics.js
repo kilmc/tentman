@@ -55,6 +55,7 @@ const BUILT_IN_BLOCK_TYPES = new Set([
 	'toggle',
 	'image',
 	'select',
+	'tags',
 	'tentmanGroup',
 	'block'
 ]);

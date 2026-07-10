@@ -35,5 +35,6 @@ export const BUILT_IN_BLOCKS: BuiltInBlockDefinition[] = [
 	},
 	{ id: 'toggle', kind: 'built_in', label: 'Toggle', adapter: BUILT_IN_BLOCK_ADAPTERS.toggle },
 	{ id: 'image', kind: 'built_in', label: 'Image', adapter: BUILT_IN_BLOCK_ADAPTERS.image },
-	{ id: 'select', kind: 'built_in', label: 'Select', adapter: BUILT_IN_BLOCK_ADAPTERS.select }
+	{ id: 'select', kind: 'built_in', label: 'Select', adapter: BUILT_IN_BLOCK_ADAPTERS.select },
+	{ id: 'tags', kind: 'built_in', label: 'Tags', adapter: BUILT_IN_BLOCK_ADAPTERS.tags }
 ];

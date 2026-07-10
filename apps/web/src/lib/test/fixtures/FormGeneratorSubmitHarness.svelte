@@ -9,6 +9,7 @@
 	interface Props {
 		config: ParsedContentConfig;
 		initialData?: ContentRecord;
+		existingItems?: ContentRecord[];
 		blockRegistry?: BlockRegistry;
 		navigationManifest?: NavigationManifest | null;
 		groupManagementCollections?: string[];
@@ -24,6 +25,7 @@
 	let {
 		config,
 		initialData = {},
+		existingItems = [],
 		blockRegistry,
 		navigationManifest,
 		groupManagementCollections = [],
@@ -62,6 +64,7 @@
 		bind:this={formGenerator}
 		{config}
 		{initialData}
+		{existingItems}
 		{blockRegistry}
 		{navigationManifest}
 		{groupManagementCollections}

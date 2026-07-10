@@ -100,11 +100,16 @@
 		return data.navigationManifest ?? null;
 	}
 
+	function getInitialExistingItems() {
+		return data.existingItems ?? [];
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let item = $state(getInitialItem());
+	let existingItems = $state<ContentRecord[]>(getInitialExistingItems());
 	let contentError = $state(getInitialContentError());
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
@@ -217,6 +222,7 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistry = null;
 		item = data.item;
+		existingItems = data.existingItems ?? [];
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
 		navigationManifest = data.navigationManifest ?? null;
@@ -295,6 +301,7 @@
 		packageBlocks = [];
 		blockRegistry = null;
 		item = null;
+		existingItems = [];
 		contentError = null;
 		blockRegistryError = null;
 		localError = null;
@@ -332,6 +339,7 @@
 			}
 
 			if (Array.isArray(loadedContent)) {
+				existingItems = loadedContent;
 				item = findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
 			}
 		} catch (error) {
@@ -820,7 +828,7 @@
 						{blockConfigs}
 						{blockRegistry}
 						initialData={item}
-						existingItems={[]}
+						{existingItems}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
 						navigationManifest={navigationManifest?.manifest}
 						{groupManagementCollections}
@@ -920,7 +928,7 @@
 						{blockConfigs}
 						blockRegistry={githubBlockRegistry}
 						initialData={item}
-						existingItems={[]}
+						{existingItems}
 						currentItemId={config.idField ? String(item?.[config.idField]) : undefined}
 						navigationManifest={navigationManifest?.manifest}
 						{groupManagementCollections}

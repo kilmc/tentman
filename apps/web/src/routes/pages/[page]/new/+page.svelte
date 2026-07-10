@@ -20,7 +20,7 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
-	import { createContentDocument } from '$lib/content/service';
+	import { createContentDocument, fetchContentDocument } from '$lib/content/service';
 	import {
 		clearEditorRecoverySnapshot,
 		createEditorRecoverySnapshot,
@@ -73,11 +73,16 @@
 		return data.navigationManifest ?? null;
 	}
 
+	function getInitialExistingItems() {
+		return data.existingItems ?? [];
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let formGenerator = $state<FormGenerator | null>(null);
+	let existingItems = $state<ContentRecord[]>(getInitialExistingItems());
 	let currentForm = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let formHasUnsavedChanges = $state(false);
@@ -154,6 +159,7 @@
 		blockRegistry = null;
 		blockRegistryError = data.blockRegistryError ?? null;
 		navigationManifest = data.navigationManifest ?? null;
+		existingItems = data.existingItems ?? [];
 		formHasUnsavedChanges = false;
 		filenameHasUnsavedChanges = false;
 		localError = null;
@@ -209,6 +215,23 @@
 		localError = null;
 		filename = '';
 		filenameError = '';
+
+		const repoState = get(localRepo);
+		if (!repoState.backend || !discoveredConfig) {
+			existingItems = [];
+			return;
+		}
+
+		try {
+			const loadedContent = await fetchContentDocument(
+				repoState.backend,
+				discoveredConfig.config,
+				discoveredConfig.path
+			);
+			existingItems = Array.isArray(loadedContent) ? loadedContent : [];
+		} catch {
+			existingItems = [];
+		}
 	}
 
 	$effect(() => {
@@ -565,7 +588,7 @@
 					{blockConfigs}
 					{blockRegistry}
 					initialData={{}}
-					existingItems={[]}
+					{existingItems}
 					currentItemId={undefined}
 					navigationManifest={navigationManifest?.manifest}
 					{groupManagementCollections}
@@ -687,7 +710,7 @@
 					{blockConfigs}
 					blockRegistry={githubBlockRegistry}
 					initialData={{}}
-					existingItems={[]}
+					{existingItems}
 					currentItemId={undefined}
 					navigationManifest={navigationManifest?.manifest}
 					{groupManagementCollections}
