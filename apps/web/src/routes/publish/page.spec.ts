@@ -62,6 +62,7 @@ describe('routes/publish/+page', () => {
 			} as never)
 		).resolves.toEqual({
 			draftBranch: { name: 'tentman-preview' },
+			blockedReview: null,
 			reviewModel: {
 				topLevelOrderChange: null,
 				sections: [],
@@ -71,6 +72,59 @@ describe('routes/publish/+page', () => {
 		});
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/publish-view');
+	});
+
+	it('returns blocked review data when the thin API prevents an expensive review', async () => {
+		const blockedReview = {
+			title: 'Review Draft blocked',
+			message: 'Contact Kilian before continuing.',
+			changedFileCount: 81,
+			estimatedReviewDocumentReads: 0,
+			limits: {
+				maxChangedFiles: 80,
+				maxReviewDocumentReads: 40
+			},
+			reasons: ['Too many changed files']
+		};
+
+		await expect(
+			load({
+				parent: async () => ({
+					isAuthenticated: true,
+					selectedRepo: {
+						owner: 'acme',
+						name: 'docs',
+						full_name: 'acme/docs'
+					},
+					selectedBackend: {
+						kind: 'github',
+						repo: {
+							owner: 'acme',
+							name: 'docs',
+							full_name: 'acme/docs'
+						}
+					}
+				}),
+				fetch: async () =>
+					new Response(
+						JSON.stringify({
+							draftBranch: { name: 'tentman-preview' },
+							blockedReview
+						}),
+						{
+							status: 413,
+							headers: {
+								'content-type': 'application/json'
+							}
+						}
+					),
+				depends: () => {}
+			} as never)
+		).resolves.toEqual({
+			draftBranch: { name: 'tentman-preview' },
+			blockedReview,
+			reviewModel: null
+		});
 	});
 
 	it('redirects to login when the thin API reports an expired session', async () => {

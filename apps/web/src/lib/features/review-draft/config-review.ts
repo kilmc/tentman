@@ -10,7 +10,13 @@ import type { ContentDocument, ContentRecord } from '$lib/features/content-manag
 import { buildFieldChanges, type BuildFieldReviewOptions } from './field-review';
 import { getReviewConfigHref, getReviewItemHref, isCollectionConfig } from './navigation';
 import { buildCollectionOrderChangeReview } from './structural-changes';
-import type { ReviewBadge, ReviewChangeKind, ReviewItemCard, ReviewSection } from './types';
+import type {
+	OrderChangeReview,
+	ReviewBadge,
+	ReviewChangeKind,
+	ReviewItemCard,
+	ReviewSection
+} from './types';
 
 function deepEqual(left: unknown, right: unknown): boolean {
 	return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
@@ -274,6 +280,7 @@ export function buildScopedCollectionItemsReviewSection(input: {
 	afterContent: ContentRecord[];
 	fieldOptions: BuildFieldReviewOptions;
 	singleConfigVisible: boolean;
+	collectionOrderChange?: OrderChangeReview | null;
 }): ReviewSection | null {
 	const beforeContent = normalizeScopedCollectionIds(input.config, input.beforeContent);
 	const afterContent = normalizeScopedCollectionIds(input.config, input.afterContent);
@@ -316,11 +323,11 @@ export function buildScopedCollectionItemsReviewSection(input: {
 		});
 	}
 
-	if (!itemCards.length) {
+	if (!itemCards.length && !input.collectionOrderChange) {
 		return null;
 	}
 
-	const defaultExpanded = input.singleConfigVisible;
+	const defaultExpanded = input.singleConfigVisible || Boolean(input.collectionOrderChange);
 	const finalItemCards = itemCards.map((item) => ({
 		...item,
 		defaultExpanded: defaultExpanded && itemCards.length === 1
@@ -330,10 +337,10 @@ export function buildScopedCollectionItemsReviewSection(input: {
 		configSlug: input.config.slug,
 		configLabel: input.config.config.label,
 		isCollection: true,
-		badges: buildSectionBadges(finalItemCards, false),
+		badges: buildSectionBadges(finalItemCards, Boolean(input.collectionOrderChange)),
 		defaultExpanded,
 		navigationHref: getReviewConfigHref(input.config.slug, true),
-		collectionOrderChange: null,
+		collectionOrderChange: input.collectionOrderChange ?? null,
 		items: finalItemCards
 	};
 }

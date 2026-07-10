@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	addContentConfigIdToSource,
 	addRootManualSortingToSource,
@@ -346,6 +346,7 @@ describe('navigation manifest helpers', () => {
 							{
 								id: 'illustration',
 								label: 'Illustration',
+								value: 'illustration',
 								items: ['first-project', 'edited-project', 'third-project']
 							}
 						]
@@ -368,6 +369,7 @@ describe('navigation manifest helpers', () => {
 				blocks: [{ id: 'group', type: 'tentmanGroup', label: 'Group', collection: 'projects' }]
 			})
 		});
+		const writeTextFile = vi.spyOn(backend, 'writeTextFile');
 
 		const manifest = await syncCollectionItemGroupSelection(
 			backend,
@@ -417,6 +419,7 @@ describe('navigation manifest helpers', () => {
 				items: ['first-project', 'edited-project', 'third-project']
 			}
 		]);
+		expect(writeTextFile).not.toHaveBeenCalled();
 	});
 
 	it('builds an initial manifest from Tentman ids and manual sorting config', async () => {

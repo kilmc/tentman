@@ -37,6 +37,8 @@ const rootConfigCache = new Map<string, CachedMetadataEntry<RootConfig | null>>(
 const rootConfigInflight = new Map<string, Promise<RootConfig | null>>();
 const blockConfigCache = new Map<string, CachedMetadataEntry<DiscoveredBlockConfig[]>>();
 const blockConfigInflight = new Map<string, Promise<DiscoveredBlockConfig[]>>();
+const textFileCache = new Map<string, CachedMetadataEntry<string>>();
+const textFileInflight = new Map<string, Promise<string>>();
 const githubRepositoryRequestStats = new Map<string, GitHubRepositoryRequestStat>();
 
 export interface GitHubRepositoryIdentity {
@@ -190,6 +192,16 @@ function getBlockConfigCacheKey(repoKey: string): string {
 	return `${repoKey}:block-configs`;
 }
 
+function getTextFileCacheKey(repoKey: string, path: string, ref: string | null): string {
+	return `${repoKey}:text-file:${ref ?? '-'}:${path}`;
+}
+
+function invalidateCachedTextFile(repoKey: string, path: string, ref: string | null): void {
+	const key = getTextFileCacheKey(repoKey, path, ref);
+	textFileCache.delete(key);
+	textFileInflight.delete(key);
+}
+
 export function invalidateGitHubRepositoryMetadataCache(repoKey: string): void {
 	rootConfigCache.delete(getRootConfigCacheKey(repoKey));
 	rootConfigInflight.delete(getRootConfigCacheKey(repoKey));
@@ -202,6 +214,8 @@ export function clearGitHubRepositoryMetadataCache(): void {
 	rootConfigInflight.clear();
 	blockConfigCache.clear();
 	blockConfigInflight.clear();
+	textFileCache.clear();
+	textFileInflight.clear();
 }
 
 export function clearGitHubRepositoryRequestStats(): void {
@@ -301,25 +315,32 @@ export function createGitHubRepositoryBackend(
 		async readTextFile(path: string, options?: RepositoryReadOptions): Promise<string> {
 			const ref = readRef(options);
 			const normalizedPath = sanitizeRepositoryPath(path);
-			const { data } = await instrumentGitHubRepositoryRequest(
-				repoKey,
-				'readTextFile',
-				normalizedPath,
-				ref ?? null,
-				() =>
-					octokit.rest.repos.getContent({
-						owner,
-						repo: name,
-						path: normalizedPath,
-						...(ref && { ref })
-					})
+			return readCachedMetadata(
+				getTextFileCacheKey(repoKey, normalizedPath, ref ?? null),
+				textFileCache,
+				textFileInflight,
+				async () => {
+					const { data } = await instrumentGitHubRepositoryRequest(
+						repoKey,
+						'readTextFile',
+						normalizedPath,
+						ref ?? null,
+						() =>
+							octokit.rest.repos.getContent({
+								owner,
+								repo: name,
+								path: normalizedPath,
+								...(ref && { ref })
+							})
+					);
+
+					if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) {
+						throw new Error(`Expected file at ${normalizedPath}`);
+					}
+
+					return decodeGitHubContent(data.content);
+				}
 			);
-
-			if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) {
-				throw new Error(`Expected file at ${normalizedPath}`);
-			}
-
-			return decodeGitHubContent(data.content);
 		},
 
 		async writeTextFile(
@@ -369,6 +390,7 @@ export function createGitHubRepositoryBackend(
 						...(ref && { branch: ref })
 					})
 			);
+			invalidateCachedTextFile(repoKey, normalizedPath, ref ?? null);
 		},
 
 		async writeBinaryFile(
@@ -390,6 +412,7 @@ export function createGitHubRepositoryBackend(
 						message: options?.message
 					})
 			);
+			invalidateCachedTextFile(repoKey, normalizedPath, ref ?? null);
 		},
 
 		async deleteFile(path: string, options?: RepositoryWriteOptions): Promise<void> {
@@ -428,6 +451,7 @@ export function createGitHubRepositoryBackend(
 						...(ref && { branch: ref })
 					})
 			);
+			invalidateCachedTextFile(repoKey, normalizedPath, ref ?? null);
 		},
 
 		async commitChanges(
@@ -538,6 +562,9 @@ export function createGitHubRepositoryBackend(
 					sha: nextCommit.sha
 				})
 			);
+			for (const change of normalizedChanges) {
+				invalidateCachedTextFile(repoKey, change.path, ref ?? null);
+			}
 		},
 
 		async listDirectory(path: string, options?: RepositoryReadOptions): Promise<RepoEntry[]> {

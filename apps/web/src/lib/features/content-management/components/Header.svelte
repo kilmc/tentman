@@ -15,6 +15,7 @@
 		previewUrl?: string | null;
 		showPublish?: boolean;
 		publishHref: string;
+		publishLoading?: boolean;
 		showSidebarToggle?: boolean;
 		sidebarOpen?: boolean;
 		onToggleSidebar?: () => void;
@@ -31,6 +32,7 @@
 		previewUrl = null,
 		showPublish = false,
 		publishHref,
+		publishLoading = false,
 		showSidebarToggle = false,
 		sidebarOpen = false,
 		onToggleSidebar,
@@ -113,9 +115,13 @@
 		{/if}
 
 		{#if showPublish}
-			<a href={publishHref} class="tm-btn tm-btn-primary">
+			<a
+				href={publishHref}
+				aria-busy={publishLoading}
+				class="tm-btn tm-btn-primary aria-busy:cursor-wait aria-busy:bg-stone-700"
+			>
 				<UploadCloud class="h-4 w-4" />
-				Review Draft
+				{publishLoading ? 'Opening...' : 'Review Draft'}
 			</a>
 		{/if}
 	</div>

@@ -114,3 +114,55 @@ export function buildCollectionOrderChangeReview(input: {
 		after
 	};
 }
+
+function getManifestCollectionItemIds(
+	manifestState: NavigationManifestState,
+	config: DiscoveredConfig
+): string[] {
+	const configId = config.config._tentmanId;
+	if (!configId) {
+		return [];
+	}
+
+	const collection = manifestState.manifest?.collections?.[configId];
+	if (!collection) {
+		return [];
+	}
+
+	const groupedIds = (collection.groups ?? []).flatMap((group) => group.items);
+	return [...groupedIds, ...collection.items];
+}
+
+export function buildCollectionManifestOrderChangeReview(input: {
+	config: DiscoveredConfig;
+	baseManifest: NavigationManifestState;
+	draftManifest: NavigationManifestState;
+}): OrderChangeReview | null {
+	if (!input.config.config.collection) {
+		return null;
+	}
+
+	const before = buildOrderEntries(
+		getManifestCollectionItemIds(input.baseManifest, input.config).map((id) => ({
+			id,
+			label: id
+		}))
+	);
+	const after = buildOrderEntries(
+		getManifestCollectionItemIds(input.draftManifest, input.config).map((id) => ({
+			id,
+			label: id
+		}))
+	);
+
+	if (!orderChanged(before, after)) {
+		return null;
+	}
+
+	return {
+		title: `${input.config.config.label} order`,
+		href: getReviewConfigHref(input.config.slug, true),
+		before,
+		after
+	};
+}

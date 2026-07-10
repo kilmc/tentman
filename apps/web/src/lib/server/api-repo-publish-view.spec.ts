@@ -12,6 +12,10 @@ vi.mock('$lib/features/review-draft/build-review-model', () => ({
 	buildPublishReviewModel: vi.fn()
 }));
 
+vi.mock('$lib/features/review-draft/review-cost-guard', () => ({
+	getBlockedPublishReview: vi.fn()
+}));
+
 vi.mock('$lib/server/repository-data', () => ({
 	getDraftChangeIndex: vi.fn(),
 	getRepositorySnapshot: vi.fn()
@@ -20,6 +24,7 @@ vi.mock('$lib/server/repository-data', () => ({
 import { GET } from '../../routes/api/repo/publish-view/+server';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
+import { getBlockedPublishReview } from '$lib/features/review-draft/review-cost-guard';
 import { requireGitHubRepository } from '$lib/server/page-context';
 import { getDraftChangeIndex, getRepositorySnapshot } from '$lib/server/repository-data';
 import {
@@ -38,6 +43,7 @@ function createCookies() {
 describe('GET /api/repo/publish-view', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(getBlockedPublishReview).mockReturnValue(null);
 	});
 
 	it('returns the publish review bootstrap payload', async () => {
@@ -96,11 +102,19 @@ describe('GET /api/repo/publish-view', () => {
 			],
 			byConfigSlug: new Map()
 		};
-		vi.mocked(getRepositorySnapshot).mockResolvedValue({
+		const baseSnapshot = {
 			configIndex: {
 				configs
 			}
-		} as never);
+		};
+		const draftSnapshot = {
+			configIndex: {
+				configs: configs.slice().reverse()
+			}
+		};
+		vi.mocked(getRepositorySnapshot)
+			.mockResolvedValueOnce(baseSnapshot as never)
+			.mockResolvedValueOnce(draftSnapshot as never);
 		vi.mocked(getDraftChangeIndex).mockResolvedValue(draftChangeIndex as never);
 		vi.mocked(buildPublishReviewModel).mockResolvedValue({
 			topLevelOrderChange: {
@@ -153,15 +167,93 @@ describe('GET /api/repo/publish-view', () => {
 			draftBranch: 'tentman-preview',
 			configs
 		});
-		expect(getRepositorySnapshot).toHaveBeenCalledWith({
+		expect(getRepositorySnapshot).toHaveBeenNthCalledWith(1, {
 			backend: { cacheKey: 'github:acme/docs' },
 			ref: 'trunk'
 		});
+		expect(getRepositorySnapshot).toHaveBeenNthCalledWith(2, {
+			backend: { cacheKey: 'github:acme/docs' },
+			ref: 'tentman-preview'
+		});
 		expect(buildPublishReviewModel).toHaveBeenCalledWith(
 			expect.objectContaining({
-				changedFiles: draftChangeIndex.files
+				changedFiles: draftChangeIndex.files,
+				baseSnapshot,
+				draftSnapshot
 			})
 		);
+	});
+
+	it('blocks review loading before building an expensive review model', async () => {
+		vi.mocked(requireGitHubRepository).mockReturnValue({
+			octokit: {},
+			owner: 'acme',
+			name: 'docs',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'trunk'
+			},
+			backend: { cacheKey: 'github:acme/docs' }
+		} as never);
+		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
+		const configs = [
+			{
+				slug: 'posts',
+				path: 'content/posts.tentman.json',
+				config: {
+					label: 'Posts',
+					collection: true,
+					content: {
+						mode: 'directory'
+					},
+					blocks: []
+				}
+			}
+		];
+		const draftChangeIndex = {
+			files: [
+				{
+					filename: 'src/content/posts/hello.md',
+					status: 'modified'
+				}
+			],
+			byConfigSlug: new Map()
+		};
+		const blockedReview = {
+			title: 'Review Draft blocked',
+			message: 'Contact Kilian before continuing.',
+			changedFileCount: 81,
+			estimatedReviewDocumentReads: 0,
+			limits: {
+				maxChangedFiles: 80,
+				maxReviewDocumentReads: 40
+			} as const,
+			reasons: ['Too many changed files']
+		};
+		vi.mocked(getRepositorySnapshot).mockResolvedValue({
+			configIndex: {
+				configs
+			}
+		} as never);
+		vi.mocked(getDraftChangeIndex).mockResolvedValue(draftChangeIndex as never);
+		vi.mocked(getBlockedPublishReview).mockReturnValue(blockedReview);
+
+		const response = await GET({
+			locals: {},
+			cookies: createCookies()
+		} as never);
+
+		expect(response.status).toBe(413);
+		expect(await response.json()).toEqual({
+			draftBranch: {
+				name: 'tentman-preview'
+			},
+			blockedReview
+		});
+		expect(getRepositorySnapshot).toHaveBeenCalledTimes(1);
+		expect(buildPublishReviewModel).not.toHaveBeenCalled();
 	});
 
 	it('clears the session and returns 401 on GitHub auth failure', async () => {

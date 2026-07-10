@@ -14,13 +14,14 @@
 	let publishing = $state(false);
 	let discarding = $state(false);
 	const reviewModel = $derived(data.reviewModel);
+	const blockedReview = $derived(data.blockedReview);
 
 	const confirmDiscard = () =>
 		confirm('Are you sure you want to discard all draft changes? This cannot be undone.');
 
 	const siteName = $derived(data.rootConfig?.siteName ?? data.selectedRepo?.name ?? null);
 	const sectionSlugs = $derived(
-		reviewModel.sections.map((section: ReviewSection) => section.configSlug)
+		reviewModel?.sections.map((section: ReviewSection) => section.configSlug) ?? []
 	);
 	let expandedSections = $state<string[]>([]);
 	let expandedItems = $state<Record<string, string[]>>({});
@@ -30,6 +31,11 @@
 
 	$effect(() => {
 		if (initialized) {
+			return;
+		}
+
+		if (!reviewModel) {
+			initialized = true;
 			return;
 		}
 
@@ -64,6 +70,10 @@
 	}
 
 	function expandAll() {
+		if (!reviewModel) {
+			return;
+		}
+
 		expandedSections = [...sectionSlugs];
 		expandedItems = Object.fromEntries(
 			reviewModel.sections.map((section: ReviewSection) => [
@@ -71,11 +81,15 @@
 				section.items.map((item) => item.itemId)
 			])
 		) as Record<string, string[]>;
-		topLevelExpanded = Boolean(data.reviewModel.topLevelOrderChange);
-		otherChangesExpanded = Boolean(data.reviewModel.otherSiteChanges);
+		topLevelExpanded = Boolean(reviewModel.topLevelOrderChange);
+		otherChangesExpanded = Boolean(reviewModel.otherSiteChanges);
 	}
 
 	function collapseAll() {
+		if (!reviewModel) {
+			return;
+		}
+
 		expandedSections = [];
 		expandedItems = Object.fromEntries(
 			reviewModel.sections.map((section: ReviewSection) => [section.configSlug, []])
@@ -115,42 +129,44 @@
 			</div>
 
 			<div class="flex flex-col gap-3 lg:min-w-72">
-				<form
-					method="POST"
-					action="?/publish"
-					use:enhance={createPublishEnhanceHandler(
-						draftBranchStore,
-						(value) => (publishing = value),
-						{ clearDraftCache: clearDraftCacheScope }
-					)}
-				>
-					<button
-						type="submit"
-						disabled={publishing || discarding}
-						class="w-full rounded-xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+				{#if reviewModel}
+					<form
+						method="POST"
+						action="?/publish"
+						use:enhance={createPublishEnhanceHandler(
+							draftBranchStore,
+							(value) => (publishing = value),
+							{ clearDraftCache: clearDraftCacheScope }
+						)}
 					>
-						{publishing ? 'Publishing...' : 'Publish Draft'}
-					</button>
-				</form>
+						<button
+							type="submit"
+							disabled={publishing || discarding}
+							class="w-full rounded-xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+						>
+							{publishing ? 'Publishing...' : 'Publish Draft'}
+						</button>
+					</form>
 
-				<form
-					method="POST"
-					action="?/discard"
-					use:enhance={createDiscardEnhanceHandler(
-						draftBranchStore,
-						(value) => (discarding = value),
-						confirmDiscard,
-						{ clearDraftCache: clearDraftCacheScope }
-					)}
-				>
-					<button
-						type="submit"
-						disabled={publishing || discarding}
-						class="w-full rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+					<form
+						method="POST"
+						action="?/discard"
+						use:enhance={createDiscardEnhanceHandler(
+							draftBranchStore,
+							(value) => (discarding = value),
+							confirmDiscard,
+							{ clearDraftCache: clearDraftCacheScope }
+						)}
 					>
-						{discarding ? 'Discarding...' : 'Discard Changes'}
-					</button>
-				</form>
+						<button
+							type="submit"
+							disabled={publishing || discarding}
+							class="w-full rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+						>
+							{discarding ? 'Discarding...' : 'Discard Changes'}
+						</button>
+					</form>
+				{/if}
 
 				<a
 					href="/pages"
@@ -162,57 +178,89 @@
 		</div>
 	</div>
 
-	<div class="flex flex-wrap items-center gap-3">
-		<button
-			type="button"
-			class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
-			onclick={expandAll}
-		>
-			Expand all
-		</button>
-		<button
-			type="button"
-			class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
-			onclick={collapseAll}
-		>
-			Collapse all
-		</button>
-	</div>
+	{#if blockedReview}
+		<section class="rounded-2xl border border-amber-300 bg-amber-50 p-6 text-amber-950">
+			<p class="text-sm font-semibold uppercase tracking-[0.12em]">{blockedReview.title}</p>
+			<p class="mt-3 max-w-3xl text-sm leading-6">{blockedReview.message}</p>
+			<dl class="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+				<div>
+					<dt class="text-amber-800">Changed files</dt>
+					<dd class="font-semibold">{blockedReview.changedFileCount}</dd>
+				</div>
+				<div>
+					<dt class="text-amber-800">Estimated reads</dt>
+					<dd class="font-semibold">{blockedReview.estimatedReviewDocumentReads}</dd>
+				</div>
+				<div>
+					<dt class="text-amber-800">File limit</dt>
+					<dd class="font-semibold">{blockedReview.limits.maxChangedFiles}</dd>
+				</div>
+				<div>
+					<dt class="text-amber-800">Read limit</dt>
+					<dd class="font-semibold">{blockedReview.limits.maxReviewDocumentReads}</dd>
+				</div>
+			</dl>
+			{#if blockedReview.reasons.length}
+				<ul class="mt-5 list-disc space-y-2 pl-5 text-sm leading-6">
+					{#each blockedReview.reasons as reason}
+						<li>{reason}</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{:else if reviewModel}
+		<div class="flex flex-wrap items-center gap-3">
+			<button
+				type="button"
+				class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
+				onclick={expandAll}
+			>
+				Expand all
+			</button>
+			<button
+				type="button"
+				class="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
+				onclick={collapseAll}
+			>
+				Collapse all
+			</button>
+		</div>
 
-	<div class="space-y-4">
-		{#if reviewModel.topLevelOrderChange}
-			<ReviewDraftOrderSection
-				review={reviewModel.topLevelOrderChange}
-				expanded={topLevelExpanded}
-				onToggle={() => (topLevelExpanded = !topLevelExpanded)}
-			/>
-		{/if}
+		<div class="space-y-4">
+			{#if reviewModel.topLevelOrderChange}
+				<ReviewDraftOrderSection
+					review={reviewModel.topLevelOrderChange}
+					expanded={topLevelExpanded}
+					onToggle={() => (topLevelExpanded = !topLevelExpanded)}
+				/>
+			{/if}
 
-		{#each reviewModel.sections as section}
-			<ReviewDraftSection
-				{section}
-				expanded={expandedSections.includes(section.configSlug)}
-				expandedItemIds={new Set(expandedItems[section.configSlug] ?? [])}
-				onToggleSection={() => toggleSection(section.configSlug)}
-				onToggleItem={(itemId) => toggleItem(section.configSlug, itemId)}
-			/>
-		{/each}
+			{#each reviewModel.sections as section}
+				<ReviewDraftSection
+					{section}
+					expanded={expandedSections.includes(section.configSlug)}
+					expandedItemIds={new Set(expandedItems[section.configSlug] ?? [])}
+					onToggleSection={() => toggleSection(section.configSlug)}
+					onToggleItem={(itemId) => toggleItem(section.configSlug, itemId)}
+				/>
+			{/each}
 
-		{#if reviewModel.otherSiteChanges}
-			<ReviewDraftOtherChanges
-				review={reviewModel.otherSiteChanges}
-				expanded={otherChangesExpanded}
-				onToggle={() => (otherChangesExpanded = !otherChangesExpanded)}
-				hasHiddenUnreviewedChanges={reviewModel.hasHiddenUnreviewedChanges}
-			/>
-		{:else if reviewModel.hasHiddenUnreviewedChanges}
-			<div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-				This GitHub draft also contains other repo changes outside this Tentman-focused review.
-			</div>
-		{:else if !reviewModel.topLevelOrderChange && reviewModel.sections.length === 0}
-			<div class="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">
-				No Tentman-visible changes were found in this draft.
-			</div>
-		{/if}
-	</div>
+			{#if reviewModel.otherSiteChanges}
+				<ReviewDraftOtherChanges
+					review={reviewModel.otherSiteChanges}
+					expanded={otherChangesExpanded}
+					onToggle={() => (otherChangesExpanded = !otherChangesExpanded)}
+					hasHiddenUnreviewedChanges={reviewModel.hasHiddenUnreviewedChanges}
+				/>
+			{:else if reviewModel.hasHiddenUnreviewedChanges}
+				<div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+					This GitHub draft also contains other repo changes outside this Tentman-focused review.
+				</div>
+			{:else if !reviewModel.topLevelOrderChange && reviewModel.sections.length === 0}
+				<div class="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">
+					No Tentman-visible changes were found in this draft.
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>

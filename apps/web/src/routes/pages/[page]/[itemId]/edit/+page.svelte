@@ -7,7 +7,7 @@
 	import PageStickyFooter from '$lib/components/PageStickyFooter.svelte';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
-	import { goto, invalidate } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
@@ -58,7 +58,8 @@
 	import {
 		detectCollectionGroupField,
 		manageCollectionGroups,
-		syncCollectionItemGroupSelection
+		syncCollectionItemGroupSelection,
+		syncCollectionItemGroupSelectionInManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import {
 		getCollectionConfigReferences,
@@ -519,9 +520,24 @@
 		}
 	}
 
-	function getCurrentItemCacheInvalidationPaths(options?: {
-		includeNavigationManifest?: boolean;
-	}): string[] {
+	function getUpdatedNavigationManifestForSavedItem(nextContent: ContentRecord) {
+		if (!discoveredConfig || !canSaveCurrentItemUpdateNavigationManifest()) {
+			return undefined;
+		}
+
+		const baseManifest = navigationManifest?.manifest ?? null;
+		const nextManifest = syncCollectionItemGroupSelectionInManifest(
+			discoveredConfig,
+			nextContent,
+			baseManifest
+		);
+
+		return JSON.stringify(baseManifest ?? null) === JSON.stringify(nextManifest ?? null)
+			? undefined
+			: nextManifest;
+	}
+
+	function getCurrentItemContentCachePath(): string[] {
 		if (!discoveredConfig) {
 			return [];
 		}
@@ -537,10 +553,7 @@
 					: null
 				: contentPath;
 
-		return [
-			...(itemPath ? [itemPath] : []),
-			...(options?.includeNavigationManifest ? ['tentman/navigation-manifest.json'] : [])
-		];
+		return itemPath ? [itemPath] : [];
 	}
 
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
@@ -837,6 +850,7 @@
 			onsubmit={prepareFormSubmit}
 			use:enhance={async ({ formData, cancel }) => {
 				let submittedRefs: string[] = [];
+				let submittedContent: ContentRecord | null = null;
 				try {
 					localError = null;
 					const encoded = formData.get('data');
@@ -846,6 +860,7 @@
 					}
 
 					const contentData = JSON.parse(encoded) as ContentRecord;
+					submittedContent = contentData;
 					const appended = await appendDraftAssetsToFormData(formData, contentData);
 					submittedRefs = appended.refs;
 					persistRecoveryDraft();
@@ -862,20 +877,20 @@
 
 				return async ({ update, result }) => {
 					if (result.type === 'redirect' || result.type === 'success') {
-						const includeNavigationManifest = canSaveCurrentItemUpdateNavigationManifest();
-						await githubRepositoryCache.invalidatePaths(
-							getCurrentItemCacheInvalidationPaths({
-								includeNavigationManifest
-							})
-						);
-						await update();
-						if (includeNavigationManifest && discoveredConfig) {
-							await githubRepositoryCache.warmCollection(discoveredConfig.slug, {
-								fetcher: fetch,
-								force: true
+						const nextNavigationManifest = submittedContent
+							? getUpdatedNavigationManifestForSavedItem(submittedContent)
+							: undefined;
+						if (discoveredConfig && submittedContent) {
+							await githubRepositoryCache.patchCollectionItemFromContent({
+								slug: discoveredConfig.slug,
+								itemId: data.itemId,
+								content: submittedContent,
+								...(nextNavigationManifest !== undefined
+									? { navigationManifest: nextNavigationManifest }
+									: {})
 							});
-							await invalidate('app:content');
 						}
+						await update();
 						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
 						clearRecoveryDraft();
 					} else {
@@ -1004,7 +1019,7 @@
 							return async ({ update, result }) => {
 								if (result.type === 'redirect' || result.type === 'success') {
 									await githubRepositoryCache.invalidatePaths(
-										getCurrentItemCacheInvalidationPaths()
+										getCurrentItemContentCachePath()
 									);
 								}
 								await update();

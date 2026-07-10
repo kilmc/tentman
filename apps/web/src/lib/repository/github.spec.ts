@@ -254,6 +254,48 @@ describe('repository/github', () => {
 		expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(2);
 	});
 
+	it('caches text file reads and invalidates written paths', async () => {
+		const octokit = createOctokit();
+		octokit.rest.repos.getContent
+			.mockResolvedValueOnce({
+				data: {
+					type: 'file',
+					content: Buffer.from('before').toString('base64'),
+					sha: 'before-sha'
+				}
+			})
+			.mockResolvedValueOnce({
+				data: {
+					type: 'file',
+					content: Buffer.from('before').toString('base64'),
+					sha: 'before-sha'
+				}
+			})
+			.mockResolvedValueOnce({
+				data: {
+					type: 'file',
+					content: Buffer.from('after').toString('base64'),
+					sha: 'after-sha'
+				}
+			});
+		octokit.rest.repos.createOrUpdateFileContents.mockResolvedValue({});
+
+		const backend = createGitHubRepositoryBackend(octokit as never, {
+			owner: 'acme',
+			name: 'docs',
+			full_name: 'acme/docs',
+			default_branch: 'trunk'
+		});
+
+		await expect(backend.readTextFile('content/about.md')).resolves.toBe('before');
+		await expect(backend.readTextFile('content/about.md')).resolves.toBe('before');
+		expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(1);
+
+		await backend.writeTextFile('content/about.md', 'after');
+		await expect(backend.readTextFile('content/about.md')).resolves.toBe('after');
+		expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(3);
+	});
+
 	it('caches discovered block configs per backend cache key until invalidated', async () => {
 		discoveryMocks.discoverGitHubBlockConfigs.mockResolvedValue([
 			{

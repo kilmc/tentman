@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import { onMount, setContext, type Snippet } from 'svelte';
 	import { get, writable } from 'svelte/store';
 	import {
@@ -202,6 +202,8 @@
 		const branchName = $draftBranch.branchName;
 		return netlifySiteName && branchName ? getNetlifyPreviewUrl(branchName, netlifySiteName) : null;
 	});
+	const publishHref = $derived(resolve('/publish'));
+	const openingPublishReview = $derived(navigating.to?.url.pathname === publishHref);
 	const workspaceTitle = $derived.by(() => {
 		if (page.url.pathname === '/pages' || page.url.pathname === '/pages/') {
 			return 'Overview';
@@ -350,7 +352,6 @@
 		}
 
 		let cancelled = false;
-		let stopSiteWarm: (() => void) | null = null;
 		let stopFreshnessScheduler: (() => void) | null = null;
 
 		void (async () => {
@@ -360,7 +361,6 @@
 			});
 
 			if (!cancelled) {
-				stopSiteWarm = githubRepositoryCache.startIdleSiteWarm({ fetcher: fetch });
 				stopFreshnessScheduler = githubRepositoryCache.startFreshnessScheduler({ fetcher: fetch });
 			}
 		})();
@@ -374,7 +374,6 @@
 
 		return () => {
 			cancelled = true;
-			stopSiteWarm?.();
 			stopFreshnessScheduler?.();
 		};
 	});
@@ -563,11 +562,13 @@
 				bootstrap: data
 			});
 			githubRepositoryCache.resetFreshnessSchedule();
-			githubRepositoryCache.startIdleSiteWarm({ fetcher: fetch });
 			githubCollectionItemsBySlug = {};
 			githubCollectionLoadStatusBySlug = {};
 			githubCollectionErrorBySlug = {};
 			githubConfigStatesLoaded = false;
+			if (currentConfig?.config.collection) {
+				await loadGitHubCollectionItems(currentConfig, { force: true });
+			}
 			toasts.success('GitHub cache cleared.');
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to clear GitHub cache.');
@@ -644,7 +645,9 @@
 		try {
 			await githubRepositoryCache.warmCollection(config.slug, {
 				fetcher: fetch,
-				force: options?.force
+				force: options?.force,
+				hydrateRemaining: false,
+				warmDocuments: false
 			});
 			const payload = await githubRepositoryCache.getCollectionNavigation(config.slug);
 			if (!payload) {
@@ -1110,7 +1113,8 @@
 			state={currentConfigState}
 			{previewUrl}
 			showPublish={data.isAuthenticated && !!$draftBranch.branchName}
-			publishHref={resolve('/publish')}
+			{publishHref}
+			publishLoading={openingPublishReview}
 			showSidebarToggle={true}
 			sidebarOpen={isMobileSidebarOpen}
 			onToggleSidebar={() => (isMobileSidebarOpen = !isMobileSidebarOpen)}

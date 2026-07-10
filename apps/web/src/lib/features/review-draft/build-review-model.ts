@@ -7,6 +7,7 @@ import { listChangedFilesBetweenRefs } from '$lib/github/branch';
 import type { BranchChangedFile } from '$lib/github/branch';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import type { RepositoryBackend } from '$lib/repository/types';
+import type { RepositorySnapshot } from '$lib/server/repository-data';
 import { isConfigContentFileChange } from '$lib/server/repository-data/path-classification';
 import { getChangedDirectoryReviewDocuments } from '$lib/server/repository-data/review-documents';
 import {
@@ -15,7 +16,10 @@ import {
 	toReviewDraftChangedFiles
 } from './candidate-changes';
 import { buildConfigReviewSection, buildScopedCollectionItemsReviewSection } from './config-review';
-import { buildTopLevelOrderChangeReview } from './structural-changes';
+import {
+	buildCollectionManifestOrderChangeReview,
+	buildTopLevelOrderChangeReview
+} from './structural-changes';
 import type {
 	OtherSiteChangesFile,
 	OtherSiteChangesReview,
@@ -72,22 +76,15 @@ async function discoverConfigsForRef(
 function needsContentReview(input: {
 	config: DiscoveredConfig;
 	files: ReviewDraftChangedFile[];
-	manifestChanged: boolean;
 }): boolean {
-	if (input.manifestChanged && input.config.config.collection) {
-		return true;
-	}
-
 	return input.files.some((file) => isConfigContentFileChange(input.config, file));
 }
 
 function canUseScopedDirectoryReview(input: {
 	config: DiscoveredConfig;
 	files: ReviewDraftChangedFile[];
-	manifestChanged: boolean;
 }): boolean {
 	return (
-		!input.manifestChanged &&
 		Boolean(input.config.config.collection) &&
 		input.config.config.content.mode === 'directory' &&
 		input.files.some((file) => isConfigContentFileChange(input.config, file))
@@ -108,6 +105,8 @@ export async function buildPublishReviewModel(input: {
 	baseBranch: string;
 	draftBranch: string;
 	changedFiles?: BranchChangedFile[] | null;
+	baseSnapshot?: RepositorySnapshot | null;
+	draftSnapshot?: RepositorySnapshot | null;
 }): Promise<PublishReviewModel> {
 	const changedFilesPromise = input.changedFiles
 		? Promise.resolve(toReviewDraftChangedFiles(input.changedFiles))
@@ -118,11 +117,16 @@ export async function buildPublishReviewModel(input: {
 				input.baseBranch,
 				input.draftBranch
 			).then(toReviewDraftChangedFiles);
-	const [draftConfigs, changedFiles] = await Promise.all([
-		discoverConfigsForRef(input.octokit, input.repo, input.draftBranch).catch(() => input.configs),
+	const baseConfigs = uniqueConfigsBySlug(input.baseSnapshot?.configIndex.configs ?? input.configs);
+	const [rawDraftConfigs, changedFiles] = await Promise.all([
+		input.draftSnapshot
+			? Promise.resolve(input.draftSnapshot.configIndex.configs)
+			: discoverConfigsForRef(input.octokit, input.repo, input.draftBranch).catch(
+					() => input.configs
+				),
 		changedFilesPromise
 	]);
-	const baseConfigs = uniqueConfigsBySlug(input.configs);
+	const draftConfigs = uniqueConfigsBySlug(rawDraftConfigs);
 	const mergedConfigs = uniqueConfigsBySlug([...draftConfigs, ...baseConfigs]);
 	const candidateChanges = classifyReviewDraftChangedFiles(mergedConfigs, changedFiles);
 	const baseBackend = createGitHubRepositoryBackend(input.octokit, input.repo, {
@@ -132,10 +136,16 @@ export async function buildPublishReviewModel(input: {
 		defaultRef: input.draftBranch
 	});
 	const [baseManifest, draftManifest, baseRootConfig, draftRootConfig] = await Promise.all([
-		loadNavigationManifestState(baseBackend),
-		loadNavigationManifestState(draftBackend),
-		baseBackend.readRootConfig(),
-		draftBackend.readRootConfig()
+		input.baseSnapshot
+			? Promise.resolve(input.baseSnapshot.navigationManifest)
+			: loadNavigationManifestState(baseBackend),
+		input.draftSnapshot
+			? Promise.resolve(input.draftSnapshot.navigationManifest)
+			: loadNavigationManifestState(draftBackend),
+		input.baseSnapshot ? Promise.resolve(input.baseSnapshot.rootConfig) : baseBackend.readRootConfig(),
+		input.draftSnapshot
+			? Promise.resolve(input.draftSnapshot.rootConfig)
+			: draftBackend.readRootConfig()
 	]);
 	const draftConfigMap = new Map(draftConfigs.map((config) => [config.slug, config]));
 	const sections: ReviewSection[] = [];
@@ -165,13 +175,19 @@ export async function buildPublishReviewModel(input: {
 		}
 
 		const configFiles = candidateChanges.configFilesBySlug.get(slug) ?? [];
-		if (
-			!needsContentReview({
-				config: draftConfig,
-				files: configFiles,
-				manifestChanged: candidateChanges.manifestChanged
-			})
-		) {
+		const collectionOrderChange = candidateChanges.manifestChanged
+			? buildCollectionManifestOrderChangeReview({
+					config: draftConfig,
+					baseManifest,
+					draftManifest
+				})
+			: null;
+		const shouldReviewContent = needsContentReview({
+			config: draftConfig,
+			files: configFiles
+		});
+
+		if (!shouldReviewContent && !collectionOrderChange) {
 			for (const file of configFiles) {
 				unmappedConfigFiles.push({
 					path: file.filename,
@@ -191,10 +207,9 @@ export async function buildPublishReviewModel(input: {
 			baseAssets: baseRootConfig?.assets ?? null,
 			draftAssets: draftRootConfig?.assets ?? null
 		};
-		const scopedDocuments = canUseScopedDirectoryReview({
+		const scopedDocuments = shouldReviewContent && canUseScopedDirectoryReview({
 			config: draftConfig,
-			files: configFiles,
-			manifestChanged: candidateChanges.manifestChanged
+			files: configFiles
 		})
 			? await getChangedDirectoryReviewDocuments({
 					baseBackend,
@@ -206,7 +221,7 @@ export async function buildPublishReviewModel(input: {
 					draftBranch: input.draftBranch
 				})
 			: null;
-		const fullDocuments = scopedDocuments
+		const fullDocuments = scopedDocuments || !shouldReviewContent
 			? null
 			: await Promise.all([
 					fetchContentDocument(baseBackend, baseConfig.config, baseConfig.path, {
@@ -223,8 +238,18 @@ export async function buildPublishReviewModel(input: {
 					beforeContent: scopedDocuments.beforeContent,
 					afterContent: scopedDocuments.afterContent,
 					fieldOptions,
-					singleConfigVisible: false
+					singleConfigVisible: false,
+					collectionOrderChange
 				})
+			: !shouldReviewContent && collectionOrderChange
+				? buildScopedCollectionItemsReviewSection({
+						config: draftConfig,
+						beforeContent: [],
+						afterContent: [],
+						fieldOptions,
+						singleConfigVisible: false,
+						collectionOrderChange
+					})
 			: buildConfigReviewSection({
 					config: draftConfig,
 					beforeContent: fullDocuments?.[0] ?? [],
@@ -282,7 +307,9 @@ export async function buildPublishReviewModel(input: {
 		});
 	}
 
-	if (candidateChanges.manifestChanged && !topLevelOrderChange) {
+	const hasCollectionOrderChange = orderedSections.some((section) => section.collectionOrderChange);
+
+	if (candidateChanges.manifestChanged && !topLevelOrderChange && !hasCollectionOrderChange) {
 		otherSiteChangesFiles.push({
 			path: 'tentman/navigation-manifest.json',
 			status: 'modified'

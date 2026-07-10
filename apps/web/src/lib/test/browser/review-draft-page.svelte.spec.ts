@@ -147,4 +147,29 @@ describe('review draft publish page', () => {
 		await screen.getByRole('button', { name: 'Expand Other site changes' }).click();
 		await expectElement(screen.getByText('tentman.json')).toBeVisible();
 	});
+
+	it('shows a blocked review warning and hides publish actions', async () => {
+		const screen = await render(PublishReviewPage, {
+			data: {
+				...baseData,
+				reviewModel: null,
+				blockedReview: {
+					title: 'Review Draft blocked',
+					message:
+						'This draft could trigger an unusually large number of repository reads. Tentman stopped before loading the review. Contact Kilian before continuing.',
+					changedFileCount: 81,
+					estimatedReviewDocumentReads: 42,
+					limits: {
+						maxChangedFiles: 80,
+						maxReviewDocumentReads: 40
+					},
+					reasons: ['The draft contains 81 changed files.']
+				}
+			} as never
+		});
+
+		await expectElement(screen.getByText('Review Draft blocked')).toBeVisible();
+		await expectElement(screen.getByText(/Contact Kilian before continuing/)).toBeVisible();
+		expect(screen.container.textContent).not.toContain('Publish Draft');
+	});
 });

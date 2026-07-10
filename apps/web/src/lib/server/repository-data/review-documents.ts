@@ -3,6 +3,7 @@ import { parseCollectionItem } from '$lib/features/content-management/transforms
 import type { ContentRecord } from '$lib/features/content-management/types';
 import { normalizeRuntimeCollectionItemIds } from '$lib/features/content-management/stable-identity';
 import type { RepositoryBackend } from '$lib/repository/types';
+import { logTiming } from '$lib/utils/performance-logging';
 import {
 	getChangedFilePaths,
 	getDirectoryContentTarget,
@@ -68,6 +69,11 @@ async function readDirectoryItem(input: {
 export async function getChangedDirectoryReviewDocuments(
 	input: ChangedDirectoryReviewDocumentsInput
 ): Promise<ChangedDirectoryReviewDocuments | null> {
+	const start = performance.now();
+	let relevantFileCount = 0;
+	let beforeReadCount = 0;
+	let afterReadCount = 0;
+
 	if (!isDirectoryBackedCollection(input.config)) {
 		return null;
 	}
@@ -76,7 +82,17 @@ export async function getChangedDirectoryReviewDocuments(
 	const relevantFiles = input.files.filter((file) =>
 		isRelevantDirectoryContentChange(file, target)
 	);
+	relevantFileCount = relevantFiles.length;
 	if (relevantFiles.length === 0) {
+		logTiming('review-draft.changed-directory-documents.load', {
+			configPath: input.configPath,
+			baseBranch: input.baseBranch,
+			draftBranch: input.draftBranch,
+			relevantFileCount,
+			beforeReadCount,
+			afterReadCount,
+			durationMs: performance.now() - start
+		});
 		return {
 			beforeContent: [],
 			afterContent: []
@@ -104,6 +120,7 @@ export async function getChangedDirectoryReviewDocuments(
 		}
 
 		if (file.status === 'modified' || file.status === 'changed' || file.status === 'removed') {
+			beforeReadCount += 1;
 			beforeReads.push(
 				readDirectoryItem({
 					backend: input.baseBackend,
@@ -116,6 +133,7 @@ export async function getChangedDirectoryReviewDocuments(
 		}
 
 		if (file.status === 'modified' || file.status === 'changed' || file.status === 'added') {
+			afterReadCount += 1;
 			afterReads.push(
 				readDirectoryItem({
 					backend: input.draftBackend,
@@ -141,5 +159,15 @@ export async function getChangedDirectoryReviewDocuments(
 	} catch (error) {
 		console.error('Failed to load changed directory review documents:', error);
 		return null;
+	} finally {
+		logTiming('review-draft.changed-directory-documents.load', {
+			configPath: input.configPath,
+			baseBranch: input.baseBranch,
+			draftBranch: input.draftBranch,
+			relevantFileCount,
+			beforeReadCount,
+			afterReadCount,
+			durationMs: performance.now() - start
+		});
 	}
 }

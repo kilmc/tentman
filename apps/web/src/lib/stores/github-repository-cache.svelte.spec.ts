@@ -1480,7 +1480,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		expect(itemViewCalls).toEqual(['post-1']);
 	});
 
-	it('schedules every current collection item document when a single item route is warmed', async () => {
+	it('schedules only the requested collection item document when a single item route is warmed', async () => {
 		const documentCalls: string[] = [];
 		const itemDocuments = new Map(
 			createFallbackItems(4).map((item) => [item.itemId, createDeferred<Response>()])
@@ -1525,20 +1525,18 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 		await expect
 			.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total)
-			.toBe(4);
-		expect(get(githubCacheWarmDebugStatus).totalTasks).toBe(12);
+			.toBe(1);
 		expect(documentCalls[0]).toBe('post-2');
+		expect(documentCalls).toEqual(['post-2']);
 
-		for (const [itemId, deferred] of itemDocuments) {
-			deferred.resolve(
-				Response.json({
-					item: { title: itemId },
-					blockConfigs: [],
-					packageBlocks: [],
-					blockRegistryError: null
-				})
-			);
-		}
+		itemDocuments.get('post-2')!.resolve(
+			Response.json({
+				item: { title: 'post-2' },
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null
+			})
+		);
 		await warmPromise;
 	});
 

@@ -195,7 +195,9 @@
 				);
 				await githubRepositoryCache.warmCollection(data.pageSlug, {
 					fetcher: fetch,
-					force: true
+					force: true,
+					hydrateRemaining: false,
+					warmDocuments: false
 				});
 				await invalidate('app:content');
 			}

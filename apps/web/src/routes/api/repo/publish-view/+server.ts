@@ -3,6 +3,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import { buildPublishReviewModel } from '$lib/features/review-draft/build-review-model';
+import { getBlockedPublishReview } from '$lib/features/review-draft/review-cost-guard';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubRepository } from '$lib/server/page-context';
 import { getDraftChangeIndex, getRepositorySnapshot } from '$lib/server/repository-data';
@@ -20,8 +21,8 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			throw error(404, 'No draft branch found');
 		}
 
-		const snapshot = await getRepositorySnapshot({ backend, ref: repo.default_branch });
-		const configs = snapshot.configIndex.configs;
+		const baseSnapshot = await getRepositorySnapshot({ backend, ref: repo.default_branch });
+		const configs = baseSnapshot.configIndex.configs;
 		const draftChangeIndex = await getDraftChangeIndex({
 			octokit,
 			owner,
@@ -30,6 +31,23 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			draftBranch,
 			configs
 		});
+		const blockedReview = getBlockedPublishReview({
+			configs,
+			changedFiles: draftChangeIndex.files
+		});
+		if (blockedReview) {
+			return json(
+				{
+					draftBranch: {
+						name: draftBranch
+					},
+					blockedReview
+				},
+				{ status: 413 }
+			);
+		}
+
+		const draftSnapshot = await getRepositorySnapshot({ backend, ref: draftBranch });
 		const reviewModel = await buildPublishReviewModel({
 			octokit,
 			owner,
@@ -38,7 +56,9 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			configs,
 			baseBranch: repo.default_branch,
 			draftBranch,
-			changedFiles: draftChangeIndex.files
+			changedFiles: draftChangeIndex.files,
+			baseSnapshot,
+			draftSnapshot
 		});
 
 		return json({

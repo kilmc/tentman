@@ -6,7 +6,7 @@
 	import type { Snippet } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import { getNetlifyPreviewUrl } from '$lib/netlify/preview';
 	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localContent } from '$lib/stores/local-content';
@@ -18,6 +18,8 @@
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	const appHomeHref = $derived(data.selectedBackend ? '/pages' : '/');
+	const publishHref = $derived(resolve('/publish'));
+	const openingPublishReview = $derived(navigating.to?.url.pathname === publishHref);
 	const isPagesWorkspace = $derived(page.url.pathname.startsWith('/pages'));
 	const isSplashPage = $derived(
 		page.url.pathname === '/' && !data.isAuthenticated && !data.selectedBackend
@@ -154,10 +156,11 @@
 						{#if data.isAuthenticated}
 							{#if $draftBranch.branchName}
 								<a
-									href={resolve('/publish')}
-									class="inline-flex items-center rounded-md bg-stone-950 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
+									href={publishHref}
+									aria-busy={openingPublishReview}
+									class="inline-flex items-center rounded-md bg-stone-950 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 aria-busy:cursor-wait aria-busy:bg-stone-700"
 								>
-									Review Draft
+									{openingPublishReview ? 'Opening...' : 'Review Draft'}
 								</a>
 							{/if}
 						{/if}

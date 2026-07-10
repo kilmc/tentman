@@ -26,9 +26,19 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 		throw httpError(404, 'No draft branch found');
 	}
 
+	if (response.status === 413) {
+		return {
+			...(await response.json()),
+			reviewModel: null
+		};
+	}
+
 	if (!response.ok) {
 		throw httpError(response.status, 'Failed to load publish view');
 	}
 
-	return response.json();
+	return {
+		...(await response.json()),
+		blockedReview: null
+	};
 };

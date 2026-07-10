@@ -998,6 +998,13 @@ function setManifestCollectionOrder(
 	return nextManifest;
 }
 
+function areNavigationManifestsEqual(
+	left: NavigationManifest | null | undefined,
+	right: NavigationManifest | null | undefined
+): boolean {
+	return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
 function getExistingGroupValues(
 	groups: CollectionGroupConfig[],
 	ignoredGroupId?: string
@@ -1859,13 +1866,11 @@ export async function manageCollectionGroups(
 	return manifest;
 }
 
-export async function syncCollectionItemGroupSelection(
-	backend: RepositoryBackend,
+export function syncCollectionItemGroupSelectionInManifest(
 	config: DiscoveredConfig,
 	item: ContentRecord,
-	existingManifest?: NavigationManifest | null,
-	options?: RepositoryWriteOptions
-): Promise<NavigationManifest | null> {
+	existingManifest: NavigationManifest | null | undefined
+): NavigationManifest | null {
 	if (!config.config._tentmanId || !isCollectionManifestBacked(config.config)) {
 		return existingManifest ?? null;
 	}
@@ -1886,9 +1891,7 @@ export async function syncCollectionItemGroupSelection(
 	const groupFieldValue = item[groupFieldId];
 	const selectedGroupId =
 		typeof groupFieldValue === 'string' && groupFieldValue.length > 0 ? groupFieldValue : null;
-	const manifestState =
-		existingManifest === undefined ? await loadNavigationManifestState(backend, options) : null;
-	const baseManifest = existingManifest ?? manifestState?.manifest ?? null;
+	const baseManifest = existingManifest ?? null;
 	const manifestCollection = cloneManifestCollection(
 		getConfigManifestCollection(baseManifest, config) ?? {
 			items: []
@@ -1922,7 +1925,44 @@ export async function syncCollectionItemGroupSelection(
 		nextGroups,
 		nextItems.filter((candidate) => !groupedItemIds.has(candidate))
 	);
-	await writeNavigationManifest(backend, manifest, options);
+
+	return manifest;
+}
+
+export async function syncCollectionItemGroupSelection(
+	backend: RepositoryBackend,
+	config: DiscoveredConfig,
+	item: ContentRecord,
+	existingManifest?: NavigationManifest | null,
+	options?: RepositoryWriteOptions
+): Promise<NavigationManifest | null> {
+	if (!config.config._tentmanId || !isCollectionManifestBacked(config.config)) {
+		return existingManifest ?? null;
+	}
+
+	const itemId = getItemId(item);
+	if (!itemId) {
+		return existingManifest ?? null;
+	}
+
+	try {
+		detectCollectionGroupField(config);
+	} catch {
+		return existingManifest ?? null;
+	}
+
+	const manifestState =
+		existingManifest === undefined ? await loadNavigationManifestState(backend, options) : null;
+	const baseManifest = existingManifest ?? manifestState?.manifest ?? null;
+	const manifest = syncCollectionItemGroupSelectionInManifest(config, item, baseManifest);
+
+	if (areNavigationManifestsEqual(baseManifest, manifest)) {
+		return baseManifest;
+	}
+
+	if (manifest) {
+		await writeNavigationManifest(backend, manifest, options);
+	}
 
 	return manifest;
 }

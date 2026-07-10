@@ -4,12 +4,25 @@ import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discov
 import type { RootConfig } from '$lib/config/root-config';
 import {
 	orderCollectionNavigationItems,
+	resolveContentItemTitle,
 	type CollectionNavigationItem,
 	type OrderedCollectionNavigation
 } from '$lib/features/content-management/navigation';
-import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-import type { ResolvedContentState } from '$lib/features/content-management/state';
+import {
+	syncCollectionItemGroupSelectionInManifest,
+	type NavigationManifest,
+	type NavigationManifestState
+} from '$lib/features/content-management/navigation-manifest';
+import {
+	resolveCollectionItemState,
+	type ResolvedContentState
+} from '$lib/features/content-management/state';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import {
+	getCollectionSortValues,
+	resolveCollectionSortCapabilities
+} from '$lib/features/content-management/collection-sorts';
+import { getItemId, getItemRoute } from '$lib/features/content-management/item';
 import type { SerializablePackageBlock } from '$lib/blocks/packages';
 import type {
 	RepoBootstrapIdentity,
@@ -2002,6 +2015,8 @@ export const githubRepositoryCache = {
 			force?: boolean;
 			waitForBackground?: boolean;
 			priority?: CacheTaskPriority;
+			hydrateRemaining?: boolean;
+			warmDocuments?: boolean;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2010,7 +2025,8 @@ export const githubRepositoryCache = {
 
 		await githubRepositoryCache.ensureCollectionIndex(slug, {
 			fetcher: options.fetcher,
-			force: options.force
+			force: options.force,
+			priority: options.priority ?? 'foreground'
 		});
 		const index = await getCachedCollectionIndex(slug);
 
@@ -2018,12 +2034,14 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		void githubRepositoryCache
-			.warmCollectionDocuments(slug, {
-				fetcher: options.fetcher,
-				priority: options.priority ?? 'passive'
-			})
-			.catch(() => {});
+		if (options.warmDocuments ?? true) {
+			void githubRepositoryCache
+				.warmCollectionDocuments(slug, {
+					fetcher: options.fetcher,
+					priority: options.priority ?? 'passive'
+				})
+				.catch(() => {});
+		}
 
 		const snapshot = getActiveSnapshot();
 		if (!snapshot) {
@@ -2041,6 +2059,10 @@ export const githubRepositoryCache = {
 		});
 
 		const remainingBlobShas = missingBlobShas.slice(visibleLimit);
+		if (!(options.hydrateRemaining ?? true)) {
+			return;
+		}
+
 		const hydrateRemaining = async () => {
 			for (
 				let index = 0;
@@ -2365,13 +2387,6 @@ export const githubRepositoryCache = {
 			priority: input.priority ?? 'foreground'
 		});
 
-		await githubRepositoryCache.warmCollectionDocuments(input.slug, {
-			fetcher: input.fetcher,
-			priority: 'passive',
-			promotedItemId: input.itemId,
-			promotedPriority: input.priority ?? 'foreground'
-		});
-
 		const indexItem = await getCachedCollectionIndexItem(input.slug, input.itemId);
 		if (!indexItem) {
 			return null;
@@ -2394,14 +2409,6 @@ export const githubRepositoryCache = {
 
 		if (input.itemId) {
 			void githubRepositoryCache
-				.warmCollectionDocuments(input.slug, {
-					fetcher: input.fetcher,
-					priority: 'passive',
-					promotedItemId: input.itemId,
-					promotedPriority: 'intent'
-				})
-				.catch(() => {});
-			void githubRepositoryCache
 				.warmItemDocumentForRoute({
 					slug: input.slug,
 					itemId: input.itemId,
@@ -2416,7 +2423,12 @@ export const githubRepositoryCache = {
 		const config = snapshot ? getConfig(snapshot, input.slug) : null;
 		if (config?.config.collection) {
 			void githubRepositoryCache
-				.warmCollection(input.slug, { fetcher: input.fetcher, priority: 'intent' })
+				.warmCollection(input.slug, {
+					fetcher: input.fetcher,
+					priority: 'intent',
+					hydrateRemaining: false,
+					warmDocuments: false
+				})
 				.catch(() => {});
 			return;
 		}
@@ -2684,7 +2696,7 @@ export const githubRepositoryCache = {
 					);
 				}
 
-				if (options.warmChanged ?? true) {
+				if (options.warmChanged ?? false) {
 					githubRepositoryCache.startIdleSiteWarm({ fetcher: options.fetcher });
 				}
 			} catch (error) {
@@ -2725,7 +2737,7 @@ export const githubRepositoryCache = {
 			try {
 				await githubRepositoryCache.checkFreshness({
 					fetcher: options.fetcher,
-					warmChanged: true
+					warmChanged: false
 				});
 			} catch (error) {
 				const records = await readActiveInventoryRecords();
@@ -2859,6 +2871,97 @@ export const githubRepositoryCache = {
 				path: indexItem.path
 			}
 		);
+	},
+
+	async patchCollectionItemFromContent(input: {
+		slug: string;
+		itemId: string;
+		content: ContentRecord | null;
+		navigationManifest?: NavigationManifest | null;
+	}): Promise<void> {
+		if (!browser || !input.content) {
+			return;
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return;
+		}
+
+		const config = getConfig(snapshot, input.slug);
+		if (!config?.config.collection) {
+			return;
+		}
+
+		const index = await getCachedCollectionIndex(input.slug);
+		if (!index) {
+			return;
+		}
+
+		const existingItem = index.items.find((item) =>
+			isMatchingCollectionIndexItem(item, input.itemId)
+		);
+		if (!existingItem) {
+			return;
+		}
+
+		const title = resolveContentItemTitle(config.config, input.content).title;
+		const sortValues = getCollectionSortValues(config.config, input.content, title);
+		const firstDateSort = resolveCollectionSortCapabilities(config.config).sorts.find(
+			(sort) => sort.type === 'date'
+		);
+		const firstDateValue = firstDateSort ? sortValues[firstDateSort.id] : null;
+		const nextRoute = getItemRoute(config.config, input.content) ?? existingItem.route;
+		const nextItemId = getItemId(input.content) ?? existingItem.itemId;
+		const nextState = resolveCollectionItemState(config.config, input.content, snapshot.rootConfig);
+		const nextItem: CollectionIndexItem = {
+			...existingItem,
+			itemId: nextItemId,
+			route: nextRoute,
+			title,
+			sortValues,
+			sortDate: typeof firstDateValue === 'number' ? firstDateValue : null,
+			hydration: 'hydrated',
+			...(nextRoute !== nextItemId ? { hrefItemId: nextRoute } : { hrefItemId: undefined }),
+			...(nextState ? { state: nextState } : { state: undefined })
+		};
+
+		await writeCollectionIndex({
+			...index,
+			items: index.items.map((item) => (item === existingItem ? nextItem : item))
+		});
+		await writeProjectionItems(snapshot.repoFullName, input.slug, index.identity.schemaIdentity, [
+			nextItem
+		]);
+		await githubRepositoryCache.setItemDocument({
+			repoFullName: snapshot.repoFullName,
+			blobSha: existingItem.blobSha,
+			configSlug: input.slug,
+			path: existingItem.path,
+			content: input.content
+		});
+
+		if (input.navigationManifest !== undefined) {
+			const manifest = syncCollectionItemGroupSelectionInManifest(
+				config,
+				input.content,
+				input.navigationManifest
+			);
+			const nextSnapshot: CachedSnapshot = {
+				...snapshot,
+				navigationManifest: {
+					...snapshot.navigationManifest,
+					exists: snapshot.navigationManifest.exists || !!manifest,
+					manifest
+				},
+				updatedAt: Date.now()
+			};
+			activeSnapshot = nextSnapshot;
+			await writeStore(SNAPSHOT_STORE, nextSnapshot);
+			await buildInventoryFromActiveSnapshot();
+		}
+
+		await notifyCollection(input.slug);
 	},
 
 	async refreshInventoryTarget(input: {

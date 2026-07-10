@@ -61,6 +61,36 @@ const baseConfigs = [
 
 const draftConfigs = [baseConfigs[1], baseConfigs[0]];
 
+function createSnapshot(
+	configs: readonly (typeof baseConfigs)[number][] = baseConfigs,
+	rootConfig = { content: { sorting: 'manual' } }
+) {
+	return {
+		rootConfig,
+		configIndex: {
+			configs,
+			bySlug: new Map(configs.map((config) => [config.slug, config])),
+			byConfigPath: new Map(configs.map((config) => [config.path, config]))
+		},
+		navigationManifest: {
+			path: 'tentman/navigation-manifest.json',
+			exists: true,
+			manifest: {
+				version: 1,
+				content: {
+					items: ['posts', 'about']
+				},
+				collections: {
+					posts: {
+						items: ['post-2', 'post-1']
+					}
+				}
+			},
+			error: null
+		}
+	};
+}
+
 function markdownPost(data: Record<string, string>): string {
 	return `---\n${Object.entries(data)
 		.map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
@@ -248,6 +278,42 @@ describe('buildPublishReviewModel', () => {
 		expect(reviewModel.sections.map((section) => section.configSlug)).toEqual(['posts']);
 	});
 
+	it('uses repository snapshots for review metadata when provided', async () => {
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			changedFiles: [
+				{
+					filename: 'src/content/posts/hello-world.md',
+					status: 'modified'
+				}
+			],
+			baseSnapshot: createSnapshot(baseConfigs) as never,
+			draftSnapshot: createSnapshot(draftConfigs) as never
+		});
+
+		const [baseBackendCall, draftBackendCall] = vi.mocked(createGitHubRepositoryBackend).mock.results;
+		const baseBackend = await baseBackendCall?.value;
+		const draftBackend = await draftBackendCall?.value;
+
+		expect(loadNavigationManifestState).not.toHaveBeenCalled();
+		expect(baseBackend.discoverConfigs).not.toHaveBeenCalled();
+		expect(draftBackend.discoverConfigs).not.toHaveBeenCalled();
+		expect(baseBackend.readRootConfig).not.toHaveBeenCalled();
+		expect(draftBackend.readRootConfig).not.toHaveBeenCalled();
+		expect(reviewModel.sections.map((section) => section.configSlug)).toEqual(['posts']);
+	});
+
 	it('loads only changed directory item files for simple item review sections', async () => {
 		const reviewModel = await buildPublishReviewModel({
 			octokit: {} as never,
@@ -357,6 +423,81 @@ describe('buildPublishReviewModel', () => {
 		});
 	});
 
+	it('reviews manifest-only collection order changes without fetching full content documents', async () => {
+		vi.mocked(loadNavigationManifestState)
+			.mockResolvedValueOnce({
+				path: 'tentman/navigation-manifest.json',
+				exists: true,
+				manifest: {
+					version: 1,
+					content: {
+						items: ['posts', 'about']
+					},
+					collections: {
+						posts: {
+							items: ['post-1', 'post-2']
+						}
+					}
+				},
+				error: null
+			})
+			.mockResolvedValueOnce({
+				path: 'tentman/navigation-manifest.json',
+				exists: true,
+				manifest: {
+					version: 1,
+					content: {
+						items: ['posts', 'about']
+					},
+					collections: {
+						posts: {
+							items: ['post-2', 'post-1']
+						}
+					}
+				},
+				error: null
+			});
+
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: baseConfigs as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			changedFiles: [
+				{
+					filename: 'tentman/navigation-manifest.json',
+					status: 'modified'
+				}
+			]
+		});
+
+		expect(fetchContentDocument).not.toHaveBeenCalled();
+		expect(reviewModel.sections).toHaveLength(1);
+		expect(reviewModel.sections[0]).toMatchObject({
+			configSlug: 'posts',
+			collectionOrderChange: {
+				title: 'Posts order',
+				before: [
+					{ id: 'post-1', label: 'post-1', position: 1 },
+					{ id: 'post-2', label: 'post-2', position: 2 }
+				],
+				after: [
+					{ id: 'post-2', label: 'post-2', position: 1 },
+					{ id: 'post-1', label: 'post-1', position: 2 }
+				]
+			}
+		});
+		expect(reviewModel.otherSiteChanges).toBeNull();
+	});
+
 	it('uses explicit item labels in review cards', async () => {
 		vi.mocked(createGitHubRepositoryBackend).mockImplementation((_octokit, _repo, options) => {
 			const ref = options?.defaultRef;
@@ -379,7 +520,22 @@ describe('buildPublishReviewModel', () => {
 					content: {
 						sorting: 'manual'
 					}
-				}))
+				})),
+				readTextFile: vi.fn(async () =>
+					ref === 'tentman-preview'
+						? markdownPost({
+								_tentmanId: 'post-1',
+								slug: 'hello-world',
+								title: 'Hello world',
+								summary: 'Launch update'
+							})
+						: markdownPost({
+								_tentmanId: 'post-1',
+								slug: 'hello-world',
+								title: 'Hello world',
+								summary: 'Original summary'
+							})
+				)
 			} as never;
 		});
 
