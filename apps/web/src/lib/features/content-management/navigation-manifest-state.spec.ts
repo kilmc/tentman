@@ -109,4 +109,17 @@ describe('content-management/navigation-manifest state loading', () => {
 		});
 		expect(backend.readTextFile).toHaveBeenCalledTimes(1);
 	});
+
+	it('treats a local file system NotFoundError as a missing manifest', async () => {
+		const backend = new MemoryRepositoryBackend();
+		backend.readTextFile.mockRejectedValue(new DOMException('Missing file', 'NotFoundError'));
+
+		await expect(loadNavigationManifestState(backend)).resolves.toEqual({
+			path: 'tentman/navigation-manifest.json',
+			exists: false,
+			manifest: null,
+			error: null
+		});
+		expect(backend.readTextFile).toHaveBeenCalledTimes(1);
+	});
 });

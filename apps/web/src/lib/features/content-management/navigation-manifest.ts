@@ -501,6 +501,18 @@ function isFreshNavigationManifestState(
 	return entry !== undefined && Date.now() - entry.timestamp < NAVIGATION_MANIFEST_CACHE_TTL;
 }
 
+function isNotFoundError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+
+	if ('status' in error && error.status === 404) {
+		return true;
+	}
+
+	return 'name' in error && error.name === 'NotFoundError';
+}
+
 async function readNavigationManifestState(
 	backend: RepositoryBackend,
 	options?: RepositoryReadOptions
@@ -510,7 +522,7 @@ async function readNavigationManifestState(
 	try {
 		content = await backend.readTextFile(NAVIGATION_MANIFEST_PATH, options);
 	} catch (error) {
-		if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+		if (isNotFoundError(error)) {
 			return {
 				path: NAVIGATION_MANIFEST_PATH,
 				exists: false,

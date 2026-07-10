@@ -7,12 +7,14 @@ import { discoverInstructions } from '$lib/features/instructions/discovery';
 import type { InstructionDiscoveryResult } from '$lib/features/instructions/types';
 import {
 	loadNavigationManifestState,
+	NAVIGATION_MANIFEST_PATH,
 	type NavigationManifestState
 } from '$lib/features/content-management/navigation-manifest';
 import { clearContentComponentRegistryCache } from '$lib/content-components/browser';
 import { localRepo } from '$lib/stores/local-repo';
 import { shouldUseLocalConfigCache, type RootConfig } from '$lib/config/root-config';
 import type { LocalDiscoverySignature } from '$lib/repository/local';
+import type { RepositoryBackend } from '$lib/repository/types';
 
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
@@ -120,6 +122,22 @@ async function loadBlockRegistry(
 			blockRegistry: null,
 			blockRegistryError:
 				error instanceof Error ? error.message : 'Failed to load local reusable blocks'
+		};
+	}
+}
+
+async function loadOptionalNavigationManifestState(
+	backend: RepositoryBackend
+): Promise<NavigationManifestState> {
+	try {
+		return await loadNavigationManifestState(backend);
+	} catch (error) {
+		return {
+			path: NAVIGATION_MANIFEST_PATH,
+			exists: false,
+			manifest: null,
+			error:
+				error instanceof Error ? error.message : 'Failed to load local navigation manifest'
 		};
 	}
 }
@@ -303,7 +321,7 @@ function createStore() {
 						await Promise.all([
 							backend.discoverConfigs(),
 							backend.discoverBlockConfigs(),
-							loadNavigationManifestState(backend),
+							loadOptionalNavigationManifestState(backend),
 							discoverInstructions(backend)
 						]);
 
