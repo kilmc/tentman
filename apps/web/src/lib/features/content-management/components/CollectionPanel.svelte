@@ -40,6 +40,7 @@
 		canManageGroups?: boolean;
 		savingCustomOrder?: boolean;
 		onretry?: () => void;
+		onrequestsorthydration?: () => void;
 		onsavecustomorder?: (collection: NavigationDraftCollection) => void;
 		onpromoteitem?: (item: CollectionNavigationItem) => void;
 	}
@@ -58,6 +59,7 @@
 		canManageGroups = false,
 		savingCustomOrder = false,
 		onretry,
+		onrequestsorthydration,
 		onsavecustomorder,
 		onpromoteitem
 	}: Props = $props();
@@ -80,6 +82,7 @@
 	let draggingGroup = $state(false);
 	let sortMenu = $state<HTMLDetailsElement | null>(null);
 	let collapsedGroupIds = $state<string[]>([]);
+	let requestedSortHydrationKey = $state<string | null>(null);
 
 	const allItems = $derived([...groups.flatMap((group) => group.items), ...items]);
 	const availableSorts = $derived(
@@ -148,6 +151,30 @@
 			(defaultSort?.type === 'date' ? 'desc' : 'asc');
 	});
 
+	$effect(() => {
+		const sort = currentResolvedSort;
+		const requestKey = sort ? `${slug}:${sort.id}` : null;
+
+		if (!sort || sort.type === 'manual') {
+			requestedSortHydrationKey = null;
+			return;
+		}
+
+		if (!allItems.some((item) => needsSortHydration(item, sort))) {
+			if (requestedSortHydrationKey === requestKey) {
+				requestedSortHydrationKey = null;
+			}
+			return;
+		}
+
+		if (requestedSortHydrationKey === requestKey) {
+			return;
+		}
+
+		requestedSortHydrationKey = requestKey;
+		onrequestsorthydration?.();
+	});
+
 	function getSortValue(
 		item: CollectionNavigationItem,
 		sort: ResolvedCollectionSort
@@ -162,6 +189,10 @@
 	function getNumberSortValue(item: CollectionNavigationItem, sort: ResolvedCollectionSort) {
 		const value = getSortValue(item, sort);
 		return typeof value === 'number' ? value : null;
+	}
+
+	function needsSortHydration(item: CollectionNavigationItem, sort: ResolvedCollectionSort) {
+		return item.hydration === 'fallback' || !(sort.id in (item.sortValues ?? {}));
 	}
 
 	function toEditableItem(item: CollectionNavigationItem): CollectionIndexItem {

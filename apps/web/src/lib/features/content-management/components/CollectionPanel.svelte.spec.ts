@@ -14,6 +14,13 @@ const titleSortCapabilities: ResolvedCollectionSortCapabilities = {
 	ordering: false
 };
 
+const dateSortCapabilities: ResolvedCollectionSortCapabilities = {
+	sorts: [{ id: 'published', type: 'date', label: 'Published', defaultDirection: 'desc' }],
+	defaultSortId: 'published',
+	defaultDirection: 'desc',
+	ordering: false
+};
+
 const customSortCapabilities: ResolvedCollectionSortCapabilities = {
 	sorts: [
 		{ id: 'manual', type: 'manual', label: 'Custom' },
@@ -132,6 +139,62 @@ describe('CollectionPanel customize mode', () => {
 		});
 
 		expect(document.body.textContent).not.toContain('Custom');
+	});
+
+	it('requests sort hydration when the active sort has fallback items', async () => {
+		const onrequestsorthydration = vi.fn();
+
+		await render(CollectionPanel, {
+			slug: 'posts',
+			label: 'Posts',
+			itemLabel: 'Post',
+			items: [
+				{
+					itemId: 'first',
+					title: 'first',
+					sortDate: null,
+					sortValues: {},
+					hydration: 'fallback'
+				},
+				{
+					itemId: 'second',
+					title: 'second',
+					sortDate: null,
+					sortValues: {},
+					hydration: 'fallback'
+				}
+			],
+			groups: [],
+			sortCapabilities: dateSortCapabilities,
+			onrequestsorthydration
+		});
+
+		await expect.poll(() => onrequestsorthydration.mock.calls.length).toBe(1);
+	});
+
+	it('does not request sort hydration when hydrated items have explicit empty sort values', async () => {
+		const onrequestsorthydration = vi.fn();
+
+		await render(CollectionPanel, {
+			slug: 'posts',
+			label: 'Posts',
+			itemLabel: 'Post',
+			items: [
+				{
+					itemId: 'first',
+					title: 'First',
+					sortDate: null,
+					sortValues: { published: null },
+					hydration: 'hydrated'
+				}
+			],
+			groups: [],
+			sortCapabilities: dateSortCapabilities,
+			onrequestsorthydration
+		});
+
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		expect(onrequestsorthydration).not.toHaveBeenCalled();
 	});
 
 	it('keeps the current panel structure editable and saves the draft order payload', async () => {

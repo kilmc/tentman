@@ -608,7 +608,7 @@
 
 	async function loadGitHubCollectionItems(
 		config: DiscoveredConfig,
-		options?: { force?: boolean }
+		options?: { force?: boolean; hydrateRemaining?: boolean }
 	) {
 		if (isLocalMode || !config.config.collection) {
 			return;
@@ -646,7 +646,7 @@
 			await githubRepositoryCache.warmCollection(config.slug, {
 				fetcher: fetch,
 				force: options?.force,
-				hydrateRemaining: false,
+				hydrateRemaining: options?.hydrateRemaining ?? false,
 				warmDocuments: false
 			});
 			const payload = await githubRepositoryCache.getCollectionNavigation(config.slug);
@@ -1147,7 +1147,13 @@
 							canOrderItems={!!collectionSetup?.canOrderItems}
 							canManageGroups={!!collectionSetup?.groupManagementEnabled}
 							savingCustomOrder={savingCollectionOrder}
-							onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+							onretry={() =>
+								void loadGitHubCollectionItems(currentConfig, {
+									force: true,
+									hydrateRemaining: true
+								})}
+							onrequestsorthydration={() =>
+								void loadGitHubCollectionItems(currentConfig, { hydrateRemaining: true })}
 							onpromoteitem={(item) =>
 								handlePromoteCollectionItem(currentConfig.slug, item.hrefItemId ?? item.itemId)}
 							onsavecustomorder={(collection: NavigationDraftCollection) =>
@@ -1237,7 +1243,13 @@
 					canOrderItems={!!collectionSetup?.canOrderItems}
 					canManageGroups={!!collectionSetup?.groupManagementEnabled}
 					savingCustomOrder={savingCollectionOrder}
-					onretry={() => void loadGitHubCollectionItems(currentConfig, { force: true })}
+					onretry={() =>
+						void loadGitHubCollectionItems(currentConfig, {
+							force: true,
+							hydrateRemaining: true
+						})}
+					onrequestsorthydration={() =>
+						void loadGitHubCollectionItems(currentConfig, { hydrateRemaining: true })}
 					onpromoteitem={(item) =>
 						handlePromoteCollectionItem(currentConfig.slug, item.hrefItemId ?? item.itemId)}
 					onsavecustomorder={(collection: NavigationDraftCollection) =>
