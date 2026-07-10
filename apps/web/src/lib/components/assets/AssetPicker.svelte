@@ -25,6 +25,7 @@
 		config: AssetPickerConfig;
 		mode?: 'github' | 'local';
 		initialTab?: 'existing' | 'upload';
+		allowMultipleUploads?: boolean;
 		currentValue?: string | null;
 		title?: string;
 		oninsert: (
@@ -46,7 +47,8 @@
 		filter,
 		config,
 		mode = 'github',
-		initialTab = 'existing',
+		initialTab = 'upload',
+		allowMultipleUploads = false,
 		currentValue = null,
 		title = 'Choose asset',
 		oninsert,
@@ -191,10 +193,10 @@
 		return FileIcon;
 	}
 
-	async function uploadFile(file: File | null | undefined) {
-		if (!file || !onupload) {
+	async function uploadFiles(files: File[]) {
+		if (files.length === 0 || !onupload) {
 			logPicker('upload skipped', {
-				hasFile: Boolean(file),
+				fileCount: files.length,
 				hasUploadHandler: Boolean(onupload)
 			});
 			return;
@@ -203,20 +205,27 @@
 		uploading = true;
 		error = null;
 		logPicker('upload start', {
-			name: file.name,
-			type: file.type,
-			size: file.size,
+			count: files.length,
+			files: files.map((file) => ({
+				name: file.name,
+				type: file.type,
+				size: file.size
+			})),
 			assetPath: config.assetPath ?? null,
 			publicPath: config.publicPath ?? null
 		});
 
 		try {
-			const result = await onupload(file);
-			logPicker('upload complete', {
-				value: result.value,
-				hasPreviewUrl: Boolean(result.previewUrl)
-			});
-			await oninsert(result.value, result);
+			for (const file of files) {
+				const result = await onupload(file);
+				logPicker('upload file complete', {
+					name: file.name,
+					value: result.value,
+					hasPreviewUrl: Boolean(result.previewUrl)
+				});
+				await oninsert(result.value, result);
+			}
+			logPicker('upload complete', { count: files.length });
 			onclose();
 		} catch (nextError) {
 			error = nextError instanceof Error ? nextError.message : 'Failed to upload asset';
@@ -250,8 +259,15 @@
 		});
 		search = '';
 		activeTab = initialTab;
-		void loadEntries();
 		void tick().then(() => dialog?.focus());
+	});
+
+	$effect(() => {
+		if (!open || activeTab !== 'existing') {
+			return;
+		}
+
+		void loadEntries();
 	});
 </script>
 
@@ -293,15 +309,15 @@
 			</div>
 
 			<div class="flex items-center gap-2 border-b border-stone-200 px-5 py-3">
+				<button type="button" class={getTabClass('upload')} onclick={() => (activeTab = 'upload')}>
+					Upload new
+				</button>
 				<button
 					type="button"
 					class={getTabClass('existing')}
 					onclick={() => (activeTab = 'existing')}
 				>
 					Existing assets
-				</button>
-				<button type="button" class={getTabClass('upload')} onclick={() => (activeTab = 'upload')}>
-					Upload new
 				</button>
 			</div>
 
@@ -509,11 +525,13 @@
 								bind:this={fileInput}
 								type="file"
 								accept={acceptValue}
+								multiple={allowMultipleUploads}
 								disabled={uploading}
 								class="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-stone-100"
 								onchange={(event) => {
 									const input = event.currentTarget as HTMLInputElement;
-									void uploadFile(input.files?.[0]);
+									const files = Array.from(input.files ?? []);
+									void uploadFiles(allowMultipleUploads ? files : files.slice(0, 1));
 								}}
 							/>
 						</label>

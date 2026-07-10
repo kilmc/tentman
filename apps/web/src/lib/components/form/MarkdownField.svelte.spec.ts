@@ -4,6 +4,7 @@ import { expectElement, render } from '$lib/test-support/browser-test';
 import MarkdownField from './MarkdownField.svelte';
 import type { ContentComponentRegistry } from '$lib/content-components/registry';
 import type { AssetPickerEntry, AssetPickerFilter } from '$lib/features/assets/asset-picker';
+import type { DraftAssetMetadata } from '$lib/features/draft-assets/types';
 import SemanticMarkdownFieldHarness from '$lib/test/fixtures/SemanticMarkdownFieldHarness.svelte';
 
 const emptyContentComponentRegistry: ContentComponentRegistry = {
@@ -30,6 +31,25 @@ describe('components/form/MarkdownField.svelte', () => {
 			relativePath: name,
 			kind: filter.kind,
 			extension: name.slice(name.lastIndexOf('.')).toLowerCase()
+		};
+	}
+
+	function createDraftAssetMetadata(ref: string, originalName: string): DraftAssetMetadata {
+		const id = ref.replace(/^draft-asset:/, '');
+		return {
+			id,
+			ref,
+			repoKey: 'github:acme/docs',
+			storagePath: 'static/media',
+			originalName,
+			mimeType: 'image/png',
+			size: originalName.length,
+			createdAt: '2026-07-10T00:00:00.000Z',
+			targetFilename: originalName,
+			targetPath: `static/media/${originalName}`,
+			publicPath: `/media/${originalName}`,
+			byteStore: 'idb',
+			byteKey: `github:acme/docs:${id}`
 		};
 	}
 
@@ -114,8 +134,10 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByRole('button', { name: 'Audio' }).click();
+		await screen.getByRole('button', { name: 'Existing assets' }).click();
 		await screen.getByRole('button', { name: 'Insert' }).click();
 		await screen.getByRole('button', { name: 'Video' }).click();
+		await screen.getByRole('button', { name: 'Existing assets' }).click();
 		await screen.getByRole('button', { name: 'Insert' }).click();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 
@@ -139,9 +161,68 @@ describe('components/form/MarkdownField.svelte', () => {
 		});
 
 		await screen.getByTestId('markdown-rich-toolbar').getByRole('button', { name: 'File' }).click();
+		await screen.getByRole('button', { name: 'Existing assets' }).click();
 		await screen.getByRole('button', { name: 'Insert' }).click();
 		await screen.getByRole('button', { name: 'Markdown' }).click();
 
 		await expectElement(screen.getByLabelText('Body')).toHaveValue('[brief.pdf](/media/brief.pdf)');
+	});
+
+	it('uploads and inserts multiple image assets in one picker selection', async () => {
+		const draftAssetStore = {
+			create: vi
+				.fn()
+				.mockResolvedValueOnce({
+					ref: 'draft-asset:first-image',
+					previewUrl: null,
+					metadata: createDraftAssetMetadata('draft-asset:first-image', 'first.png')
+				})
+				.mockResolvedValueOnce({
+					ref: 'draft-asset:second-image',
+					previewUrl: null,
+					metadata: createDraftAssetMetadata('draft-asset:second-image', 'second.png')
+				}),
+			readFile: vi.fn(),
+			resolveUrl: vi.fn(async () => null),
+			delete: vi.fn(async () => undefined),
+			getMetadata: vi.fn(async () => null),
+			getMetadataForContent: vi.fn(async () => []),
+			collectFromContent: vi.fn(() => []),
+			gc: vi.fn(async () => undefined)
+		};
+		const screen = await render(MarkdownField, {
+			label: 'Body',
+			value: '',
+			storagePath: 'static/media',
+			testAdapters: {
+				repoKey: 'github:acme/docs',
+				componentMode: 'local',
+				rootConfig,
+				draftAssetStore,
+				loadContentComponentRegistryForMode: async () => emptyContentComponentRegistry
+			}
+		});
+
+		await screen.getByRole('button', { name: 'Image' }).click();
+		await screen.getByLabelText('Upload image').upload([
+			new File(['first'], 'first.png', { type: 'image/png' }),
+			new File(['second'], 'second.png', { type: 'image/png' })
+		]);
+		await screen.getByRole('button', { name: 'Markdown' }).click();
+
+		await expectElement(screen.getByLabelText('Body')).toHaveValue(
+			'![](draft-asset:first-image)\n\n![](draft-asset:second-image)\n\n'
+		);
+		expect(draftAssetStore.create).toHaveBeenCalledTimes(2);
+		expect(draftAssetStore.create).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ name: 'first.png' }),
+			expect.objectContaining({ repoKey: 'github:acme/docs' })
+		);
+		expect(draftAssetStore.create).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ name: 'second.png' }),
+			expect.objectContaining({ repoKey: 'github:acme/docs' })
+		);
 	});
 });

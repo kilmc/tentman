@@ -438,7 +438,6 @@
 			value: nextValue,
 			label: entry?.name ?? getFilenameFromAssetValue(nextValue)
 		});
-		assetPickerState = { open: false };
 	}
 
 	function closeContextualPopover() {
@@ -1115,6 +1114,7 @@
 			mode={assetPickerMode}
 			currentValue={null}
 			title={assetPickerState.open ? assetPickerState.title : 'Insert image'}
+			allowMultipleUploads
 			oninsert={handleAssetPickerInsert}
 			onupload={stagePickerAsset}
 			onclose={() => (assetPickerState = { open: false })}
