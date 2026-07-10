@@ -27,6 +27,14 @@ const config = {
 	]
 };
 
+const dateConfig = {
+	...config,
+	blocks: [
+		...config.blocks,
+		{ id: 'published_at', type: 'date' as const, label: 'Published at' }
+	]
+};
+
 describe('components/form/FormGenerator.svelte', () => {
 	it('marks the form dirty and submits changed text field values', async () => {
 		const screen = await render(FormGeneratorSubmitHarness, {
@@ -91,5 +99,43 @@ describe('components/form/FormGenerator.svelte', () => {
 		await expectElement(screen.getByLabelText('Title')).toBeVisible();
 		await expectElement(screen.getByLabelText('Slug')).toBeVisible();
 		await expectElement(screen.getByLabelText('Published')).toBeVisible();
+	});
+
+	it('shows the date portion of an ISO timestamp in date fields without changing stored data', async () => {
+		const screen = await render(FormGeneratorSubmitHarness, {
+			config: dateConfig,
+			blockRegistry,
+			initialData: {
+				title: 'Original title',
+				published_at: '2013-05-23T14:52:00.000+00:00'
+			},
+			width: 1100
+		});
+
+		await expectElement(screen.getByLabelText('Published at')).toHaveValue('2013-05-23');
+
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent(
+			'"published_at":"2013-05-23T14:52:00.000+00:00"'
+		);
+	});
+
+	it('stores date field changes as native date input values', async () => {
+		const screen = await render(FormGeneratorSubmitHarness, {
+			config: dateConfig,
+			blockRegistry,
+			initialData: {
+				title: 'Original title',
+				published_at: '2013-05-23T14:52:00.000+00:00'
+			},
+			width: 1100
+		});
+
+		await screen.getByLabelText('Published at').fill('2013-06-01');
+
+		await screen.getByRole('button', { name: 'Prepare submit' }).click();
+		await expectElement(screen.getByTestId('prepared-data')).toHaveTextContent(
+			'"published_at":"2013-06-01"'
+		);
 	});
 });
