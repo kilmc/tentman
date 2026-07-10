@@ -12,6 +12,9 @@
 		'Type',
 		'Mode',
 		'Export',
+		'Options',
+		'String value',
+		'Object equivalent',
 		'Required fields',
 		'Optional fields'
 	]);

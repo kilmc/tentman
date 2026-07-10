@@ -505,6 +505,143 @@ const contentModeRows = [
 	]
 ];
 
+const collectionBehaviorRows = [
+	[
+		'ordering',
+		'No',
+		'boolean',
+		'Adds the Custom sort mode and lets Tentman persist item order in the navigation manifest.',
+		'Only enables item ordering. Use groupManagement separately for group CRUD.'
+	],
+	[
+		'groupManagement',
+		'No',
+		'boolean',
+		'Lets Tentman create, rename, merge, and delete configured collection groups.',
+		'Groups still come from collection.groups. Ungrouped items are computed from missing _tentmanGroupId.'
+	],
+	[
+		'sorts',
+		'No',
+		'CollectionSortConfig[]',
+		'Defines the named sort choices shown in the collection panel.',
+		'When omitted, Tentman infers one sort from item label, title, date, or filename.'
+	],
+	[
+		'defaultSort',
+		'No',
+		'string | { id: string; direction?: "asc" | "desc" }',
+		'Chooses the initial sort by referencing a sort id.',
+		'The string shorthand is the same as { id: "that-sort-id" }.'
+	],
+	[
+		'groups',
+		'No',
+		'CollectionGroupConfig[]',
+		'Defines the reusable groups authors can assign items to.',
+		'Group values must be unique within the collection.'
+	],
+	[
+		'state',
+		'No',
+		'StateConfig',
+		'Defines item-level state badges for repeated collection items.',
+		'Use top-level content.state instead for singleton page state.'
+	]
+];
+
+const collectionSortRows = [
+	[
+		'type: "title"',
+		'id?: string, label?: string, defaultDirection?: "asc" | "desc"',
+		'Sorts by the resolved item title.',
+		'Defaults to id "title". No blockId is allowed or needed.'
+	],
+	[
+		'type: "text"',
+		'id?: string, blockId: string, label?: string, defaultDirection?: "asc" | "desc"',
+		'Sorts by a specific text field.',
+		'blockId must point to a block whose type is text.'
+	],
+	[
+		'type: "date"',
+		'id?: string, blockId: string, label?: string, defaultDirection?: "asc" | "desc"',
+		'Sorts by a specific date field.',
+		'blockId must point to a block whose type is date.'
+	],
+	[
+		'type: "alphabetical"',
+		'id?: string, blockId?: string, label?: string, defaultDirection?: "asc" | "desc"',
+		'Author-friendly alias for alphabetical sorting.',
+		'Without blockId it becomes type "title" with id "title". With blockId it becomes type "text" and uses that block id by default.'
+	],
+	[
+		'type: "chronological"',
+		'id?: string, blockId: string, label?: string, defaultDirection?: "asc" | "desc"',
+		'Author-friendly alias for date sorting.',
+		'Becomes type "date" and uses blockId as the sort id when id is omitted.'
+	]
+];
+
+const collectionSortIdRows = [
+	[
+		'id',
+		'No',
+		'string',
+		'Stable identifier for this sort choice.',
+		'Required only when you do not want Tentman to derive the id.'
+	],
+	[
+		'type',
+		'Yes',
+		'"title" | "text" | "date" | "alphabetical" | "chronological"',
+		'Chooses what value Tentman sorts by.',
+		'alphabetical and chronological are aliases that normalize to concrete title, text, or date sorts.'
+	],
+	[
+		'blockId',
+		'Sometimes',
+		'string',
+		'Points at the field to sort by.',
+		'Required for text, date, and chronological. Optional for alphabetical.'
+	],
+	[
+		'label',
+		'No',
+		'string',
+		'Human-facing label shown for the sort option.',
+		'Defaults to Title for title sorts, or to the block id for field-backed sorts.'
+	],
+	[
+		'defaultDirection',
+		'No',
+		'"asc" | "desc"',
+		'Preferred direction when this sort is selected.',
+		'Overridden by collection.defaultSort.direction for the initial sort.'
+	]
+];
+
+const defaultSortRows = [
+	[
+		'"title"',
+		'{ "id": "title" }',
+		'Selects the sort whose id is title.',
+		'Common when using type "title" or type "alphabetical" without blockId.'
+	],
+	[
+		'"publishedAt"',
+		'{ "id": "publishedAt" }',
+		'Selects the sort whose id is publishedAt.',
+		'This usually corresponds to a date or text block id when id was omitted from that sort.'
+	],
+	[
+		'{ "id": "publishedAt", "direction": "desc" }',
+		'same object',
+		'Selects publishedAt and opens descending.',
+		'Use direction only when the initial direction should differ from the sort default.'
+	]
+];
+
 const collectionGroupRows = [
 	[
 		'_tentmanId',
@@ -528,6 +665,33 @@ const collectionGroupRows = [
 		'Useful when the UI label should differ from the serialized value.'
 	]
 ];
+
+const collectionSortsExample = `{
+  "collection": {
+    "ordering": true,
+    "defaultSort": { "id": "publishedAt", "direction": "desc" },
+    "sorts": [
+      { "type": "alphabetical", "label": "Title" },
+      {
+        "type": "chronological",
+        "blockId": "publishedAt",
+        "label": "Published"
+      },
+      {
+        "id": "subtitle",
+        "type": "text",
+        "blockId": "subtitle",
+        "label": "Subtitle",
+        "defaultDirection": "asc"
+      }
+    ]
+  },
+  "blocks": [
+    { "id": "title", "type": "text", "label": "Title" },
+    { "id": "subtitle", "type": "text", "label": "Subtitle" },
+    { "id": "publishedAt", "type": "date", "label": "Published" }
+  ]
+}`;
 
 const stateConfigRows = [
 	[
@@ -1654,6 +1818,84 @@ const docsPages: DocsPage[] = [
 				]
 			},
 			{
+				id: 'object-api',
+				title: 'Object form API',
+				blocks: [
+					{
+						kind: 'rich-text',
+						html: `<p>The object form is the full collection behavior API. Every property is optional, so you can turn on only the pieces that collection needs.</p>`
+					},
+					table(['Field', 'Required', 'Type', 'Purpose', 'Notes'], collectionBehaviorRows)
+				]
+			},
+			{
+				id: 'sorts',
+				title: 'Sort choices',
+				blocks: [
+					{
+						kind: 'rich-text',
+						html: `<p>${inlineCode('collection.sorts')} defines the sort choices shown in the collection panel. Each entry gets a stable ${inlineCode(
+							'id'
+						)}. ${inlineCode('collection.defaultSort')} points at that id; it does not point directly at a block unless the sort id and block id are the same.</p>
+<p>When a sort has no explicit ${inlineCode('id')}, Tentman derives one. ${inlineCode(
+							'type: "title"'
+						)} and ${inlineCode(
+							'type: "alphabetical"'
+						)} without ${inlineCode('blockId')} use ${inlineCode(
+							'title'
+						)}. Field-backed sorts use ${inlineCode('blockId')}.</p>`
+					},
+					table(['Field', 'Required', 'Type', 'Purpose', 'Notes'], collectionSortIdRows),
+					table(['Type', 'Options', 'Purpose', 'Notes'], collectionSortRows),
+					{
+						kind: 'code',
+						title: 'Collection sort example',
+						description:
+							'This exposes three choices: title, publishedAt, and subtitle. The default sort opens on publishedAt descending.',
+						code: collectionSortsExample,
+						language: 'json'
+					}
+				]
+			},
+			{
+				id: 'default-sort',
+				title: 'defaultSort values',
+				blocks: [
+					{
+						kind: 'rich-text',
+						html: `<p>${inlineCode('defaultSort')} accepts either a string id or an object with ${inlineCode(
+							'id'
+						)} and optional ${inlineCode(
+							'direction'
+						)}. The string values are sort ids, not labels. They correspond to the normalized ids from ${inlineCode(
+							'collection.sorts'
+						)} or to the inferred sort id when you do not author a sorts array.</p>
+<p>If ${inlineCode('defaultSort.direction')} is omitted, date sorts open ${inlineCode(
+							'desc'
+						)} by default and text/title/filename sorts open ${inlineCode(
+							'asc'
+						)}. A sort's own ${inlineCode(
+							'defaultDirection'
+						)} overrides that natural direction, and ${inlineCode(
+							'defaultSort.direction'
+						)} overrides both for the initial selection.</p>`
+					},
+					table(['String value', 'Object equivalent', 'Purpose', 'Notes'], defaultSortRows),
+					{
+						kind: 'rich-text',
+						html: `<p>When ${inlineCode(
+							'collection.sorts'
+						)} is omitted, Tentman infers one sort in this order: an explicit ${inlineCode(
+							'isItemLabel: true'
+						)} date field, an explicit text-style item label, a text/textarea/markdown field named or labeled ${inlineCode(
+							'title'
+						)}, the first date field, then filename. Inferred ids are usually ${inlineCode(
+							'title'
+						)}, the date block id, or ${inlineCode('filename')}.</p>`
+					}
+				]
+			},
+			{
 				id: 'manual-ordering',
 				title: 'Manual ordering and groups',
 				blocks: [
@@ -1675,7 +1917,6 @@ const docsPages: DocsPage[] = [
 						)} is required unique metadata within the collection. Ungrouped is computed from items without ${inlineCode(
 							'_tentmanGroupId'
 						)}, not configured as a group. Deleting a group unassigns its items; merging appends source group items to the target group.</p>
-<p>When ${inlineCode('collection.sorts')} is omitted, Tentman infers one default sort: title when a title label source exists, the first date block when there is no title source, and filename only when neither title nor date is available. Authored sorts can use intent names like ${inlineCode('type: "alphabetical"')} and ${inlineCode('type: "chronological"')}; field-backed sorts derive their id from ${inlineCode('blockId')} when ${inlineCode('id')} is omitted. Use ${inlineCode('collection.defaultSort')} as a string or ${inlineCode('{ id, direction }')} object to choose the initial collection panel sort.</p>
 <p>If a manifest section exists, Tentman uses it first. Unlisted existing configs or items are appended in discovered/default order, and missing manifest references are ignored.</p>`
 					},
 					{
