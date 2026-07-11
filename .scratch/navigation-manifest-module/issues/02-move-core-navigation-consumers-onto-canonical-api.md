@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 — Add the canonical navigation manifest contract to core.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Core navigation diagnostics use the canonical manifest helpers for reference ids, lookup, and semantic checks.
-- [ ] Core navigation refresh/rebuild behavior preserves user-facing behavior while working from canonical Navigation Reference objects.
-- [ ] Core navigation print/explain behavior continues to report the same meaningful ordering and reference information.
-- [ ] Existing core tests pass after duplicated manifest semantics are removed or delegated to the canonical API.
-- [ ] Any new helper behavior needed by diagnostics is pure and does not take on repository loading or discovery responsibilities.
+- [x] Core navigation diagnostics use the canonical manifest helpers for reference ids, lookup, and semantic checks.
+- [x] Core navigation refresh/rebuild behavior preserves user-facing behavior while working from canonical Navigation Reference objects.
+- [x] Core navigation print/explain behavior continues to report the same meaningful ordering and reference information.
+- [x] Existing core tests pass after duplicated manifest semantics are removed or delegated to the canonical API.
+- [x] Any new helper behavior needed by diagnostics is pure and does not take on repository loading or discovery responsibilities.

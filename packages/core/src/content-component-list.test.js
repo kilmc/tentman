@@ -4,22 +4,22 @@ import path from 'node:path';
 import test from 'node:test';
 import { createContentComponentScaffold, listTentmanContentComponents, loadTentmanProject } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { copyCoreFixtureProjectToTempGitRepo } from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-component-list-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-component-list-');
 }
 
-test('lists no content components when the project components directory does not exist yet', async () => {
-	const projectRoot = await copyFixture();
+test('lists no content components when the project components directory does not exist yet', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await fs.rm(path.join(projectRoot, 'src/lib/content-components'), { recursive: true, force: true });
 	const project = await loadTentmanProject(projectRoot);
 
 	assert.deepEqual(await listTentmanContentComponents(project), []);
 });
 
-test('lists scaffolded content components from the default components directory', async () => {
-	const projectRoot = await copyFixture();
+test('lists scaffolded content components from the default components directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await createContentComponentScaffold(projectRoot, 'buy-button');
 	await createContentComponentScaffold(projectRoot, 'image-gallery', { kind: 'block' });
 
@@ -67,8 +67,8 @@ test('lists scaffolded content components from the default components directory'
 	);
 });
 
-test('lists scaffolded content components from the configured components directory', async () => {
-	const projectRoot = await copyFixture();
+test('lists scaffolded content components from the configured components directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.componentsDir = './src/lib/components/content';

@@ -1,0 +1,76 @@
+{
+	"type": "content",
+	"label": "Contact",
+	"_tentmanId": "tent_01KTVA0B0VT000000000000002",
+	"id": "contact",
+	"content": {
+		"mode": "file",
+		"path": "../../src/content/pages/contact.json"
+	},
+	"editorLayout": {
+		"aside": [
+			"email",
+			"location",
+			"responseTime"
+		],
+		"asideLabel": "Contact details"
+	},
+	"blocks": [
+		{
+			"id": "title",
+			"type": "text",
+			"label": "Title",
+			"required": true
+		},
+		{
+			"id": "intro",
+			"type": "textarea",
+			"label": "Intro",
+			"required": true,
+			"maxLength": 220
+		},
+		{
+			"id": "email",
+			"type": "email",
+			"label": "Email",
+			"required": true
+		},
+		{
+			"id": "location",
+			"type": "text",
+			"label": "Location"
+		},
+		{
+			"id": "responseTime",
+			"type": "text",
+			"label": "Response time"
+		},
+		{
+			"id": "body",
+			"type": "markdown",
+			"label": "Body",
+			"required": true
+		},
+		{
+			"id": "hours",
+			"type": "block",
+			"label": "Office Hours",
+			"collection": true,
+			"itemLabel": "Time slot",
+			"blocks": [
+				{
+					"id": "day",
+					"type": "text",
+					"label": "Day",
+					"required": true
+				},
+				{
+					"id": "hours",
+					"type": "text",
+					"label": "Hours",
+					"required": true
+				}
+			]
+		}
+	]
+}

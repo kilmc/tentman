@@ -1,0 +1,21 @@
+{
+	"id": "doc-link",
+	"name": "doc-link",
+	"kind": "inline",
+	"attributes": {
+		"href": {
+			"type": "string",
+			"required": true
+		},
+		"label": {
+			"type": "string",
+			"required": true,
+			"valueFromMarkdownLabel": true
+		},
+		"variant": {
+			"type": "enum",
+			"default": "plain",
+			"options": ["plain", "strong"]
+		}
+	}
+}

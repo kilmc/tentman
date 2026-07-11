@@ -156,7 +156,48 @@ export function getNavigationReferenceIds(references) {
 		: [];
 }
 
-export function getNavigationManifestCollection(manifest, reference) {
+function uniqueNavigationReferenceIds(references) {
+	const seen = new Set();
+	const ids = [];
+
+	for (const reference of references) {
+		const referenceId = getNavigationReferenceId(reference);
+
+		if (typeof referenceId !== 'string' || referenceId.length === 0 || seen.has(referenceId)) {
+			continue;
+		}
+
+		seen.add(referenceId);
+		ids.push(referenceId);
+	}
+
+	return ids;
+}
+
+export function getNavigationManifestContentItems(manifest) {
+	return Array.isArray(manifest?.content?.items) ? manifest.content.items : [];
+}
+
+export function getNavigationManifestCollectionEntries(manifest) {
+	return manifest?.collections && typeof manifest.collections === 'object'
+		? Object.entries(manifest.collections).map(([reference, collection]) => ({
+				reference,
+				collection,
+				references: getNavigationManifestCollectionReferenceIds(reference, collection)
+			}))
+		: [];
+}
+
+export function getNavigationManifestCollectionReferenceIds(reference, collection) {
+	return uniqueNavigationReferenceIds([
+		reference,
+		collection?.id,
+		collection?.configId,
+		collection?.slug
+	]);
+}
+
+export function getNavigationManifestCollectionEntry(manifest, reference) {
 	const referenceId = getNavigationReferenceId(reference);
 
 	if (!manifest?.collections || typeof referenceId !== 'string' || referenceId.length === 0) {
@@ -165,7 +206,11 @@ export function getNavigationManifestCollection(manifest, reference) {
 
 	const directMatch = manifest.collections[referenceId];
 	if (directMatch) {
-		return directMatch;
+		return {
+			reference: referenceId,
+			collection: directMatch,
+			references: getNavigationManifestCollectionReferenceIds(referenceId, directMatch)
+		};
 	}
 
 	for (const [key, collection] of Object.entries(manifest.collections)) {
@@ -175,26 +220,48 @@ export function getNavigationManifestCollection(manifest, reference) {
 			collection.configId === referenceId ||
 			collection.slug === referenceId
 		) {
-			return collection;
+			return {
+				reference: key,
+				collection,
+				references: getNavigationManifestCollectionReferenceIds(key, collection)
+			};
 		}
 	}
 
 	return null;
 }
 
+export function getNavigationManifestCollection(manifest, reference) {
+	return getNavigationManifestCollectionEntry(manifest, reference)?.collection ?? null;
+}
+
+export function getNavigationManifestCollectionItems(collection) {
+	return Array.isArray(collection?.items) ? collection.items : [];
+}
+
+export function getNavigationManifestGroups(collection) {
+	return Array.isArray(collection?.groups) ? collection.groups : [];
+}
+
+export function getNavigationManifestGroupReferenceIds(group) {
+	return uniqueNavigationReferenceIds([group?.id, group?.value]);
+}
+
 export function getNavigationManifestGroup(collection, reference) {
 	const referenceId = getNavigationReferenceId(reference);
 
-	if (
-		!Array.isArray(collection?.groups) ||
-		typeof referenceId !== 'string' ||
-		referenceId.length === 0
-	) {
+	if (typeof referenceId !== 'string' || referenceId.length === 0) {
 		return null;
 	}
 
 	return (
-		collection.groups.find((group) => group.id === referenceId || group.value === referenceId) ??
+		getNavigationManifestGroups(collection).find((group) =>
+			getNavigationManifestGroupReferenceIds(group).includes(referenceId)
+		) ??
 		null
 	);
+}
+
+export function getNavigationManifestGroupItems(group) {
+	return Array.isArray(group?.items) ? group.items : [];
 }

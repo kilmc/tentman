@@ -3,10 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { getTentmanSchema, loadTentmanProject } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
 test('summarizes repo schema across content configs', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
+	const project = await loadCoreFixtureProject();
 	const schema = getTentmanSchema(project);
 
 	assert.deepEqual(
@@ -25,7 +28,7 @@ test('summarizes repo schema across content configs', async () => {
 });
 
 test('expands effective fields for a selected config schema', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
+	const project = await loadCoreFixtureProject();
 	const schema = getTentmanSchema(project, 'about');
 
 	assert.equal(schema.config.label, 'About');
@@ -57,7 +60,7 @@ test('expands effective fields for a selected config schema', async () => {
 });
 
 test('includes collection metadata in selected config schema', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
+	const project = await loadCoreFixtureProject();
 	const schema = getTentmanSchema(project, 'blog');
 
 	assert.equal(schema.config.collection.enabled, true);
@@ -71,8 +74,8 @@ test('includes collection metadata in selected config schema', async () => {
 	assert.deepEqual(schema.fields[6]?.components, undefined);
 });
 
-test('preserves item label source metadata in schema summaries', async () => {
-	const rootDir = await copyTestAppToTempGitRepo('tentman-core-schema-');
+test('preserves item label source metadata in schema summaries', async (t) => {
+	const rootDir = await copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-schema-');
 	const configPath = path.join(rootDir, 'tentman/configs/blog.tentman.json');
 	const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
 	config.blocks[0].isItemLabel = true;
@@ -91,7 +94,7 @@ test('preserves item label source metadata in schema summaries', async () => {
 });
 
 test('throws when exporting schema for an unknown config reference', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-schema-'));
+	const project = await loadCoreFixtureProject();
 
 	assert.throws(() => getTentmanSchema(project, 'missing-config'), /Unknown content config reference/);
 });

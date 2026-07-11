@@ -1,29 +1,37 @@
 import { listTentmanContent } from './content-list.js';
-import { getNavigationReferenceIds } from './manifest.js';
+import {
+	getNavigationManifestCollectionEntry,
+	getNavigationManifestCollectionItems,
+	getNavigationManifestContentItems,
+	getNavigationManifestGroupItems,
+	getNavigationManifestGroups,
+	getNavigationReferenceIds
+} from './manifest.js';
 import {
 	getConfigByReference,
 	getConfigReferences,
-	getItemReferences,
 	orderByReferences
 } from './references.js';
 
 function orderConfigs(project, entries) {
-	const manifestIds = getNavigationReferenceIds(project.navigationManifest.manifest?.content?.items);
+	const manifestIds = getNavigationReferenceIds(
+		getNavigationManifestContentItems(project.navigationManifest.manifest)
+	);
 	return orderByReferences(entries, manifestIds, (entry) => entry.references);
 }
 
 function orderCollectionItems(project, config, items) {
-	const configReference = getConfigReferences(config).find((reference) =>
-		Object.hasOwn(project.navigationManifest.manifest?.collections ?? {}, reference)
-	);
-	const manifestCollection = configReference
-		? project.navigationManifest.manifest?.collections?.[configReference]
-		: undefined;
+	const manifestCollection =
+		getConfigReferences(config)
+			.map((reference) =>
+				getNavigationManifestCollectionEntry(project.navigationManifest.manifest, reference)
+			)
+			.find(Boolean)?.collection ?? null;
 
 	return {
 		items: orderByReferences(
 			items,
-			getNavigationReferenceIds(manifestCollection?.items),
+			getNavigationReferenceIds(getNavigationManifestCollectionItems(manifestCollection)),
 			(item) => item.references
 		),
 		manifestCollection
@@ -31,7 +39,7 @@ function orderCollectionItems(project, config, items) {
 }
 
 function summarizeGroupItems(group, items) {
-	const groupItemIds = getNavigationReferenceIds(group.items);
+	const groupItemIds = getNavigationReferenceIds(getNavigationManifestGroupItems(group));
 	return orderByReferences(items, groupItemIds, (item) => item.references).filter((item) =>
 		item.references.some((reference) => groupItemIds.includes(reference))
 	);
@@ -65,7 +73,7 @@ export function printTentmanNavigation(project, configReference) {
 
 	const content = listTentmanContent(project, configReference);
 	const { items, manifestCollection } = orderCollectionItems(project, config, content.items);
-	const groups = (manifestCollection?.groups ?? []).map((group) => ({
+	const groups = getNavigationManifestGroups(manifestCollection).map((group) => ({
 		id: group.id,
 		label: group.label ?? group.id,
 		value: group.value ?? null,

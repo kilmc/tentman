@@ -5,10 +5,14 @@ import path from 'node:path';
 import test from 'node:test';
 import { checkTentmanIds, doctorTentmanProject, loadTentmanProject } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	coreFixtureProjectRoot,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-project-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-project-');
 }
 
 async function writeReferenceComponent(projectRoot) {
@@ -35,8 +39,8 @@ async function writeReferenceComponent(projectRoot) {
 	]);
 }
 
-test('loads the monorepo fixture app as a Tentman project', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+test('loads the core fixture project as a Tentman project', async () => {
+	const project = await loadCoreFixtureProject();
 
 	assert.equal(project.rootConfig.siteName, 'Test App');
 	assert.equal(project.configs.length, 6);
@@ -49,16 +53,16 @@ test('loads the monorepo fixture app as a Tentman project', async () => {
 });
 
 test('resolves the git-rooted project from a nested path inside the repo', async () => {
-	const projectRoot = await copyFixture();
-	const nestedPath = path.join(projectRoot, 'src/content/posts');
+	const nestedPath = path.join(coreFixtureProjectRoot, 'src/content/posts');
 	const project = await loadTentmanProject(nestedPath);
 
-	assert.equal(project.rootDir, projectRoot);
+	assert.equal(project.rootDir, coreFixtureProjectRoot);
 	assert.equal(project.rootConfigPath, 'tentman.json');
 });
 
-test('fails clearly when the path is not inside a git repository', async () => {
+test('fails clearly when the path is not inside a git repository', async (t) => {
 	const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tentman-no-git-'));
+	t.after(() => fs.rm(projectRoot, { recursive: true, force: true }));
 	await fs.writeFile(path.join(projectRoot, 'tentman.json'), '{}\n');
 
 	await assert.rejects(
@@ -67,8 +71,8 @@ test('fails clearly when the path is not inside a git repository', async () => {
 	);
 });
 
-test('fails clearly when tentman.json is missing at the git root', async () => {
-	const projectRoot = await copyFixture();
+test('fails clearly when tentman.json is missing at the git root', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await fs.rm(path.join(projectRoot, 'tentman.json'));
 
 	await assert.rejects(
@@ -77,8 +81,8 @@ test('fails clearly when tentman.json is missing at the git root', async () => {
 	);
 });
 
-test('fails clearly when tentman.json is invalid', async () => {
-	const projectRoot = await copyFixture();
+test('fails clearly when tentman.json is invalid', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await fs.writeFile(path.join(projectRoot, 'tentman.json'), '{"siteName": }\n');
 
 	await assert.rejects(
@@ -87,8 +91,8 @@ test('fails clearly when tentman.json is invalid', async () => {
 	);
 });
 
-test('loads configured content components directory from root config', async () => {
-	const projectRoot = await copyFixture();
+test('loads configured content components directory from root config', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.componentsDir = './src/lib/components/content';
@@ -100,8 +104,8 @@ test('loads configured content components directory from root config', async () 
 	assert.equal(project.componentsDir, 'src/lib/components/content');
 });
 
-test('loads markdown-backed file singletons with frontmatter and body', async () => {
-	const projectRoot = await copyFixture();
+test('loads markdown-backed file singletons with frontmatter and body', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const aboutMarkdownPath = path.join(projectRoot, 'src/content/pages/about.md');
 	const aboutConfig = JSON.parse(await fs.readFile(aboutConfigPath, 'utf8'));
@@ -135,14 +139,14 @@ test('loads markdown-backed file singletons with frontmatter and body', async ()
 });
 
 test('doctors the fixture without manifest or path errors', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const diagnostics = await doctorTentmanProject(project);
 
 	assert.deepEqual(diagnostics, []);
 });
 
-test('doctor accepts newer built-in block types', async () => {
-	const projectRoot = await copyFixture();
+test('doctor accepts newer built-in block types', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
 
@@ -169,8 +173,8 @@ test('doctor accepts newer built-in block types', async () => {
 	);
 });
 
-test('doctor reports a missing configured content config directory', async () => {
-	const projectRoot = await copyFixture();
+test('doctor reports a missing configured content config directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.configsDir = './tentman/missing-configs';
@@ -189,14 +193,14 @@ test('doctor reports a missing configured content config directory', async () =>
 });
 
 test('reports the migrated fixture ids as clean', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const diagnostics = checkTentmanIds(project);
 
 	assert.equal(diagnostics.filter((diagnostic) => diagnostic.code === 'id.missing').length, 0);
 });
 
-test('doctors missing reusable blocks and missing asset directories', async () => {
-	const projectRoot = await copyFixture();
+test('doctors missing reusable blocks and missing asset directories', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blockConfigPath = path.join(projectRoot, 'tentman/blocks/image-gallery.tentman.json');
@@ -246,8 +250,8 @@ test('doctors missing reusable blocks and missing asset directories', async () =
 	);
 });
 
-test('doctor reports invalid content component reference bindings as hard errors', async () => {
-	const projectRoot = await copyFixture();
+test('doctor reports invalid content component reference bindings as hard errors', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const projectsConfigPath = path.join(projectRoot, 'tentman/configs/projects.tentman.json');
 	const projectsConfig = JSON.parse(await fs.readFile(projectsConfigPath, 'utf8'));
 	await writeReferenceComponent(projectRoot);

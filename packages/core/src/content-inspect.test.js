@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inspectTentmanContent, loadTentmanProject } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { inspectTentmanContent } from './index.js';
+import { loadCoreFixtureProject } from './test-paths.test-helper.js';
 
 test('inspects a singleton config without requiring an item reference', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-inspect-'));
+	const project = await loadCoreFixtureProject();
 	const result = inspectTentmanContent(project, 'about');
 
 	assert.match(result.config.label, /About/);
@@ -15,7 +15,7 @@ test('inspects a singleton config without requiring an item reference', async ()
 });
 
 test('inspects a collection item by any supported item reference', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-inspect-'));
+	const project = await loadCoreFixtureProject();
 	const result = inspectTentmanContent(project, 'blog', 'why-this-test-app-is-so-plain');
 
 	assert.equal(result.config.label, 'Blog Posts');
@@ -27,7 +27,7 @@ test('inspects a collection item by any supported item reference', async () => {
 });
 
 test('requires an item reference for multi-item configs', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-inspect-'));
+	const project = await loadCoreFixtureProject();
 
 	assert.throws(
 		() => inspectTentmanContent(project, 'blog'),
@@ -36,7 +36,7 @@ test('requires an item reference for multi-item configs', async () => {
 });
 
 test('throws when inspecting an unknown item reference', async () => {
-	const project = await loadTentmanProject(await copyTestAppToTempGitRepo('tentman-core-content-inspect-'));
+	const project = await loadCoreFixtureProject();
 
 	assert.throws(
 		() => inspectTentmanContent(project, 'blog', 'missing-item'),

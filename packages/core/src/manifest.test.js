@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	getNavigationManifestCollection,
+	getNavigationManifestCollectionEntries,
+	getNavigationManifestCollectionEntry,
+	getNavigationManifestCollectionItems,
+	getNavigationManifestCollectionReferenceIds,
+	getNavigationManifestContentItems,
 	getNavigationManifestGroup,
+	getNavigationManifestGroupItems,
+	getNavigationManifestGroupReferenceIds,
+	getNavigationManifestGroups,
 	getNavigationReferenceId,
 	getNavigationReferenceIds,
 	normalizeNavigationManifest,
@@ -159,6 +167,7 @@ test('normalizes manifest objects without going through JSON parsing', () => {
 test('looks up collections and groups by supported references', () => {
 	const manifest = parseNavigationManifest(`{
 		"version": 1,
+		"content": { "items": ["about"] },
 		"collections": {
 			"blog": {
 				"id": "tent_blog",
@@ -170,6 +179,25 @@ test('looks up collections and groups by supported references', () => {
 		}
 	}`);
 
+	assert.deepEqual(getNavigationManifestContentItems(manifest), [{ id: 'about' }]);
+	assert.deepEqual(getNavigationManifestCollectionReferenceIds('blog', manifest.collections.blog), [
+		'blog',
+		'tent_blog',
+		'posts',
+		'writing'
+	]);
+	assert.deepEqual(getNavigationManifestCollectionEntries(manifest), [
+		{
+			reference: 'blog',
+			collection: manifest.collections.blog,
+			references: ['blog', 'tent_blog', 'posts', 'writing']
+		}
+	]);
+	assert.deepEqual(getNavigationManifestCollectionEntry(manifest, 'posts'), {
+		reference: 'blog',
+		collection: manifest.collections.blog,
+		references: ['blog', 'tent_blog', 'posts', 'writing']
+	});
 	assert.equal(getNavigationManifestCollection(manifest, 'blog'), manifest.collections.blog);
 	assert.equal(getNavigationManifestCollection(manifest, 'tent_blog'), manifest.collections.blog);
 	assert.equal(getNavigationManifestCollection(manifest, 'posts'), manifest.collections.blog);
@@ -178,6 +206,14 @@ test('looks up collections and groups by supported references', () => {
 		manifest.collections.blog
 	);
 	assert.equal(getNavigationManifestCollection(manifest, 'missing'), null);
+	assert.deepEqual(getNavigationManifestCollectionItems(manifest.collections.blog), []);
+	assert.deepEqual(getNavigationManifestGroups(manifest.collections.blog), [
+		{ id: 'featured', value: 'featured-posts', items: [] }
+	]);
+	assert.deepEqual(getNavigationManifestGroupReferenceIds(manifest.collections.blog.groups[0]), [
+		'featured',
+		'featured-posts'
+	]);
 
 	assert.equal(
 		getNavigationManifestGroup(manifest.collections.blog, 'featured-posts'),
@@ -188,6 +224,7 @@ test('looks up collections and groups by supported references', () => {
 		manifest.collections.blog.groups[0]
 	);
 	assert.equal(getNavigationManifestGroup(manifest.collections.blog, 'missing'), null);
+	assert.deepEqual(getNavigationManifestGroupItems(manifest.collections.blog.groups[0]), []);
 });
 
 test('navigation manifest subpath exposes the canonical API', async () => {

@@ -33,6 +33,12 @@ export interface NavigationManifest {
 	collections?: Record<string, NavigationManifestCollection>;
 }
 
+export interface NavigationManifestCollectionEntry {
+	reference: string;
+	collection: NavigationManifestCollection;
+	references: string[];
+}
+
 export interface NavigationManifestGroupInput {
 	id: string;
 	label?: string;
@@ -73,11 +79,37 @@ export function getNavigationReferenceId(
 export function getNavigationReferenceIds(
 	references: Array<NavigationReferenceInput | Partial<NavigationReference>> | null | undefined
 ): string[];
+export function getNavigationManifestContentItems(
+	manifest: NavigationManifest | null | undefined
+): NavigationReference[];
+export function getNavigationManifestCollectionEntries(
+	manifest: NavigationManifest | null | undefined
+): NavigationManifestCollectionEntry[];
+export function getNavigationManifestCollectionReferenceIds(
+	reference: string,
+	collection: NavigationManifestCollection | null | undefined
+): string[];
+export function getNavigationManifestCollectionEntry(
+	manifest: NavigationManifest | null | undefined,
+	reference: NavigationReferenceInput | Partial<NavigationReference> | null | undefined
+): NavigationManifestCollectionEntry | null;
 export function getNavigationManifestCollection(
 	manifest: NavigationManifest | null | undefined,
 	reference: NavigationReferenceInput | Partial<NavigationReference> | null | undefined
 ): NavigationManifestCollection | null;
+export function getNavigationManifestCollectionItems(
+	collection: NavigationManifestCollection | null | undefined
+): NavigationReference[];
+export function getNavigationManifestGroups(
+	collection: NavigationManifestCollection | null | undefined
+): NavigationManifestGroup[];
+export function getNavigationManifestGroupReferenceIds(
+	group: NavigationManifestGroup | null | undefined
+): string[];
 export function getNavigationManifestGroup(
 	collection: NavigationManifestCollection | null | undefined,
 	reference: NavigationReferenceInput | Partial<NavigationReference> | null | undefined
 ): NavigationManifestGroup | null;
+export function getNavigationManifestGroupItems(
+	group: NavigationManifestGroup | null | undefined
+): NavigationReference[];

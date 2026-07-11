@@ -9,10 +9,10 @@ import {
 	refreshNavigationManifest,
 	summarizeNavigationRefreshChanges
 } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { copyCoreFixtureProjectToTempGitRepo } from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-nav-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-nav-');
 }
 
 async function writeLegacyNavigationManifest(projectRoot) {
@@ -45,8 +45,8 @@ async function writeLegacyNavigationManifest(projectRoot) {
 	);
 }
 
-test('refreshes navigation manifest references to stable ids', async () => {
-	const projectRoot = await copyFixture();
+test('refreshes navigation manifest references to stable ids', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await writeLegacyNavigationManifest(projectRoot);
 	const project = await loadTentmanProject(projectRoot);
 	const beforeDiagnostics = checkNavigationManifest(project);
