@@ -6,7 +6,13 @@ export {
 	isTentmanId
 } from './ids.js';
 export {
+	getNavigationManifestCollection,
+	getNavigationManifestGroup,
+	getNavigationReferenceId,
+	getNavigationReferenceIds,
 	NAVIGATION_MANIFEST_PATH,
+	normalizeNavigationManifest,
+	normalizeNavigationReference,
 	parseNavigationManifest,
 	serializeNavigationManifest
 } from './manifest.js';

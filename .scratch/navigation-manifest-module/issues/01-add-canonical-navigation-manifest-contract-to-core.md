@@ -4,10 +4,10 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] The core Navigation Manifest API parses valid manifests into canonical reference objects while accepting shorthand string references for compatibility.
-- [ ] The core parser strictly rejects malformed manifest structure and malformed references with useful errors.
-- [ ] The core serializer emits canonical Navigation Reference objects so existing shorthand manifests normalize lazily on write.
-- [ ] The core API includes collection/group lookup and reference helper behavior covered by contract tests.
-- [ ] The focused manifest API is available through an intention-revealing core export while compatibility re-exports remain where needed.
+- [x] The core Navigation Manifest API parses valid manifests into canonical reference objects while accepting shorthand string references for compatibility.
+- [x] The core parser strictly rejects malformed manifest structure and malformed references with useful errors.
+- [x] The core serializer emits canonical Navigation Reference objects so existing shorthand manifests normalize lazily on write.
+- [x] The core API includes collection/group lookup and reference helper behavior covered by contract tests.
+- [x] The focused manifest API is available through an intention-revealing core export while compatibility re-exports remain where needed.
