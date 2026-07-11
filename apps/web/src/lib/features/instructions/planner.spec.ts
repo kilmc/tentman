@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeNavigationManifest } from '@tentman/core/navigation-manifest';
 import { discoverInstructions } from '$lib/features/instructions/discovery';
 import { clearNavigationManifestStateCache } from '$lib/features/content-management/navigation-manifest';
 import { planInstructionExecution, normalizeSlug } from '$lib/features/instructions/planner';
@@ -239,10 +240,12 @@ describe('instruction planner', () => {
 				configId: 'press-kit',
 				summary: 'Tentman will append this item to the existing navigation manifest.',
 				nextManifest: {
-					version: 1,
-					content: {
-						items: ['about', 'press-kit']
-					}
+					...normalizeNavigationManifest({
+						version: 1,
+						content: {
+							items: ['about', 'press-kit']
+						}
+					})
 				}
 			},
 			inputErrors: [],
@@ -290,10 +293,12 @@ describe('instruction planner', () => {
 			configId: 'press-kit',
 			summary: 'Tentman will create a navigation manifest and add this item.',
 			nextManifest: {
-				version: 1,
-				content: {
-					items: ['press-kit']
-				}
+				...normalizeNavigationManifest({
+					version: 1,
+					content: {
+						items: ['press-kit']
+					}
+				})
 			}
 		});
 	});

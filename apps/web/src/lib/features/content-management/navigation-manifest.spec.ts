@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	getNavigationReferenceIds,
+	normalizeNavigationManifest,
+	type NavigationManifestCollectionInput,
+	type NavigationManifestInput
+} from '@tentman/core/navigation-manifest';
+import {
 	addContentConfigIdToSource,
 	addRootManualSortingToSource,
 	buildNavigationManifestFromRepository,
@@ -18,6 +24,19 @@ import type {
 	RepositoryReadOptions,
 	RepositoryWriteOptions
 } from '$lib/repository/types';
+
+function canonicalManifest(manifest: NavigationManifestInput) {
+	return normalizeNavigationManifest(manifest);
+}
+
+function canonicalCollection(collection: NavigationManifestCollectionInput) {
+	return normalizeNavigationManifest({
+		version: 1,
+		collections: {
+			collection
+		}
+	}).collections?.collection;
+}
 
 function createBackend(files: Record<string, string>): RepositoryBackend {
 	return {
@@ -91,24 +110,26 @@ describe('navigation manifest helpers', () => {
 					}
 				}
 			}`)
-		).toEqual({
-			version: 1,
-			content: {
-				items: ['about', 'posts']
-			},
-			collections: {
-				posts: {
-					items: ['post-2'],
-					groups: [
-						{
-							id: 'featured',
-							label: 'Featured',
-							items: ['post-2']
-						}
-					]
+		).toEqual(
+			canonicalManifest({
+				version: 1,
+				content: {
+					items: ['about', 'posts']
+				},
+				collections: {
+					posts: {
+						items: ['post-2'],
+						groups: [
+							{
+								id: 'featured',
+								label: 'Featured',
+								items: ['post-2']
+							}
+						]
+					}
 				}
-			}
-		});
+			})
+		);
 	});
 
 	it('parses collection groups without labels for id-fallback displays', () => {
@@ -124,18 +145,20 @@ describe('navigation manifest helpers', () => {
 					}
 				}
 			}`)
-		).toEqual({
-			version: 1,
-			collections: {
-				projects: {
-					items: [],
-					groups: [{ id: 'archive', items: [] }]
+		).toEqual(
+			canonicalManifest({
+				version: 1,
+				collections: {
+					projects: {
+						items: [],
+						groups: [{ id: 'archive', items: [] }]
+					}
 				}
-			}
-		});
+			})
+		);
 	});
 
-	it('accepts richer materialized manifest entries by normalizing them to ids', () => {
+	it('accepts richer materialized manifest entries as canonical references', () => {
 		expect(
 			parseNavigationManifest(`{
 				"version": 1,
@@ -153,20 +176,22 @@ describe('navigation manifest helpers', () => {
 					}
 				}
 			}`)
-		).toEqual({
-			version: 1,
-			content: {
-				items: ['about']
-			},
-			collections: {
-				projects: {
-					id: 'projects',
-					label: 'Projects',
-					slug: 'projects',
-					items: ['poster-design']
+		).toEqual(
+			canonicalManifest({
+				version: 1,
+				content: {
+					items: [{ id: 'about', label: 'About', slug: 'about' }]
+				},
+				collections: {
+					projects: {
+						id: 'projects',
+						label: 'Projects',
+						slug: 'projects',
+						items: [{ id: 'poster-design', label: 'Poster design', slug: 'poster-design' }]
+					}
 				}
-			}
-		});
+			})
+		);
 	});
 
 	it('suggests ids only for configs that are still missing them', () => {
@@ -406,19 +431,24 @@ describe('navigation manifest helpers', () => {
 			}
 		);
 
-		expect(manifest?.collections?.projects?.items).toEqual([
+		expect(getNavigationReferenceIds(manifest?.collections?.projects?.items)).toEqual([
 			'first-project',
 			'edited-project',
 			'third-project'
 		]);
-		expect(manifest?.collections?.projects?.groups).toEqual([
-			{
-				id: 'illustration',
-				label: 'Illustration',
-				value: 'illustration',
-				items: ['first-project', 'edited-project', 'third-project']
-			}
-		]);
+		expect(manifest?.collections?.projects?.groups).toEqual(
+			canonicalCollection({
+				items: ['first-project', 'edited-project', 'third-project'],
+				groups: [
+					{
+						id: 'illustration',
+						label: 'Illustration',
+						value: 'illustration',
+						items: ['first-project', 'edited-project', 'third-project']
+					}
+				]
+			})?.groups
+		);
 		expect(writeTextFile).not.toHaveBeenCalled();
 	});
 
@@ -474,21 +504,23 @@ describe('navigation manifest helpers', () => {
 				],
 				{ content: { sorting: 'manual' } }
 			)
-		).toEqual({
-			version: 1,
-			content: {
-				items: ['about', 'posts']
-			},
-			collections: {
-				posts: {
-					id: 'posts',
-					label: 'Posts',
-					slug: 'posts',
-					items: ['post-1', 'post-2'],
-					groups: [{ id: 'featured', label: 'Featured', value: 'featured', items: [] }]
+		).toEqual(
+			canonicalManifest({
+				version: 1,
+				content: {
+					items: ['about', 'posts']
+				},
+				collections: {
+					posts: {
+						id: 'posts',
+						label: 'Posts',
+						slug: 'posts',
+						items: ['post-1', 'post-2'],
+						groups: [{ id: 'featured', label: 'Featured', value: 'featured', items: [] }]
+					}
 				}
-			}
-		});
+			})
+		);
 	});
 
 	it('rewrites legacy manifest references through stable ids when rebuilding', async () => {
@@ -558,24 +590,26 @@ describe('navigation manifest helpers', () => {
 					}
 				}
 			)
-		).toEqual({
-			version: 1,
-			content: {
-				items: ['content-posts', 'page-about']
-			},
-			collections: {
-				'content-posts': {
-					id: 'content-posts',
-					label: 'Posts',
-					slug: 'posts',
-					configId: 'posts',
-					items: ['post-2', 'post-1'],
-					groups: [
-						{ id: 'featured-group', label: 'Featured', value: 'featured', items: ['post-1'] }
-					]
+		).toEqual(
+			canonicalManifest({
+				version: 1,
+				content: {
+					items: ['content-posts', 'page-about']
+				},
+				collections: {
+					'content-posts': {
+						id: 'content-posts',
+						label: 'Posts',
+						slug: 'posts',
+						configId: 'posts',
+						items: ['post-2', 'post-1'],
+						groups: [
+							{ id: 'featured-group', label: 'Featured', value: 'featured', items: ['post-1'] }
+						]
+					}
 				}
-			}
-		});
+			})
+		);
 	});
 
 	it('reconciles missing and duplicate ids and migrates manifest-backed groups into config', async () => {
@@ -644,24 +678,31 @@ describe('navigation manifest helpers', () => {
 			}
 		);
 
-		expect(manifest).toEqual({
-			version: 1,
-			content: {
-				items: ['posts']
-			},
-			collections: {
-				posts: {
-					id: 'posts',
-					label: 'Posts',
-					slug: 'posts',
-					configId: 'posts',
-					items: ['dup', 'hello-world', 'third-post'],
-					groups: [
-						{ id: 'featured', label: 'Featured', value: 'featured', items: ['hello-world', 'dup'] }
-					]
+		expect(manifest).toEqual(
+			canonicalManifest({
+				version: 1,
+				content: {
+					items: ['posts']
+				},
+				collections: {
+					posts: {
+						id: 'posts',
+						label: 'Posts',
+						slug: 'posts',
+						configId: 'posts',
+						items: ['dup', 'hello-world', 'third-post'],
+						groups: [
+							{
+								id: 'featured',
+								label: 'Featured',
+								value: 'featured',
+								items: ['hello-world', 'dup']
+							}
+						]
+					}
 				}
-			}
-		});
+			})
+		);
 
 		expect(files['content/posts.tentman.json']).toContain('"_tentmanId": "posts"');
 		expect(files['content/posts.tentman.json']).toContain('"groups"');
@@ -719,21 +760,23 @@ describe('navigation manifest helpers', () => {
 			null
 		);
 
-		expect(manifest).toEqual({
-			version: 1,
-			content: {
-				items: ['projects']
-			},
-			collections: {
-				projects: {
-					id: 'projects',
-					label: 'Projects',
-					slug: 'projects',
-					items: [],
-					groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
+		expect(manifest).toEqual(
+			canonicalManifest({
+				version: 1,
+				content: {
+					items: ['projects']
+				},
+				collections: {
+					projects: {
+						id: 'projects',
+						label: 'Projects',
+						slug: 'projects',
+						items: [],
+						groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
+					}
 				}
-			}
-		});
+			})
+		);
 
 		expect(files['content/projects.tentman.json']).toContain('"_tentmanId": "identity"');
 	});
@@ -924,18 +967,20 @@ describe('navigation manifest helpers', () => {
 			},
 			{ _tentmanId: 'archive', title: 'Archive' }
 		]);
-		expect(manifest.collections?.projects).toEqual({
-			items: ['brand-system', 'launch', 'archive'],
-			groups: [
-				{
-					id: 'campaigns',
-					label: 'Campaigns',
-					value: 'campaigns',
-					items: ['brand-system', 'launch']
-				},
-				{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
-			]
-		});
+		expect(manifest.collections?.projects).toEqual(
+			canonicalCollection({
+				items: ['brand-system', 'launch', 'archive'],
+				groups: [
+					{
+						id: 'campaigns',
+						label: 'Campaigns',
+						value: 'campaigns',
+						items: ['brand-system', 'launch']
+					},
+					{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
+				]
+			})
+		);
 		expect(JSON.parse(files['tentman/navigation-manifest.json'])).toEqual(manifest);
 	});
 
@@ -1015,9 +1060,12 @@ describe('navigation manifest helpers', () => {
 		expect(JSON.parse(files['content/projects.tentman.json']).collection.groups).toEqual([
 			{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }
 		]);
-		expect(manifest.collections?.projects.groups).toEqual([
-			{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
-		]);
+		expect(manifest.collections?.projects.groups).toEqual(
+			canonicalCollection({
+				items: [],
+				groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
+			})?.groups
+		);
 	});
 
 	it('deletes a managed group and appends its items to ungrouped', async () => {
@@ -1071,16 +1119,16 @@ describe('navigation manifest helpers', () => {
 			}
 		);
 
-		expect(manifest.collections?.projects).toEqual({
-			id: 'projects',
-			label: 'Projects',
-			slug: 'projects',
-			items: ['launch', 'archive', 'brand-system'],
-			groups: [{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: ['launch'] }]
-		});
-		expect(JSON.parse(files['src/content/projects.json'])[0]).not.toHaveProperty(
-			'_tentmanGroupId'
+		expect(manifest.collections?.projects).toEqual(
+			canonicalCollection({
+				id: 'projects',
+				label: 'Projects',
+				slug: 'projects',
+				items: ['launch', 'archive', 'brand-system'],
+				groups: [{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: ['launch'] }]
+			})
 		);
+		expect(JSON.parse(files['src/content/projects.json'])[0]).not.toHaveProperty('_tentmanGroupId');
 	});
 
 	it('merges a managed source group into a target group', async () => {
@@ -1133,14 +1181,19 @@ describe('navigation manifest helpers', () => {
 			}
 		);
 
-		expect(manifest.collections?.projects.groups).toEqual([
-			{
-				id: 'campaigns',
-				label: 'Campaigns',
-				value: 'campaigns',
-				items: ['launch', 'brand-system']
-			}
-		]);
+		expect(manifest.collections?.projects.groups).toEqual(
+			canonicalCollection({
+				items: ['launch', 'brand-system'],
+				groups: [
+					{
+						id: 'campaigns',
+						label: 'Campaigns',
+						value: 'campaigns',
+						items: ['launch', 'brand-system']
+					}
+				]
+			})?.groups
+		);
 		expect(JSON.parse(files['src/content/projects.json'])[0]._tentmanGroupId).toBe('campaigns');
 	});
 });

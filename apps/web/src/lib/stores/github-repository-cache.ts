@@ -13,6 +13,7 @@ import {
 	type NavigationManifest,
 	type NavigationManifestState
 } from '$lib/features/content-management/navigation-manifest';
+import { normalizeNavigationManifest } from '@tentman/core/navigation-manifest';
 import {
 	resolveCollectionItemState,
 	type ResolvedContentState
@@ -2947,12 +2948,13 @@ export const githubRepositoryCache = {
 				input.content,
 				input.navigationManifest
 			);
+			const canonicalManifest = manifest ? normalizeNavigationManifest(manifest) : null;
 			const nextSnapshot: CachedSnapshot = {
 				...snapshot,
 				navigationManifest: {
 					...snapshot.navigationManifest,
 					exists: snapshot.navigationManifest.exists || !!manifest,
-					manifest
+					manifest: canonicalManifest
 				},
 				updatedAt: Date.now()
 			};

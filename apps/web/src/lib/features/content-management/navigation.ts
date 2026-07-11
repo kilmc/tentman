@@ -1,4 +1,5 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
+import { getNavigationReferenceIds } from '@tentman/core/navigation-manifest';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { RootConfig } from '$lib/config/root-config';
 import {
@@ -188,7 +189,10 @@ function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 		return { items, groups: [] };
 	}
 
-	const orderedItems = orderItemsByManifest(items, manifestCollection.items);
+	const orderedItems = orderItemsByManifest(
+		items,
+		getNavigationReferenceIds(manifestCollection.items ?? [])
+	);
 	const configGroups = getCollectionGroups(config);
 
 	if (!configGroups.length) {
@@ -201,7 +205,9 @@ function splitOrderedItemsIntoGroups<T extends { itemId: string }>(
 	const itemMap = new Map(orderedItems.map((item) => [item.itemId, item]));
 	const groupedItemIds = new Set<string>();
 	const groupMemberships = new Map(
-		(manifestCollection.groups ?? []).map((group) => [group.id, group.items] as const)
+		(manifestCollection.groups ?? []).map(
+			(group) => [group.id, getNavigationReferenceIds(group.items ?? [])] as const
+		)
 	);
 	const groups = configGroups.flatMap((group) => {
 		if (!group._tentmanId) {
@@ -240,7 +246,7 @@ export function orderDiscoveredConfigs(
 		return configs;
 	}
 
-	const manifestIds = manifest?.content?.items;
+	const manifestIds = getNavigationReferenceIds(manifest?.content?.items ?? []);
 	if (!manifestIds?.length) {
 		return configs;
 	}

@@ -1,4 +1,5 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
+import { getNavigationReferenceIds } from '@tentman/core/navigation-manifest';
 import type { RootConfig } from '$lib/config/root-config';
 import {
 	getOrderedCollectionRecords,
@@ -129,8 +130,10 @@ function getManifestCollectionItemIds(
 		return [];
 	}
 
-	const groupedIds = (collection.groups ?? []).flatMap((group) => group.items);
-	return [...groupedIds, ...collection.items];
+	const groupedIds = (collection.groups ?? []).flatMap((group) =>
+		getNavigationReferenceIds(group.items)
+	);
+	return [...groupedIds, ...getNavigationReferenceIds(collection.items)];
 }
 
 export function buildCollectionManifestOrderChangeReview(input: {

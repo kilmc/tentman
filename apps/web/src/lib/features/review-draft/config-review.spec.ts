@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import {
+	normalizeNavigationManifest,
+	type NavigationManifestInput
+} from '@tentman/core/navigation-manifest';
 import { buildConfigReviewSection } from './config-review';
+
+function canonicalManifest(manifest: NavigationManifestInput) {
+	return normalizeNavigationManifest(manifest);
+}
 
 const collectionConfig = {
 	slug: 'posts',
@@ -48,27 +56,27 @@ describe('review draft config review', () => {
 			baseManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: true,
-				manifest: {
+				manifest: canonicalManifest({
 					version: 1,
 					collections: {
 						posts: {
 							items: ['a', 'b', 'c']
 						}
 					}
-				},
+				}),
 				error: null
 			},
 			draftManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: true,
-				manifest: {
+				manifest: canonicalManifest({
 					version: 1,
 					collections: {
 						posts: {
 							items: ['a', 'c']
 						}
 					}
-				},
+				}),
 				error: null
 			},
 			baseRootConfig: null,
@@ -94,27 +102,27 @@ describe('review draft config review', () => {
 			baseManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: true,
-				manifest: {
+				manifest: canonicalManifest({
 					version: 1,
 					collections: {
 						posts: {
 							items: ['a', 'b']
 						}
 					}
-				},
+				}),
 				error: null
 			},
 			draftManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: true,
-				manifest: {
+				manifest: canonicalManifest({
 					version: 1,
 					collections: {
 						posts: {
 							items: ['b', 'a']
 						}
 					}
-				},
+				}),
 				error: null
 			},
 			baseRootConfig: null,
@@ -151,27 +159,27 @@ describe('review draft config review', () => {
 			baseManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: true,
-				manifest: {
+				manifest: canonicalManifest({
 					version: 1,
 					collections: {
 						posts: {
 							items: ['a']
 						}
 					}
-				},
+				}),
 				error: null
 			},
 			draftManifest: {
 				path: 'tentman/navigation-manifest.json',
 				exists: true,
-				manifest: {
+				manifest: canonicalManifest({
 					version: 1,
 					collections: {
 						posts: {
 							items: ['a']
 						}
 					}
-				},
+				}),
 				error: null
 			},
 			baseRootConfig: null,

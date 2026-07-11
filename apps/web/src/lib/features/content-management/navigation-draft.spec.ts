@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeNavigationManifest } from '@tentman/core/navigation-manifest';
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import {
 	areNavigationDraftsEqual,
@@ -165,24 +166,26 @@ describe('navigation draft helpers', () => {
 					}
 				}
 			})
-		).toEqual({
-			version: 1,
-			content: {
-				items: ['blog', 'about']
-			},
-			collections: {
-				blog: {
-					items: ['post-3', 'post-2', 'post-1'],
-					groups: [
-						{
-							id: 'featured',
-							label: 'Featured',
-							items: ['post-3', 'post-2']
-						}
-					]
+		).toEqual(
+			normalizeNavigationManifest({
+				version: 1,
+				content: {
+					items: ['blog', 'about']
+				},
+				collections: {
+					blog: {
+						items: ['post-3', 'post-2', 'post-1'],
+						groups: [
+							{
+								id: 'featured',
+								label: 'Featured',
+								items: ['post-3', 'post-2']
+							}
+						]
+					}
 				}
-			}
-		});
+			})
+		);
 	});
 
 	it('updates top-level order and collection zones immutably', () => {
