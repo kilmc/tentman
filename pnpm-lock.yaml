@@ -178,8 +178,6 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
 
-  packages/runtime: {}
-
   packages/vite:
     dependencies:
       vite:
