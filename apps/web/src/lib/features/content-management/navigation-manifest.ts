@@ -3,6 +3,7 @@ import {
 	getNavigationReferenceId,
 	getNavigationReferenceIds,
 	NAVIGATION_MANIFEST_PATH,
+	normalizeNavigationReference,
 	parseNavigationManifest,
 	serializeNavigationManifest
 } from '@tentman/core/navigation-manifest';
@@ -165,6 +166,16 @@ function toNavigationReferences(ids: string[]): NavigationReference[] {
 	return ids.map((id) => ({ id }));
 }
 
+function cloneNavigationReferences(
+	references: NavigationReferenceInput[] | null | undefined
+): NavigationReference[] {
+	return (references ?? []).map((reference) => normalizeNavigationReference(reference));
+}
+
+function getGroupNavigationReferences(groups: NavigationManifestGroup[]): NavigationReference[] {
+	return cloneNavigationReferences(groups.flatMap((group) => group.items ?? []));
+}
+
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
 	const seen = new Set<string>();
 	const output: string[] = [];
@@ -317,7 +328,7 @@ function cloneManifestCollection(
 		...(collection.slug ? { slug: collection.slug } : {}),
 		...(collection.href ? { href: collection.href } : {}),
 		...(collection.configId ? { configId: collection.configId } : {}),
-		items: [...(collection.items ?? [])],
+		items: cloneNavigationReferences(collection.items),
 		...(collection.groups
 			? {
 					groups: collection.groups.map((group) => ({
@@ -325,7 +336,7 @@ function cloneManifestCollection(
 						...(group.label ? { label: group.label } : {}),
 						...(group.value ? { value: group.value } : {}),
 						...(group.href ? { href: group.href } : {}),
-						items: [...(group.items ?? [])]
+						items: cloneNavigationReferences(group.items)
 					}))
 				}
 			: {})
@@ -972,17 +983,19 @@ function createManifestCollectionFromItems(
 			(candidate) => candidate.id === group._tentmanId
 		);
 		const existingItems = existingGroup
-			? getNavigationIds(existingGroup.items)
-			: orderedItems.filter((itemId) => itemGroups.get(itemId) === group._tentmanId);
+			? cloneNavigationReferences(existingGroup.items).filter((reference) =>
+					orderedItems.includes(reference.id)
+				)
+			: toNavigationReferences(
+					orderedItems.filter((itemId) => itemGroups.get(itemId) === group._tentmanId)
+				);
 
 		return [
 			{
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: toNavigationReferences(
-					existingItems.filter((itemId) => orderedItems.includes(itemId))
-				)
+				items: existingItems
 			}
 		];
 	});
@@ -1103,7 +1116,7 @@ function applyCollectionGroupMutationToManifest(
 		return {
 			...collection,
 			items: [
-				...nextGroups.flatMap((group) => group.items ?? []),
+				...getGroupNavigationReferences(nextGroups),
 				...toNavigationReferences(ungroupedItems)
 			],
 			...(nextGroups.length > 0 ? { groups: nextGroups } : { groups: undefined })
@@ -1127,7 +1140,10 @@ function applyCollectionGroupMutationToManifest(
 				group.id === mutation.targetGroupId
 					? {
 							...group,
-							items: [...(group.items ?? []), ...(sourceGroup.items ?? [])]
+							items: cloneNavigationReferences([
+								...(group.items ?? []),
+								...(sourceGroup.items ?? [])
+							])
 						}
 					: group
 			);
@@ -1136,7 +1152,7 @@ function applyCollectionGroupMutationToManifest(
 		return {
 			...collection,
 			items: [
-				...nextGroups.flatMap((group) => group.items ?? []),
+				...getGroupNavigationReferences(nextGroups),
 				...toNavigationReferences(ungroupedItems)
 			],
 			...(nextGroups.length > 0 ? { groups: nextGroups } : { groups: undefined })
@@ -1158,7 +1174,7 @@ function applyCollectionGroupMutationToManifest(
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: [...(existingGroup?.items ?? [])]
+				items: cloneNavigationReferences(existingGroup?.items)
 			}
 		];
 	});
@@ -1170,10 +1186,7 @@ function applyCollectionGroupMutationToManifest(
 
 	return {
 		...collection,
-		items: [
-			...nextGroups.flatMap((group) => group.items ?? []),
-			...toNavigationReferences(ungroupedItems)
-		],
+		items: [...getGroupNavigationReferences(nextGroups), ...toNavigationReferences(ungroupedItems)],
 		...(nextGroups.length > 0
 			? { groups: nextGroups.filter((group) => knownGroupIds.has(group.id)) }
 			: {})

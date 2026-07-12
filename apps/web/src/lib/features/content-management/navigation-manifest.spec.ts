@@ -14,7 +14,6 @@ import {
 	getManualNavigationSetupState,
 	manageCollectionGroups,
 	getMissingContentConfigIds,
-	parseNavigationManifest,
 	reconcileManualNavigationSetup,
 	saveCollectionOrder,
 	syncCollectionItemGroupSelection,
@@ -93,110 +92,6 @@ describe('navigation manifest helpers', () => {
 
 	afterEach(() => {
 		clearNavigationManifestStateCache();
-	});
-
-	it('parses the v1 JSON manifest schema', () => {
-		expect(
-			parseNavigationManifest(`{
-				"version": 1,
-				"content": {
-					"items": ["about", "posts"]
-				},
-				"collections": {
-					"posts": {
-						"items": ["post-2"],
-						"groups": [
-							{
-								"id": "featured",
-								"label": "Featured",
-								"items": ["post-2"]
-							}
-						]
-					}
-				}
-			}`)
-		).toEqual(
-			canonicalManifest({
-				version: 1,
-				content: {
-					items: ['about', 'posts']
-				},
-				collections: {
-					posts: {
-						items: ['post-2'],
-						groups: [
-							{
-								id: 'featured',
-								label: 'Featured',
-								items: ['post-2']
-							}
-						]
-					}
-				}
-			})
-		);
-	});
-
-	it('parses collection groups without labels for id-fallback displays', () => {
-		expect(
-			parseNavigationManifest(`{
-				"version": 1,
-				"collections": {
-					"projects": {
-						"items": [],
-						"groups": [
-							{ "id": "archive", "items": [] }
-						]
-					}
-				}
-			}`)
-		).toEqual(
-			canonicalManifest({
-				version: 1,
-				collections: {
-					projects: {
-						items: [],
-						groups: [{ id: 'archive', items: [] }]
-					}
-				}
-			})
-		);
-	});
-
-	it('accepts richer materialized manifest entries as canonical references', () => {
-		expect(
-			parseNavigationManifest(`{
-				"version": 1,
-				"content": {
-					"items": [{ "id": "about", "label": "About", "slug": "about" }]
-				},
-				"collections": {
-					"projects": {
-						"id": "projects",
-						"label": "Projects",
-						"slug": "projects",
-						"items": [
-							{ "id": "poster-design", "label": "Poster design", "slug": "poster-design" }
-						]
-					}
-				}
-			}`)
-		).toEqual(
-			canonicalManifest({
-				version: 1,
-				content: {
-					items: [{ id: 'about', label: 'About', slug: 'about' }]
-				},
-				collections: {
-					projects: {
-						id: 'projects',
-						label: 'Projects',
-						slug: 'projects',
-						items: [{ id: 'poster-design', label: 'Poster design', slug: 'poster-design' }]
-					}
-				}
-			})
-		);
 	});
 
 	it('writes shorthand manifest references as canonical objects', async () => {
@@ -1195,6 +1090,67 @@ describe('navigation manifest helpers', () => {
 		]);
 	});
 
+	it('preserves materialized item reference metadata when editing managed groups', async () => {
+		const files: Record<string, string> = {
+			'content/projects.tentman.json': JSON.stringify({
+				type: 'content',
+				_tentmanId: 'projects',
+				label: 'Projects',
+				collection: {
+					groupManagement: true,
+					groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
+				},
+				content: {
+					mode: 'file',
+					path: 'src/content/projects.json',
+					itemsPath: '$'
+				},
+				blocks: []
+			}),
+			'src/content/projects.json': JSON.stringify([{ _tentmanId: 'brand-system', title: 'Brand' }])
+		};
+		const backend = createBackend(files);
+		const config = {
+			slug: 'projects',
+			path: 'content/projects.tentman.json',
+			config: JSON.parse(files['content/projects.tentman.json'])
+		};
+		const materializedReference = {
+			id: 'brand-system',
+			label: 'Brand system',
+			slug: 'brand-system',
+			href: '/projects/brand-system'
+		};
+
+		const manifest = await manageCollectionGroups(
+			backend,
+			config,
+			{ action: 'edit', groupId: 'identity', label: 'Brand Identity', value: 'brand-identity' },
+			{
+				version: 1,
+				collections: {
+					projects: {
+						items: [materializedReference],
+						groups: [
+							{
+								id: 'identity',
+								label: 'Identity',
+								value: 'identity',
+								items: [materializedReference]
+							}
+						]
+					}
+				}
+			}
+		);
+
+		expect(manifest.collections?.projects.items).toEqual([materializedReference]);
+		expect(manifest.collections?.projects.groups?.[0]?.items).toEqual([materializedReference]);
+		expect(readWrittenManifest(files).collections?.projects?.groups?.[0]?.items).toEqual([
+			materializedReference
+		]);
+	});
+
 	it('deletes a managed group and appends its items to ungrouped', async () => {
 		const files: Record<string, string> = {
 			'content/projects.tentman.json': JSON.stringify({
@@ -1260,7 +1216,9 @@ describe('navigation manifest helpers', () => {
 			label: 'Projects',
 			slug: 'projects',
 			items: [{ id: 'launch' }, { id: 'archive' }, { id: 'brand-system' }],
-			groups: [{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: [{ id: 'launch' }] }]
+			groups: [
+				{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: [{ id: 'launch' }] }
+			]
 		});
 		expect(JSON.parse(files['src/content/projects.json'])[0]).not.toHaveProperty('_tentmanGroupId');
 	});
