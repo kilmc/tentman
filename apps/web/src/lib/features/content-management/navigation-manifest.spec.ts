@@ -17,7 +17,8 @@ import {
 	parseNavigationManifest,
 	reconcileManualNavigationSetup,
 	saveCollectionOrder,
-	syncCollectionItemGroupSelection
+	syncCollectionItemGroupSelection,
+	writeNavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
 import type {
 	RepositoryBackend,
@@ -79,6 +80,10 @@ function createBackend(files: Record<string, string>): RepositoryBackend {
 			return path in files;
 		}
 	};
+}
+
+function readWrittenManifest(files: Record<string, string>): NavigationManifestInput {
+	return JSON.parse(files['tentman/navigation-manifest.json'] ?? 'null') as NavigationManifestInput;
 }
 
 describe('navigation manifest helpers', () => {
@@ -192,6 +197,37 @@ describe('navigation manifest helpers', () => {
 				}
 			})
 		);
+	});
+
+	it('writes shorthand manifest references as canonical objects', async () => {
+		const files: Record<string, string> = {};
+		const backend = createBackend(files);
+
+		await writeNavigationManifest(backend, {
+			version: 1,
+			content: {
+				items: ['about', { id: 'posts', label: 'Posts' }]
+			},
+			collections: {
+				posts: {
+					items: ['hello-world'],
+					groups: [{ id: 'featured', label: 'Featured', items: ['hello-world'] }]
+				}
+			}
+		});
+
+		expect(readWrittenManifest(files)).toEqual({
+			version: 1,
+			content: {
+				items: [{ id: 'about' }, { id: 'posts', label: 'Posts' }]
+			},
+			collections: {
+				posts: {
+					items: [{ id: 'hello-world' }],
+					groups: [{ id: 'featured', label: 'Featured', items: [{ id: 'hello-world' }] }]
+				}
+			}
+		});
 	});
 
 	it('suggests ids only for configs that are still missing them', () => {
@@ -453,7 +489,7 @@ describe('navigation manifest helpers', () => {
 	});
 
 	it('builds an initial manifest from Tentman ids and manual sorting config', async () => {
-		const backend = createBackend({
+		const files: Record<string, string> = {
 			'src/content/posts.json': JSON.stringify([
 				{ _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello world' },
 				{ _tentmanId: 'post-2', slug: 'second-post', title: 'Second post' }
@@ -461,50 +497,51 @@ describe('navigation manifest helpers', () => {
 			'src/content/about.json': JSON.stringify({
 				title: 'About'
 			})
-		});
+		};
+		const backend = createBackend(files);
 
-		expect(
-			await buildNavigationManifestFromRepository(
-				backend,
-				[
-					{
-						slug: 'about',
-						path: 'content/about.tentman.json',
-						config: {
-							type: 'content',
-							_tentmanId: 'about',
-							label: 'About',
-							collection: false,
-							content: {
-								mode: 'file',
-								path: 'src/content/about.json'
-							},
-							blocks: []
-						}
-					},
-					{
-						slug: 'posts',
-						path: 'content/posts.tentman.json',
-						config: {
-							type: 'content',
-							_tentmanId: 'posts',
-							label: 'Posts',
-							collection: {
-								ordering: true,
-								groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
-							},
-							idField: 'slug',
-							content: {
-								mode: 'file',
-								path: 'src/content/posts.json'
-							},
-							blocks: []
-						}
+		const manifest = await buildNavigationManifestFromRepository(
+			backend,
+			[
+				{
+					slug: 'about',
+					path: 'content/about.tentman.json',
+					config: {
+						type: 'content',
+						_tentmanId: 'about',
+						label: 'About',
+						collection: false,
+						content: {
+							mode: 'file',
+							path: 'src/content/about.json'
+						},
+						blocks: []
 					}
-				],
-				{ content: { sorting: 'manual' } }
-			)
-		).toEqual(
+				},
+				{
+					slug: 'posts',
+					path: 'content/posts.tentman.json',
+					config: {
+						type: 'content',
+						_tentmanId: 'posts',
+						label: 'Posts',
+						collection: {
+							ordering: true,
+							groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
+						},
+						idField: 'slug',
+						content: {
+							mode: 'file',
+							path: 'src/content/posts.json'
+						},
+						blocks: []
+					}
+				}
+			],
+			{ content: { sorting: 'manual' } }
+		);
+
+		expect(manifest).toEqual(
 			canonicalManifest({
 				version: 1,
 				content: {
@@ -521,10 +558,28 @@ describe('navigation manifest helpers', () => {
 				}
 			})
 		);
+
+		await writeNavigationManifest(backend, manifest);
+
+		expect(readWrittenManifest(files)).toEqual({
+			version: 1,
+			content: {
+				items: [{ id: 'about' }, { id: 'posts' }]
+			},
+			collections: {
+				posts: {
+					id: 'posts',
+					label: 'Posts',
+					slug: 'posts',
+					items: [{ id: 'post-1' }, { id: 'post-2' }],
+					groups: [{ id: 'featured', label: 'Featured', value: 'featured', items: [] }]
+				}
+			}
+		});
 	});
 
 	it('rewrites legacy manifest references through stable ids when rebuilding', async () => {
-		const backend = createBackend({
+		const files: Record<string, string> = {
 			'src/content/posts.json': JSON.stringify([
 				{ _tentmanId: 'post-1', slug: 'hello-world', title: 'Hello world' },
 				{ _tentmanId: 'post-2', slug: 'second-post', title: 'Second post' }
@@ -532,65 +587,66 @@ describe('navigation manifest helpers', () => {
 			'src/content/about.json': JSON.stringify({
 				title: 'About'
 			})
-		});
+		};
+		const backend = createBackend(files);
 
-		expect(
-			await buildNavigationManifestFromRepository(
-				backend,
-				[
-					{
-						slug: 'about',
-						path: 'content/about.tentman.json',
-						config: {
-							type: 'content',
-							_tentmanId: 'page-about',
-							id: 'about',
-							label: 'About',
-							collection: false,
-							content: {
-								mode: 'file',
-								path: 'src/content/about.json'
-							},
-							blocks: []
-						}
-					},
-					{
-						slug: 'posts',
-						path: 'content/posts.tentman.json',
-						config: {
-							type: 'content',
-							_tentmanId: 'content-posts',
-							id: 'posts',
-							label: 'Posts',
-							collection: {
-								ordering: true,
-								groups: [{ _tentmanId: 'featured-group', label: 'Featured', value: 'featured' }]
-							},
-							idField: 'slug',
-							content: {
-								mode: 'file',
-								path: 'src/content/posts.json',
-								itemsPath: '$'
-							},
-							blocks: []
-						}
-					}
-				],
-				{ content: { sorting: 'manual' } },
+		const manifest = await buildNavigationManifestFromRepository(
+			backend,
+			[
 				{
-					version: 1,
-					content: {
-						items: ['posts', 'about']
-					},
-					collections: {
-						posts: {
-							items: ['second-post', 'hello-world'],
-							groups: [{ id: 'featured', label: 'Featured', items: ['hello-world'] }]
-						}
+					slug: 'about',
+					path: 'content/about.tentman.json',
+					config: {
+						type: 'content',
+						_tentmanId: 'page-about',
+						id: 'about',
+						label: 'About',
+						collection: false,
+						content: {
+							mode: 'file',
+							path: 'src/content/about.json'
+						},
+						blocks: []
+					}
+				},
+				{
+					slug: 'posts',
+					path: 'content/posts.tentman.json',
+					config: {
+						type: 'content',
+						_tentmanId: 'content-posts',
+						id: 'posts',
+						label: 'Posts',
+						collection: {
+							ordering: true,
+							groups: [{ _tentmanId: 'featured-group', label: 'Featured', value: 'featured' }]
+						},
+						idField: 'slug',
+						content: {
+							mode: 'file',
+							path: 'src/content/posts.json',
+							itemsPath: '$'
+						},
+						blocks: []
 					}
 				}
-			)
-		).toEqual(
+			],
+			{ content: { sorting: 'manual' } },
+			{
+				version: 1,
+				content: {
+					items: ['posts', 'about']
+				},
+				collections: {
+					posts: {
+						items: ['second-post', 'hello-world'],
+						groups: [{ id: 'featured', label: 'Featured', items: ['hello-world'] }]
+					}
+				}
+			}
+		);
+
+		expect(manifest).toEqual(
 			canonicalManifest({
 				version: 1,
 				content: {
@@ -610,6 +666,32 @@ describe('navigation manifest helpers', () => {
 				}
 			})
 		);
+
+		await writeNavigationManifest(backend, manifest);
+
+		expect(readWrittenManifest(files)).toEqual({
+			version: 1,
+			content: {
+				items: [{ id: 'content-posts' }, { id: 'page-about' }]
+			},
+			collections: {
+				'content-posts': {
+					id: 'content-posts',
+					label: 'Posts',
+					slug: 'posts',
+					configId: 'posts',
+					items: [{ id: 'post-2' }, { id: 'post-1' }],
+					groups: [
+						{
+							id: 'featured-group',
+							label: 'Featured',
+							value: 'featured',
+							items: [{ id: 'post-1' }]
+						}
+					]
+				}
+			}
+		});
 	});
 
 	it('reconciles missing and duplicate ids and migrates manifest-backed groups into config', async () => {
@@ -708,6 +790,32 @@ describe('navigation manifest helpers', () => {
 		expect(files['content/posts.tentman.json']).toContain('"groups"');
 		expect(files['src/content/posts.json']).toContain('"_tentmanId": "hello-world"');
 		expect(files['src/content/posts.json']).toContain('"_tentmanId": "third-post"');
+
+		await writeNavigationManifest(backend, manifest);
+
+		expect(readWrittenManifest(files)).toEqual({
+			version: 1,
+			content: {
+				items: [{ id: 'posts' }]
+			},
+			collections: {
+				posts: {
+					id: 'posts',
+					label: 'Posts',
+					slug: 'posts',
+					configId: 'posts',
+					items: [{ id: 'dup' }, { id: 'hello-world' }, { id: 'third-post' }],
+					groups: [
+						{
+							id: 'featured',
+							label: 'Featured',
+							value: 'featured',
+							items: [{ id: 'hello-world' }, { id: 'dup' }]
+						}
+					]
+				}
+			}
+		});
 	});
 
 	it('assigns ids to predeclared collection groups that are missing _tentmanId', async () => {
@@ -981,7 +1089,23 @@ describe('navigation manifest helpers', () => {
 				]
 			})
 		);
-		expect(JSON.parse(files['tentman/navigation-manifest.json'])).toEqual(manifest);
+		expect(readWrittenManifest(files)).toEqual({
+			version: 1,
+			collections: {
+				projects: {
+					items: [{ id: 'brand-system' }, { id: 'launch' }, { id: 'archive' }],
+					groups: [
+						{
+							id: 'campaigns',
+							label: 'Campaigns',
+							value: 'campaigns',
+							items: [{ id: 'brand-system' }, { id: 'launch' }]
+						},
+						{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
+					]
+				}
+			}
+		});
 	});
 
 	it('marks collection ordering as blocked when manual sorting is not enabled', () => {
@@ -1025,7 +1149,7 @@ describe('navigation manifest helpers', () => {
 	});
 
 	it('creates a managed collection group using one stable id in config and manifest', async () => {
-		const files = {
+		const files: Record<string, string> = {
 			'content/projects.tentman.json': JSON.stringify({
 				type: 'content',
 				_tentmanId: 'projects',
@@ -1066,10 +1190,13 @@ describe('navigation manifest helpers', () => {
 				groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
 			})?.groups
 		);
+		expect(readWrittenManifest(files).collections?.projects?.groups).toEqual([
+			{ id: 'identity', label: 'Identity', value: 'identity', items: [] }
+		]);
 	});
 
 	it('deletes a managed group and appends its items to ungrouped', async () => {
-		const files = {
+		const files: Record<string, string> = {
 			'content/projects.tentman.json': JSON.stringify({
 				type: 'content',
 				_tentmanId: 'projects',
@@ -1128,11 +1255,18 @@ describe('navigation manifest helpers', () => {
 				groups: [{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: ['launch'] }]
 			})
 		);
+		expect(readWrittenManifest(files).collections?.projects).toEqual({
+			id: 'projects',
+			label: 'Projects',
+			slug: 'projects',
+			items: [{ id: 'launch' }, { id: 'archive' }, { id: 'brand-system' }],
+			groups: [{ id: 'campaigns', label: 'Campaigns', value: 'campaigns', items: [{ id: 'launch' }] }]
+		});
 		expect(JSON.parse(files['src/content/projects.json'])[0]).not.toHaveProperty('_tentmanGroupId');
 	});
 
 	it('merges a managed source group into a target group', async () => {
-		const files = {
+		const files: Record<string, string> = {
 			'content/projects.tentman.json': JSON.stringify({
 				type: 'content',
 				_tentmanId: 'projects',
@@ -1194,6 +1328,20 @@ describe('navigation manifest helpers', () => {
 				]
 			})?.groups
 		);
+		expect(readWrittenManifest(files).collections?.projects).toEqual({
+			id: 'projects',
+			label: 'Projects',
+			slug: 'projects',
+			items: [{ id: 'launch' }, { id: 'brand-system' }],
+			groups: [
+				{
+					id: 'campaigns',
+					label: 'Campaigns',
+					value: 'campaigns',
+					items: [{ id: 'launch' }, { id: 'brand-system' }]
+				}
+			]
+		});
 		expect(JSON.parse(files['src/content/projects.json'])[0]._tentmanGroupId).toBe('campaigns');
 	});
 });
