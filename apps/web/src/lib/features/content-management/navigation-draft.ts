@@ -1,7 +1,6 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import {
 	getNavigationReferenceIds,
-	type NavigationReference,
 	type NavigationReferenceInput
 } from '@tentman/core/navigation-manifest';
 import { getCollectionGroups } from '$lib/features/content-management/config';
@@ -13,6 +12,7 @@ import {
 	orderDiscoveredConfigs,
 	type OrderedCollectionNavigation
 } from '$lib/features/content-management/navigation';
+import { toNavigationReferences } from '$lib/features/content-management/navigation-references';
 
 export interface NavigationDraftGroup {
 	id: string;
@@ -55,10 +55,6 @@ function getUngroupedItemsFromManifestSection(
 		groups.flatMap((group) => getNavigationReferenceIds(group.items ?? []))
 	);
 	return itemIds.filter((itemId) => !groupedItemIds.has(itemId));
-}
-
-function toNavigationReferences(ids: string[]): NavigationReference[] {
-	return ids.map((id) => ({ id }));
 }
 
 function getCollectionDraft(

@@ -204,31 +204,11 @@ export function getNavigationManifestCollectionEntry(manifest, reference) {
 		return null;
 	}
 
-	const directMatch = manifest.collections[referenceId];
-	if (directMatch) {
-		return {
-			reference: referenceId,
-			collection: directMatch,
-			references: getNavigationManifestCollectionReferenceIds(referenceId, directMatch)
-		};
-	}
-
-	for (const [key, collection] of Object.entries(manifest.collections)) {
-		if (
-			key === referenceId ||
-			collection.id === referenceId ||
-			collection.configId === referenceId ||
-			collection.slug === referenceId
-		) {
-			return {
-				reference: key,
-				collection,
-				references: getNavigationManifestCollectionReferenceIds(key, collection)
-			};
-		}
-	}
-
-	return null;
+	return (
+		getNavigationManifestCollectionEntries(manifest).find((entry) =>
+			entry.references.includes(referenceId)
+		) ?? null
+	);
 }
 
 export function getNavigationManifestCollection(manifest, reference) {

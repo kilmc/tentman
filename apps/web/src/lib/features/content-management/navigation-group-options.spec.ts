@@ -36,32 +36,35 @@ describe('navigation group select options', () => {
 		]);
 	});
 
-	it('resolves collection options by authored config id when the manifest is keyed by Tentman id', () => {
-		expect(
-			getSelectOptionsFromNavigationGroups(
-				normalizeNavigationManifest({
-					version: 1,
-					collections: {
-						tent_01PROJECTS: {
-							id: 'tent_01PROJECTS',
-							slug: 'projects',
-							configId: 'project-collection',
-							items: ['project-one'],
-							groups: [
-								{
-									id: 'tent_group_identity',
-									value: 'identity',
-									label: 'Identity',
-									items: ['project-one']
-								}
-							]
+	it.each(['collection-key', 'tent_01PROJECTS', 'project-collection', 'projects'])(
+		'resolves collection options by %s reference',
+		(collectionReference) => {
+			expect(
+				getSelectOptionsFromNavigationGroups(
+					normalizeNavigationManifest({
+						version: 1,
+						collections: {
+							'collection-key': {
+								id: 'tent_01PROJECTS',
+								slug: 'projects',
+								configId: 'project-collection',
+								items: ['project-one'],
+								groups: [
+									{
+										id: 'tent_group_identity',
+										value: 'identity',
+										label: 'Identity',
+										items: ['project-one']
+									}
+								]
+							}
 						}
-					}
-				}),
-				'project-collection'
-			)
-		).toEqual([{ value: 'tent_group_identity', label: 'Identity' }]);
-	});
+					}),
+					collectionReference
+				)
+			).toEqual([{ value: 'tent_group_identity', label: 'Identity' }]);
+		}
+	);
 
 	it('returns no options when the navigation manifest or collection groups are missing', () => {
 		expect(getSelectOptionsFromNavigationGroups(null, 'projects')).toEqual([]);

@@ -36,6 +36,7 @@ import {
 	isCollectionManifestBacked,
 	isCollectionOrderingEnabled
 } from './config';
+import { toNavigationReferences } from './navigation-references';
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
 import { createTentmanId, hasGeneratedTentmanId } from './stable-identity';
 import type { ContentRecord } from './types';
@@ -158,10 +159,6 @@ function readOptionalString(value: unknown, context: string): string | undefined
 
 function getNavigationIds(references: NavigationReferenceInput[] | null | undefined): string[] {
 	return getNavigationReferenceIds(references);
-}
-
-function toNavigationReferences(ids: string[]): NavigationReference[] {
-	return ids.map((id) => ({ id }));
 }
 
 function cloneNavigationReferences(
