@@ -1,6 +1,6 @@
 # Unify the navigation manifest module
 
-Status: needs-triage
+Status: resolved
 Type: architecture-improvement
 Strength: Strong
 Suggested order: Start here
@@ -136,3 +136,18 @@ The review calls this the cleanest deletion-test signal: one domain schema is al
 Use this candidate as the focus for a `grill-with-docs` session. Do not re-run the architecture survey. Grill the scope, invariants, public interface, migration path, tests, and ADR/domain notes needed to turn this into a concrete implementation plan.
 
 ## Comments
+
+### Completion audit — 2026-07-13
+
+Navigation Manifest architecture work is complete enough to close this architecture-improvement ticket.
+
+Evidence from the audit:
+
+- Core owns Navigation Manifest parsing, strict validation, normalization, canonical serialization, lookup helpers, and contract tests through `@tentman/core/navigation-manifest`.
+- Web repository loading, cache/API state, user-facing invalid-manifest errors, and persistence orchestration remain in web.
+- Repository-loaded manifests pass through the core parser.
+- Main web write paths funnel persistence through `writeNavigationManifest`, which serializes with the core serializer and emits canonical Navigation Reference objects.
+- Commit `6cbacaf` was necessary leftover representation work, not accidental churn: it made web read-state manifest types canonical while preserving shorthand only at input/write boundaries.
+- The six implementation tickets under `.scratch/navigation-manifest-module/issues/01-*.md` through `06-*.md` are already marked `resolved`.
+
+Residual polish is tracked separately in `.scratch/navigation-manifest-module/issues/07-polish-navigation-manifest-seams.md` and does not block closing this architecture project.
