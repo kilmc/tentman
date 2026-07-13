@@ -4,10 +4,16 @@
 
 **Blocked by:** 03 — Migrate web manifest loading to the core contract.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Web manifest creation and rebuild flows persist canonical Navigation Reference objects.
-- [ ] Web save and repair flows lazily normalize existing shorthand manifests on write.
-- [ ] Group mutation and ordering flows preserve behavior while writing canonical manifest references.
-- [ ] Draft or UI interaction types can continue to pass around string ids without leaking shorthand references into persisted manifests.
-- [ ] Tests prove written manifests use the canonical shape across the main write paths.
+- [x] Web manifest creation and rebuild flows persist canonical Navigation Reference objects.
+- [x] Web save and repair flows lazily normalize existing shorthand manifests on write.
+- [x] Group mutation and ordering flows preserve behavior while writing canonical manifest references.
+- [x] Draft or UI interaction types can continue to pass around string ids without leaking shorthand references into persisted manifests.
+- [x] Tests prove written manifests use the canonical shape across the main write paths.
+
+Implementation summary:
+
+- Completed in `55c30ac`, which added web write-flow coverage proving manifests are persisted through canonical Navigation Reference objects.
+- The current web write boundary funnels manifest persistence through `writeNavigationManifest`, which serializes with the core `serializeNavigationManifest` helper.
+- Follow-up verification in `6cbacaf` confirmed `save-manifest` API payloads are parsed through the core parser before being written.

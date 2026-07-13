@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Add the canonical navigation manifest contract to core.
 
-**Status:** done
+**Status:** resolved
 
 - [x] The runtime package is evaluated against current repo usage and the core manifest contract.
 - [x] If runtime remains, its manifest behavior delegates to the canonical core API and has only thin adapter tests. Not applicable: runtime was removed.
