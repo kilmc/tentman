@@ -14,48 +14,66 @@ vi.mock('$lib/server/auth/github', async () => {
 	};
 });
 
-vi.mock('$lib/features/content-management/navigation-manifest', () => ({
-	NAVIGATION_MANIFEST_PATH: 'tentman/navigation-manifest.json',
-	reconcileManualNavigationSetup: vi.fn(async () => ({
-		version: 1,
-		content: {
-			items: ['about', 'posts']
-		}
-	})),
-	loadNavigationManifestState: vi.fn(async () => ({
-		path: 'tentman/navigation-manifest.json',
-		exists: true,
-		manifest: {
+vi.mock('$lib/features/content-management/navigation-manifest', async () => {
+	const { normalizeNavigationManifest } = await vi.importActual<
+		typeof import('@tentman/core/navigation-manifest')
+	>('@tentman/core/navigation-manifest');
+
+	return {
+		NAVIGATION_MANIFEST_PATH: 'tentman/navigation-manifest.json',
+		reconcileManualNavigationSetup: vi.fn(async () => ({
 			version: 1,
 			content: {
-				items: ['about', 'posts']
+				items: [{ id: 'about' }, { id: 'posts' }]
 			}
-		},
-		error: null
-	})),
-	invalidateNavigationManifestStateCache: vi.fn(),
-	parseNavigationManifest: vi.fn((value: string) => JSON.parse(value)),
-	saveCollectionOrder: vi.fn(async (backend) => {
-		await backend.writeTextFile(
-			'content/projects.tentman.json',
-			JSON.stringify({
-				type: 'content',
-				_tentmanId: 'projects',
-				label: 'Projects',
-				collection: {
-					sorting: 'manual',
-					groups: [{ _tentmanId: 'identity', label: 'Identity' }]
-				},
+		})),
+		loadNavigationManifestState: vi.fn(async () => ({
+			path: 'tentman/navigation-manifest.json',
+			exists: true,
+			manifest: {
+				version: 1,
 				content: {
-					mode: 'file',
-					path: 'src/content/projects.json'
-				},
-				blocks: []
-			})
-		);
-		await backend.writeTextFile(
-			'tentman/navigation-manifest.json',
-			JSON.stringify({
+					items: [{ id: 'about' }, { id: 'posts' }]
+				}
+			},
+			error: null
+		})),
+		invalidateNavigationManifestStateCache: vi.fn(),
+		parseNavigationManifest: vi.fn((value: string) =>
+			normalizeNavigationManifest(JSON.parse(value))
+		),
+		saveCollectionOrder: vi.fn(async (backend) => {
+			await backend.writeTextFile(
+				'content/projects.tentman.json',
+				JSON.stringify({
+					type: 'content',
+					_tentmanId: 'projects',
+					label: 'Projects',
+					collection: {
+						sorting: 'manual',
+						groups: [{ _tentmanId: 'identity', label: 'Identity' }]
+					},
+					content: {
+						mode: 'file',
+						path: 'src/content/projects.json'
+					},
+					blocks: []
+				})
+			);
+			await backend.writeTextFile(
+				'tentman/navigation-manifest.json',
+				JSON.stringify({
+					version: 1,
+					collections: {
+						projects: {
+							items: ['brand-system'],
+							groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
+						}
+					}
+				})
+			);
+
+			return {
 				version: 1,
 				collections: {
 					projects: {
@@ -63,41 +81,40 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 						groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
 					}
 				}
-			})
-		);
-
-		return {
-			version: 1,
-			collections: {
-				projects: {
-					items: ['brand-system'],
-					groups: [{ id: 'identity', label: 'Identity', items: ['brand-system'] }]
-				}
-			}
-		};
-	}),
-	manageCollectionGroups: vi.fn(async (backend) => {
-		await backend.writeTextFile(
-			'content/projects.tentman.json',
-			JSON.stringify({
-				type: 'content',
-				_tentmanId: 'projects',
-				label: 'Projects',
-				collection: {
-					groupManagement: true,
-					groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
-				},
-				content: {
-					mode: 'directory',
-					path: './projects',
-					template: './project.md'
-				},
-				blocks: []
-			})
-		);
-		await backend.writeTextFile(
-			'tentman/navigation-manifest.json',
-			JSON.stringify({
+			};
+		}),
+		manageCollectionGroups: vi.fn(async (backend) => {
+			await backend.writeTextFile(
+				'content/projects.tentman.json',
+				JSON.stringify({
+					type: 'content',
+					_tentmanId: 'projects',
+					label: 'Projects',
+					collection: {
+						groupManagement: true,
+						groups: [{ _tentmanId: 'identity', label: 'Identity', value: 'identity' }]
+					},
+					content: {
+						mode: 'directory',
+						path: './projects',
+						template: './project.md'
+					},
+					blocks: []
+				})
+			);
+			await backend.writeTextFile(
+				'tentman/navigation-manifest.json',
+				JSON.stringify({
+					version: 1,
+					collections: {
+						projects: {
+							items: [],
+							groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
+						}
+					}
+				})
+			);
+			return {
 				version: 1,
 				collections: {
 					projects: {
@@ -105,42 +122,36 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 						groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
 					}
 				}
-			})
-		);
-		return {
-			version: 1,
-			collections: {
-				projects: {
-					items: [],
-					groups: [{ id: 'identity', label: 'Identity', value: 'identity', items: [] }]
-				}
-			}
-		};
-	}),
-	writeRootManualSorting: vi.fn(async (backend) => {
-		await backend.writeTextFile('tentman.json', JSON.stringify({ content: { sorting: 'manual' } }));
-	}),
-	writeMissingContentConfigIds: vi.fn(async (backend, configs) => {
-		const missingConfigs = configs.filter((config: { config: { _tentmanId?: string } }) => {
-			return !config.config._tentmanId;
-		});
-
-		for (const config of missingConfigs) {
+			};
+		}),
+		writeRootManualSorting: vi.fn(async (backend) => {
 			await backend.writeTextFile(
-				config.path,
-				JSON.stringify({ ...config.config, _tentmanId: config.slug })
+				'tentman.json',
+				JSON.stringify({ content: { sorting: 'manual' } })
 			);
-		}
+		}),
+		writeMissingContentConfigIds: vi.fn(async (backend, configs) => {
+			const missingConfigs = configs.filter((config: { config: { _tentmanId?: string } }) => {
+				return !config.config._tentmanId;
+			});
 
-		return missingConfigs.map((config: { path: string; slug: string }) => ({
-			path: config.path,
-			suggestedId: config.slug
-		}));
-	}),
-	writeNavigationManifest: vi.fn(async (backend, manifest) => {
-		await backend.writeTextFile('tentman/navigation-manifest.json', JSON.stringify(manifest));
-	})
-}));
+			for (const config of missingConfigs) {
+				await backend.writeTextFile(
+					config.path,
+					JSON.stringify({ ...config.config, _tentmanId: config.slug })
+				);
+			}
+
+			return missingConfigs.map((config: { path: string; slug: string }) => ({
+				path: config.path,
+				suggestedId: config.slug
+			}));
+		}),
+		writeNavigationManifest: vi.fn(async (backend, manifest) => {
+			await backend.writeTextFile('tentman/navigation-manifest.json', JSON.stringify(manifest));
+		})
+	};
+});
 
 vi.mock('$lib/repository/github', () => ({
 	createGitHubRepositoryBackend: vi.fn(() => ({
@@ -196,6 +207,7 @@ import { getRepositorySnapshot, invalidateRepositoryData } from '$lib/server/rep
 import {
 	loadNavigationManifestState,
 	manageCollectionGroups,
+	parseNavigationManifest,
 	reconcileManualNavigationSetup,
 	saveCollectionOrder,
 	writeMissingContentConfigIds,
@@ -237,7 +249,7 @@ function mockRepositorySnapshot(
 			manifest: {
 				version: 1,
 				content: {
-					items: ['about', 'posts']
+					items: [{ id: 'about' }, { id: 'posts' }]
 				}
 			},
 			error: null
@@ -359,12 +371,20 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			cookies: createCookies()
 		} as never);
+		expect(parseNavigationManifest).toHaveBeenCalledWith(
+			JSON.stringify({
+				version: 1,
+				content: {
+					items: ['posts']
+				}
+			})
+		);
 		expect(writeNavigationManifest).toHaveBeenCalledWith(
 			expect.anything(),
 			{
 				version: 1,
 				content: {
-					items: ['posts']
+					items: [{ id: 'posts' }]
 				}
 			},
 			{
@@ -442,7 +462,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 			{
 				version: 1,
 				content: {
-					items: ['about', 'posts']
+					items: [{ id: 'about' }, { id: 'posts' }]
 				}
 			},
 			{
@@ -520,7 +540,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 			{
 				version: 1,
 				content: {
-					items: ['about', 'posts']
+					items: [{ id: 'about' }, { id: 'posts' }]
 				}
 			},
 			{

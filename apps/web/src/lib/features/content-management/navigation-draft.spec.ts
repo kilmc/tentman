@@ -55,7 +55,7 @@ describe('navigation draft helpers', () => {
 		expect(
 			createNavigationDraft(
 				configs,
-				{
+				normalizeNavigationManifest({
 					version: 1,
 					content: {
 						items: ['blog', 'about']
@@ -72,7 +72,7 @@ describe('navigation draft helpers', () => {
 							]
 						}
 					}
-				},
+				}),
 				{
 					blog: {
 						groups: [
@@ -111,7 +111,7 @@ describe('navigation draft helpers', () => {
 		expect(
 			createNavigationDraft(
 				configs,
-				{
+				normalizeNavigationManifest({
 					version: 1,
 					content: {
 						items: ['about', 'blog']
@@ -128,7 +128,7 @@ describe('navigation draft helpers', () => {
 							]
 						}
 					}
-				},
+				}),
 				{},
 				rootConfig
 			)

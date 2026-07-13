@@ -52,14 +52,12 @@ export { NAVIGATION_MANIFEST_PATH, parseNavigationManifest, serializeNavigationM
 const ROOT_CONFIG_PATH = 'tentman.json';
 const NAVIGATION_MANIFEST_CACHE_TTL = 60 * 1000;
 
-export type NavigationManifestGroup =
-	| CoreNavigationManifestGroup
-	| CoreNavigationManifestGroupInput;
-export type NavigationManifestCollection =
-	| CoreNavigationManifestCollection
-	| CoreNavigationManifestCollectionInput;
-export type NavigationManifest = CoreNavigationManifestInput;
-export type CanonicalNavigationManifest = CoreNavigationManifest;
+export type NavigationManifestGroup = CoreNavigationManifestGroup;
+export type NavigationManifestCollection = CoreNavigationManifestCollection;
+export type NavigationManifest = CoreNavigationManifest;
+export type NavigationManifestInput = CoreNavigationManifestInput;
+export type NavigationManifestGroupInput = CoreNavigationManifestGroupInput;
+export type NavigationManifestCollectionInput = CoreNavigationManifestCollectionInput;
 
 export interface CollectionOrderDraftGroup {
 	id: string;
@@ -81,7 +79,7 @@ export type CollectionGroupManagementMutation =
 export interface NavigationManifestState {
 	path: string;
 	exists: boolean;
-	manifest: CanonicalNavigationManifest | null;
+	manifest: NavigationManifest | null;
 	error: string | null;
 }
 
@@ -1855,11 +1853,13 @@ export function syncCollectionItemGroupSelectionInManifest(
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: nextItems.filter((candidate) => nextItemGroups.get(candidate) === group._tentmanId)
+				items: toNavigationReferences(
+					nextItems.filter((candidate) => nextItemGroups.get(candidate) === group._tentmanId)
+				)
 			}
 		];
 	});
-	const groupedItemIds = new Set(nextGroups.flatMap((group) => group.items));
+	const groupedItemIds = new Set(nextGroups.flatMap((group) => getNavigationIds(group.items)));
 	const manifest = setManifestCollectionOrder(
 		baseManifest,
 		config.config._tentmanId,
@@ -1910,7 +1910,7 @@ export async function syncCollectionItemGroupSelection(
 
 export async function writeNavigationManifest(
 	backend: RepositoryBackend,
-	manifest: NavigationManifest,
+	manifest: NavigationManifestInput,
 	options?: RepositoryWriteOptions
 ): Promise<void> {
 	await backend.writeTextFile(

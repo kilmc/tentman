@@ -280,13 +280,13 @@ describe('navigation manifest helpers', () => {
 				id: 'illustration',
 				label: 'Illustration',
 				value: 'illustration',
-				items: ['other-project']
+				items: [{ id: 'other-project' }]
 			},
 			{
 				id: 'study-projects',
 				label: 'Study Projects',
 				value: 'study-projects',
-				items: ['berlin-neukoelln-kiezkulisse']
+				items: [{ id: 'berlin-neukoelln-kiezkulisse' }]
 			}
 		]);
 	});
@@ -527,7 +527,7 @@ describe('navigation manifest helpers', () => {
 				}
 			],
 			{ content: { sorting: 'manual' } },
-			{
+			canonicalManifest({
 				version: 1,
 				content: {
 					items: ['posts', 'about']
@@ -538,7 +538,7 @@ describe('navigation manifest helpers', () => {
 						groups: [{ id: 'featured', label: 'Featured', items: ['hello-world'] }]
 					}
 				}
-			}
+			})
 		);
 
 		expect(manifest).toEqual(
@@ -638,7 +638,7 @@ describe('navigation manifest helpers', () => {
 				}
 			],
 			{ content: { sorting: 'manual' } },
-			{
+			canonicalManifest({
 				version: 1,
 				content: {
 					items: ['posts']
@@ -649,7 +649,7 @@ describe('navigation manifest helpers', () => {
 						groups: [{ id: 'featured', label: 'Featured', items: ['hello-world', 'dup'] }]
 					}
 				}
-			},
+			}),
 			{
 				message: 'Repair ids'
 			}
@@ -937,7 +937,7 @@ describe('navigation manifest helpers', () => {
 				],
 				ungroupedItems: ['archive']
 			},
-			{
+			canonicalManifest({
 				version: 1,
 				collections: {
 					projects: {
@@ -948,7 +948,7 @@ describe('navigation manifest helpers', () => {
 						]
 					}
 				}
-			}
+			})
 		);
 
 		expect(JSON.parse(files['content/projects.tentman.json']).collection.groups).toEqual([
@@ -1126,7 +1126,7 @@ describe('navigation manifest helpers', () => {
 			backend,
 			config,
 			{ action: 'edit', groupId: 'identity', label: 'Brand Identity', value: 'brand-identity' },
-			{
+			canonicalManifest({
 				version: 1,
 				collections: {
 					projects: {
@@ -1141,7 +1141,7 @@ describe('navigation manifest helpers', () => {
 						]
 					}
 				}
-			}
+			})
 		);
 
 		expect(manifest.collections?.projects.items).toEqual([materializedReference]);
@@ -1188,7 +1188,7 @@ describe('navigation manifest helpers', () => {
 			backend,
 			config,
 			{ action: 'delete', groupId: 'identity' },
-			{
+			canonicalManifest({
 				version: 1,
 				collections: {
 					projects: {
@@ -1199,7 +1199,7 @@ describe('navigation manifest helpers', () => {
 						]
 					}
 				}
-			}
+			})
 		);
 
 		expect(manifest.collections?.projects).toEqual(
@@ -1259,7 +1259,7 @@ describe('navigation manifest helpers', () => {
 			backend,
 			config,
 			{ action: 'merge', sourceGroupId: 'identity', targetGroupId: 'campaigns' },
-			{
+			canonicalManifest({
 				version: 1,
 				collections: {
 					projects: {
@@ -1270,7 +1270,7 @@ describe('navigation manifest helpers', () => {
 						]
 					}
 				}
-			}
+			})
 		);
 
 		expect(manifest.collections?.projects.groups).toEqual(
