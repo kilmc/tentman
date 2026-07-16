@@ -59,6 +59,7 @@
 	import { localRepo } from '$lib/stores/local-repo';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { traceRouting } from '$lib/utils/routing-trace';
+	import { traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 	import { toasts } from '$lib/stores/toasts';
 	import { buildReposRedirect } from '$lib/utils/routing';
 
@@ -761,7 +762,20 @@
 		}
 
 		try {
-			const response = await fetch(resolve('/api/repo/config-states'));
+			const endpoint = resolve('/api/repo/config-states');
+			const response = await traceBrowserRequest(
+				{
+					workflow: currentConfig?.config.collection
+						? 'desktop-collection-landing'
+						: 'first-repository-open',
+					route: page.url.pathname,
+					endpoint,
+					priority: 'foreground',
+					cacheTaskKey: null,
+					duplicateState: 'unique'
+				},
+				() => fetch(endpoint)
+			);
 
 			if (response.status === 401) {
 				await redirectToReposForExpiredSession();

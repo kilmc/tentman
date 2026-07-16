@@ -2221,6 +2221,12 @@ export const githubRepositoryCache = {
 			slug,
 			blobShas: visibleBlobShas
 		});
+		markWorkflowReadiness({
+			workflow: options.force ? 'warm-collection-reload' : 'desktop-collection-landing',
+			mark: 'ready',
+			route: `/pages/${slug}`,
+			slug
+		});
 
 		const remainingBlobShas = missingBlobShas.slice(visibleLimit);
 		if (!(options.hydrateRemaining ?? true)) {
