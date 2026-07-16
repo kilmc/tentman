@@ -4,11 +4,11 @@
 
 **Blocked by:** 01 — Add GitHub workflow readiness and request budget instrumentation.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Cache work has priority lanes that keep active route readiness ahead of hover, top-level warm, and passive warm work.
-- [ ] Duplicate foreground endpoint/cache/GitHub work for the same route-data identity is deduped and observable.
-- [ ] Background warming pauses or cancels on navigation, identity changes, foreground misses, visible errors, and rate-limit pressure.
-- [ ] Server-side GitHub blob hydration has conservative concurrency control and in-flight dedupe.
-- [ ] Retry/backoff respects retry-after signals where present and uses capped backoff for rate-limit or transient failure responses.
-- [ ] Foreground failures become visible error or degraded states with manual retry where appropriate.
+- [x] Cache work has priority lanes that keep active route readiness ahead of hover, top-level warm, and passive warm work.
+- [x] Duplicate foreground endpoint/cache/GitHub work for the same route-data identity is deduped and observable.
+- [x] Background warming pauses or cancels on navigation, identity changes, foreground misses, visible errors, and rate-limit pressure.
+- [x] Server-side GitHub blob hydration has conservative concurrency control and in-flight dedupe.
+- [x] Retry/backoff respects retry-after signals where present and uses capped backoff for rate-limit or transient failure responses.
+- [x] Foreground failures become visible error or degraded states with manual retry where appropriate.

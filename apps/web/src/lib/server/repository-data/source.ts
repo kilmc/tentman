@@ -10,8 +10,11 @@ import type {
 } from './types';
 
 const UNKNOWN_TREE_SHA = 'unknown-tree';
+const MAX_CONCURRENT_GITHUB_TEXT_BLOB_READS = 4;
 const textBlobCache = new Map<string, string>();
 const textBlobInflight = new Map<string, Promise<string>>();
+const textBlobSlotWaiters: Array<() => void> = [];
+let activeTextBlobSlots = 0;
 
 function getRefFromBackendCacheKey(backend: RepositoryBackend): string {
 	const ref = backend.cacheKey.match(/[?&]ref=([^&]+)/)?.[1];
@@ -30,6 +33,37 @@ function isGitHubBackend(backend: RepositoryBackend): backend is GitHubRepositor
 
 function decodeGitHubBlob(content: string): string {
 	return Buffer.from(content, 'base64').toString('utf-8');
+}
+
+async function acquireTextBlobSlot(): Promise<() => void> {
+	if (activeTextBlobSlots < MAX_CONCURRENT_GITHUB_TEXT_BLOB_READS) {
+		activeTextBlobSlots += 1;
+		return releaseTextBlobSlot;
+	}
+
+	await new Promise<void>((resolve) => {
+		textBlobSlotWaiters.push(resolve);
+	});
+	return releaseTextBlobSlot;
+}
+
+function releaseTextBlobSlot(): void {
+	const next = textBlobSlotWaiters.shift();
+	if (next) {
+		next();
+		return;
+	}
+
+	activeTextBlobSlots = Math.max(0, activeTextBlobSlots - 1);
+}
+
+async function withTextBlobSlot<T>(task: () => Promise<T>): Promise<T> {
+	const release = await acquireTextBlobSlot();
+	try {
+		return await task();
+	} finally {
+		release();
+	}
 }
 
 export function getRepositorySourceIdentity(backend: RepositoryBackend): RepositorySourceIdentity {
@@ -206,24 +240,26 @@ export async function readGitHubTextBlob(
 		path: sha
 	});
 	const start = performance.now();
-	const promise = traceGitHubRequest(
-		{
-			source: 'repository-data',
-			operation: 'readGitHubTextBlob',
-			requestKind: 'blob',
-			repoKey: backend.cacheKey,
-			owner: backend.owner,
-			repo: backend.repo,
-			sha,
-			cacheResult: 'miss',
-			dedupeState: 'unique'
-		},
-		() =>
-			backend.octokit.rest.git.getBlob({
+	const promise = withTextBlobSlot(() =>
+		traceGitHubRequest(
+			{
+				source: 'repository-data',
+				operation: 'readGitHubTextBlob',
+				requestKind: 'blob',
+				repoKey: backend.cacheKey,
 				owner: backend.owner,
 				repo: backend.repo,
-				file_sha: sha
-			})
+				sha,
+				cacheResult: 'miss',
+				dedupeState: 'unique'
+			},
+			() =>
+				backend.octokit.rest.git.getBlob({
+					owner: backend.owner,
+					repo: backend.repo,
+					file_sha: sha
+				})
+		)
 	)
 		.then(({ data }) => {
 			const decoded = decodeGitHubBlob(data.content);

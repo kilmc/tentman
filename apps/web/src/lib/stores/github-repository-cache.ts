@@ -62,6 +62,9 @@ const SITE_WARM_PROJECTION_BATCH_SIZE = 20;
 const SITE_WARM_READY_RESET_MS = 2500;
 const CACHE_PROGRESS_LARGE_TASK_THRESHOLD = 25;
 const CACHE_PROGRESS_SLOW_JOB_MS = 800;
+const DEFAULT_ENDPOINT_RETRY_ATTEMPTS = 2;
+const DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS = 500;
+const DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS = 5000;
 const DEFAULT_FULL_DOCUMENT_BUDGET_BYTES = 50 * 1024 * 1024;
 const DEFAULT_FULL_DOCUMENT_RECORD_LIMIT = 2500;
 const FRESHNESS_BACKOFF_INTERVALS_MS = [5, 15, 30, 60].map((minutes) => minutes * 60 * 1000);
@@ -69,6 +72,11 @@ const FRESHNESS_BACKOFF_INTERVALS_MS = [5, 15, 30, 60].map((minutes) => minutes 
 let fullDocumentBudgetPolicy = {
 	bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 	recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+};
+let endpointRetryPolicy = {
+	attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+	baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+	maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
 };
 
 export type GithubCacheWarmPhase =
@@ -302,6 +310,10 @@ type CacheTaskKind =
 	| 'itemDocument';
 
 type CacheTaskPriority = 'foreground' | 'intent' | 'topLevel' | 'passive';
+type CacheWorkContext = {
+	runId: number;
+	identityKey: string | null;
+};
 
 interface CacheTask<T = unknown> {
 	key: string;
@@ -337,6 +349,7 @@ let queueScheduled = false;
 let runningTask: CacheTask | null = null;
 let freshnessTimer: ReturnType<typeof setTimeout> | null = null;
 let freshnessBackoffIndex = 0;
+let cacheRetryStatusMessage: string | null = null;
 const freshnessChecksInFlight = new Map<string, Promise<void>>();
 const collectionListeners = new Map<string, Set<CollectionListener>>();
 const cacheTasks = new Map<string, CacheTask<unknown>>();
@@ -684,7 +697,7 @@ function updateWarmStatusFromInventory(summary = get(githubCacheInventoryStatus)
 						? 'warming'
 						: 'checking'
 					: 'ready',
-		message: activeWork > 0 ? 'Caching site data' : 'Site data cached',
+		message: cacheRetryStatusMessage ?? (activeWork > 0 ? 'Caching site data' : 'Site data cached'),
 		totalTasks: summary.totalTargets,
 		completedTasks: summary.cachedTargets + summary.skippedBudgetTargets,
 		showProgress: activeWork > 0,
@@ -1026,6 +1039,37 @@ function getTaskDuplicateState(taskKey: string): RequestDuplicateState {
 	return cacheTasks.get(taskKey)?.duplicateState ?? 'unique';
 }
 
+function getRetryAfterDelayMs(response: Response): number | null {
+	const retryAfter = response.headers.get('retry-after');
+	if (!retryAfter) {
+		return null;
+	}
+
+	const seconds = Number(retryAfter);
+	if (Number.isFinite(seconds)) {
+		return Math.max(0, seconds * 1000);
+	}
+
+	const timestamp = Date.parse(retryAfter);
+	return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : null;
+}
+
+function getEndpointBackoffDelayMs(response: Response, attemptIndex: number): number {
+	const retryAfterDelay = getRetryAfterDelayMs(response);
+	const exponentialDelay = endpointRetryPolicy.baseDelayMs * 2 ** attemptIndex;
+	return Math.min(retryAfterDelay ?? exponentialDelay, endpointRetryPolicy.maxDelayMs);
+}
+
+function isRetryableCacheResponse(response: Response): boolean {
+	return response.status === 429 || response.status === 408 || response.status >= 500;
+}
+
+async function waitForEndpointBackoff(delayMs: number): Promise<void> {
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, delayMs);
+	});
+}
+
 async function fetchCacheEndpoint(
 	fetcher: typeof fetch,
 	url: string,
@@ -1042,18 +1086,39 @@ async function fetchCacheEndpoint(
 		init?: RequestInit;
 	}
 ): Promise<Response> {
-	return await traceBrowserRequest(
-		{
-			workflow: input.workflow,
-			route: input.route,
-			endpoint: url,
-			method: input.init?.method ?? 'GET',
-			priority: input.priority,
-			cacheTaskKey: input.taskKey,
-			duplicateState: input.taskKey ? getTaskDuplicateState(input.taskKey) : 'unique'
-		},
-		() => (input.init ? fetcher(url, input.init) : fetcher(url))
-	);
+	for (let attemptIndex = 0; attemptIndex < endpointRetryPolicy.attempts; attemptIndex += 1) {
+		const response = await traceBrowserRequest(
+			{
+				workflow: input.workflow,
+				route: input.route,
+				endpoint: url,
+				method: input.init?.method ?? 'GET',
+				priority: input.priority,
+				cacheTaskKey: input.taskKey,
+				duplicateState: input.taskKey ? getTaskDuplicateState(input.taskKey) : 'unique'
+			},
+			() => (input.init ? fetcher(url, input.init) : fetcher(url))
+		);
+		const hasAttemptsRemaining = attemptIndex < endpointRetryPolicy.attempts - 1;
+		if (!hasAttemptsRemaining || !isRetryableCacheResponse(response)) {
+			cacheRetryStatusMessage = null;
+			return response;
+		}
+
+		cacheRetryStatusMessage =
+			response.status === 429
+				? 'GitHub rate limit reached; retrying cache work'
+				: 'GitHub request failed; retrying cache work';
+		updateWarmStatus({
+			phase: 'checking',
+			message: cacheRetryStatusMessage,
+			error: null,
+			showProgress: true
+		});
+		await waitForEndpointBackoff(getEndpointBackoffDelayMs(response, attemptIndex));
+	}
+
+	throw new Error('Cache endpoint retry policy did not return a response');
 }
 
 function getActiveRef(bootstrap: RepoConfigsBootstrap): string {
@@ -1066,6 +1131,17 @@ function stripFileExtension(filename: string): string {
 
 function getActiveSnapshot(): CachedSnapshot | null {
 	return activeSnapshot;
+}
+
+function captureCacheWorkContext(runId: number): CacheWorkContext {
+	return {
+		runId,
+		identityKey: activeSnapshotIdentityKey
+	};
+}
+
+function isCacheWorkContextCurrent(context: CacheWorkContext): boolean {
+	return isRunCurrent(context.runId) && activeSnapshotIdentityKey === context.identityKey;
 }
 
 function createEmptyTaskKindDebug(): GithubCacheTaskKindDebug {
@@ -1199,6 +1275,7 @@ function resetWarmStatus() {
 	clearWarmReadyResetTimer();
 	clearWarmProgressRevealTimer();
 	resetTaskCounters();
+	cacheRetryStatusMessage = null;
 	githubCacheWarmStatus.set({
 		phase: 'idle',
 		message: null,
@@ -1353,6 +1430,13 @@ async function runQueue(runId: number): Promise<void> {
 	}
 
 	if (task.passive && !(await waitForIdle(runId))) {
+		return;
+	}
+	if (runningTask || !isRunCurrent(runId)) {
+		return;
+	}
+	if (getNextTask() !== task) {
+		scheduleQueueRun(runId);
 		return;
 	}
 
@@ -1876,6 +1960,7 @@ async function hydrateProjectionBatch(input: {
 	fetcher: typeof fetch;
 	slug: string;
 	blobShas: string[];
+	context?: CacheWorkContext;
 }): Promise<void> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot || input.blobShas.length === 0) {
@@ -1910,8 +1995,14 @@ async function hydrateProjectionBatch(input: {
 	if (!response.ok) {
 		throw new Error(`Failed to hydrate collection projections (${response.status})`);
 	}
+	if (input.context && !isCacheWorkContextCurrent(input.context)) {
+		return;
+	}
 
 	const result = (await response.json()) as CollectionProjectionBatchResult;
+	if (input.context && !isCacheWorkContextCurrent(input.context)) {
+		return;
+	}
 	await writeProjectionItems(
 		snapshot.repoFullName,
 		input.slug,
@@ -1980,6 +2071,7 @@ async function enqueueItemDocumentTask(input: {
 		return cached;
 	}
 
+	const context = captureCacheWorkContext(input.runId);
 	await enqueueCacheTask({
 		runId: input.runId,
 		key: targetId,
@@ -1997,6 +2089,9 @@ async function enqueueItemDocumentTask(input: {
 			if (!response.ok) {
 				throw new Error(`Failed to load item document (${response.status})`);
 			}
+			if (!isCacheWorkContextCurrent(context)) {
+				return;
+			}
 
 			const data = (await response.json()) as {
 				item?: ContentRecord | null;
@@ -2006,6 +2101,9 @@ async function enqueueItemDocumentTask(input: {
 				redirectTo?: string;
 			};
 			if (data.redirectTo) {
+				return;
+			}
+			if (!isCacheWorkContextCurrent(context)) {
 				return;
 			}
 			await writeBlockSupport({
@@ -2149,6 +2247,7 @@ export const githubRepositoryCache = {
 
 		const runId = siteWarmRunId;
 		const targetId = getInventoryTargetId({ targetType: 'collectionIndex', configSlug: slug });
+		const context = captureCacheWorkContext(runId);
 		await enqueueCacheTask({
 			runId,
 			key: targetId,
@@ -2167,11 +2266,17 @@ export const githubRepositoryCache = {
 				if (!response.ok) {
 					throw new Error(`Failed to load collection index (${response.status})`);
 				}
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 
 				const payload = (await response.json()) as Omit<
 					SerializableCollectionIndex,
 					'key' | 'updatedAt'
 				>;
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 				await writeCollectionIndex(payload);
 				await notifyCollection(slug);
 			}
@@ -2223,11 +2328,16 @@ export const githubRepositoryCache = {
 
 		const visibleLimit = options.visibleLimit ?? VISIBLE_PROJECTION_LIMIT;
 		const visibleBlobShas = missingBlobShas.slice(0, visibleLimit);
+		const visibleProjectionContext = captureCacheWorkContext(siteWarmRunId);
 		await hydrateProjectionBatch({
 			fetcher: options.fetcher,
 			slug,
-			blobShas: visibleBlobShas
+			blobShas: visibleBlobShas,
+			context: visibleProjectionContext
 		});
+		if (!isCacheWorkContextCurrent(visibleProjectionContext)) {
+			return;
+		}
 		markWorkflowReadiness({
 			workflow: options.force ? 'warm-collection-reload' : 'desktop-collection-landing',
 			mark: 'ready',
@@ -2249,7 +2359,8 @@ export const githubRepositoryCache = {
 				await hydrateProjectionBatch({
 					fetcher: options.fetcher,
 					slug,
-					blobShas: remainingBlobShas.slice(index, index + BACKGROUND_PROJECTION_BATCH_SIZE)
+					blobShas: remainingBlobShas.slice(index, index + BACKGROUND_PROJECTION_BATCH_SIZE),
+					context: captureCacheWorkContext(siteWarmRunId)
 				});
 			}
 		};
@@ -2464,8 +2575,10 @@ export const githubRepositoryCache = {
 			return await getCachedBlockSupport();
 		}
 
+		const runId = siteWarmRunId;
+		const context = captureCacheWorkContext(runId);
 		await enqueueCacheTask({
-			runId: siteWarmRunId,
+			runId,
 			key: getInventoryTargetId({ targetType: 'blockSupport' }),
 			kind: 'blockRegistry',
 			priority: options.priority ?? 'topLevel',
@@ -2481,12 +2594,18 @@ export const githubRepositoryCache = {
 				if (!response.ok) {
 					throw new Error(`Failed to load block support (${response.status})`);
 				}
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 
 				const data = (await response.json()) as {
 					blockConfigs?: DiscoveredBlockConfig[];
 					packageBlocks?: SerializablePackageBlock[];
 					blockRegistryError?: string | null;
 				};
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 				await writeBlockSupport({
 					blockConfigs: data.blockConfigs ?? snapshot.blockConfigs,
 					packageBlocks: data.packageBlocks ?? [],
@@ -2529,8 +2648,10 @@ export const githubRepositoryCache = {
 			return await githubRepositoryCache.getSingletonDocumentForRoute({ slug: input.slug });
 		}
 
+		const runId = siteWarmRunId;
+		const context = captureCacheWorkContext(runId);
 		await enqueueCacheTask({
-			runId: siteWarmRunId,
+			runId,
 			key: getInventoryTargetId({ targetType: 'singletonDocument', configSlug: input.slug }),
 			kind: 'singletonDocument',
 			priority: input.priority ?? 'foreground',
@@ -2550,6 +2671,9 @@ export const githubRepositoryCache = {
 				if (!response.ok) {
 					throw new Error(`Failed to load singleton document (${response.status})`);
 				}
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 
 				const data = (await response.json()) as {
 					content?: ContentRecord | null;
@@ -2557,6 +2681,9 @@ export const githubRepositoryCache = {
 					packageBlocks?: SerializablePackageBlock[];
 					blockRegistryError?: string | null;
 				};
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 				await githubRepositoryCache.setSingletonPageView({
 					slug: input.slug,
 					content: data.content ?? null,
@@ -2768,6 +2895,7 @@ export const githubRepositoryCache = {
 						batchStart,
 						batchStart + SITE_WARM_PROJECTION_BATCH_SIZE
 					);
+					const context = captureCacheWorkContext(runId);
 					projectionTasks.push(
 						enqueueCacheTask({
 							runId,
@@ -2786,8 +2914,12 @@ export const githubRepositoryCache = {
 								await hydrateProjectionBatch({
 									fetcher: options.fetcher,
 									slug: index.configSlug,
-									blobShas
+									blobShas,
+									context
 								});
+								if (!isCacheWorkContextCurrent(context)) {
+									return;
+								}
 								hydratedItems += blobShas.length;
 								updateWarmStatus({
 									currentCollectionSlug: index.configSlug,
@@ -3557,6 +3689,12 @@ export const githubRepositoryCacheTestApi = {
 		resetFreshnessBackoff();
 		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
+		cacheRetryStatusMessage = null;
+		endpointRetryPolicy = {
+			attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+			baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+			maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
+		};
 		collectionListeners.clear();
 		githubCacheInventoryStatus.set(emptyInventorySummary);
 		syncWarmDebugStatus();
@@ -3571,6 +3709,12 @@ export const githubRepositoryCacheTestApi = {
 				bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 				recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
 			};
+			cacheRetryStatusMessage = null;
+			endpointRetryPolicy = {
+				attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+				baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+				maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
+			};
 			syncWarmDebugStatus();
 			return;
 		}
@@ -3582,6 +3726,12 @@ export const githubRepositoryCacheTestApi = {
 		fullDocumentBudgetPolicy = {
 			bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+		};
+		cacheRetryStatusMessage = null;
+		endpointRetryPolicy = {
+			attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+			baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+			maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
 		};
 		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
@@ -3626,6 +3776,18 @@ export const githubRepositoryCacheTestApi = {
 		fullDocumentBudgetPolicy = {
 			bytes: input.bytes ?? DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: input.recordLimit ?? DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+		};
+	},
+
+	setEndpointRetryPolicyForTests(input: {
+		attempts?: number;
+		baseDelayMs?: number;
+		maxDelayMs?: number;
+	}): void {
+		endpointRetryPolicy = {
+			attempts: input.attempts ?? DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+			baseDelayMs: input.baseDelayMs ?? DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+			maxDelayMs: input.maxDelayMs ?? DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
 		};
 	},
 
