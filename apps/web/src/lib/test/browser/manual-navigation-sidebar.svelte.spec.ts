@@ -695,6 +695,12 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expectElement(screen.getByText('Hello world')).not.toBeInTheDocument();
 		await expectElement(screen.getByRole('link', { name: 'Open first item' })).toBeVisible();
 
+		const blogLink = document.querySelector<HTMLAnchorElement>('a[href="/pages/blog"]');
+		expect(blogLink).not.toBeNull();
+		blogLink?.addEventListener('click', (event) => event.preventDefault(), {
+			capture: true,
+			once: true
+		});
 		await screen.getByRole('link', { name: 'Blog Posts' }).click();
 
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
@@ -1031,6 +1037,45 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		});
 
 		expect(document.body.textContent).not.toContain('Site cache ready');
+	});
+
+	it('renders GitHub config states from the normalized workflow payload', async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({
+					statesBySlug: {},
+					workflowData: {
+						identity: null,
+						statesBySlug: {
+							about: {
+								value: false,
+								label: 'Draft',
+								variant: 'warning',
+								icon: 'file-pen',
+								visibility: {
+									navigation: true,
+									header: true,
+									card: true
+								}
+							}
+						},
+						stateConfigCount: 1,
+						readiness: 'ready',
+						cacheMiss: null
+					}
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayout, {
+			data: githubLayoutData
+		});
+
+		await expectElement(screen.getByRole('link', { name: 'About Page' })).toBeVisible();
+		await expect.poll(() => document.body.textContent ?? '').toContain('Draft');
 	});
 
 	it('hydrates visible GitHub collection titles before background rows in the panel', async () => {

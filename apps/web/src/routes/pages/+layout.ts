@@ -1,7 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import {
 	EMPTY_REPO_CONFIGS_BOOTSTRAP,
-	loadRepoConfigsBootstrap
+	loadRepoConfigsBootstrap,
+	type RepoConfigsBootstrap
 } from '$lib/repository/config-bootstrap';
 import type { InstructionDiscoveryResult } from '$lib/features/instructions/types';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
@@ -13,6 +14,33 @@ const EMPTY_INSTRUCTION_DISCOVERY: InstructionDiscoveryResult = {
 	instructions: [],
 	issues: []
 };
+
+function getWorkflowFreshnessStatus(
+	status: NonNullable<RepoConfigsBootstrap['workflowData']>['freshness']['status']
+): RepoConfigsBootstrap['freshnessStatus'] | undefined {
+	return status === 'unknown' ? undefined : status;
+}
+
+function normalizePagesWorkspaceBootstrap(bootstrap: RepoConfigsBootstrap): RepoConfigsBootstrap {
+	const workflowData = bootstrap.workflowData;
+
+	if (!workflowData) {
+		return bootstrap;
+	}
+
+	return {
+		...bootstrap,
+		configs: workflowData.configs,
+		blockConfigs: workflowData.blockSupport.blockConfigs,
+		rootConfig: workflowData.rootConfig,
+		navigationManifest: workflowData.navigationManifest,
+		changedPaths: workflowData.changedContentPaths,
+		freshnessStatus:
+			getWorkflowFreshnessStatus(workflowData.freshness.status) ?? bootstrap.freshnessStatus,
+		freshnessError: workflowData.freshness.error,
+		freshnessRecovery: workflowData.freshness.recovery
+	};
+}
 
 async function loadInstructionDiscovery(fetch: typeof globalThis.fetch) {
 	try {
@@ -54,9 +82,10 @@ export const load: LayoutLoad = async ({ parent, fetch }) => {
 			loadRepoConfigsBootstrap(fetch),
 			loadInstructionDiscovery(fetch)
 		]);
+		const workspaceBootstrap = normalizePagesWorkspaceBootstrap(bootstrap);
 		logDevRouting('pages-layout:bootstrap-success', {
 			selectedRepo: workspace.selectedRepo.full_name,
-			configCount: bootstrap.configs.length
+			configCount: workspaceBootstrap.configs.length
 		});
 		markWorkflowReadiness({
 			workflow: 'first-repository-open',
@@ -64,7 +93,7 @@ export const load: LayoutLoad = async ({ parent, fetch }) => {
 			route: '/pages'
 		});
 		return {
-			...bootstrap,
+			...workspaceBootstrap,
 			instructionDiscovery
 		};
 	} catch (error) {

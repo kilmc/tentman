@@ -62,12 +62,20 @@
 	import { traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 	import { toasts } from '$lib/stores/toasts';
 	import { buildReposRedirect } from '$lib/utils/routing';
+	import type {
+		WorkflowConfigStatesData,
+		WorkflowWorkspaceBootstrapData
+	} from '$lib/repository/workflow-data';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	type CollectionItemsBySlug = Record<string, OrderedCollectionNavigation>;
 	type ConfigStatesBySlug = Record<string, ResolvedContentState | null>;
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+	type ConfigStatesPayload = {
+		statesBySlug?: ConfigStatesBySlug;
+		workflowData?: WorkflowConfigStatesData | null;
+	};
 
 	const GITHUB_PAGES_INVALIDATION_PATHS = new Set([
 		'/api/repo/collection-items',
@@ -119,12 +127,21 @@
 	let topLevelEditorItems = $state<WorkspaceNavItem[]>([]);
 
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
-	const manifestState = $derived(
-		isLocalMode ? $localContent.navigationManifest : data.navigationManifest
+	const workspaceWorkflowData = $derived(
+		isLocalMode ? null : ((data.workflowData ?? null) as WorkflowWorkspaceBootstrapData | null)
 	);
-	const availableConfigs = $derived(isLocalMode ? $localContent.configs : data.configs);
+	const manifestState = $derived(
+		isLocalMode
+			? $localContent.navigationManifest
+			: (workspaceWorkflowData?.navigationManifest ?? data.navigationManifest)
+	);
+	const availableConfigs = $derived(
+		isLocalMode ? $localContent.configs : (workspaceWorkflowData?.configs ?? data.configs)
+	);
 	const navigationManifest = $derived(manifestState.manifest);
-	const rootConfig = $derived(isLocalMode ? $localContent.rootConfig : data.rootConfig);
+	const rootConfig = $derived(
+		isLocalMode ? $localContent.rootConfig : (workspaceWorkflowData?.rootConfig ?? data.rootConfig)
+	);
 	const configs = $derived(
 		orderDiscoveredConfigs(availableConfigs, navigationManifest, rootConfig)
 	);
@@ -786,11 +803,9 @@
 				throw new Error(`Failed to load config states (${response.status})`);
 			}
 
-			const payload = (await response.json()) as {
-				statesBySlug?: ConfigStatesBySlug;
-			};
+			const payload = (await response.json()) as ConfigStatesPayload;
 
-			githubConfigStatesBySlug = payload.statesBySlug ?? {};
+			githubConfigStatesBySlug = payload.workflowData?.statesBySlug ?? payload.statesBySlug ?? {};
 			githubConfigStatesLoaded = true;
 		} catch (error) {
 			console.error('Failed to load config states:', error);
