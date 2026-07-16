@@ -6,8 +6,18 @@ import {
 	type RepoFreshnessIdentityResult
 } from '$lib/repository/config-bootstrap';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
+import {
+	createWorkflowRouteDataIdentity,
+	createWorkflowWorkspaceBootstrapData,
+	type WorkflowWorkspaceBootstrapData
+} from '$lib/repository/workflow-data';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot } from '$lib/server/repository-data';
+import {
+	resolveLegacySingletonConfigStatesForRoute,
+	resolveIndexedSingletonConfigStatesForRoute,
+	type ResolvedSingletonConfigStates
+} from '$lib/server/repository-data/route-data';
 import {
 	canUseGitHubSource,
 	getRepositoryRefIdentity,
@@ -19,6 +29,10 @@ import { resolveConfigPath } from '$lib/utils/validation';
 export interface SelectedGitHubRepoBootstrapContext extends RepoConfigsBootstrap {
 	backend: Awaited<ReturnType<typeof requireGitHubContentRepository>>['backend'];
 	draftBranch: string | null;
+}
+
+export interface SelectedGitHubRepoWorkflowBootstrap extends RepoConfigsBootstrap {
+	workflowData: WorkflowWorkspaceBootstrapData;
 }
 
 export interface RepoConfigsFreshnessInput {
@@ -276,9 +290,61 @@ export async function loadSelectedGitHubRepoBootstrapContext(
 			repositoryIdentity: snapshot.identity,
 			mainRepositoryIdentity: mainSnapshot?.identity ?? (draftBranch ? null : snapshot.identity),
 			draftRepositoryIdentity: draftBranch ? snapshot.identity : null,
-			changedPaths: changedPathsResult.changedPaths
+			changedPaths: changedPathsResult.changedPaths,
+			freshnessStatus: changedPathsResult.status,
+			freshnessError: changedPathsResult.error ?? null,
+			freshnessRecovery: changedPathsResult.recovery ?? null
 		})
 	};
+}
+
+export async function loadSelectedGitHubRepoWorkflowBootstrap(
+	locals: App.Locals,
+	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>,
+	freshness?: RepoConfigsFreshnessInput
+): Promise<SelectedGitHubRepoWorkflowBootstrap> {
+	const {
+		backend: _backend,
+		draftBranch: _draftBranch,
+		...bootstrap
+	} = await loadSelectedGitHubRepoBootstrapContext(locals, cookies, freshness);
+	return {
+		...bootstrap,
+		workflowData: createWorkflowWorkspaceBootstrapData(bootstrap)
+	};
+}
+
+export async function loadSelectedGitHubRepoConfigStates(
+	locals: App.Locals,
+	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>
+): Promise<ResolvedSingletonConfigStates> {
+	if (!locals.isAuthenticated || !locals.githubToken) {
+		throw error(401, 'Not authenticated');
+	}
+
+	if (!locals.selectedRepo) {
+		throw error(400, 'No repository selected');
+	}
+
+	const { backend, draftBranch } = await requireGitHubContentRepository({ locals, cookies });
+	const indexedStates = await resolveIndexedSingletonConfigStatesForRoute({
+		backend,
+		hasEditableDraft: Boolean(draftBranch)
+	});
+
+	if (indexedStates) {
+		return indexedStates;
+	}
+
+	const bootstrap = await loadSelectedGitHubRepoBootstrapContext(locals, cookies);
+	return resolveLegacySingletonConfigStatesForRoute({
+		backend: bootstrap.backend,
+		workflowIdentity: createWorkflowRouteDataIdentity(bootstrap.repositoryIdentity, {
+			hasEditableDraft: Boolean(bootstrap.draftBranch)
+		}),
+		configs: bootstrap.configs,
+		rootConfig: bootstrap.rootConfig
+	});
 }
 
 export async function loadSelectedGitHubRepoConfigs(
@@ -286,10 +352,5 @@ export async function loadSelectedGitHubRepoConfigs(
 	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>,
 	freshness?: RepoConfigsFreshnessInput
 ): Promise<RepoConfigsBootstrap> {
-	const {
-		backend: _backend,
-		draftBranch: _draftBranch,
-		...bootstrap
-	} = await loadSelectedGitHubRepoBootstrapContext(locals, cookies, freshness);
-	return bootstrap;
+	return loadSelectedGitHubRepoWorkflowBootstrap(locals, cookies, freshness);
 }

@@ -88,7 +88,12 @@ describe('workflow-data contract', () => {
 			rootConfig: workflowRootConfigFixture,
 			configs: [workflowPageConfigFixture],
 			navigationManifest: workflowNavigationManifestFixture,
-			changedContentPaths: ['src/content/posts/hello-world.md']
+			changedContentPaths: ['src/content/posts/hello-world.md'],
+			freshness: {
+				status: 'changed',
+				unchanged: false,
+				changedContentPaths: ['src/content/posts/hello-world.md']
+			}
 		});
 		expect(workflowCollectionNavigationFixture).toMatchObject({
 			slug: 'posts',
@@ -168,7 +173,8 @@ describe('workflow-data contract', () => {
 			repositoryIdentity: workflowRepositoryIdentityFixture,
 			mainRepositoryIdentity: null,
 			draftRepositoryIdentity: workflowRepositoryIdentityFixture,
-			changedPaths: ['src/content/about.md']
+			changedPaths: ['src/content/about.md'],
+			freshnessStatus: 'changed'
 		});
 		const freshness = createWorkflowFreshnessData({
 			activeDraftBranch: null,
@@ -184,7 +190,12 @@ describe('workflow-data contract', () => {
 			identity: {
 				hasEditableDraft: true
 			},
-			changedContentPaths: ['src/content/about.md']
+			changedContentPaths: ['src/content/about.md'],
+			freshness: {
+				status: 'changed',
+				unchanged: false,
+				changedContentPaths: ['src/content/about.md']
+			}
 		});
 		expect(freshness).toMatchObject({
 			status: 'unchanged',

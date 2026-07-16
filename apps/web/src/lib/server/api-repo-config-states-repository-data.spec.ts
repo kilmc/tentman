@@ -4,8 +4,12 @@ vi.mock('$lib/stores/content-cache', () => ({
 	getCachedContent: vi.fn()
 }));
 
-vi.mock('$lib/server/repo-config-bootstrap', () => ({
-	loadSelectedGitHubRepoBootstrapContext: vi.fn()
+const pageContextMocks = vi.hoisted(() => ({
+	requireGitHubContentRepository: vi.fn()
+}));
+
+vi.mock('$lib/server/page-context', () => ({
+	requireGitHubContentRepository: pageContextMocks.requireGitHubContentRepository
 }));
 
 vi.mock('$lib/features/content-management/navigation-manifest', () => ({
@@ -19,7 +23,6 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 
 import { GET } from '../../routes/api/repo/config-states/+server';
 import { getCachedContent } from '$lib/stores/content-cache';
-import { loadSelectedGitHubRepoBootstrapContext } from '$lib/server/repo-config-bootstrap';
 import {
 	clearRepositorySnapshotCache,
 	clearSingletonConfigStateCache,
@@ -134,15 +137,18 @@ describe('GET /api/repo/config-states repository data', () => {
 			}`,
 			'src/content/about.md': `---\ntitle: "About"\npublished: false\n---\nAbout body`
 		});
-		vi.mocked(loadSelectedGitHubRepoBootstrapContext).mockResolvedValue({
+		pageContextMocks.requireGitHubContentRepository.mockResolvedValue({
 			backend,
-			configs: [],
-			rootConfig: null
+			draftBranch: null
 		} as never);
 
 		const response = await GET({
 			locals: {
+				isAuthenticated: true,
+				githubToken: 'secret-token',
 				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
 					full_name: 'acme/docs'
 				}
 			},
@@ -151,7 +157,7 @@ describe('GET /api/repo/config-states repository data', () => {
 			}
 		} as never);
 
-		expect(await response.json()).toEqual({
+		expect(await response.json()).toMatchObject({
 			statesBySlug: {
 				about: {
 					value: false,
@@ -164,9 +170,21 @@ describe('GET /api/repo/config-states repository data', () => {
 						card: true
 					}
 				}
+			},
+			workflowData: {
+				identity: {
+					mode: 'github',
+					workspaceKey: 'github:acme/docs?ref=main',
+					workspaceLabel: 'acme/docs',
+					hasEditableDraft: false
+				},
+				stateConfigCount: 1,
+				readiness: 'ready',
+				cacheMiss: null
 			}
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
 		expect(backend.readTextFile).not.toHaveBeenCalled();
+		expect(backend.discoverConfigs).not.toHaveBeenCalled();
 	});
 });

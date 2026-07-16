@@ -122,7 +122,8 @@ export const workflowBootstrapFixture = createWorkflowWorkspaceBootstrapData({
 	repositoryIdentity: workflowRepositoryIdentityFixture,
 	mainRepositoryIdentity: null,
 	draftRepositoryIdentity: workflowRepositoryIdentityFixture,
-	changedPaths: ['src/content/posts/hello-world.md']
+	changedPaths: ['src/content/posts/hello-world.md'],
+	freshnessStatus: 'changed'
 } satisfies RepoConfigsBootstrap);
 
 export const workflowCollectionNavigationFixture = createWorkflowCollectionNavigationData({

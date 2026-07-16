@@ -209,7 +209,40 @@ describe('GET /api/repo/configs', () => {
 				treeSha: 'github:acme/docs?ref=main:main'
 			},
 			draftRepositoryIdentity: null,
-			changedPaths: null
+			changedPaths: null,
+			freshnessStatus: 'unchanged',
+			workflowData: {
+				identity: {
+					mode: 'github',
+					workspaceKey: 'github:acme/docs?ref=main',
+					workspaceLabel: 'acme/docs',
+					hasEditableDraft: false
+				},
+				rootConfig: null,
+				configs: [
+					{
+						slug: 'posts',
+						path: 'content/posts.tentman.json'
+					}
+				],
+				navigationManifest: {
+					path: 'tentman/navigation-manifest.json',
+					exists: false,
+					manifest: null,
+					error: null
+				},
+				blockSupport: {
+					blockConfigs: [],
+					packageBlocks: [],
+					error: null
+				},
+				changedContentPaths: [],
+				freshness: {
+					status: 'unchanged',
+					unchanged: true,
+					changedContentPaths: []
+				}
+			}
 		});
 	});
 

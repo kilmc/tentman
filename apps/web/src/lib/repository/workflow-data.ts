@@ -49,6 +49,7 @@ export interface WorkflowWorkspaceBootstrapData {
 	navigationManifest: NavigationManifestState;
 	blockSupport: WorkflowBlockSupportData;
 	changedContentPaths: string[];
+	freshness: WorkflowFreshnessData;
 }
 
 export interface WorkflowCollectionNavigationData {
@@ -192,7 +193,18 @@ export function createWorkflowWorkspaceBootstrapData(
 			blockConfigs: bootstrap.blockConfigs,
 			packageBlocks: []
 		}),
-		changedContentPaths: bootstrap.changedPaths ?? []
+		changedContentPaths: bootstrap.changedPaths ?? [],
+		freshness: createWorkflowFreshnessData({
+			activeDraftBranch: bootstrap.activeDraftBranch,
+			repositoryIdentity: bootstrap.repositoryIdentity ?? null,
+			mainRepositoryIdentity: bootstrap.mainRepositoryIdentity ?? null,
+			draftRepositoryIdentity: bootstrap.draftRepositoryIdentity ?? null,
+			unchanged: (bootstrap.freshnessStatus ?? 'unchanged') === 'unchanged',
+			freshnessStatus: bootstrap.freshnessStatus ?? 'unchanged',
+			changedPaths: bootstrap.changedPaths ?? [],
+			error: bootstrap.freshnessError ?? null,
+			recovery: bootstrap.freshnessRecovery ?? null
+		})
 	};
 }
 

@@ -6,10 +6,17 @@ import { canUseGitHubSource } from './source';
 import { getRepositorySnapshot } from './snapshot';
 import { getSingletonDocument, isSingletonFileConfig } from './documents';
 import type { RepositorySnapshot } from './types';
+import type { RepositoryRefIdentity } from './types';
 
 interface SingletonConfigStatesInput {
 	backend: RepositoryBackend;
 	ref?: string | null;
+}
+
+export interface SingletonConfigStatesResult {
+	identity: RepositoryRefIdentity;
+	statesBySlug: Record<string, ResolvedContentState>;
+	stateConfigCount: number;
 }
 
 const singletonStateCache = new Map<string, ResolvedContentState | null>();
@@ -62,9 +69,9 @@ async function getSingletonConfigState(
 	return state;
 }
 
-export async function getSingletonConfigStates(
+export async function getSingletonConfigStateResult(
 	input: SingletonConfigStatesInput
-): Promise<Record<string, ResolvedContentState> | null> {
+): Promise<SingletonConfigStatesResult | null> {
 	if (!canUseGitHubSource(input.backend)) {
 		return null;
 	}
@@ -96,7 +103,17 @@ export async function getSingletonConfigStates(
 		durationMs: performance.now() - start
 	});
 
-	return statesBySlug;
+	return {
+		identity: snapshot.identity,
+		statesBySlug,
+		stateConfigCount: stateConfigs.length
+	};
+}
+
+export async function getSingletonConfigStates(
+	input: SingletonConfigStatesInput
+): Promise<Record<string, ResolvedContentState> | null> {
+	return (await getSingletonConfigStateResult(input))?.statesBySlug ?? null;
 }
 
 export function clearSingletonConfigStateCache(): void {

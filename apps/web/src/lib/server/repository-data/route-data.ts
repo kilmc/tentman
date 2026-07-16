@@ -16,10 +16,12 @@ import {
 	createWorkflowCacheMissResult,
 	createWorkflowCollectionNavigationData,
 	createWorkflowConfigStatesData,
+	createWorkflowRouteDataIdentity,
 	createWorkflowItemViewData,
 	createWorkflowPageViewData,
 	type WorkflowCollectionNavigationData,
 	type WorkflowConfigStatesData,
+	type WorkflowRouteDataIdentity,
 	type WorkflowItemViewData,
 	type WorkflowPageViewData
 } from '$lib/repository/workflow-data';
@@ -28,7 +30,7 @@ import { logRouteDataFallback } from '$lib/utils/workflow-instrumentation';
 import {
 	getCollectionNavigation,
 	resolveCollectionItemDocument,
-	getSingletonConfigStates,
+	getSingletonConfigStateResult,
 	getSingletonDocument
 } from '$lib/server/repository-data';
 
@@ -236,26 +238,44 @@ export async function resolvePageViewContentForRoute({
 
 export async function resolveSingletonConfigStatesForRoute({
 	backend,
+	hasEditableDraft,
+	workflowIdentity,
 	configs,
 	rootConfig
 }: {
 	backend: RepositoryBackend;
+	hasEditableDraft?: boolean;
+	workflowIdentity?: WorkflowRouteDataIdentity | null;
 	configs: DiscoveredConfig[];
 	rootConfig: RootConfig | null;
 }): Promise<ResolvedSingletonConfigStates> {
-	const indexedStatesBySlug = await getSingletonConfigStates({ backend });
-	if (indexedStatesBySlug) {
-		return {
-			statesBySlug: indexedStatesBySlug,
-			source: 'repository-data',
-			stateConfigCount: Object.keys(indexedStatesBySlug).length,
-			workflowData: createWorkflowConfigStatesData({
-				statesBySlug: indexedStatesBySlug,
-				stateConfigCount: Object.keys(indexedStatesBySlug).length
-			})
-		};
+	const indexedStates = await resolveIndexedSingletonConfigStatesForRoute({
+		backend,
+		hasEditableDraft
+	});
+	if (indexedStates) {
+		return indexedStates;
 	}
 
+	return resolveLegacySingletonConfigStatesForRoute({
+		backend,
+		workflowIdentity,
+		configs,
+		rootConfig
+	});
+}
+
+export async function resolveLegacySingletonConfigStatesForRoute({
+	backend,
+	workflowIdentity,
+	configs,
+	rootConfig
+}: {
+	backend: RepositoryBackend;
+	workflowIdentity?: WorkflowRouteDataIdentity | null;
+	configs: DiscoveredConfig[];
+	rootConfig: RootConfig | null;
+}): Promise<ResolvedSingletonConfigStates> {
 	const stateConfigs = configs.filter(
 		(config) => !!config.config.state && !config.config.collection
 	);
@@ -283,6 +303,7 @@ export async function resolveSingletonConfigStatesForRoute({
 		source: 'legacy-content-cache',
 		stateConfigCount: stateConfigs.length,
 		workflowData: createWorkflowConfigStatesData({
+			identity: workflowIdentity ?? null,
 			statesBySlug,
 			stateConfigCount: stateConfigs.length,
 			cacheMiss: createWorkflowCacheMissResult({
@@ -291,6 +312,31 @@ export async function resolveSingletonConfigStatesForRoute({
 			})
 		})
 	};
+}
+
+export async function resolveIndexedSingletonConfigStatesForRoute({
+	backend,
+	hasEditableDraft
+}: {
+	backend: RepositoryBackend;
+	hasEditableDraft?: boolean;
+}): Promise<ResolvedSingletonConfigStates | null> {
+	const indexedStates = await getSingletonConfigStateResult({ backend });
+	if (indexedStates) {
+		return {
+			statesBySlug: indexedStates.statesBySlug,
+			source: 'repository-data',
+			stateConfigCount: indexedStates.stateConfigCount,
+			workflowData: createWorkflowConfigStatesData({
+				identity: createWorkflowRouteDataIdentity(indexedStates.identity, {
+					hasEditableDraft: hasEditableDraft ?? false
+				}),
+				statesBySlug: indexedStates.statesBySlug,
+				stateConfigCount: indexedStates.stateConfigCount
+			})
+		};
+	}
+	return null;
 }
 
 export async function resolveCollectionItemRouteData({

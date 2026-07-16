@@ -7,7 +7,7 @@ vi.mock('$lib/stores/content-cache', () => ({
 vi.mock('$lib/server/repository-data', () => ({
 	getCollectionNavigation: vi.fn(async () => null),
 	resolveCollectionItemDocument: vi.fn(async () => null),
-	getSingletonConfigStates: vi.fn(async () => null),
+	getSingletonConfigStateResult: vi.fn(async () => null),
 	getSingletonDocument: vi.fn(async () => null)
 }));
 
@@ -21,7 +21,7 @@ import {
 import {
 	getCollectionNavigation,
 	resolveCollectionItemDocument,
-	getSingletonConfigStates,
+	getSingletonConfigStateResult,
 	getSingletonDocument
 } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
@@ -95,7 +95,7 @@ describe('repository-data route data', () => {
 		vi.clearAllMocks();
 		vi.mocked(getCollectionNavigation).mockResolvedValue(null);
 		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
-		vi.mocked(getSingletonConfigStates).mockResolvedValue(null);
+		vi.mocked(getSingletonConfigStateResult).mockResolvedValue(null);
 		vi.mocked(getSingletonDocument).mockResolvedValue(null);
 		clearWorkflowInstrumentationEventsForTests();
 	});
@@ -249,6 +249,14 @@ describe('repository-data route data', () => {
 
 		const result = await resolveSingletonConfigStatesForRoute({
 			backend,
+			workflowIdentity: {
+				mode: 'github',
+				workspaceKey: 'github:acme/docs',
+				workspaceLabel: 'acme/docs',
+				dataSetKey: 'dataset:legacy',
+				resolvedAt: 123,
+				hasEditableDraft: false
+			},
 			configs: [singletonConfig] as never,
 			rootConfig: null
 		});
@@ -270,6 +278,10 @@ describe('repository-data route data', () => {
 				}
 			},
 			workflowData: {
+				identity: {
+					workspaceKey: 'github:acme/docs',
+					dataSetKey: 'dataset:legacy'
+				},
 				readiness: 'ready',
 				stateConfigCount: 1,
 				cacheMiss: {
@@ -284,6 +296,69 @@ describe('repository-data route data', () => {
 			singletonConfig.path,
 			singletonConfig.slug
 		);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'route-data-fallback',
+					route: '/pages',
+					slug: null,
+					source: 'legacy-content-cache',
+					reason: 'singleton config state index unavailable'
+				})
+			])
+		);
+	});
+
+	it('uses repository-data workflow output for singleton config states when available', async () => {
+		vi.mocked(getSingletonConfigStateResult).mockResolvedValue({
+			identity: {
+				mode: 'github',
+				repoKey: 'github:acme/docs',
+				label: 'acme/docs',
+				ref: 'main',
+				headSha: 'commit-main',
+				treeSha: 'tree-main',
+				resolvedAt: 123
+			},
+			stateConfigCount: 1,
+			statesBySlug: {
+				about: {
+					value: false,
+					label: 'Draft',
+					variant: 'warning',
+					icon: 'file-pen',
+					visibility: {
+						navigation: true,
+						header: true,
+						card: true
+					}
+				}
+			}
+		});
+
+		const result = await resolveSingletonConfigStatesForRoute({
+			backend,
+			hasEditableDraft: true,
+			configs: [singletonConfig] as never,
+			rootConfig: null
+		});
+
+		expect(result).toMatchObject({
+			source: 'repository-data',
+			stateConfigCount: 1,
+			workflowData: {
+				identity: {
+					mode: 'github',
+					workspaceKey: 'github:acme/docs',
+					workspaceLabel: 'acme/docs',
+					hasEditableDraft: true
+				},
+				readiness: 'ready',
+				stateConfigCount: 1,
+				cacheMiss: null
+			}
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
 	});
 
 	it('uses repository-data for collection item route lookups when available', async () => {
