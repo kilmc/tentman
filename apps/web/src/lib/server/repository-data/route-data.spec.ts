@@ -24,6 +24,10 @@ import {
 	getSingletonDocument
 } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 const collectionConfig = {
 	slug: 'posts',
@@ -92,6 +96,7 @@ describe('repository-data route data', () => {
 		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
 		vi.mocked(getSingletonConfigStates).mockResolvedValue(null);
 		vi.mocked(getSingletonDocument).mockResolvedValue(null);
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	it('falls back to legacy content cache for collection navigation when indexing cannot answer', async () => {
@@ -130,6 +135,17 @@ describe('repository-data route data', () => {
 			collectionConfig.config,
 			collectionConfig.path,
 			collectionConfig.slug
+		);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'route-data-fallback',
+					route: '/pages/posts',
+					slug: 'posts',
+					source: 'legacy-content-cache',
+					reason: 'collection navigation index unavailable'
+				})
+			])
 		);
 	});
 

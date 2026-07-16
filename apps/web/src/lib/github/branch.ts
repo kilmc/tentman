@@ -1,4 +1,5 @@
 import type { Octokit } from 'octokit';
+import { traceGitHubRequest } from '$lib/utils/workflow-instrumentation';
 
 /**
  * Represents a commit in a branch comparison
@@ -38,19 +39,44 @@ export async function createBranch(
 ): Promise<void> {
 	try {
 		// Get the base branch reference to get its SHA
-		const { data: ref } = await octokit.rest.git.getRef({
-			owner,
-			repo,
-			ref: `heads/${fromBranch}`
-		});
+		const { data: ref } = await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'createBranchReadRef',
+				requestKind: 'ref',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: fromBranch
+			},
+			() =>
+				octokit.rest.git.getRef({
+					owner,
+					repo,
+					ref: `heads/${fromBranch}`
+				})
+		);
 
 		// Create new branch pointing to the same SHA
-		await octokit.rest.git.createRef({
-			owner,
-			repo,
-			ref: `refs/heads/${branchName}`,
-			sha: ref.object.sha
-		});
+		await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'createBranchWriteRef',
+				requestKind: 'ref',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: branchName,
+				sha: ref.object.sha
+			},
+			() =>
+				octokit.rest.git.createRef({
+					owner,
+					repo,
+					ref: `refs/heads/${branchName}`,
+					sha: ref.object.sha
+				})
+		);
 	} catch (err) {
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 		console.error('Failed to create branch:', { branchName, fromBranch, error: err });
@@ -73,11 +99,23 @@ export async function deleteBranch(
 	branchName: string
 ): Promise<void> {
 	try {
-		await octokit.rest.git.deleteRef({
-			owner,
-			repo,
-			ref: `heads/${branchName}`
-		});
+		await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'deleteBranchRef',
+				requestKind: 'delete',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: branchName
+			},
+			() =>
+				octokit.rest.git.deleteRef({
+					owner,
+					repo,
+					ref: `heads/${branchName}`
+				})
+		);
 	} catch (err) {
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 		console.error('Failed to delete branch:', { branchName, error: err });
@@ -103,12 +141,25 @@ export async function getCommitsSince(
 	headBranch: string
 ): Promise<Commit[]> {
 	try {
-		const { data: comparison } = await octokit.rest.repos.compareCommits({
-			owner,
-			repo,
-			base: baseBranch,
-			head: headBranch
-		});
+		const { data: comparison } = await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'getCommitsSince',
+				requestKind: 'compare',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: headBranch,
+				path: `${baseBranch}...${headBranch}`
+			},
+			() =>
+				octokit.rest.repos.compareCommits({
+					owner,
+					repo,
+					base: baseBranch,
+					head: headBranch
+				})
+		);
 
 		// Map GitHub's commit format to our simplified format
 		return comparison.commits.map((commit) => ({
@@ -141,14 +192,27 @@ export async function listChangedFilesBetweenRefs(
 	let page = 1;
 
 	while (true) {
-		const response = await octokit.rest.repos.compareCommits({
-			owner,
-			repo,
-			base: baseBranch,
-			head: headBranch,
-			per_page: 100,
-			page
-		});
+		const response = await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'listChangedFilesBetweenRefs',
+				requestKind: 'compare',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: headBranch,
+				path: `${baseBranch}...${headBranch}`
+			},
+			() =>
+				octokit.rest.repos.compareCommits({
+					owner,
+					repo,
+					base: baseBranch,
+					head: headBranch,
+					per_page: 100,
+					page
+				})
+		);
 
 		for (const file of response.data.files ?? []) {
 			files.push({

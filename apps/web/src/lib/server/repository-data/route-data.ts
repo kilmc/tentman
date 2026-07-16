@@ -13,6 +13,7 @@ import {
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import type { RepositoryBackend } from '$lib/repository/types';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { logRouteDataFallback } from '$lib/utils/workflow-instrumentation';
 import {
 	getCollectionNavigation,
 	resolveCollectionItemDocument,
@@ -63,6 +64,12 @@ export async function resolveCollectionNavigationForRoute({
 		};
 	}
 
+	logRouteDataFallback({
+		route: `/pages/${discoveredConfig.slug}`,
+		slug: discoveredConfig.slug,
+		source: 'legacy-content-cache',
+		reason: 'collection navigation index unavailable'
+	});
 	const content = await getCachedContent(
 		backend,
 		discoveredConfig.config,
@@ -100,6 +107,12 @@ export async function resolvePageViewContentForRoute({
 				source: 'repository-data'
 			};
 		}
+		logRouteDataFallback({
+			route: `/pages/${discoveredConfig.slug}`,
+			slug: discoveredConfig.slug,
+			source: 'legacy-content-cache',
+			reason: 'collection page-view index unavailable'
+		});
 	} else {
 		const singletonContent = await getSingletonDocument({
 			backend,
@@ -112,6 +125,12 @@ export async function resolvePageViewContentForRoute({
 				source: 'repository-data'
 			};
 		}
+		logRouteDataFallback({
+			route: `/pages/${discoveredConfig.slug}`,
+			slug: discoveredConfig.slug,
+			source: 'legacy-content-cache',
+			reason: 'singleton document index unavailable'
+		});
 	}
 
 	return {
@@ -147,6 +166,12 @@ export async function resolveSingletonConfigStatesForRoute({
 	const stateConfigs = configs.filter(
 		(config) => !!config.config.state && !config.config.collection
 	);
+	logRouteDataFallback({
+		route: '/pages',
+		slug: null,
+		source: 'legacy-content-cache',
+		reason: 'singleton config state index unavailable'
+	});
 	const statesBySlugEntries = await Promise.all(
 		stateConfigs.map(async (config) => {
 			const content = await getCachedContent(backend, config.config, config.path, config.slug);
@@ -183,6 +208,13 @@ export async function resolveCollectionItemForRoute({
 		return resolvedItem.content;
 	}
 
+	logRouteDataFallback({
+		route: `/pages/${discoveredConfig.slug}/${itemId}`,
+		slug: discoveredConfig.slug,
+		itemId,
+		source: 'legacy-content-cache',
+		reason: 'collection item document index unavailable'
+	});
 	const content = await getCachedContent(
 		backend,
 		discoveredConfig.config,

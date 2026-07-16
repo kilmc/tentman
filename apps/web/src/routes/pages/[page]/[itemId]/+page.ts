@@ -2,6 +2,7 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
 import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import { markWorkflowReadiness, traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
@@ -39,11 +40,19 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		slug: params.page,
 		itemId: params.itemId
 	});
-	const discoveredConfig = parentData.configs?.find((config) => config.slug === params.page) ?? null;
+	const discoveredConfig =
+		parentData.configs?.find((config) => config.slug === params.page) ?? null;
 	if (cachedDocument && discoveredConfig) {
 		const blockSupport = await githubRepositoryCache.warmBlockSupport({
 			fetcher: fetch,
 			priority: 'foreground'
+		});
+		markWorkflowReadiness({
+			workflow: 'item-route-shell',
+			mark: 'ready',
+			route: `/pages/${params.page}/${params.itemId}`,
+			slug: params.page,
+			itemId: params.itemId
 		});
 		return {
 			discoveredConfig,
@@ -68,6 +77,13 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	});
 	const warmedBlockSupport = await githubRepositoryCache.getBlockSupport();
 	if (warmedDocument && discoveredConfig && warmedBlockSupport) {
+		markWorkflowReadiness({
+			workflow: 'item-route-shell',
+			mark: 'ready',
+			route: `/pages/${params.page}/${params.itemId}`,
+			slug: params.page,
+			itemId: params.itemId
+		});
 		return {
 			discoveredConfig,
 			blockConfigs: warmedBlockSupport.blockConfigs,
@@ -83,11 +99,20 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
-	const response = await fetch(
-		buildPathWithQuery('/api/repo/item-view', {
-			slug: params.page,
-			itemId: params.itemId
-		})
+	const itemViewEndpoint = buildPathWithQuery('/api/repo/item-view', {
+		slug: params.page,
+		itemId: params.itemId
+	});
+	const response = await traceBrowserRequest(
+		{
+			workflow: 'item-route-shell',
+			route: `/pages/${params.page}/${params.itemId}`,
+			endpoint: itemViewEndpoint,
+			priority: 'foreground',
+			cacheTaskKey: null,
+			duplicateState: 'unique'
+		},
+		() => fetch(itemViewEndpoint)
 	);
 
 	if (response.status === 401) {
@@ -117,6 +142,13 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		slug: params.page,
 		itemId: params.itemId,
 		content: data.item ?? null
+	});
+	markWorkflowReadiness({
+		workflow: 'item-route-shell',
+		mark: 'ready',
+		route: `/pages/${params.page}/${params.itemId}`,
+		slug: params.page,
+		itemId: params.itemId
 	});
 
 	return data;

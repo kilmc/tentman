@@ -1,6 +1,7 @@
 import type { GitHubRepositoryBackend } from '$lib/repository/github';
 import type { RepositoryBackend } from '$lib/repository/types';
 import { logTiming } from '$lib/utils/performance-logging';
+import { recordCacheOutcome, traceGitHubRequest } from '$lib/utils/workflow-instrumentation';
 import type {
 	RepositoryRefIdentity,
 	RepositorySourceIdentity,
@@ -46,17 +47,42 @@ async function getGitHubRefIdentity(
 	const source = getRepositorySourceIdentity(backend);
 
 	try {
-		const branch = await backend.octokit.rest.repos.getBranch({
-			owner: backend.owner,
-			repo: backend.repo,
-			branch: ref
-		});
+		const branch = await traceGitHubRequest(
+			{
+				source: 'repository-data',
+				operation: 'getRefIdentityBranch',
+				requestKind: 'branch',
+				repoKey: backend.cacheKey,
+				owner: backend.owner,
+				repo: backend.repo,
+				ref
+			},
+			() =>
+				backend.octokit.rest.repos.getBranch({
+					owner: backend.owner,
+					repo: backend.repo,
+					branch: ref
+				})
+		);
 		const commitSha = branch.data.commit.sha;
-		const commit = await backend.octokit.rest.git.getCommit({
-			owner: backend.owner,
-			repo: backend.repo,
-			commit_sha: commitSha
-		});
+		const commit = await traceGitHubRequest(
+			{
+				source: 'repository-data',
+				operation: 'getRefIdentityCommit',
+				requestKind: 'commit',
+				repoKey: backend.cacheKey,
+				owner: backend.owner,
+				repo: backend.repo,
+				ref,
+				sha: commitSha
+			},
+			() =>
+				backend.octokit.rest.git.getCommit({
+					owner: backend.owner,
+					repo: backend.repo,
+					commit_sha: commitSha
+				})
+		);
 
 		return {
 			...source,
@@ -103,12 +129,25 @@ export async function getRepositoryTree(
 	backend: GitHubRepositoryBackend,
 	identity: RepositoryRefIdentity
 ): Promise<RepositoryTree> {
-	const { data } = await backend.octokit.rest.git.getTree({
-		owner: backend.owner,
-		repo: backend.repo,
-		tree_sha: identity.treeSha,
-		recursive: 'true'
-	});
+	const { data } = await traceGitHubRequest(
+		{
+			source: 'repository-data',
+			operation: 'getRepositoryTree',
+			requestKind: 'tree',
+			repoKey: backend.cacheKey,
+			owner: backend.owner,
+			repo: backend.repo,
+			ref: identity.ref,
+			sha: identity.treeSha
+		},
+		() =>
+			backend.octokit.rest.git.getTree({
+				owner: backend.owner,
+				repo: backend.repo,
+				tree_sha: identity.treeSha,
+				recursive: 'true'
+			})
+	);
 	const entries: RepositoryTreeEntry[] = data.tree
 		.filter((entry): entry is typeof entry & { path: string; sha: string } =>
 			Boolean(entry.path && entry.sha)
@@ -134,21 +173,58 @@ export async function readGitHubTextBlob(
 	const cacheKey = `${backend.cacheKey}:${sha}`;
 	const cached = textBlobCache.get(cacheKey);
 	if (cached !== undefined) {
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: 'hit',
+			reason: 'text blob already decoded in memory',
+			repoFullName: backend.fullName,
+			key: cacheKey,
+			path: sha
+		});
 		return cached;
 	}
 
 	const pending = textBlobInflight.get(cacheKey);
 	if (pending) {
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: 'hit',
+			reason: 'text blob request already in flight',
+			repoFullName: backend.fullName,
+			key: cacheKey,
+			path: sha
+		});
 		return pending;
 	}
 
+	recordCacheOutcome({
+		cacheArea: 'item-document',
+		outcome: 'miss',
+		reason: 'text blob missing from memory cache',
+		repoFullName: backend.fullName,
+		key: cacheKey,
+		path: sha
+	});
 	const start = performance.now();
-	const promise = backend.octokit.rest.git
-		.getBlob({
+	const promise = traceGitHubRequest(
+		{
+			source: 'repository-data',
+			operation: 'readGitHubTextBlob',
+			requestKind: 'blob',
+			repoKey: backend.cacheKey,
 			owner: backend.owner,
 			repo: backend.repo,
-			file_sha: sha
-		})
+			sha,
+			cacheResult: 'miss',
+			dedupeState: 'unique'
+		},
+		() =>
+			backend.octokit.rest.git.getBlob({
+				owner: backend.owner,
+				repo: backend.repo,
+				file_sha: sha
+			})
+	)
 		.then(({ data }) => {
 			const decoded = decodeGitHubBlob(data.content);
 			textBlobCache.set(cacheKey, decoded);

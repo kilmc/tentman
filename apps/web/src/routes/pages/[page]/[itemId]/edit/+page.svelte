@@ -67,6 +67,7 @@
 	} from '$lib/features/content-management/config';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { resolveConfigPath } from '$lib/utils/validation';
+	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -236,6 +237,13 @@
 	});
 
 	onMount(() => {
+		markWorkflowReadiness({
+			workflow: 'rich-editor-interactive',
+			mark: 'ready',
+			route: `/pages/${data.pageSlug}/${data.itemId}/edit`,
+			slug: data.pageSlug,
+			itemId: data.itemId
+		});
 		handleUrlMessages();
 
 		const cleanup = registerKeyboardShortcuts([
@@ -939,11 +947,7 @@
 				{/key}
 			{/if}
 			<PageStickyFooter>
-				<button
-					type="submit"
-					disabled={!canSaveChanges}
-					class="tm-btn tm-btn-primary"
-				>
+				<button type="submit" disabled={!canSaveChanges} class="tm-btn tm-btn-primary">
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 			</PageStickyFooter>
@@ -1026,9 +1030,7 @@
 							deleting = true;
 							return async ({ update, result }) => {
 								if (result.type === 'redirect' || result.type === 'success') {
-									await githubRepositoryCache.invalidatePaths(
-										getCurrentItemContentCachePath()
-									);
+									await githubRepositoryCache.invalidatePaths(getCurrentItemContentCachePath());
 								}
 								await update();
 								deleting = false;

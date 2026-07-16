@@ -30,6 +30,12 @@ import type {
 	RepoConfigsBootstrap,
 	RepoSingletonContentIdentity
 } from '$lib/repository/config-bootstrap';
+import {
+	markWorkflowReadiness,
+	recordCacheOutcome,
+	traceBrowserRequest,
+	type RequestDuplicateState
+} from '$lib/utils/workflow-instrumentation';
 
 const DATABASE_NAME = 'tentman-github-repository-cache';
 const DATABASE_VERSION = 3;
@@ -295,6 +301,7 @@ interface CacheTask<T = unknown> {
 	kind: CacheTaskKind;
 	priority: number;
 	passive: boolean;
+	duplicateState: RequestDuplicateState;
 	order: number;
 	status: 'queued' | 'running' | 'done' | 'error';
 	run: () => Promise<T>;
@@ -1008,6 +1015,40 @@ function getPriorityValue(priority: CacheTaskPriority): number {
 	return 0;
 }
 
+function getTaskDuplicateState(taskKey: string): RequestDuplicateState {
+	return cacheTasks.get(taskKey)?.duplicateState ?? 'unique';
+}
+
+async function fetchCacheEndpoint(
+	fetcher: typeof fetch,
+	url: string,
+	input: {
+		workflow:
+			| 'desktop-collection-landing'
+			| 'warm-collection-reload'
+			| 'item-route-shell'
+			| 'rich-editor-interactive'
+			| 'freshness';
+		route: string;
+		priority: CacheTaskPriority;
+		taskKey: string | null;
+		init?: RequestInit;
+	}
+): Promise<Response> {
+	return await traceBrowserRequest(
+		{
+			workflow: input.workflow,
+			route: input.route,
+			endpoint: url,
+			method: input.init?.method ?? 'GET',
+			priority: input.priority,
+			cacheTaskKey: input.taskKey,
+			duplicateState: input.taskKey ? getTaskDuplicateState(input.taskKey) : 'unique'
+		},
+		() => (input.init ? fetcher(url, input.init) : fetcher(url))
+	);
+}
+
 function getActiveRef(bootstrap: RepoConfigsBootstrap): string {
 	return bootstrap.repositoryIdentity?.ref ?? bootstrap.activeDraftBranch ?? 'main';
 }
@@ -1363,6 +1404,7 @@ function enqueueCacheTask<T>(input: {
 	if (existing) {
 		existing.priority = Math.max(existing.priority, nextPriority);
 		existing.passive = existing.passive && input.priority === 'passive';
+		existing.duplicateState = 'deduped';
 		scheduleQueueRun(input.runId);
 		return existing.promise;
 	}
@@ -1378,6 +1420,7 @@ function enqueueCacheTask<T>(input: {
 		kind: input.kind,
 		priority: nextPriority,
 		passive: input.passive ?? input.priority === 'passive',
+		duplicateState: 'unique',
 		order: taskOrder++,
 		status: 'queued',
 		run: input.run,
@@ -1442,17 +1485,31 @@ function getSingletonContentPath(config: DiscoveredConfig): string | null {
 async function getCachedBlockSupport(): Promise<CachedBlockSupport | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
+		recordCacheOutcome({
+			cacheArea: 'block-support',
+			outcome: 'miss',
+			reason: 'no active repository snapshot'
+		});
 		return null;
 	}
 
-	return await readStore<CachedBlockSupport>(
-		BLOCK_SUPPORT_STORE,
-		getBlockSupportKey({
-			repoFullName: snapshot.repoFullName,
-			ref: snapshot.identity.ref,
-			treeSha: snapshot.identity.treeSha
-		})
-	);
+	const key = getBlockSupportKey({
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		treeSha: snapshot.identity.treeSha
+	});
+	const cached = await readStore<CachedBlockSupport>(BLOCK_SUPPORT_STORE, key);
+	recordCacheOutcome({
+		cacheArea: 'block-support',
+		outcome: cached ? 'hit' : 'miss',
+		reason: cached
+			? 'block support cached for active tree'
+			: 'block support missing for active tree',
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		key
+	});
+	return cached;
 }
 
 async function writeBlockSupport(input: {
@@ -1480,6 +1537,14 @@ async function writeBlockSupport(input: {
 		updatedAt: Date.now()
 	};
 	await writeStore<CachedBlockSupport>(BLOCK_SUPPORT_STORE, record);
+	recordCacheOutcome({
+		cacheArea: 'block-support',
+		outcome: 'write',
+		reason: 'block support refreshed for active tree',
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		key: record.key
+	});
 	await updateInventoryTarget(getInventoryTargetId({ targetType: 'blockSupport' }), {
 		status: 'fresh',
 		lastCachedAt: record.updatedAt,
@@ -1491,19 +1556,36 @@ async function writeBlockSupport(input: {
 async function getCachedCollectionIndex(slug: string): Promise<SerializableCollectionIndex | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
+		recordCacheOutcome({
+			cacheArea: 'collection-index',
+			outcome: 'miss',
+			reason: 'no active repository snapshot',
+			slug
+		});
 		return null;
 	}
 
 	const indexes = await readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE);
-	return (
+	const cached =
 		indexes.find(
 			(index) =>
 				index.identity.repoKey === snapshot.identity.repoKey &&
 				index.identity.ref === snapshot.identity.ref &&
 				index.identity.treeSha === snapshot.identity.treeSha &&
 				index.identity.configSlug === slug
-		) ?? null
-	);
+		) ?? null;
+	recordCacheOutcome({
+		cacheArea: 'collection-index',
+		outcome: cached ? 'hit' : 'miss',
+		reason: cached
+			? 'collection index cached for active tree'
+			: 'collection index missing for active tree',
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		key: cached?.key ?? null,
+		slug
+	});
+	return cached;
 }
 
 async function writeCollectionIndex(index: Omit<SerializableCollectionIndex, 'key' | 'updatedAt'>) {
@@ -1513,6 +1595,15 @@ async function writeCollectionIndex(index: Omit<SerializableCollectionIndex, 'ke
 		updatedAt: Date.now()
 	};
 	await writeStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE, record);
+	recordCacheOutcome({
+		cacheArea: 'collection-index',
+		outcome: 'write',
+		reason: 'collection index refreshed from route endpoint',
+		repoFullName: record.identity.repoKey,
+		ref: record.identity.ref,
+		key: record.key,
+		slug: record.configSlug
+	});
 	await updateInventoryTarget(
 		getInventoryTargetId({ targetType: 'collectionIndex', configSlug: index.configSlug }),
 		{
@@ -1542,6 +1633,16 @@ async function writeProjectionItems(
 				updatedAt: Date.now()
 			};
 			await writeStore<CachedProjection>(PROJECTION_STORE, record);
+			recordCacheOutcome({
+				cacheArea: 'projection',
+				outcome: 'write',
+				reason: 'collection projection hydrated from route endpoint',
+				repoFullName,
+				key: record.key,
+				slug: configSlug,
+				itemId: item.hrefItemId ?? item.itemId ?? null,
+				path: item.path
+			});
 			await updateInventoryTarget(
 				getInventoryTargetId({
 					targetType: 'collectionProjection',
@@ -1574,6 +1675,18 @@ async function getMissingProjectionBlobShas(
 					schemaIdentity: index.identity.schemaIdentity
 				})
 			);
+			recordCacheOutcome({
+				cacheArea: 'projection',
+				outcome: cached ? 'hit' : 'miss',
+				reason: cached
+					? 'collection projection cached for item blob'
+					: 'collection projection missing for item blob',
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				slug: index.configSlug,
+				itemId: item.hrefItemId ?? item.itemId ?? null,
+				path: item.path
+			});
 			return cached ? null : item.blobSha;
 		})
 	);
@@ -1762,14 +1875,30 @@ async function hydrateProjectionBatch(input: {
 		return;
 	}
 
-	const response = await input.fetcher('/api/repo/collection-projections', {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({
-			slug: input.slug,
-			blobShas: input.blobShas
-		})
-	});
+	const response = await traceBrowserRequest(
+		{
+			workflow: 'desktop-collection-landing',
+			route: `/pages/${input.slug}`,
+			endpoint: '/api/repo/collection-projections',
+			method: 'POST',
+			priority: 'background',
+			cacheTaskKey: getInventoryTargetId({
+				targetType: 'collectionProjection',
+				configSlug: input.slug,
+				itemId: input.blobShas.join(',')
+			}),
+			duplicateState: 'unique'
+		},
+		() =>
+			input.fetcher('/api/repo/collection-projections', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					slug: input.slug,
+					blobShas: input.blobShas
+				})
+			})
+	);
 
 	if (!response.ok) {
 		throw new Error(`Failed to hydrate collection projections (${response.status})`);
@@ -1825,6 +1954,17 @@ async function enqueueItemDocumentTask(input: {
 		input.priority !== 'foreground' &&
 		input.priority !== 'intent'
 	) {
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: 'skip',
+			reason: 'full document budget skipped passive item document warm',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: targetId,
+			slug: input.slug,
+			itemId: input.itemId,
+			path: input.indexItem.path
+		});
 		return null;
 	}
 
@@ -1840,9 +1980,13 @@ async function enqueueItemDocumentTask(input: {
 		priority: input.priority,
 		passive: input.priority === 'passive',
 		run: async () => {
-			const response = await input.fetcher(
-				`/api/repo/item-view?slug=${encodeURIComponent(input.slug)}&itemId=${encodeURIComponent(input.itemId)}`
-			);
+			const endpoint = `/api/repo/item-view?slug=${encodeURIComponent(input.slug)}&itemId=${encodeURIComponent(input.itemId)}`;
+			const response = await fetchCacheEndpoint(input.fetcher, endpoint, {
+				workflow: 'item-route-shell',
+				route: `/pages/${input.slug}/${input.itemId}`,
+				priority: input.priority,
+				taskKey: targetId
+			});
 			if (!response.ok) {
 				throw new Error(`Failed to load item document (${response.status})`);
 			}
@@ -1916,6 +2060,14 @@ export const githubRepositoryCache = {
 		activeSnapshotIdentityKey = nextIdentityKey;
 		syncWarmDebugStatus();
 		await writeStore(SNAPSHOT_STORE, snapshot);
+		recordCacheOutcome({
+			cacheArea: 'snapshot',
+			outcome: 'write',
+			reason: 'repository bootstrap hydrated active snapshot',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: snapshot.key
+		});
 		await buildInventoryFromActiveSnapshot();
 	},
 
@@ -1979,20 +2131,31 @@ export const githubRepositoryCache = {
 		const cached = options.force ? null : await getCachedCollectionIndex(slug);
 		if (cached) {
 			await notifyCollection(slug);
+			markWorkflowReadiness({
+				workflow: 'warm-collection-reload',
+				mark: 'ready',
+				route: `/pages/${slug}`,
+				slug
+			});
 			return;
 		}
 
 		const runId = siteWarmRunId;
+		const targetId = getInventoryTargetId({ targetType: 'collectionIndex', configSlug: slug });
 		await enqueueCacheTask({
 			runId,
-			key: getInventoryTargetId({ targetType: 'collectionIndex', configSlug: slug }),
+			key: targetId,
 			kind: 'collectionIndex',
 			priority: options.priority ?? 'foreground',
 			passive: (options.priority ?? 'foreground') === 'passive',
 			run: async () => {
-				const response = await options.fetcher(
-					`/api/repo/collection-index?slug=${encodeURIComponent(slug)}`
-				);
+				const endpoint = `/api/repo/collection-index?slug=${encodeURIComponent(slug)}`;
+				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
+					workflow: options.force ? 'warm-collection-reload' : 'desktop-collection-landing',
+					route: `/pages/${slug}`,
+					priority: options.priority ?? 'foreground',
+					taskKey: targetId
+				});
 
 				if (!response.ok) {
 					throw new Error(`Failed to load collection index (${response.status})`);
@@ -2157,18 +2320,34 @@ export const githubRepositoryCache = {
 
 		const snapshot = getActiveSnapshot();
 		if (!snapshot) {
+			recordCacheOutcome({
+				cacheArea: 'singleton-document',
+				outcome: 'miss',
+				reason: 'no active repository snapshot',
+				slug: input.slug
+			});
 			return null;
 		}
 
+		const key = getSingletonDocumentKey(snapshot, input.slug);
 		const cached =
-			(await readStore<CachedSingletonDocument>(
-				SINGLETON_DOCUMENT_STORE,
-				getSingletonDocumentKey(snapshot, input.slug)
-			)) ??
+			(await readStore<CachedSingletonDocument>(SINGLETON_DOCUMENT_STORE, key)) ??
 			(await readStore<CachedSingletonDocument>(
 				SINGLETON_DOCUMENT_STORE,
 				getLegacySingletonDocumentKey(snapshot, input.slug)
 			));
+		recordCacheOutcome({
+			cacheArea: 'singleton-document',
+			outcome: cached ? 'hit' : 'miss',
+			reason: cached
+				? 'singleton document cached for active tree'
+				: 'singleton document missing for active tree',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key,
+			slug: input.slug,
+			path: cached?.path ?? null
+		});
 		if (!cached) {
 			return null;
 		}
@@ -2222,6 +2401,16 @@ export const githubRepositoryCache = {
 			updatedAt: Date.now()
 		};
 		await writeStore<CachedSingletonDocument>(SINGLETON_DOCUMENT_STORE, record);
+		recordCacheOutcome({
+			cacheArea: 'singleton-document',
+			outcome: 'write',
+			reason: 'singleton document cached for route',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: record.key,
+			slug: input.slug,
+			path
+		});
 		await updateInventoryTarget(
 			getInventoryTargetId({ targetType: 'singletonDocument', configSlug: input.slug }),
 			{
@@ -2269,9 +2458,13 @@ export const githubRepositoryCache = {
 			priority: options.priority ?? 'topLevel',
 			passive: (options.priority ?? 'topLevel') === 'passive',
 			run: async () => {
-				const response = await options.fetcher(
-					`/api/repo/form-config?slug=${encodeURIComponent(slug)}`
-				);
+				const endpoint = `/api/repo/form-config?slug=${encodeURIComponent(slug)}`;
+				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
+					workflow: 'rich-editor-interactive',
+					route: `/pages/${slug}`,
+					priority: options.priority ?? 'topLevel',
+					taskKey: getInventoryTargetId({ targetType: 'blockSupport' })
+				});
 				if (!response.ok) {
 					throw new Error(`Failed to load block support (${response.status})`);
 				}
@@ -2330,9 +2523,17 @@ export const githubRepositoryCache = {
 			priority: input.priority ?? 'foreground',
 			passive: (input.priority ?? 'foreground') === 'passive',
 			run: async () => {
-				const response = await input.fetcher(
-					`/api/repo/page-view?slug=${encodeURIComponent(input.slug)}`
-				);
+				const targetId = getInventoryTargetId({
+					targetType: 'singletonDocument',
+					configSlug: input.slug
+				});
+				const endpoint = `/api/repo/page-view?slug=${encodeURIComponent(input.slug)}`;
+				const response = await fetchCacheEndpoint(input.fetcher, endpoint, {
+					workflow: 'item-route-shell',
+					route: `/pages/${input.slug}`,
+					priority: input.priority ?? 'foreground',
+					taskKey: targetId
+				});
 				if (!response.ok) {
 					throw new Error(`Failed to load singleton document (${response.status})`);
 				}
@@ -2637,8 +2838,20 @@ export const githubRepositoryCache = {
 				previousHeadSha: snapshot.identity.headSha,
 				previousTreeSha: snapshot.identity.treeSha
 			});
+			markWorkflowReadiness({
+				workflow: 'freshness',
+				mark: 'start',
+				route: '/pages',
+				slug: null
+			});
 			try {
-				const response = await options.fetcher(`/api/repo/configs?${params.toString()}`);
+				const endpoint = `/api/repo/configs?${params.toString()}`;
+				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
+					workflow: 'freshness',
+					route: '/pages',
+					priority: 'passive',
+					taskKey: null
+				});
 				if (!response.ok) {
 					throw new Error(`Failed to check repository freshness (${response.status})`);
 				}
@@ -2700,11 +2913,23 @@ export const githubRepositoryCache = {
 				if (options.warmChanged ?? false) {
 					githubRepositoryCache.startIdleSiteWarm({ fetcher: options.fetcher });
 				}
+				markWorkflowReadiness({
+					workflow: 'freshness',
+					mark: 'end',
+					route: '/pages',
+					slug: null
+				});
 			} catch (error) {
 				const records = await readActiveInventoryRecords();
 				await updateInventoryRecords(records, {
 					error: error instanceof Error ? error.message : 'Failed to check repository freshness',
 					lastCheckedAt: Date.now()
+				});
+				markWorkflowReadiness({
+					workflow: 'freshness',
+					mark: 'end',
+					route: '/pages',
+					slug: null
 				});
 				throw error;
 			}
@@ -2767,7 +2992,16 @@ export const githubRepositoryCache = {
 			return null;
 		}
 
-		const cached = await readStore<CachedDocument>(DOCUMENT_STORE, getDocumentKey(input));
+		const key = getDocumentKey(input);
+		const cached = await readStore<CachedDocument>(DOCUMENT_STORE, key);
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: cached ? 'hit' : 'miss',
+			reason: cached ? 'item document cached for blob sha' : 'item document missing for blob sha',
+			repoFullName: input.repoFullName,
+			key,
+			slug: input.configSlug
+		});
 		return cached?.content ?? null;
 	},
 
@@ -2781,11 +3015,27 @@ export const githubRepositoryCache = {
 
 		const snapshot = getActiveSnapshot();
 		if (!snapshot) {
+			recordCacheOutcome({
+				cacheArea: 'item-document',
+				outcome: 'miss',
+				reason: 'no active repository snapshot',
+				slug: input.slug,
+				itemId: input.itemId
+			});
 			return null;
 		}
 
 		const indexItem = await getCachedCollectionIndexItem(input.slug, input.itemId);
 		if (!indexItem) {
+			recordCacheOutcome({
+				cacheArea: 'item-document',
+				outcome: 'miss',
+				reason: 'collection index item missing for route',
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				slug: input.slug,
+				itemId: input.itemId
+			});
 			return null;
 		}
 
@@ -2816,6 +3066,16 @@ export const githubRepositoryCache = {
 			updatedAt: Date.now()
 		};
 		await writeStore<CachedDocument>(DOCUMENT_STORE, record);
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: 'write',
+			reason: 'item document cached for route',
+			repoFullName: input.repoFullName,
+			ref: snapshot?.identity.ref ?? null,
+			key: record.key,
+			slug: input.configSlug,
+			path: input.path
+		});
 		await updateInventoryTarget(
 			getInventoryTargetId({
 				targetType: 'itemDocument',

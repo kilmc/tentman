@@ -3,6 +3,7 @@ import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
 import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import { markWorkflowReadiness, traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
@@ -37,6 +38,12 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			bootstrap: parentData
 		});
 		await githubRepositoryCache.ensureCollectionIndex(params.page, { fetcher: fetch });
+		markWorkflowReadiness({
+			workflow: 'desktop-collection-landing',
+			mark: 'ready',
+			route: `/pages/${params.page}`,
+			slug: params.page
+		});
 
 		return {
 			discoveredConfig,
@@ -62,6 +69,12 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		priority: 'foreground'
 	});
 	if (discoveredConfig && cachedSingleton?.blockSupport) {
+		markWorkflowReadiness({
+			workflow: 'item-route-shell',
+			mark: 'ready',
+			route: `/pages/${params.page}`,
+			slug: params.page
+		});
 		return {
 			discoveredConfig,
 			blockConfigs: cachedSingleton.blockSupport.blockConfigs,
@@ -76,10 +89,19 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
-	const response = await fetch(
-		buildPathWithQuery('/api/repo/page-view', {
-			slug: params.page
-		})
+	const pageViewEndpoint = buildPathWithQuery('/api/repo/page-view', {
+		slug: params.page
+	});
+	const response = await traceBrowserRequest(
+		{
+			workflow: 'item-route-shell',
+			route: `/pages/${params.page}`,
+			endpoint: pageViewEndpoint,
+			priority: 'foreground',
+			cacheTaskKey: null,
+			duplicateState: 'unique'
+		},
+		() => fetch(pageViewEndpoint)
 	);
 
 	if (response.status === 401) {
@@ -101,6 +123,12 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		blockConfigs: data.blockConfigs,
 		packageBlocks: data.packageBlocks,
 		blockRegistryError: data.blockRegistryError ?? null
+	});
+	markWorkflowReadiness({
+		workflow: 'item-route-shell',
+		mark: 'ready',
+		route: `/pages/${params.page}`,
+		slug: params.page
 	});
 
 	return data;

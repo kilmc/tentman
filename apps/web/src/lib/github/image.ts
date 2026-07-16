@@ -1,4 +1,5 @@
 import type { Octokit } from 'octokit';
+import { traceGitHubRequest } from '$lib/utils/workflow-instrumentation';
 import { generateCommitMessage } from './commit';
 
 interface WriteGitHubImageOptions {
@@ -17,12 +18,25 @@ export async function writeGitHubImage(
 	let sha: string | undefined;
 
 	try {
-		const { data } = await octokit.rest.repos.getContent({
-			owner,
-			repo,
-			path: options.path,
-			...(options.branch && { ref: options.branch })
-		});
+		const { data } = await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'writeGitHubImageReadContent',
+				requestKind: 'contents',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: options.branch ?? null,
+				path: options.path
+			},
+			() =>
+				octokit.rest.repos.getContent({
+					owner,
+					repo,
+					path: options.path,
+					...(options.branch && { ref: options.branch })
+				})
+		);
 
 		if (!Array.isArray(data) && 'sha' in data) {
 			sha = data.sha;
@@ -31,16 +45,30 @@ export async function writeGitHubImage(
 		// Missing files should be created.
 	}
 
-	await octokit.rest.repos.createOrUpdateFileContents({
-		owner,
-		repo,
-		path: options.path,
-		message:
-			options.message || generateCommitMessage('create', 'image', options.path.split('/').pop()),
-		content: Buffer.from(content).toString('base64'),
-		...(sha && { sha }),
-		...(options.branch && { branch: options.branch })
-	});
+	await traceGitHubRequest(
+		{
+			source: 'github-helper',
+			operation: 'writeGitHubImageWriteContent',
+			requestKind: 'contents',
+			repoKey: `github:${owner}/${repo}`,
+			owner,
+			repo,
+			ref: options.branch ?? null,
+			path: options.path
+		},
+		() =>
+			octokit.rest.repos.createOrUpdateFileContents({
+				owner,
+				repo,
+				path: options.path,
+				message:
+					options.message ||
+					generateCommitMessage('create', 'image', options.path.split('/').pop()),
+				content: Buffer.from(content).toString('base64'),
+				...(sha && { sha }),
+				...(options.branch && { branch: options.branch })
+			})
+	);
 }
 
 /**
@@ -62,20 +90,44 @@ export async function deleteImage(
 
 	try {
 		// Get the file's SHA (required for deletion)
-		const { data: file } = await octokit.rest.repos.getContent({
-			owner,
-			repo,
-			path
-		});
-
-		if ('sha' in file) {
-			await octokit.rest.repos.deleteFile({
+		const { data: file } = await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'deleteImageReadContent',
+				requestKind: 'contents',
+				repoKey: `github:${owner}/${repo}`,
 				owner,
 				repo,
-				path,
-				message: generateCommitMessage('delete', 'image', path.split('/').pop()),
-				sha: file.sha
-			});
+				path
+			},
+			() =>
+				octokit.rest.repos.getContent({
+					owner,
+					repo,
+					path
+				})
+		);
+
+		if ('sha' in file) {
+			await traceGitHubRequest(
+				{
+					source: 'github-helper',
+					operation: 'deleteImageDeleteContent',
+					requestKind: 'delete',
+					repoKey: `github:${owner}/${repo}`,
+					owner,
+					repo,
+					path
+				},
+				() =>
+					octokit.rest.repos.deleteFile({
+						owner,
+						repo,
+						path,
+						message: generateCommitMessage('delete', 'image', path.split('/').pop()),
+						sha: file.sha
+					})
+			);
 		}
 	} catch (err) {
 		console.error('Failed to delete image:', err);

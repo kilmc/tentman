@@ -8,6 +8,7 @@ import {
 	hasTagsBlock,
 	loadCollectionExistingItems
 } from '$lib/features/content-management/collection-existing-items';
+import { markWorkflowReadiness, traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 
 async function loadTagSuggestionItems(
 	fetcher: typeof fetch,
@@ -54,9 +55,18 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		slug: params.page,
 		itemId: params.itemId
 	});
-	const discoveredConfig = parentData.configs?.find((config) => config.slug === params.page) ?? null;
+	const discoveredConfig =
+		parentData.configs?.find((config) => config.slug === params.page) ?? null;
 	if (cachedDocument && discoveredConfig) {
 		const blockSupport = await githubRepositoryCache.getBlockSupport();
+		const existingItems = await loadTagSuggestionItems(fetch, discoveredConfig, params.page);
+		markWorkflowReadiness({
+			workflow: 'item-route-shell',
+			mark: 'edit-ready',
+			route: `/pages/${params.page}/${params.itemId}/edit`,
+			slug: params.page,
+			itemId: params.itemId
+		});
 		return {
 			discoveredConfig,
 			blockConfigs: blockSupport?.blockConfigs ?? parentData.blockConfigs ?? [],
@@ -64,7 +74,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			blockRegistryError: blockSupport?.blockRegistryError ?? null,
 			navigationManifest: parentData.navigationManifest,
 			item: cachedDocument.content,
-			existingItems: await loadTagSuggestionItems(fetch, discoveredConfig, params.page),
+			existingItems,
 			contentError: null,
 			itemId: params.itemId,
 			branch: parentData.activeDraftBranch,
@@ -81,6 +91,14 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	});
 	const warmedBlockSupport = await githubRepositoryCache.getBlockSupport();
 	if (warmedDocument && discoveredConfig && warmedBlockSupport) {
+		const existingItems = await loadTagSuggestionItems(fetch, discoveredConfig, params.page);
+		markWorkflowReadiness({
+			workflow: 'item-route-shell',
+			mark: 'edit-ready',
+			route: `/pages/${params.page}/${params.itemId}/edit`,
+			slug: params.page,
+			itemId: params.itemId
+		});
 		return {
 			discoveredConfig,
 			blockConfigs: warmedBlockSupport.blockConfigs,
@@ -88,7 +106,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			blockRegistryError: warmedBlockSupport.blockRegistryError,
 			navigationManifest: parentData.navigationManifest,
 			item: warmedDocument.content,
-			existingItems: await loadTagSuggestionItems(fetch, discoveredConfig, params.page),
+			existingItems,
 			contentError: null,
 			itemId: params.itemId,
 			branch: parentData.activeDraftBranch,
@@ -97,11 +115,20 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
-	const response = await fetch(
-		buildPathWithQuery('/api/repo/item-view', {
-			slug: params.page,
-			itemId: params.itemId
-		})
+	const itemViewEndpoint = buildPathWithQuery('/api/repo/item-view', {
+		slug: params.page,
+		itemId: params.itemId
+	});
+	const response = await traceBrowserRequest(
+		{
+			workflow: 'item-route-shell',
+			route: `/pages/${params.page}/${params.itemId}/edit`,
+			endpoint: itemViewEndpoint,
+			priority: 'foreground',
+			cacheTaskKey: null,
+			duplicateState: 'unique'
+		},
+		() => fetch(itemViewEndpoint)
 	);
 
 	if (response.status === 401) {
@@ -132,9 +159,21 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		itemId: params.itemId,
 		content: data.item ?? null
 	});
+	const existingItems = await loadTagSuggestionItems(
+		fetch,
+		data.discoveredConfig ?? null,
+		params.page
+	);
+	markWorkflowReadiness({
+		workflow: 'item-route-shell',
+		mark: 'edit-ready',
+		route: `/pages/${params.page}/${params.itemId}/edit`,
+		slug: params.page,
+		itemId: params.itemId
+	});
 
 	return {
 		...data,
-		existingItems: await loadTagSuggestionItems(fetch, data.discoveredConfig ?? null, params.page)
+		existingItems
 	};
 };

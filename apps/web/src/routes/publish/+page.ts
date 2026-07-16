@@ -1,6 +1,7 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import { buildReposReturnHref } from '$lib/utils/routing';
+import { markWorkflowReadiness, traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, fetch, depends }) => {
@@ -16,7 +17,22 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 
 	depends('app:content');
 
-	const response = await fetch('/api/repo/publish-view');
+	const response = await traceBrowserRequest(
+		{
+			workflow: 'publish-summary',
+			route: '/publish',
+			endpoint: '/api/repo/publish-view',
+			priority: 'foreground',
+			cacheTaskKey: null,
+			duplicateState: 'unique'
+		},
+		() => fetch('/api/repo/publish-view')
+	);
+	markWorkflowReadiness({
+		workflow: 'publish-summary',
+		mark: 'first-status',
+		route: '/publish'
+	});
 
 	if (response.status === 401) {
 		throw redirect(302, buildReposReturnHref('/repos', '/publish'));
@@ -27,8 +43,14 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 	}
 
 	if (response.status === 413) {
+		const payload = await response.json();
+		markWorkflowReadiness({
+			workflow: 'publish-summary',
+			mark: 'complete',
+			route: '/publish'
+		});
 		return {
-			...(await response.json()),
+			...payload,
 			reviewModel: null
 		};
 	}
@@ -37,8 +59,14 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 		throw httpError(response.status, 'Failed to load publish view');
 	}
 
+	const payload = await response.json();
+	markWorkflowReadiness({
+		workflow: 'publish-summary',
+		mark: 'complete',
+		route: '/publish'
+	});
 	return {
-		...(await response.json()),
+		...payload,
 		blockedReview: null
 	};
 };

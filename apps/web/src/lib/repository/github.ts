@@ -15,6 +15,14 @@ import type {
 } from '$lib/repository/types';
 import { isPerformanceLoggingEnabled, logTiming } from '$lib/utils/performance-logging';
 import { normalizeGitHubPath } from '$lib/utils/validation';
+import {
+	traceGitHubRequest,
+	type GitHubRateLimitHeaders,
+	type GitHubRequestKind,
+	type RequestCacheResult,
+	type RequestDuplicateState,
+	type RequestResultStatus
+} from '$lib/utils/workflow-instrumentation';
 
 interface CachedMetadataEntry<T> {
 	value: T;
@@ -24,11 +32,18 @@ interface CachedMetadataEntry<T> {
 interface GitHubRepositoryRequestStat {
 	repoKey: string;
 	operation: string;
+	requestKind: GitHubRequestKind;
 	path: string;
 	ref: string | null;
 	count: number;
 	totalDurationMs: number;
 	lastDurationMs: number;
+	lastResultStatus: RequestResultStatus;
+	lastResponseStatus: number | null;
+	lastRateLimit: GitHubRateLimitHeaders;
+	lastRetryAfter: string | null;
+	lastCacheResult: RequestCacheResult | null;
+	lastDedupeState: RequestDuplicateState | null;
 	lastUpdatedAt: number;
 }
 
@@ -93,9 +108,18 @@ function getGitHubRepositoryRequestStatKey(
 function recordGitHubRepositoryRequestStat(
 	repoKey: string,
 	operation: string,
+	requestKind: GitHubRequestKind,
 	path: string,
 	ref: string | null,
-	durationMs: number
+	durationMs: number,
+	input: {
+		resultStatus: RequestResultStatus;
+		responseStatus: number | null;
+		rateLimit: GitHubRateLimitHeaders;
+		retryAfter: string | null;
+		cacheResult?: RequestCacheResult | null;
+		dedupeState?: RequestDuplicateState | null;
+	}
 ): void {
 	if (!isGitHubRequestInstrumentationEnabled()) {
 		return;
@@ -109,16 +133,29 @@ function recordGitHubRepositoryRequestStat(
 				count: existing.count + 1,
 				totalDurationMs: existing.totalDurationMs + durationMs,
 				lastDurationMs: durationMs,
+				lastResultStatus: input.resultStatus,
+				lastResponseStatus: input.responseStatus,
+				lastRateLimit: input.rateLimit,
+				lastRetryAfter: input.retryAfter,
+				lastCacheResult: input.cacheResult ?? null,
+				lastDedupeState: input.dedupeState ?? null,
 				lastUpdatedAt: Date.now()
 			}
 		: {
 				repoKey,
 				operation,
+				requestKind,
 				path,
 				ref,
 				count: 1,
 				totalDurationMs: durationMs,
 				lastDurationMs: durationMs,
+				lastResultStatus: input.resultStatus,
+				lastResponseStatus: input.responseStatus,
+				lastRateLimit: input.rateLimit,
+				lastRetryAfter: input.retryAfter,
+				lastCacheResult: input.cacheResult ?? null,
+				lastDedupeState: input.dedupeState ?? null,
 				lastUpdatedAt: Date.now()
 			};
 
@@ -126,11 +163,91 @@ function recordGitHubRepositoryRequestStat(
 	logTiming('github.repository.request', {
 		repoKey,
 		operation,
+		requestKind,
 		path,
 		ref,
 		durationMs,
-		count: nextStat.count
+		count: nextStat.count,
+		resultStatus: input.resultStatus,
+		responseStatus: input.responseStatus,
+		rateLimit: input.rateLimit,
+		retryAfter: input.retryAfter,
+		cacheResult: input.cacheResult ?? null,
+		dedupeState: input.dedupeState ?? null
 	});
+}
+
+function readHeader(headers: unknown, name: string): string | null {
+	if (!headers || typeof headers !== 'object') {
+		return null;
+	}
+	const record = headers as Record<string, unknown>;
+	const value = record[name] ?? record[name.toLowerCase()] ?? record[name.toUpperCase()];
+	return typeof value === 'string' || typeof value === 'number' ? String(value) : null;
+}
+
+function getResponseHeaders(value: unknown): unknown {
+	if (!value || typeof value !== 'object') {
+		return null;
+	}
+	if ('headers' in value) {
+		return value.headers;
+	}
+	if ('response' in value && value.response && typeof value.response === 'object') {
+		return getResponseHeaders(value.response);
+	}
+	return null;
+}
+
+function getResponseStatus(value: unknown): number | null {
+	if (!value || typeof value !== 'object') {
+		return null;
+	}
+	if ('status' in value && typeof value.status === 'number') {
+		return value.status;
+	}
+	if ('response' in value && value.response && typeof value.response === 'object') {
+		return getResponseStatus(value.response);
+	}
+	return null;
+}
+
+function getRateLimitHeaders(headers: unknown): GitHubRateLimitHeaders {
+	return {
+		limit: readHeader(headers, 'x-ratelimit-limit'),
+		remaining: readHeader(headers, 'x-ratelimit-remaining'),
+		reset: readHeader(headers, 'x-ratelimit-reset'),
+		used: readHeader(headers, 'x-ratelimit-used'),
+		resource: readHeader(headers, 'x-ratelimit-resource')
+	};
+}
+
+function getRequestKind(operation: string): GitHubRequestKind {
+	if (operation.includes('Compare') || operation.includes('compare')) {
+		return 'compare';
+	}
+	if (operation.includes('Tree') || operation.includes('Directory')) {
+		return 'tree';
+	}
+	if (operation.includes('Blob') || operation.includes('Binary')) {
+		return 'blob';
+	}
+	if (operation.includes('Branch')) {
+		return 'branch';
+	}
+	if (operation.includes('Commit') || operation.includes('Ref')) {
+		return operation.includes('Ref') ? 'ref' : 'commit';
+	}
+	if (operation.includes('delete') || operation.includes('Delete')) {
+		return 'delete';
+	}
+	if (operation.includes('write') || operation.includes('Write')) {
+		return 'write';
+	}
+	if (operation.includes('Config')) {
+		return 'metadata';
+	}
+	return 'contents';
 }
 
 async function instrumentGitHubRepositoryRequest<T>(
@@ -138,13 +255,66 @@ async function instrumentGitHubRepositoryRequest<T>(
 	operation: string,
 	path: string,
 	ref: string | null,
-	action: () => Promise<T>
+	action: () => Promise<T>,
+	options: {
+		cacheResult?: RequestCacheResult | null;
+		dedupeState?: RequestDuplicateState | null;
+		requestKind?: GitHubRequestKind;
+	} = {}
 ): Promise<T> {
 	const start = performance.now();
+	const requestKind = options.requestKind ?? getRequestKind(operation);
 	try {
-		return await action();
-	} finally {
-		recordGitHubRepositoryRequestStat(repoKey, operation, path, ref, performance.now() - start);
+		const result = await traceGitHubRequest(
+			{
+				source: 'repository-backend',
+				operation,
+				requestKind,
+				repoKey,
+				ref,
+				path,
+				cacheResult: options.cacheResult ?? null,
+				dedupeState: options.dedupeState ?? null
+			},
+			action
+		);
+		const headers = getResponseHeaders(result);
+		recordGitHubRepositoryRequestStat(
+			repoKey,
+			operation,
+			requestKind,
+			path,
+			ref,
+			performance.now() - start,
+			{
+				resultStatus: 'ok',
+				responseStatus: getResponseStatus(result),
+				rateLimit: getRateLimitHeaders(headers),
+				retryAfter: readHeader(headers, 'retry-after'),
+				cacheResult: options.cacheResult ?? null,
+				dedupeState: options.dedupeState ?? null
+			}
+		);
+		return result;
+	} catch (error) {
+		const headers = getResponseHeaders(error);
+		recordGitHubRepositoryRequestStat(
+			repoKey,
+			operation,
+			requestKind,
+			path,
+			ref,
+			performance.now() - start,
+			{
+				resultStatus: 'error',
+				responseStatus: getResponseStatus(error),
+				rateLimit: getRateLimitHeaders(headers),
+				retryAfter: readHeader(headers, 'retry-after'),
+				cacheResult: options.cacheResult ?? null,
+				dedupeState: options.dedupeState ?? null
+			}
+		);
+		throw error;
 	}
 }
 

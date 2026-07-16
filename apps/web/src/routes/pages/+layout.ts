@@ -6,6 +6,7 @@ import {
 import type { InstructionDiscoveryResult } from '$lib/features/instructions/types';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import { logDevRouting } from '$lib/utils/dev-routing-log';
+import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 import type { LayoutLoad } from './$types';
 
 const EMPTY_INSTRUCTION_DISCOVERY: InstructionDiscoveryResult = {
@@ -56,6 +57,11 @@ export const load: LayoutLoad = async ({ parent, fetch }) => {
 		logDevRouting('pages-layout:bootstrap-success', {
 			selectedRepo: workspace.selectedRepo.full_name,
 			configCount: bootstrap.configs.length
+		});
+		markWorkflowReadiness({
+			workflow: 'first-repository-open',
+			mark: 'bootstrap-ready',
+			route: '/pages'
 		});
 		return {
 			...bootstrap,
