@@ -7,6 +7,12 @@ import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot } from '$lib/server/repository-data';
 import { resolvePageViewContentForRoute } from '$lib/server/repository-data/route-data';
+import {
+	createWorkflowBlockSupportData,
+	createWorkflowPageViewData,
+	createWorkflowRouteDataIdentity,
+	type WorkflowPageViewData
+} from '$lib/repository/workflow-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
@@ -40,6 +46,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 				let contentError = null;
 				let collectionNavigation = null;
 				let contentSource = null;
+				let workflowData: WorkflowPageViewData | null = null;
 
 				try {
 					const resolvedContent = await resolvePageViewContentForRoute({
@@ -49,6 +56,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					content = resolvedContent.content;
 					collectionNavigation = resolvedContent.collectionNavigation;
 					contentSource = resolvedContent.source;
+					workflowData = resolvedContent.workflowData;
 				} catch (err) {
 					handleGitHubSessionError({ cookies }, err);
 					logError(err, 'Fetch content');
@@ -60,6 +68,24 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 						blockConfigs: snapshot.blockConfigIndex.configs,
 						rootConfig: snapshot.rootConfig
 					});
+				const blockSupport = createWorkflowBlockSupportData({
+					blockConfigs,
+					packageBlocks,
+					blockRegistryError
+				});
+				const routeDataIdentity = createWorkflowRouteDataIdentity(snapshot.identity, {
+					hasEditableDraft: Boolean(draftBranch)
+				});
+				workflowData = createWorkflowPageViewData({
+					identity: workflowData?.identity ?? routeDataIdentity,
+					slug,
+					discoveredConfig,
+					content,
+					collectionNavigation,
+					blockSupport,
+					contentError,
+					cacheMiss: workflowData?.cacheMiss ?? null
+				});
 
 				logTiming('api.repo.page-view.result', {
 					repo: locals.selectedRepo?.full_name ?? null,
@@ -80,6 +106,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					content,
 					collectionNavigation,
 					contentError,
+					workflowData,
 					branch: draftBranch,
 					pageSlug: slug,
 					mode: 'github' as const

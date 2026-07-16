@@ -13,6 +13,7 @@ vi.mock('$lib/server/repository-data', () => ({
 
 import {
 	resolveCollectionItemForRoute,
+	resolveCollectionItemRouteData,
 	resolveCollectionNavigationForRoute,
 	resolvePageViewContentForRoute,
 	resolveSingletonConfigStatesForRoute
@@ -114,7 +115,7 @@ describe('repository-data route data', () => {
 			rootConfig: null
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			source: 'legacy-content-cache',
 			navigation: {
 				items: [
@@ -128,6 +129,15 @@ describe('repository-data route data', () => {
 					}
 				],
 				groups: []
+			},
+			workflowData: {
+				slug: 'posts',
+				readiness: 'ready',
+				cacheMiss: {
+					target: 'collection-navigation',
+					slug: 'posts',
+					reason: 'prepared collection navigation unavailable'
+				}
 			}
 		});
 		expect(getCachedContent).toHaveBeenCalledWith(
@@ -168,7 +178,7 @@ describe('repository-data route data', () => {
 			rootConfig: null
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			source: 'repository-data',
 			navigation: {
 				items: [
@@ -179,6 +189,11 @@ describe('repository-data route data', () => {
 					}
 				],
 				groups: []
+			},
+			workflowData: {
+				slug: 'posts',
+				readiness: 'ready',
+				cacheMiss: null
 			}
 		});
 		expect(getCollectionNavigation).toHaveBeenCalledWith({
@@ -198,12 +213,21 @@ describe('repository-data route data', () => {
 			discoveredConfig: singletonConfig as never
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			source: 'legacy-content-cache',
 			content: {
 				title: 'About from legacy cache'
 			},
-			collectionNavigation: null
+			collectionNavigation: null,
+			workflowData: {
+				slug: 'about',
+				readiness: 'ready',
+				cacheMiss: {
+					target: 'page-view',
+					slug: 'about',
+					reason: 'prepared page view unavailable'
+				}
+			}
 		});
 		expect(getSingletonDocument).toHaveBeenCalledWith({
 			backend,
@@ -229,7 +253,7 @@ describe('repository-data route data', () => {
 			rootConfig: null
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			source: 'legacy-content-cache',
 			stateConfigCount: 1,
 			statesBySlug: {
@@ -243,6 +267,14 @@ describe('repository-data route data', () => {
 						header: true,
 						card: true
 					}
+				}
+			},
+			workflowData: {
+				readiness: 'ready',
+				stateConfigCount: 1,
+				cacheMiss: {
+					target: 'config-states',
+					reason: 'prepared config states unavailable'
 				}
 			}
 		});
@@ -286,6 +318,46 @@ describe('repository-data route data', () => {
 			itemId: 'hello-world'
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
+	});
+
+	it('exposes mode-neutral workflow data for collection item route lookups', async () => {
+		vi.mocked(resolveCollectionItemDocument).mockResolvedValue({
+			config: collectionConfig,
+			indexItem: {
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello-world',
+				title: 'Hello world',
+				sortDate: null
+			},
+			content: {
+				title: 'Hello world'
+			}
+		} as never);
+
+		const result = await resolveCollectionItemRouteData({
+			backend,
+			discoveredConfig: collectionConfig as never,
+			itemId: 'hello-world'
+		});
+
+		expect(result).toMatchObject({
+			source: 'repository-data',
+			item: {
+				title: 'Hello world'
+			},
+			workflowData: {
+				slug: 'posts',
+				itemId: 'hello-world',
+				item: {
+					title: 'Hello world'
+				},
+				readiness: 'ready',
+				cacheMiss: null
+			}
+		});
 	});
 
 	it('falls back to legacy collection lookup for unsupported item resolvers', async () => {

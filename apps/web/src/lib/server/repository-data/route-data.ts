@@ -12,6 +12,17 @@ import {
 } from '$lib/features/content-management/state';
 import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import type { RepositoryBackend } from '$lib/repository/types';
+import {
+	createWorkflowCacheMissResult,
+	createWorkflowCollectionNavigationData,
+	createWorkflowConfigStatesData,
+	createWorkflowItemViewData,
+	createWorkflowPageViewData,
+	type WorkflowCollectionNavigationData,
+	type WorkflowConfigStatesData,
+	type WorkflowItemViewData,
+	type WorkflowPageViewData
+} from '$lib/repository/workflow-data';
 import { getCachedContent } from '$lib/stores/content-cache';
 import { logRouteDataFallback } from '$lib/utils/workflow-instrumentation';
 import {
@@ -28,18 +39,54 @@ export type RepositoryRouteDataSource = 'repository-data' | 'legacy-content-cach
 export interface ResolvedCollectionNavigation {
 	navigation: OrderedCollectionNavigation;
 	source: RepositoryRouteDataSource;
+	workflowData: WorkflowCollectionNavigationData;
 }
 
 export interface ResolvedPageViewContent {
 	content: ContentDocument | null;
 	collectionNavigation: OrderedCollectionNavigation | null;
 	source: RepositoryRouteDataSource;
+	workflowData: WorkflowPageViewData;
 }
 
 export interface ResolvedSingletonConfigStates {
 	statesBySlug: Record<string, ResolvedContentState>;
 	source: RepositoryRouteDataSource;
 	stateConfigCount: number;
+	workflowData: WorkflowConfigStatesData;
+}
+
+export interface ResolvedCollectionItemRouteData {
+	item: ContentRecord | null;
+	source: RepositoryRouteDataSource;
+	workflowData: WorkflowItemViewData;
+}
+
+function createCollectionItemCacheMiss(slug: string, itemId: string) {
+	return createWorkflowCacheMissResult({
+		target: 'item-view',
+		slug,
+		itemId,
+		reason: 'prepared item view unavailable'
+	});
+}
+
+function createCollectionItemFallbackRouteData(input: {
+	discoveredConfig: DiscoveredConfig;
+	itemId: string;
+	item: ContentRecord | null;
+}): ResolvedCollectionItemRouteData {
+	return {
+		item: input.item,
+		source: 'legacy-content-cache',
+		workflowData: createWorkflowItemViewData({
+			slug: input.discoveredConfig.slug,
+			itemId: input.itemId,
+			discoveredConfig: input.discoveredConfig,
+			item: input.item,
+			cacheMiss: createCollectionItemCacheMiss(input.discoveredConfig.slug, input.itemId)
+		})
+	};
 }
 
 export async function resolveCollectionNavigationForRoute({
@@ -60,7 +107,11 @@ export async function resolveCollectionNavigationForRoute({
 	if (indexedNavigation) {
 		return {
 			navigation: indexedNavigation,
-			source: 'repository-data'
+			source: 'repository-data',
+			workflowData: createWorkflowCollectionNavigationData({
+				slug: discoveredConfig.slug,
+				navigation: indexedNavigation
+			})
 		};
 	}
 
@@ -77,14 +128,25 @@ export async function resolveCollectionNavigationForRoute({
 		discoveredConfig.slug
 	);
 
+	const navigation = getOrderedCollectionNavigation(
+		discoveredConfig.config,
+		content,
+		navigationManifest,
+		rootConfig
+	);
+
 	return {
-		navigation: getOrderedCollectionNavigation(
-			discoveredConfig.config,
-			content,
-			navigationManifest,
-			rootConfig
-		),
-		source: 'legacy-content-cache'
+		navigation,
+		source: 'legacy-content-cache',
+		workflowData: createWorkflowCollectionNavigationData({
+			slug: discoveredConfig.slug,
+			navigation,
+			cacheMiss: createWorkflowCacheMissResult({
+				target: 'collection-navigation',
+				slug: discoveredConfig.slug,
+				reason: 'prepared collection navigation unavailable'
+			})
+		})
 	};
 }
 
@@ -104,7 +166,13 @@ export async function resolvePageViewContentForRoute({
 			return {
 				content: null,
 				collectionNavigation: indexedNavigation,
-				source: 'repository-data'
+				source: 'repository-data',
+				workflowData: createWorkflowPageViewData({
+					slug: discoveredConfig.slug,
+					discoveredConfig,
+					content: null,
+					collectionNavigation: indexedNavigation
+				})
 			};
 		}
 		logRouteDataFallback({
@@ -122,7 +190,13 @@ export async function resolvePageViewContentForRoute({
 			return {
 				content: singletonContent,
 				collectionNavigation: null,
-				source: 'repository-data'
+				source: 'repository-data',
+				workflowData: createWorkflowPageViewData({
+					slug: discoveredConfig.slug,
+					discoveredConfig,
+					content: singletonContent,
+					collectionNavigation: null
+				})
 			};
 		}
 		logRouteDataFallback({
@@ -133,15 +207,30 @@ export async function resolvePageViewContentForRoute({
 		});
 	}
 
+	const content = await getCachedContent(
+		backend,
+		discoveredConfig.config,
+		discoveredConfig.path,
+		discoveredConfig.slug
+	);
+
 	return {
-		content: await getCachedContent(
-			backend,
-			discoveredConfig.config,
-			discoveredConfig.path,
-			discoveredConfig.slug
-		),
+		content,
 		collectionNavigation: null,
-		source: 'legacy-content-cache'
+		source: 'legacy-content-cache',
+		workflowData: createWorkflowPageViewData({
+			slug: discoveredConfig.slug,
+			discoveredConfig,
+			content,
+			collectionNavigation: null,
+			cacheMiss: createWorkflowCacheMissResult({
+				target: 'page-view',
+				slug: discoveredConfig.slug,
+				reason: discoveredConfig.config.collection
+					? 'prepared collection page view unavailable'
+					: 'prepared page view unavailable'
+			})
+		})
 	};
 }
 
@@ -159,7 +248,11 @@ export async function resolveSingletonConfigStatesForRoute({
 		return {
 			statesBySlug: indexedStatesBySlug,
 			source: 'repository-data',
-			stateConfigCount: Object.keys(indexedStatesBySlug).length
+			stateConfigCount: Object.keys(indexedStatesBySlug).length,
+			workflowData: createWorkflowConfigStatesData({
+				statesBySlug: indexedStatesBySlug,
+				stateConfigCount: Object.keys(indexedStatesBySlug).length
+			})
 		};
 	}
 
@@ -181,16 +274,26 @@ export async function resolveSingletonConfigStatesForRoute({
 		})
 	);
 
+	const statesBySlug = Object.fromEntries(
+		statesBySlugEntries.flatMap(([slug, state]) => (state ? ([[slug, state]] as const) : []))
+	);
+
 	return {
-		statesBySlug: Object.fromEntries(
-			statesBySlugEntries.flatMap(([slug, state]) => (state ? ([[slug, state]] as const) : []))
-		),
+		statesBySlug,
 		source: 'legacy-content-cache',
-		stateConfigCount: stateConfigs.length
+		stateConfigCount: stateConfigs.length,
+		workflowData: createWorkflowConfigStatesData({
+			statesBySlug,
+			stateConfigCount: stateConfigs.length,
+			cacheMiss: createWorkflowCacheMissResult({
+				target: 'config-states',
+				reason: 'prepared config states unavailable'
+			})
+		})
 	};
 }
 
-export async function resolveCollectionItemForRoute({
+export async function resolveCollectionItemRouteData({
 	backend,
 	discoveredConfig,
 	itemId
@@ -198,14 +301,23 @@ export async function resolveCollectionItemForRoute({
 	backend: RepositoryBackend;
 	discoveredConfig: DiscoveredConfig;
 	itemId: string;
-}): Promise<ContentRecord | null> {
+}): Promise<ResolvedCollectionItemRouteData> {
 	const resolvedItem = await resolveCollectionItemDocument({
 		backend,
 		slug: discoveredConfig.slug,
 		itemId
 	});
 	if (resolvedItem) {
-		return resolvedItem.content;
+		return {
+			item: resolvedItem.content,
+			source: 'repository-data',
+			workflowData: createWorkflowItemViewData({
+				slug: discoveredConfig.slug,
+				itemId,
+				discoveredConfig,
+				item: resolvedItem.content
+			})
+		};
 	}
 
 	logRouteDataFallback({
@@ -223,22 +335,32 @@ export async function resolveCollectionItemForRoute({
 	);
 
 	if (!Array.isArray(content)) {
-		return null;
+		return createCollectionItemFallbackRouteData({ discoveredConfig, itemId, item: null });
 	}
 
 	const routeItem = findContentItemByRoute(content, discoveredConfig.config, itemId);
 	if (routeItem) {
-		return routeItem;
+		return createCollectionItemFallbackRouteData({ discoveredConfig, itemId, item: routeItem });
 	}
 
 	if (discoveredConfig.config.content.mode !== 'file') {
-		return null;
+		return createCollectionItemFallbackRouteData({ discoveredConfig, itemId, item: null });
 	}
 
 	const index = Number.parseInt(itemId, 10);
 	if (Number.isNaN(index) || index < 0 || index >= content.length) {
-		return null;
+		return createCollectionItemFallbackRouteData({ discoveredConfig, itemId, item: null });
 	}
 
-	return content[index] ?? null;
+	const item = content[index] ?? null;
+	return createCollectionItemFallbackRouteData({ discoveredConfig, itemId, item });
+}
+
+export async function resolveCollectionItemForRoute(input: {
+	backend: RepositoryBackend;
+	discoveredConfig: DiscoveredConfig;
+	itemId: string;
+}): Promise<ContentRecord | null> {
+	const routeData = await resolveCollectionItemRouteData(input);
+	return routeData.item;
 }
