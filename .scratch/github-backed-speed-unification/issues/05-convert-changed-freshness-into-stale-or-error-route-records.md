@@ -4,10 +4,10 @@
 
 **Blocked by:** 03 — Make GitHub freshness identity-only when unchanged; 04 — Make GitHub cache work prioritized, deduped, cancelable, and rate-limit-aware.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Changed freshness loads only the tree data needed to derive changed paths within the background freshness budget.
-- [ ] Affected collection, page, item, singleton, config-state, and block-support records are marked stale or error according to changed-path results.
-- [ ] Missing or deleted previous identity becomes freshness stale/error status with recovery guidance rather than a foreground route failure.
-- [ ] Active route readiness is not blocked while changed-path derivation runs.
-- [ ] Tests cover unchanged, changed, and missing/deleted identity freshness outcomes.
+- [x] Changed freshness loads only the tree data needed to derive changed paths within the background freshness budget.
+- [x] Affected collection, page, item, singleton, config-state, and block-support records are marked stale or error according to changed-path results.
+- [x] Missing or deleted previous identity becomes freshness stale/error status with recovery guidance rather than a foreground route failure.
+- [x] Active route readiness is not blocked while changed-path derivation runs.
+- [x] Tests cover unchanged, changed, and missing/deleted identity freshness outcomes.

@@ -1913,12 +1913,18 @@ describe('githubRepositoryCache IndexedDB records', () => {
 	it('backs off unchanged freshness checks and resets after changed paths', async () => {
 		const fetcher = vi.fn(async () => Response.json(createBootstrap()));
 		const indexFetcher = vi.fn(async () => Response.json(createIndexPayload()));
-		const changedFetcher = vi.fn(async () =>
-			Response.json({
-				...createBootstrap('tree-next'),
+		const changedCalls: string[] = [];
+		const changedFetcher = vi.fn(async (input: RequestInfo | URL) => {
+			changedCalls.push(String(input));
+			return Response.json({
+				repositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				draftRepositoryIdentity: null,
+				unchanged: false,
+				freshnessStatus: 'changed',
 				changedPaths: ['src/content/posts/hello-world.md']
-			})
-		);
+			});
+		});
 
 		await githubRepositoryCache.hydrateFromBootstrap({
 			repoFullName: 'acme/docs',
@@ -1947,6 +1953,55 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			get(githubCacheInventoryStatus).records.find(
 				(record) => record.targetId === 'collectionIndex:posts'
 			)
-		).toMatchObject({ status: 'missing' });
+		).toMatchObject({ status: 'stale' });
+		expect(changedFetcher).toHaveBeenCalledTimes(1);
+		expect(changedCalls[0]).toContain('/api/repo/freshness');
+		expect(changedCalls[0]).not.toContain('/api/repo/configs');
+	});
+
+	it('marks active records stale with recovery guidance when freshness cannot derive paths', async () => {
+		const indexFetcher = vi.fn(async () => Response.json(createIndexPayload()));
+		const staleFetcher = vi.fn(async () =>
+			Response.json({
+				repositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				draftRepositoryIdentity: null,
+				unchanged: false,
+				freshnessStatus: 'stale',
+				changedPaths: null,
+				error: 'The previous GitHub tree is no longer available.',
+				recovery: 'Refresh stale GitHub cache records to reload route data.'
+			})
+		);
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher: indexFetcher });
+
+		await githubRepositoryCache.checkFreshness({
+			fetcher: staleFetcher,
+			warmChanged: false
+		});
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ itemId: 'hello-world' }]
+		});
+		expect(get(githubCacheInventoryStatus).records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					targetId: 'collectionIndex:posts',
+					status: 'stale',
+					error: expect.stringContaining('Refresh stale GitHub cache records')
+				}),
+				expect.objectContaining({
+					targetId: 'blockSupport',
+					status: 'stale',
+					error: expect.stringContaining('previous GitHub tree')
+				})
+			])
+		);
+		expect(staleFetcher).toHaveBeenCalledTimes(1);
 	});
 });

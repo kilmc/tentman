@@ -27,6 +27,15 @@ export interface RepoConfigsFreshnessInput {
 	previousTreeSha?: string | null;
 }
 
+type FreshnessStatus = NonNullable<RepoFreshnessIdentityResult['freshnessStatus']>;
+
+interface ChangedPathsResult {
+	status: FreshnessStatus;
+	changedPaths: string[] | null;
+	error?: string | null;
+	recovery?: string | null;
+}
+
 function getChangedTreePaths(previousTree: RepositoryTree, nextTree: RepositoryTree): string[] {
 	const previousEntries = new Map(
 		previousTree.entries
@@ -92,6 +101,24 @@ function isGitHubNotFoundError(error: unknown): boolean {
 	return Boolean(error && typeof error === 'object' && 'status' in error && error.status === 404);
 }
 
+function createMissingPreviousIdentityResult(): ChangedPathsResult {
+	return {
+		status: 'stale',
+		changedPaths: null,
+		error: 'The previous GitHub tree is no longer available, so Tentman could not derive exact changed paths.',
+		recovery: 'Refresh stale GitHub cache records to reload route data from the current repository identity.'
+	};
+}
+
+function createChangedPathErrorResult(error: unknown): ChangedPathsResult {
+	return {
+		status: 'error',
+		changedPaths: null,
+		error: error instanceof Error ? error.message : 'Failed to derive changed GitHub paths.',
+		recovery: 'Refresh errored GitHub cache records after the repository is reachable again.'
+	};
+}
+
 async function loadChangedPaths(input: {
 	backend: SelectedGitHubRepoBootstrapContext['backend'];
 	currentTree: RepositoryTree | undefined;
@@ -99,14 +126,14 @@ async function loadChangedPaths(input: {
 	previousRef?: string | null;
 	previousHeadSha?: string | null;
 	previousTreeSha?: string | null;
-}): Promise<string[] | null> {
+}): Promise<ChangedPathsResult> {
 	if (
 		!input.previousTreeSha ||
 		input.previousTreeSha === input.currentIdentity.treeSha ||
 		!input.currentTree ||
 		!canUseGitHubSource(input.backend)
 	) {
-		return null;
+		return { status: 'unchanged', changedPaths: null };
 	}
 
 	const previousIdentity: RepositoryRefIdentity = {
@@ -123,12 +150,15 @@ async function loadChangedPaths(input: {
 		previousTree = await getRepositoryTree(input.backend, previousIdentity);
 	} catch (error) {
 		if (isGitHubNotFoundError(error)) {
-			return null;
+			return createMissingPreviousIdentityResult();
 		}
-		throw error;
+		return createChangedPathErrorResult(error);
 	}
 
-	return getChangedTreePaths(previousTree, input.currentTree);
+	return {
+		status: 'changed',
+		changedPaths: getChangedTreePaths(previousTree, input.currentTree)
+	};
 }
 
 function matchesPreviousFreshnessIdentity(
@@ -172,14 +202,36 @@ export async function loadSelectedGitHubRepoFreshness(
 	const draftIdentityUnchanged = draftBranch
 		? matchesPreviousFreshnessIdentity(activeIdentity, freshness)
 		: true;
+	const unchanged = activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
+	let changedPathsResult: ChangedPathsResult = { status: 'unchanged', changedPaths: null };
+	if (!unchanged && canUseGitHubSource(backend)) {
+		try {
+			const currentTree = await getRepositoryTree(backend, activeIdentity);
+			changedPathsResult = await loadChangedPaths({
+				backend,
+				currentTree,
+				currentIdentity: activeIdentity,
+				previousRef: freshness?.previousRef,
+				previousHeadSha: freshness?.previousHeadSha,
+				previousTreeSha: freshness?.previousTreeSha
+			});
+		} catch (error) {
+			changedPathsResult = isGitHubNotFoundError(error)
+				? createMissingPreviousIdentityResult()
+				: createChangedPathErrorResult(error);
+		}
+	}
 
 	return {
 		activeDraftBranch: draftBranch,
 		repositoryIdentity: activeIdentity,
 		mainRepositoryIdentity: mainIdentity ?? (draftBranch ? null : activeIdentity),
 		draftRepositoryIdentity: draftBranch ? activeIdentity : null,
-		unchanged: activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged,
-		changedPaths: null
+		unchanged,
+		freshnessStatus: unchanged ? 'unchanged' : changedPathsResult.status,
+		changedPaths: changedPathsResult.changedPaths,
+		error: changedPathsResult.error ?? null,
+		recovery: changedPathsResult.recovery ?? null
 	};
 }
 
@@ -202,7 +254,7 @@ export async function loadSelectedGitHubRepoBootstrapContext(
 		getRepositorySnapshot({ backend, ref: draftBranch }),
 		draftBranch ? getRepositorySnapshot({ backend: mainBackend }) : Promise.resolve(null)
 	]);
-	const changedPaths = await loadChangedPaths({
+	const changedPathsResult = await loadChangedPaths({
 		backend,
 		currentTree: snapshot.tree,
 		currentIdentity: snapshot.identity,
@@ -224,7 +276,7 @@ export async function loadSelectedGitHubRepoBootstrapContext(
 			repositoryIdentity: snapshot.identity,
 			mainRepositoryIdentity: mainSnapshot?.identity ?? (draftBranch ? null : snapshot.identity),
 			draftRepositoryIdentity: draftBranch ? snapshot.identity : null,
-			changedPaths
+			changedPaths: changedPathsResult.changedPaths
 		})
 	};
 }

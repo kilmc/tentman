@@ -36,7 +36,10 @@ export interface RepoFreshnessIdentityResult {
 	mainRepositoryIdentity: RepoBootstrapIdentity | null;
 	draftRepositoryIdentity: RepoBootstrapIdentity | null;
 	unchanged: boolean;
+	freshnessStatus?: 'unchanged' | 'changed' | 'stale' | 'error';
 	changedPaths?: string[] | null;
+	error?: string | null;
+	recovery?: string | null;
 }
 
 export const EMPTY_REPO_CONFIGS_BOOTSTRAP: RepoConfigsBootstrap = {

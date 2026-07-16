@@ -290,12 +290,6 @@ interface CachedSingletonDocumentResult {
 	blockSupport: CachedBlockSupport | null;
 }
 
-type FreshnessBootstrap = RepoConfigsBootstrap & {
-	mainRepositoryIdentity?: RepoBootstrapIdentity | null;
-	draftRepositoryIdentity?: RepoBootstrapIdentity | null;
-	changedPaths?: string[] | null;
-};
-
 type FreshnessIdentityResult = RepoFreshnessIdentityResult & {
 	repositoryIdentity?: RepoBootstrapIdentity | null;
 	mainRepositoryIdentity?: RepoBootstrapIdentity | null;
@@ -1263,12 +1257,19 @@ function hasSameRepositoryIdentity(
 	);
 }
 
-function extractChangedPaths(bootstrap: FreshnessBootstrap): string[] {
+function extractChangedPaths(bootstrap: Pick<RepoFreshnessIdentityResult, 'changedPaths'>): string[] {
 	return Array.isArray(bootstrap.changedPaths)
 		? bootstrap.changedPaths.filter(
 				(path): path is string => typeof path === 'string' && path.length > 0
 			)
 		: [];
+}
+
+function getFreshnessRecoveryMessage(freshness: FreshnessIdentityResult): string | null {
+	return [freshness.error, freshness.recovery]
+		.filter((message): message is string => typeof message === 'string' && message.length > 0)
+		.join(' ')
+		.trim() || null;
 }
 
 function resetWarmStatus() {
@@ -3045,35 +3046,48 @@ export const githubRepositoryCache = {
 					return;
 				}
 
-				const configsEndpoint = `/api/repo/configs?${params.toString()}`;
-				const configsResponse = await fetchCacheEndpoint(options.fetcher, configsEndpoint, {
-					workflow: 'freshness',
-					route: '/pages',
-					priority: 'passive',
-					taskKey: null
-				});
-				if (!configsResponse.ok) {
-					throw new Error(`Failed to check repository freshness (${configsResponse.status})`);
-				}
-
-				const bootstrap = (await configsResponse.json()) as FreshnessBootstrap;
 				resetFreshnessBackoff();
-				if (bootstrap.repositoryIdentity) {
-					await githubRepositoryCache.hydrateFromBootstrap({
-						repoFullName: snapshot.repoFullName,
-						bootstrap
+				const freshnessMessage = getFreshnessRecoveryMessage(freshness);
+				if (freshness.freshnessStatus === 'error') {
+					const records = await readActiveInventoryRecords();
+					await updateInventoryRecords(records, {
+						status: 'error',
+						error: freshnessMessage ?? 'Failed to derive changed repository paths',
+						lastCheckedAt: Date.now()
 					});
+					markWorkflowReadiness({
+						workflow: 'freshness',
+						mark: 'end',
+						route: '/pages',
+						slug: null
+					});
+					return;
 				}
 
-				const changedPaths = extractChangedPaths(bootstrap);
+				if (freshness.freshnessStatus === 'stale') {
+					const records = await readActiveInventoryRecords();
+					await updateInventoryRecords(records, {
+						status: 'stale',
+						error: freshnessMessage,
+						lastCheckedAt: Date.now()
+					});
+					markWorkflowReadiness({
+						workflow: 'freshness',
+						mark: 'end',
+						route: '/pages',
+						slug: null
+					});
+					return;
+				}
+
+				const changedPaths = extractChangedPaths(freshness);
 				if (changedPaths.length > 0) {
 					await markInventoryTargetsStaleForPaths(changedPaths);
 				} else {
 					const records = await readActiveInventoryRecords();
 					await updateInventoryRecords(
-						records.filter((record) => record.targetType !== 'snapshot'),
+						records,
 						{
-							status: 'stale',
 							error: null,
 							lastCheckedAt: Date.now()
 						}
