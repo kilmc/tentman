@@ -2,12 +2,17 @@ import { error } from '@sveltejs/kit';
 import {
 	normalizeRepoConfigsBootstrap,
 	type RepoBootstrapIdentity,
-	type RepoConfigsBootstrap
+	type RepoConfigsBootstrap,
+	type RepoFreshnessIdentityResult
 } from '$lib/repository/config-bootstrap';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot } from '$lib/server/repository-data';
-import { canUseGitHubSource, getRepositoryTree } from '$lib/server/repository-data/source';
+import {
+	canUseGitHubSource,
+	getRepositoryRefIdentity,
+	getRepositoryTree
+} from '$lib/server/repository-data/source';
 import type { RepositoryRefIdentity, RepositoryTree } from '$lib/server/repository-data/types';
 import { resolveConfigPath } from '$lib/utils/validation';
 
@@ -124,6 +129,58 @@ async function loadChangedPaths(input: {
 	}
 
 	return getChangedTreePaths(previousTree, input.currentTree);
+}
+
+function matchesPreviousFreshnessIdentity(
+	identity: RepoBootstrapIdentity | null | undefined,
+	freshness?: RepoConfigsFreshnessInput
+): boolean {
+	if (!freshness?.previousRef || !freshness.previousHeadSha || !freshness.previousTreeSha) {
+		return false;
+	}
+
+	return (
+		identity?.ref === freshness.previousRef &&
+		identity?.headSha === freshness.previousHeadSha &&
+		identity?.treeSha === freshness.previousTreeSha
+	);
+}
+
+export async function loadSelectedGitHubRepoFreshness(
+	locals: App.Locals,
+	cookies: Pick<import('@sveltejs/kit').Cookies, 'delete'>,
+	freshness?: RepoConfigsFreshnessInput
+): Promise<RepoFreshnessIdentityResult> {
+	if (!locals.isAuthenticated || !locals.githubToken) {
+		throw error(401, 'Not authenticated');
+	}
+
+	if (!locals.selectedRepo) {
+		throw error(400, 'No repository selected');
+	}
+
+	const { backend, draftBranch, repo } = await requireGitHubContentRepository({ locals, cookies });
+	const mainBackend = draftBranch ? createGitHubRepositoryBackend(backend.octokit, repo) : backend;
+	const [activeIdentity, mainIdentity] = await Promise.all([
+		getRepositoryRefIdentity(backend, draftBranch),
+		draftBranch ? getRepositoryRefIdentity(mainBackend) : Promise.resolve(null)
+	]);
+	const activeIdentityUnchanged = matchesPreviousFreshnessIdentity(activeIdentity, freshness);
+	const mainIdentityUnchanged = draftBranch
+		? true
+		: matchesPreviousFreshnessIdentity(mainIdentity ?? activeIdentity, freshness);
+	const draftIdentityUnchanged = draftBranch
+		? matchesPreviousFreshnessIdentity(activeIdentity, freshness)
+		: true;
+
+	return {
+		activeDraftBranch: draftBranch,
+		repositoryIdentity: activeIdentity,
+		mainRepositoryIdentity: mainIdentity ?? (draftBranch ? null : activeIdentity),
+		draftRepositoryIdentity: draftBranch ? activeIdentity : null,
+		unchanged: activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged,
+		changedPaths: null
+	};
 }
 
 export async function loadSelectedGitHubRepoBootstrapContext(

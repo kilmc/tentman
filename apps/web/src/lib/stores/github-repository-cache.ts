@@ -28,6 +28,7 @@ import type { SerializablePackageBlock } from '$lib/blocks/packages';
 import type {
 	RepoBootstrapIdentity,
 	RepoConfigsBootstrap,
+	RepoFreshnessIdentityResult,
 	RepoSingletonContentIdentity
 } from '$lib/repository/config-bootstrap';
 import {
@@ -287,6 +288,12 @@ type FreshnessBootstrap = RepoConfigsBootstrap & {
 	changedPaths?: string[] | null;
 };
 
+type FreshnessIdentityResult = RepoFreshnessIdentityResult & {
+	repositoryIdentity?: RepoBootstrapIdentity | null;
+	mainRepositoryIdentity?: RepoBootstrapIdentity | null;
+	draftRepositoryIdentity?: RepoBootstrapIdentity | null;
+};
+
 type CacheTaskKind =
 	| 'blockRegistry'
 	| 'singletonDocument'
@@ -330,7 +337,7 @@ let queueScheduled = false;
 let runningTask: CacheTask | null = null;
 let freshnessTimer: ReturnType<typeof setTimeout> | null = null;
 let freshnessBackoffIndex = 0;
-let freshnessCheckInFlight: Promise<void> | null = null;
+const freshnessChecksInFlight = new Map<string, Promise<void>>();
 const collectionListeners = new Map<string, Set<CollectionListener>>();
 const cacheTasks = new Map<string, CacheTask<unknown>>();
 const totalQueuedTasksByKind = new Map<CacheTaskKind, number>();
@@ -2828,8 +2835,7 @@ export const githubRepositoryCache = {
 	},
 
 	async checkFreshness(options: { fetcher: typeof fetch; warmChanged?: boolean }): Promise<void> {
-		if (!browser || freshnessCheckInFlight) {
-			await freshnessCheckInFlight;
+		if (!browser) {
 			return;
 		}
 
@@ -2838,7 +2844,14 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		freshnessCheckInFlight = (async () => {
+		const freshnessIdentityKey = getSnapshotIdentityKey(snapshot);
+		const pendingFreshnessCheck = freshnessChecksInFlight.get(freshnessIdentityKey);
+		if (pendingFreshnessCheck) {
+			await pendingFreshnessCheck;
+			return;
+		}
+
+		const promise = (async () => {
 			const params = new URLSearchParams({
 				previousRef: snapshot.identity.ref,
 				previousHeadSha: snapshot.identity.headSha,
@@ -2851,34 +2864,35 @@ export const githubRepositoryCache = {
 				slug: null
 			});
 			try {
-				const endpoint = `/api/repo/configs?${params.toString()}`;
-				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
+				const freshnessEndpoint = `/api/repo/freshness?${params.toString()}`;
+				const freshnessResponse = await fetchCacheEndpoint(options.fetcher, freshnessEndpoint, {
 					workflow: 'freshness',
 					route: '/pages',
 					priority: 'passive',
 					taskKey: null
 				});
-				if (!response.ok) {
-					throw new Error(`Failed to check repository freshness (${response.status})`);
+				if (!freshnessResponse.ok) {
+					throw new Error(`Failed to check repository freshness (${freshnessResponse.status})`);
 				}
 
-				const bootstrap = (await response.json()) as FreshnessBootstrap;
-				const nextIdentity = bootstrap.repositoryIdentity ?? null;
+				const freshness = (await freshnessResponse.json()) as FreshnessIdentityResult;
+				const nextIdentity = freshness.repositoryIdentity ?? null;
 				const activeIdentityUnchanged = hasSameRepositoryIdentity(snapshot.identity, nextIdentity);
 				const mainIdentityUnchanged = snapshot.activeDraftBranch
 					? true
 					: hasSameRepositoryIdentity(
 							snapshot.identity,
-							bootstrap.mainRepositoryIdentity ?? nextIdentity
+							freshness.mainRepositoryIdentity ?? nextIdentity
 						);
 				const draftIdentityUnchanged = snapshot.activeDraftBranch
 					? hasSameRepositoryIdentity(
 							snapshot.identity,
-							bootstrap.draftRepositoryIdentity ?? nextIdentity
+							freshness.draftRepositoryIdentity ?? nextIdentity
 						)
 					: true;
 				const unchanged =
-					activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
+					freshness.unchanged ||
+					(activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged);
 
 				if (unchanged) {
 					const records = await readActiveInventoryRecords();
@@ -2890,11 +2904,29 @@ export const githubRepositoryCache = {
 						freshnessBackoffIndex + 1,
 						FRESHNESS_BACKOFF_INTERVALS_MS.length - 1
 					);
+					markWorkflowReadiness({
+						workflow: 'freshness',
+						mark: 'end',
+						route: '/pages',
+						slug: null
+					});
 					return;
 				}
 
+				const configsEndpoint = `/api/repo/configs?${params.toString()}`;
+				const configsResponse = await fetchCacheEndpoint(options.fetcher, configsEndpoint, {
+					workflow: 'freshness',
+					route: '/pages',
+					priority: 'passive',
+					taskKey: null
+				});
+				if (!configsResponse.ok) {
+					throw new Error(`Failed to check repository freshness (${configsResponse.status})`);
+				}
+
+				const bootstrap = (await configsResponse.json()) as FreshnessBootstrap;
 				resetFreshnessBackoff();
-				if (nextIdentity) {
+				if (bootstrap.repositoryIdentity) {
 					await githubRepositoryCache.hydrateFromBootstrap({
 						repoFullName: snapshot.repoFullName,
 						bootstrap
@@ -2940,10 +2972,11 @@ export const githubRepositoryCache = {
 				throw error;
 			}
 		})().finally(() => {
-			freshnessCheckInFlight = null;
+			freshnessChecksInFlight.delete(freshnessIdentityKey);
 		});
+		freshnessChecksInFlight.set(freshnessIdentityKey, promise);
 
-		await freshnessCheckInFlight;
+		await promise;
 	},
 
 	startFreshnessScheduler(options: { fetcher: typeof fetch }): () => void {
@@ -3522,7 +3555,7 @@ export const githubRepositoryCacheTestApi = {
 		activeSnapshotIdentityKey = null;
 		clearFreshnessTimer();
 		resetFreshnessBackoff();
-		freshnessCheckInFlight = null;
+		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
 		collectionListeners.clear();
 		githubCacheInventoryStatus.set(emptyInventorySummary);
@@ -3550,7 +3583,7 @@ export const githubRepositoryCacheTestApi = {
 			bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
 		};
-		freshnessCheckInFlight = null;
+		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
 		collectionListeners.clear();
 		const database = await openDatabase();

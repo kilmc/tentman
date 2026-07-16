@@ -30,6 +30,15 @@ export interface RepoConfigsBootstrap {
 	changedPaths?: string[] | null;
 }
 
+export interface RepoFreshnessIdentityResult {
+	activeDraftBranch: string | null;
+	repositoryIdentity: RepoBootstrapIdentity | null;
+	mainRepositoryIdentity: RepoBootstrapIdentity | null;
+	draftRepositoryIdentity: RepoBootstrapIdentity | null;
+	unchanged: boolean;
+	changedPaths?: string[] | null;
+}
+
 export const EMPTY_REPO_CONFIGS_BOOTSTRAP: RepoConfigsBootstrap = {
 	configs: [],
 	blockConfigs: [],

@@ -8,6 +8,10 @@ import {
 	githubRepositoryCacheTestApi
 } from '$lib/stores/github-repository-cache';
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 type TestCollectionIndexItem = {
 	itemId: string;
@@ -235,6 +239,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 	beforeEach(async () => {
 		const idleWindow = window as unknown as MutableIdleWindow;
+		clearWorkflowInstrumentationEventsForTests();
 		originalRequestIdleCallback = window.requestIdleCallback;
 		originalCancelIdleCallback = window.cancelIdleCallback;
 		idleWindow.requestIdleCallback = ((callback: IdleRequestCallback) => {
@@ -1658,11 +1663,15 @@ describe('githubRepositoryCache IndexedDB records', () => {
 	it('checks freshness with the active repository identity', async () => {
 		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
 			const url = new URL(String(input), 'http://localhost');
-			expect(url.pathname).toBe('/api/repo/configs');
+			expect(url.pathname).toBe('/api/repo/freshness');
 			expect(url.searchParams.get('previousRef')).toBe('main');
 			expect(url.searchParams.get('previousHeadSha')).toBe('head-main');
 			expect(url.searchParams.get('previousTreeSha')).toBe('tree-main');
-			return Response.json(createBootstrap());
+			return Response.json({
+				repositoryIdentity: createBootstrap().repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap().repositoryIdentity,
+				draftRepositoryIdentity: null
+			});
 		});
 
 		await githubRepositoryCache.hydrateFromBootstrap({
@@ -1675,6 +1684,48 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			warmChanged: false
 		});
 
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'browser-request',
+					workflow: 'freshness',
+					endpoint: expect.stringContaining('/api/repo/freshness'),
+					priority: 'passive'
+				})
+			])
+		);
+		expect(get(githubCacheInventoryStatus).lastCheckedAt).toEqual(expect.any(Number));
+	});
+
+	it('dedupes concurrent unchanged freshness checks for the same active identity', async () => {
+		const deferred = createDeferred<Response>();
+		const fetcher = vi.fn(async () => deferred.promise);
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		const firstCheck = githubRepositoryCache.checkFreshness({
+			fetcher,
+			warmChanged: false
+		});
+		const secondCheck = githubRepositoryCache.checkFreshness({
+			fetcher,
+			warmChanged: false
+		});
+
+		await expect.poll(() => fetcher).toHaveBeenCalledTimes(1);
+		deferred.resolve(
+			Response.json({
+				repositoryIdentity: createBootstrap().repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap().repositoryIdentity,
+				draftRepositoryIdentity: null
+			})
+		);
+
+		await expect(Promise.all([firstCheck, secondCheck])).resolves.toEqual([undefined, undefined]);
 		expect(fetcher).toHaveBeenCalledTimes(1);
 	});
 
