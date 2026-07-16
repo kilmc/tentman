@@ -12,3 +12,7 @@
 - [x] Server-side GitHub blob hydration has conservative concurrency control and in-flight dedupe.
 - [x] Retry/backoff respects retry-after signals where present and uses capped backoff for rate-limit or transient failure responses.
 - [x] Foreground failures become visible error or degraded states with manual retry where appropriate.
+
+## Comments
+
+- Completed in `f88a9a6` (`Make GitHub cache work rate-limit aware`). Added prioritized foreground cache work, stale identity guards, endpoint retry/backoff visibility, and server-side GitHub text blob concurrency limiting while preserving in-flight dedupe.

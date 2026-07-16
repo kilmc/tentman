@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Add GitHub workflow readiness and request budget instrumentation.
 
-**Status:** resolved
+**Status:** complete
 
 - [x] A browser or integration test exercises a desktop GitHub collection landing with the sidebar/list path visible.
 - [x] The test asserts that collection header/navigation and the first visible projection batch reach a usable state instead of remaining indefinitely on loading UI.

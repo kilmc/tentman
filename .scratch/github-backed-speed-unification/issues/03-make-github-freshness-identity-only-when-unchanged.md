@@ -4,10 +4,14 @@
 
 **Blocked by:** 01 — Add GitHub workflow readiness and request budget instrumentation.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] An unchanged freshness check uses only active-ref identity work and performs no tree, blob, config parsing, config-state rebuild, or broad bootstrap loading.
-- [ ] Freshness checks are tracked as their own workflow and do not gate first repository open, collection landing, or item route readiness when unchanged.
-- [ ] Duplicate foreground freshness work for the same identity is deduped or reported as a budget failure.
-- [ ] Tests assert that unchanged freshness does not call broad config/bootstrap endpoints or equivalent route-data assembly paths.
-- [ ] User-facing freshness status still updates clearly after a successful unchanged check.
+- [x] An unchanged freshness check uses only active-ref identity work and performs no tree, blob, config parsing, config-state rebuild, or broad bootstrap loading.
+- [x] Freshness checks are tracked as their own workflow and do not gate first repository open, collection landing, or item route readiness when unchanged.
+- [x] Duplicate foreground freshness work for the same identity is deduped or reported as a budget failure.
+- [x] Tests assert that unchanged freshness does not call broad config/bootstrap endpoints or equivalent route-data assembly paths.
+- [x] User-facing freshness status still updates clearly after a successful unchanged check.
+
+## Comments
+
+- Completed in `1139934` (`Make unchanged GitHub freshness identity-only`). Added the `/api/repo/freshness` identity endpoint, freshness tests, unchanged-check dedupe, and cache-store behavior that updates freshness status without broad config/bootstrap reloads.
