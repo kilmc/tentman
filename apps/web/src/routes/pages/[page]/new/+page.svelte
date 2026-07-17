@@ -38,9 +38,7 @@
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-	import {
-		manageCollectionGroups
-	} from '$lib/features/content-management/navigation-manifest';
+	import { manageCollectionGroups } from '$lib/features/content-management/navigation-manifest';
 	import { getCollectionConfigReferences } from '$lib/features/content-management/config';
 	import {
 		buildCollectionFilePath,
@@ -48,6 +46,7 @@
 		getTemplateInfo
 	} from '$lib/features/content-management/transforms';
 	import { resolveConfigPath } from '$lib/utils/validation';
+	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -326,7 +325,7 @@
 	}
 
 	function getCreatedItemCacheInvalidationPaths(contentData: ContentRecord): string[] {
-		if (!discoveredConfig) {
+		if (!discoveredConfig || typeof discoveredConfig.config.content.path !== 'string') {
 			return [];
 		}
 
@@ -458,11 +457,41 @@
 				materialized.content,
 				undefined
 			);
-			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
-			clearRecoveryDraft();
-			await localContent.refresh({ force: true });
+			const changedPaths = getCreatedItemCacheInvalidationPaths(materialized.content);
+			const mutation = createWorkflowMutationResult({
+				mode: 'local',
+				intent: {
+					type: 'create-item',
+					slug: discoveredConfig.slug
+				},
+				message: 'Item created in local files.',
+				changedPaths,
+				redirect: {
+					href: `${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true,
+					draftAssetRefs: materialized.cleanedRefs
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
 
-			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
+			await Promise.all(
+				mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+			);
+			if (mutation.recoveryCleanup.clearEditorRecovery) {
+				clearRecoveryDraft();
+			}
+			if (mutation.refresh.workspace) {
+				await localContent.refresh({ force: true });
+			}
+			if (mutation.redirect) {
+				await goto(mutation.redirect.href);
+			}
 		} catch (error) {
 			formHasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to create item';
@@ -647,12 +676,32 @@
 
 				return async ({ update, result }) => {
 					if (result.type === 'redirect' || result.type === 'success') {
-						await githubRepositoryCache.invalidatePaths(
-							submittedContent ? getCreatedItemCacheInvalidationPaths(submittedContent) : []
-						);
+						const mutation = createWorkflowMutationResult({
+							mode: 'github',
+							intent: {
+								type: 'create-item',
+								slug: discoveredConfig?.slug ?? data.pageSlug
+							},
+							recoveryCleanup: {
+								clearEditorRecovery: true,
+								draftAssetRefs: submittedRefs
+							},
+							refresh: {
+								workspace: true,
+								collections: [discoveredConfig?.slug ?? data.pageSlug],
+								cachePaths: submittedContent
+									? getCreatedItemCacheInvalidationPaths(submittedContent)
+									: []
+							}
+						});
+						await githubRepositoryCache.invalidatePaths(mutation.refresh.cachePaths);
 						await update();
-						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
-						clearRecoveryDraft();
+						await Promise.all(
+							mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+						);
+						if (mutation.recoveryCleanup.clearEditorRecovery) {
+							clearRecoveryDraft();
+						}
 					} else {
 						await update();
 						formHasUnsavedChanges = true;

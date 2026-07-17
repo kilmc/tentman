@@ -336,7 +336,23 @@ describe('POST /api/repo/navigation-manifest', () => {
 				'content/about.tentman.json',
 				'tentman.json',
 				'tentman/navigation-manifest.json'
-			]
+			],
+			mutation: expect.objectContaining({
+				mode: 'github',
+				intent: {
+					type: 'save-navigation-manifest'
+				},
+				outcome: 'success',
+				changedPaths: [
+					'content/about.tentman.json',
+					'tentman.json',
+					'tentman/navigation-manifest.json'
+				],
+				refresh: expect.objectContaining({
+					workspace: true,
+					navigationManifest: true
+				})
+			})
 		});
 	});
 
@@ -450,6 +466,20 @@ describe('POST /api/repo/navigation-manifest', () => {
 		} as never);
 		const body = await response.json();
 
+		expect(body.mutation).toMatchObject({
+			mode: 'github',
+			intent: {
+				type: 'manage-navigation-groups',
+				slug: 'projects',
+				action: 'create'
+			},
+			outcome: 'success',
+			changedPaths: ['content/projects.tentman.json', 'tentman/navigation-manifest.json'],
+			refresh: {
+				workspace: true,
+				navigationManifest: true
+			}
+		});
 		expect(manageCollectionGroups).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.objectContaining({ slug: 'projects' }),
@@ -503,7 +533,7 @@ describe('POST /api/repo/navigation-manifest', () => {
 			}
 		]);
 
-		await POST({
+		const response = await POST({
 			request: new Request('http://localhost/api/repo/navigation-manifest', {
 				method: 'POST',
 				headers: {
@@ -529,6 +559,21 @@ describe('POST /api/repo/navigation-manifest', () => {
 			},
 			cookies: createCookies()
 		} as never);
+		const body = await response.json();
+
+		expect(body.mutation).toMatchObject({
+			mode: 'github',
+			intent: {
+				type: 'save-collection-order',
+				slug: 'projects'
+			},
+			outcome: 'success',
+			changedPaths: ['content/projects.tentman.json', 'tentman/navigation-manifest.json'],
+			refresh: {
+				workspace: true,
+				navigationManifest: true
+			}
+		});
 
 		expect(saveCollectionOrder).toHaveBeenCalledWith(
 			expect.anything(),

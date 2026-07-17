@@ -218,7 +218,19 @@ describe('pages workspace adapter', () => {
 			type: 'navigation-saved',
 			message: 'Navigation saved.',
 			branchName: 'tentman-draft',
-			invalidateWorkspace: true
+			invalidateWorkspace: true,
+			mutation: {
+				mode: 'github',
+				intent: {
+					type: 'save-navigation-manifest'
+				},
+				outcome: 'success',
+				changedPaths: ['tentman/navigation-manifest.json'],
+				refresh: {
+					workspace: true,
+					navigationManifest: true
+				}
+			}
 		});
 		expect(fetcher).toHaveBeenCalledWith(
 			'/base/api/repo/navigation-manifest',
@@ -322,16 +334,25 @@ describe('pages workspace adapter', () => {
 			type: 'navigation-saved',
 			message: 'Navigation saved.',
 			invalidateWorkspace: true,
+			mutation: {
+				mode: 'local',
+				intent: {
+					type: 'save-navigation-manifest'
+				},
+				changedPaths: ['tentman/navigation-manifest.json'],
+				refresh: {
+					workspace: true,
+					remountWorkspace: true,
+					navigationManifest: true,
+					configStates: true
+				}
+			},
 			localCollections: {},
 			localConfigStates: {}
 		});
-		expect(localMocks.writeNavigationManifest).toHaveBeenCalledWith(
-			localMocks.backend,
-			manifest,
-			{
-				message: 'Update Tentman navigation manifest'
-			}
-		);
+		expect(localMocks.writeNavigationManifest).toHaveBeenCalledWith(localMocks.backend, manifest, {
+			message: 'Update Tentman navigation manifest'
+		});
 		expect(localMocks.localContent.refresh).toHaveBeenCalledWith({ force: true });
 		expect(fetcher).not.toHaveBeenCalled();
 		expect(githubRepositoryCacheMock.invalidatePaths).not.toHaveBeenCalled();

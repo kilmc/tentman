@@ -441,7 +441,9 @@ describe('routes/pages/[page]/groups/+page.svelte', () => {
 		]);
 		expect(groupPageMocks.warmCollection).toHaveBeenCalledWith('projects', {
 			fetcher: groupPageMocks.fetch,
-			force: true
+			force: true,
+			hydrateRemaining: false,
+			warmDocuments: false
 		});
 		expect(groupPageMocks.invalidate).toHaveBeenCalledWith('app:content');
 	});

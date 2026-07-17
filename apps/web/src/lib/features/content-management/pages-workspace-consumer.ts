@@ -13,6 +13,7 @@ import type {
 	WorkflowConfigStatesData,
 	WorkflowWorkspaceBootstrapData
 } from '$lib/repository/workflow-data';
+import type { WorkflowMutationResult } from '$lib/repository/workflow-mutations';
 import type { SelectedBackend } from '$lib/repository/selection';
 
 export type PagesWorkspaceMode = 'none' | 'local' | 'github';
@@ -112,6 +113,7 @@ export type PagesWorkspaceAdapterResult =
 	| {
 			type: 'navigation-saved';
 			message: string;
+			mutation: WorkflowMutationResult;
 			branchName?: string | null;
 			invalidateWorkspace: boolean;
 			localCollections?: Record<string, OrderedCollectionNavigation>;
@@ -121,6 +123,7 @@ export type PagesWorkspaceAdapterResult =
 			type: 'collection-order-saved';
 			message: string;
 			slug: string;
+			mutation: WorkflowMutationResult;
 			branchName?: string | null;
 			invalidateWorkspace: boolean;
 			navigation?: OrderedCollectionNavigation;
@@ -146,9 +149,7 @@ export type PagesWorkspaceAdapter = {
 		hydrateRemaining?: boolean;
 	}): Promise<PagesWorkspaceAdapterResult>;
 	loadConfigStates(input?: { force?: boolean }): Promise<PagesWorkspaceAdapterResult>;
-	saveNavigation(input: {
-		manifest: NavigationManifest;
-	}): Promise<PagesWorkspaceAdapterResult>;
+	saveNavigation(input: { manifest: NavigationManifest }): Promise<PagesWorkspaceAdapterResult>;
 	saveCollectionOrder(input: {
 		config: DiscoveredConfig;
 		collection: NavigationDraftCollection;
@@ -239,11 +240,7 @@ export function resolvePagesWorkspaceSurface(
 			: mode === 'github'
 				? (input.layoutData.workflowData ?? null)
 				: null;
-	const instructionDiscovery = getInstructionDiscovery(
-		mode,
-		input.layoutData,
-		input.localContent
-	);
+	const instructionDiscovery = getInstructionDiscovery(mode, input.layoutData, input.localContent);
 
 	return {
 		mode,

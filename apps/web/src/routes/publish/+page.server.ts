@@ -12,6 +12,7 @@ import {
 	getRepositorySnapshot,
 	invalidateRepositoryData
 } from '$lib/server/repository-data';
+import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 async function getPublishChangedPaths(input: {
 	octokit: ReturnType<typeof requireGitHubRepository>['octokit'];
@@ -90,7 +91,28 @@ export const actions = {
 				reason: 'publish'
 			});
 
-			throw redirect(303, '/pages?merged=true');
+			const mutation = createWorkflowMutationResult({
+				mode: 'github',
+				intent: {
+					type: 'publish-draft'
+				},
+				outcome: changedPaths ? 'success' : 'degraded',
+				degradedReason: changedPaths ? null : 'Could not scope changed paths before publishing.',
+				message: 'Draft published.',
+				changedPaths,
+				redirect: {
+					href: '/pages?merged=true'
+				},
+				refresh: {
+					workspace: true,
+					cachePaths: changedPaths ?? []
+				}
+			});
+
+			throw redirect(
+				mutation.redirect?.status ?? 303,
+				mutation.redirect?.href ?? '/pages?merged=true'
+			);
 		} catch (err) {
 			handleGitHubRouteError(requestContext, err, '/publish');
 			// Re-throw redirects
@@ -117,7 +139,24 @@ export const actions = {
 				reason: 'discard'
 			});
 
-			throw redirect(303, '/pages?cancelled=true');
+			const mutation = createWorkflowMutationResult({
+				mode: 'github',
+				intent: {
+					type: 'discard-draft'
+				},
+				message: 'Draft discarded.',
+				redirect: {
+					href: '/pages?cancelled=true'
+				},
+				refresh: {
+					workspace: true
+				}
+			});
+
+			throw redirect(
+				mutation.redirect?.status ?? 303,
+				mutation.redirect?.href ?? '/pages?cancelled=true'
+			);
 		} catch (err) {
 			handleGitHubRouteError(requestContext, err, '/publish');
 			// Re-throw redirects

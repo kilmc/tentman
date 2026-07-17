@@ -70,6 +70,7 @@
 	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 	import { createLocalWorkflowItemViewData } from '$lib/repository/local-workflow-data';
 	import type { WorkflowItemViewData } from '$lib/repository/workflow-data';
+	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -604,19 +605,52 @@
 		}
 
 		const baseManifest = navigationManifest?.manifest ?? null;
+		const contentWithManifestId = {
+			...nextContent,
+			_tentmanId:
+				typeof nextContent._tentmanId === 'string' && nextContent._tentmanId.length > 0
+					? nextContent._tentmanId
+					: data.itemId
+		};
 		const nextManifest = syncCollectionItemGroupSelectionInManifest(
 			discoveredConfig,
-			nextContent,
+			contentWithManifestId,
 			baseManifest
 		);
 
-		return JSON.stringify(baseManifest ?? null) === JSON.stringify(nextManifest ?? null)
-			? undefined
-			: nextManifest;
+		return nextManifest
+			? (compactSingleIdReferences(nextManifest) as NonNullable<typeof nextManifest>)
+			: undefined;
+	}
+
+	function compactSingleIdReferences(value: unknown): unknown {
+		if (Array.isArray(value)) {
+			return value.map((entry) => {
+				if (
+					entry &&
+					typeof entry === 'object' &&
+					!Array.isArray(entry) &&
+					Object.keys(entry).length === 1 &&
+					typeof (entry as { id?: unknown }).id === 'string'
+				) {
+					return (entry as { id: string }).id;
+				}
+
+				return compactSingleIdReferences(entry);
+			});
+		}
+
+		if (value && typeof value === 'object') {
+			return Object.fromEntries(
+				Object.entries(value).map(([key, entry]) => [key, compactSingleIdReferences(entry)])
+			);
+		}
+
+		return value;
 	}
 
 	function getCurrentItemContentCachePath(): string[] {
-		if (!discoveredConfig) {
+		if (!discoveredConfig || typeof discoveredConfig.config.content.path !== 'string') {
 			return [];
 		}
 
@@ -694,13 +728,43 @@
 					message: 'Update Tentman navigation manifest'
 				}
 			);
-			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
-			clearRecoveryDraft();
-			await localContent.refresh({ force: true });
+			const changedPaths = getCurrentItemContentCachePath();
+			const mutation = createWorkflowMutationResult({
+				mode: 'local',
+				intent: {
+					type: 'save-content',
+					slug: discoveredConfig.slug,
+					target: 'collection-item',
+					itemId: data.itemId
+				},
+				message: 'Changes saved to local files.',
+				changedPaths,
+				redirect: {
+					href: resolve(`/pages/${discoveredConfig.slug}/${data.itemId}/edit`) + '?published=true'
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true,
+					draftAssetRefs: materialized.cleanedRefs
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
 
-			await goto(
-				resolve(`/pages/${discoveredConfig.slug}/${data.itemId}/edit`) + '?published=true'
+			await Promise.all(
+				mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
 			);
+			if (mutation.recoveryCleanup.clearEditorRecovery) {
+				clearRecoveryDraft();
+			}
+			if (mutation.refresh.workspace) {
+				await localContent.refresh({ force: true });
+			}
+			if (mutation.redirect) {
+				await goto(mutation.redirect.href);
+			}
 		} catch (error) {
 			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save changes';
@@ -730,9 +794,32 @@
 					? { filename: item?._filename, itemId: data.itemId }
 					: { itemId: data.itemId }
 			);
-			await localContent.refresh({ force: true });
+			const changedPaths = getCurrentItemContentCachePath();
+			const mutation = createWorkflowMutationResult({
+				mode: 'local',
+				intent: {
+					type: 'delete-item',
+					slug: discoveredConfig.slug,
+					itemId: data.itemId
+				},
+				message: 'Item deleted from local files.',
+				changedPaths,
+				redirect: {
+					href: `${resolve(`/pages/${discoveredConfig.slug}`)}?deleted=true`
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
 
-			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?deleted=true`);
+			if (mutation.refresh.workspace) {
+				await localContent.refresh({ force: true });
+			}
+			if (mutation.redirect) {
+				await goto(mutation.redirect.href);
+			}
 		} catch (error) {
 			localError = error instanceof Error ? error.message : 'Failed to delete item';
 		} finally {
@@ -958,6 +1045,24 @@
 						const nextNavigationManifest = submittedContent
 							? getUpdatedNavigationManifestForSavedItem(submittedContent)
 							: undefined;
+						const mutation = createWorkflowMutationResult({
+							mode: 'github',
+							intent: {
+								type: 'save-content',
+								slug: discoveredConfig?.slug ?? data.pageSlug,
+								target: 'collection-item',
+								itemId: data.itemId
+							},
+							recoveryCleanup: {
+								clearEditorRecovery: true,
+								draftAssetRefs: submittedRefs
+							},
+							refresh: {
+								workspace: true,
+								collections: [discoveredConfig?.slug ?? data.pageSlug],
+								cachePaths: getCurrentItemContentCachePath()
+							}
+						});
 						if (discoveredConfig && submittedContent) {
 							await githubRepositoryCache.patchCollectionItemFromContent({
 								slug: discoveredConfig.slug,
@@ -969,8 +1074,12 @@
 							});
 						}
 						await update();
-						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
-						clearRecoveryDraft();
+						await Promise.all(
+							mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+						);
+						if (mutation.recoveryCleanup.clearEditorRecovery) {
+							clearRecoveryDraft();
+						}
 					} else {
 						await update();
 						hasUnsavedChanges = true;

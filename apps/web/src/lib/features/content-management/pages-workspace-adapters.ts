@@ -25,6 +25,7 @@ import {
 	createLocalWorkflowCollectionNavigationData,
 	createLocalWorkflowConfigStatesData
 } from '$lib/repository/local-workflow-data';
+import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 import type {
 	PagesWorkspaceAdapter,
 	PagesWorkspaceAdapterResult,
@@ -162,7 +163,10 @@ async function loadLocalConfigStates(
 		getConfigsWithTopLevelState(configs).map(async (config) => {
 			try {
 				const content = await fetchContentDocument(repoState.backend!, config.config, config.path);
-				return [config.slug, resolveContentDocumentState(config.config, content, rootConfig)] as const;
+				return [
+					config.slug,
+					resolveContentDocumentState(config.config, content, rootConfig)
+				] as const;
 			} catch (error) {
 				console.error(`Failed to load config state for ${config.slug}:`, error);
 				return [config.slug, null] as const;
@@ -300,11 +304,7 @@ export function createPagesWorkspaceAdapter(
 		},
 
 		async clearWorkspaceCache() {
-			if (
-				context.mode !== 'github' ||
-				!context.selectedRepo ||
-				!context.repositoryIdentity
-			) {
+			if (context.mode !== 'github' || !context.selectedRepo || !context.repositoryIdentity) {
 				return {
 					type: 'workspace-cache-cleared',
 					message: '',
@@ -383,7 +383,8 @@ export function createPagesWorkspaceAdapter(
 			const navigation =
 				hydrateRemaining && cachedNavigation
 					? cachedNavigation
-					: ((await githubRepositoryCache.getCollectionNavigation(config.slug)) ?? cachedNavigation);
+					: ((await githubRepositoryCache.getCollectionNavigation(config.slug)) ??
+						cachedNavigation);
 			if (!navigation) {
 				throw new Error('Failed to load collection navigation');
 			}
@@ -407,7 +408,10 @@ export function createPagesWorkspaceAdapter(
 							warmDocuments: false
 						})
 						.catch((error) => {
-							console.error(`Failed to hydrate remaining collection items for ${config.slug}:`, error);
+							console.error(
+								`Failed to hydrate remaining collection items for ${config.slug}:`,
+								error
+							);
 						});
 				}, 0);
 			}
@@ -486,6 +490,21 @@ export function createPagesWorkspaceAdapter(
 				return {
 					type: 'navigation-saved',
 					message: 'Navigation saved.',
+					mutation: createWorkflowMutationResult({
+						mode: 'local',
+						intent: {
+							type: 'save-navigation-manifest'
+						},
+						message: 'Navigation saved.',
+						changedPaths: ['tentman/navigation-manifest.json'],
+						refresh: {
+							workspace: true,
+							remountWorkspace: true,
+							navigationManifest: true,
+							configStates: true,
+							collections: configs.map((config) => config.slug)
+						}
+					}),
 					invalidateWorkspace: true,
 					localCollections: await loadLocalCollectionNavigations(
 						configs,
@@ -496,16 +515,19 @@ export function createPagesWorkspaceAdapter(
 				};
 			}
 
-			const response = await context.fetcher(context.resolveEndpoint('/api/repo/navigation-manifest'), {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json'
-				},
-				body: JSON.stringify({
-					action: 'save-manifest',
-					manifest
-				})
-			});
+			const response = await context.fetcher(
+				context.resolveEndpoint('/api/repo/navigation-manifest'),
+				{
+					method: 'POST',
+					headers: {
+						'content-type': 'application/json'
+					},
+					body: JSON.stringify({
+						action: 'save-manifest',
+						manifest
+					})
+				}
+			);
 
 			if (response.status === 401) {
 				await context.redirectToExpiredSession();
@@ -518,6 +540,8 @@ export function createPagesWorkspaceAdapter(
 
 			const result = (await response.json()) as {
 				branchName?: string | null;
+				changedPaths?: string[] | null;
+				mutation?: unknown;
 			};
 			setDraftBranch(result.branchName, context.selectedRepo);
 			await invalidateNavigationManifestCache(context);
@@ -525,6 +549,19 @@ export function createPagesWorkspaceAdapter(
 			return {
 				type: 'navigation-saved',
 				message: 'Navigation saved.',
+				mutation: createWorkflowMutationResult({
+					mode: 'github',
+					intent: {
+						type: 'save-navigation-manifest'
+					},
+					message: 'Navigation saved.',
+					changedPaths: result.changedPaths ?? ['tentman/navigation-manifest.json'],
+					refresh: {
+						workspace: true,
+						navigationManifest: true,
+						cachePaths: result.changedPaths ?? ['tentman/navigation-manifest.json']
+					}
+				}),
 				branchName: result.branchName ?? null,
 				invalidateWorkspace: true
 			};
@@ -549,6 +586,22 @@ export function createPagesWorkspaceAdapter(
 					type: 'collection-order-saved',
 					message: `${config.config.label} order saved.`,
 					slug: config.slug,
+					mutation: createWorkflowMutationResult({
+						mode: 'local',
+						intent: {
+							type: 'save-collection-order',
+							slug: config.slug
+						},
+						message: `${config.config.label} order saved.`,
+						changedPaths: ['tentman/navigation-manifest.json'],
+						refresh: {
+							workspace: true,
+							remountWorkspace: true,
+							navigationManifest: true,
+							configStates: true,
+							collections: configs.map((entry) => entry.slug)
+						}
+					}),
 					invalidateWorkspace: true,
 					localCollections: await loadLocalCollectionNavigations(
 						configs,
@@ -559,17 +612,20 @@ export function createPagesWorkspaceAdapter(
 				};
 			}
 
-			const response = await context.fetcher(context.resolveEndpoint('/api/repo/navigation-manifest'), {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json'
-				},
-				body: JSON.stringify({
-					action: 'save-collection-order',
-					collection: config.slug,
-					order: collection
-				})
-			});
+			const response = await context.fetcher(
+				context.resolveEndpoint('/api/repo/navigation-manifest'),
+				{
+					method: 'POST',
+					headers: {
+						'content-type': 'application/json'
+					},
+					body: JSON.stringify({
+						action: 'save-collection-order',
+						collection: config.slug,
+						order: collection
+					})
+				}
+			);
 
 			if (response.status === 401) {
 				await context.redirectToExpiredSession();
@@ -582,6 +638,7 @@ export function createPagesWorkspaceAdapter(
 
 			const result = (await response.json()) as {
 				branchName?: string | null;
+				changedPaths?: string[] | null;
 			};
 			setDraftBranch(result.branchName, context.selectedRepo);
 			await invalidateNavigationManifestCache(context);
@@ -599,6 +656,21 @@ export function createPagesWorkspaceAdapter(
 				type: 'collection-order-saved',
 				message: `${config.config.label} order saved.`,
 				slug: config.slug,
+				mutation: createWorkflowMutationResult({
+					mode: 'github',
+					intent: {
+						type: 'save-collection-order',
+						slug: config.slug
+					},
+					message: `${config.config.label} order saved.`,
+					changedPaths: result.changedPaths ?? ['tentman/navigation-manifest.json'],
+					refresh: {
+						workspace: true,
+						navigationManifest: true,
+						collections: [config.slug],
+						cachePaths: result.changedPaths ?? ['tentman/navigation-manifest.json']
+					}
+				}),
 				branchName: result.branchName ?? null,
 				invalidateWorkspace: true,
 				navigation

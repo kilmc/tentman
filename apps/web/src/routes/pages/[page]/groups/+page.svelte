@@ -26,6 +26,7 @@
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
+	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -162,7 +163,25 @@
 						message: 'Update Tentman navigation manifest'
 					}
 				);
-				await localContent.refresh({ force: true });
+				const result = createWorkflowMutationResult({
+					mode: 'local',
+					intent: {
+						type: 'manage-navigation-groups',
+						slug: configEntry.slug,
+						action: mutation.action
+					},
+					message: 'Groups updated.',
+					changedPaths: ['tentman/navigation-manifest.json', configEntry.path],
+					refresh: {
+						workspace: true,
+						navigationManifest: true,
+						collections: [configEntry.slug],
+						cachePaths: ['tentman/navigation-manifest.json', configEntry.path]
+					}
+				});
+				if (result.refresh.workspace) {
+					await localContent.refresh({ force: true });
+				}
 				await loadLocalNavigation();
 			} else {
 				const response = await fetch('/api/repo/navigation-manifest', {
@@ -185,14 +204,30 @@
 					branchName?: string | null;
 					changedPaths?: string[] | null;
 				};
+				const mutationResult = createWorkflowMutationResult({
+					mode: 'github',
+					intent: {
+						type: 'manage-navigation-groups',
+						slug: configEntry.slug,
+						action: mutation.action
+					},
+					message: 'Groups updated.',
+					changedPaths: result.changedPaths?.length
+						? result.changedPaths
+						: ['tentman/navigation-manifest.json', configEntry.path],
+					refresh: {
+						workspace: true,
+						navigationManifest: true,
+						collections: [configEntry.slug],
+						cachePaths: result.changedPaths?.length
+							? result.changedPaths
+							: ['tentman/navigation-manifest.json', configEntry.path]
+					}
+				});
 				if (result.branchName && data.selectedRepo) {
 					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
 				}
-				await githubRepositoryCache.invalidatePaths(
-					result.changedPaths?.length
-						? result.changedPaths
-						: ['tentman/navigation-manifest.json', configEntry.path]
-				);
+				await githubRepositoryCache.invalidatePaths(mutationResult.refresh.cachePaths);
 				await githubRepositoryCache.warmCollection(data.pageSlug, {
 					fetcher: fetch,
 					force: true,

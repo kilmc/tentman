@@ -38,6 +38,8 @@
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import { createLocalWorkflowPageViewData } from '$lib/repository/local-workflow-data';
 	import type { WorkflowPageViewData } from '$lib/repository/workflow-data';
+	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
+	import { resolveConfigPath } from '$lib/utils/validation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -415,6 +417,14 @@
 		recoverDraft(recoveryState.snapshot);
 	}
 
+	function getCurrentContentPath(): string[] {
+		if (!discoveredConfig || typeof discoveredConfig.config.content.path !== 'string') {
+			return [];
+		}
+
+		return [resolveConfigPath(discoveredConfig.path, discoveredConfig.config.content.path)];
+	}
+
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
 		if (!formGenerator) {
 			event?.preventDefault();
@@ -463,10 +473,40 @@
 				discoveredConfig.path,
 				materialized.content
 			);
-			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
-			clearRecoveryDraft();
-			await localContent.refresh({ force: true });
-			await goto(resolve(`/pages/${discoveredConfig.slug}/edit`) + '?published=true');
+			const mutation = createWorkflowMutationResult({
+				mode: 'local',
+				intent: {
+					type: 'save-content',
+					slug: discoveredConfig.slug,
+					target: 'singleton'
+				},
+				message: 'Changes saved to local files.',
+				changedPaths: getCurrentContentPath(),
+				redirect: {
+					href: resolve(`/pages/${discoveredConfig.slug}/edit`) + '?published=true'
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true,
+					draftAssetRefs: materialized.cleanedRefs
+				},
+				refresh: {
+					workspace: true,
+					cachePaths: getCurrentContentPath()
+				}
+			});
+
+			await Promise.all(
+				mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+			);
+			if (mutation.recoveryCleanup.clearEditorRecovery) {
+				clearRecoveryDraft();
+			}
+			if (mutation.refresh.workspace) {
+				await localContent.refresh({ force: true });
+			}
+			if (mutation.redirect) {
+				await goto(mutation.redirect.href);
+			}
 		} catch (error) {
 			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save local changes';
@@ -626,8 +666,28 @@
 				return async ({ update, result }) => {
 					await update();
 					if (result.type === 'redirect' || result.type === 'success') {
-						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
-						clearRecoveryDraft();
+						const mutation = createWorkflowMutationResult({
+							mode: 'github',
+							intent: {
+								type: 'save-content',
+								slug: discoveredConfig?.slug ?? data.pageSlug,
+								target: 'singleton'
+							},
+							recoveryCleanup: {
+								clearEditorRecovery: true,
+								draftAssetRefs: submittedRefs
+							},
+							refresh: {
+								workspace: true,
+								cachePaths: getCurrentContentPath()
+							}
+						});
+						await Promise.all(
+							mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+						);
+						if (mutation.recoveryCleanup.clearEditorRecovery) {
+							clearRecoveryDraft();
+						}
 					} else {
 						hasUnsavedChanges = true;
 					}
@@ -659,11 +719,7 @@
 				{/key}
 			{/if}
 			<PageStickyFooter>
-				<button
-					type="submit"
-					disabled={!canSaveChanges}
-					class="tm-btn tm-btn-primary"
-				>
+				<button type="submit" disabled={!canSaveChanges} class="tm-btn tm-btn-primary">
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 			</PageStickyFooter>
