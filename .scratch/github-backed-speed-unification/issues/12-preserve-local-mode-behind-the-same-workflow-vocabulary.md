@@ -4,10 +4,14 @@
 
 **Blocked by:** 06 — Introduce the app-level workflow-data contract for read routes; 11 — Rework the pages workspace consumer around workflow capabilities.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Local bootstrap, collection navigation, page view, item view, config states, block support, freshness-like status, and preview URL output satisfy the shared workflow contract.
-- [ ] File System Access handles, permission prompts, `.git` validation, persisted handles, discovery signatures, local config caches, direct writes, and rescan/remount behavior remain local adapter mechanics.
-- [ ] Local mode does not inherit GitHub polling, GitHub cache inventory, GitHub request queues, draft branches, PR lifecycle, publish/discard mechanics, or server fallback APIs.
-- [ ] Existing local workflows for navigation editing, collection ordering, item edit, item create/delete, preview, and local rescan retain behavior.
-- [ ] Tests cover local adapter workflow outputs and local-specific rescan/direct-write behavior through the shared workspace consumer.
+- [x] Local bootstrap, collection navigation, page view, item view, config states, block support, freshness-like status, and preview URL output satisfy the shared workflow contract.
+- [x] File System Access handles, permission prompts, `.git` validation, persisted handles, discovery signatures, local config caches, direct writes, and rescan/remount behavior remain local adapter mechanics.
+- [x] Local mode does not inherit GitHub polling, GitHub cache inventory, GitHub request queues, draft branches, PR lifecycle, publish/discard mechanics, or server fallback APIs.
+- [x] Existing local workflows for navigation editing, collection ordering, item edit, item create/delete, preview, and local rescan retain behavior.
+- [x] Tests cover local adapter workflow outputs and local-specific rescan/direct-write behavior through the shared workspace consumer.
+
+## Comments
+
+- Completed in this implementation. Local content discovery now derives a normalized workflow bootstrap from local adapter state, the pages workspace consumer reads local workflow data through the same vocabulary as GitHub while preserving local capabilities, and adapter tests pin local rescan/direct-write behavior away from GitHub cache, polling, and draft branch mechanics.

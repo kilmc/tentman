@@ -34,6 +34,19 @@ const workflowConfig = {
 	}
 } as unknown as DiscoveredConfig;
 
+const localWorkflowConfig = {
+	slug: 'guides',
+	path: 'content/guides.tentman.json',
+	config: {
+		label: 'Guides',
+		collection: true,
+		content: {
+			mode: 'directory' as const
+		},
+		blocks: []
+	}
+} as unknown as DiscoveredConfig;
+
 const instructionDiscovery = {
 	instructions: [
 		{
@@ -177,6 +190,127 @@ describe('pages workspace consumer', () => {
 				siteName: 'Workflow Site'
 			},
 			canAddPage: true
+		});
+	});
+
+	it('resolves local workspace data from normalized workflow capabilities without GitHub mechanics', () => {
+		const surface = resolvePagesWorkspaceSurface({
+			selectedBackend: {
+				kind: 'local',
+				repo: {
+					name: 'Docs',
+					pathLabel: '~/Docs'
+				}
+			},
+			layoutData: {
+				...EMPTY_REPO_CONFIGS_BOOTSTRAP,
+				selectedRepo: {
+					full_name: 'acme/docs'
+				},
+				workflowData: {
+					identity: {
+						mode: 'github',
+						workspaceKey: 'github:acme/docs',
+						workspaceLabel: 'acme/docs',
+						dataSetKey: 'dataset:stale',
+						resolvedAt: 1,
+						hasEditableDraft: true
+					},
+					configs: [workflowConfig],
+					rootConfig: {
+						siteName: 'Stale GitHub Site'
+					},
+					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+					blockSupport: {
+						blockConfigs: [],
+						packageBlocks: [],
+						error: null,
+						readiness: 'ready',
+						cacheMiss: null
+					},
+					changedContentPaths: ['github-only.md'],
+					freshness: {
+						identity: null,
+						status: 'changed',
+						unchanged: false,
+						changedContentPaths: ['github-only.md'],
+						error: null,
+						recovery: null
+					}
+				}
+			},
+			localContent: {
+				...EMPTY_REPO_CONFIGS_BOOTSTRAP,
+				status: 'ready',
+				configs: [localConfig],
+				rootConfig: {
+					siteName: 'Legacy Local Site'
+				},
+				workflowData: {
+					identity: {
+						mode: 'local',
+						workspaceKey: 'local:docs',
+						workspaceLabel: 'Docs',
+						dataSetKey: 'dataset:local',
+						resolvedAt: 2,
+						hasEditableDraft: false
+					},
+					configs: [localWorkflowConfig],
+					rootConfig: {
+						siteName: 'Workflow Local Site'
+					},
+					navigationManifest: {
+						path: 'tentman/navigation-manifest.json',
+						exists: true,
+						manifest: {
+							version: 1,
+							content: {
+								items: [{ id: 'guides' }]
+							}
+						},
+						error: null
+					},
+					blockSupport: {
+						blockConfigs: [],
+						packageBlocks: [],
+						error: null,
+						readiness: 'ready',
+						cacheMiss: null
+					},
+					changedContentPaths: [],
+					freshness: {
+						identity: null,
+						status: 'unchanged',
+						unchanged: true,
+						changedContentPaths: [],
+						error: null,
+						recovery: null
+					}
+				},
+				instructionDiscovery
+			}
+		});
+
+		expect(surface).toMatchObject({
+			mode: 'local',
+			capabilities: {
+				canRefreshWorkspace: true,
+				canClearCache: false,
+				canWarmRoutes: false,
+				canUseDraftBranches: false
+			},
+			configs: [localWorkflowConfig],
+			rootConfig: {
+				siteName: 'Workflow Local Site'
+			},
+			repoLabel: '~/Docs',
+			canAddPage: true
+		});
+		expect(surface.navigationManifest.manifest).toEqual({
+			version: 1,
+			content: {
+				items: [{ id: 'guides' }]
+			}
 		});
 	});
 

@@ -24,12 +24,81 @@ const draftBranchMock = vi.hoisted(() => ({
 	clear: vi.fn()
 }));
 
+const localMocks = vi.hoisted(() => {
+	const backend = {
+		kind: 'local' as const,
+		cacheKey: 'local:docs',
+		label: 'Docs',
+		supportsDraftBranches: false
+	};
+	const state = {
+		status: 'ready' as const,
+		configs: [],
+		blockConfigs: [],
+		navigationManifest: {
+			path: 'tentman/navigation-manifest.json',
+			exists: true,
+			manifest: {
+				version: 1 as const,
+				content: {
+					items: []
+				}
+			},
+			error: null
+		},
+		rootConfig: null,
+		blockRegistryError: null,
+		error: null
+	};
+	type Subscriber = (value: typeof state) => void;
+	const subscribers = new Set<Subscriber>();
+
+	return {
+		backend,
+		writeNavigationManifest: vi.fn(),
+		saveCollectionOrder: vi.fn(),
+		localRepo: {
+			subscribe(subscriber: (value: { backend: typeof backend }) => void) {
+				subscriber({ backend });
+				return () => {};
+			},
+			clear: vi.fn()
+		},
+		localContent: {
+			subscribe(subscriber: Subscriber) {
+				subscriber(state);
+				subscribers.add(subscriber);
+				return () => subscribers.delete(subscriber);
+			},
+			refresh: vi.fn(async () => {
+				for (const subscriber of subscribers) {
+					subscriber(state);
+				}
+			}),
+			reset: vi.fn()
+		}
+	};
+});
+
 vi.mock('$lib/stores/github-repository-cache', () => ({
 	githubRepositoryCache: githubRepositoryCacheMock
 }));
 
 vi.mock('$lib/stores/draft-branch', () => ({
 	draftBranch: draftBranchMock
+}));
+
+vi.mock('$lib/stores/local-repo', () => ({
+	localRepo: localMocks.localRepo
+}));
+
+vi.mock('$lib/stores/local-content', () => ({
+	localContent: localMocks.localContent
+}));
+
+vi.mock('$lib/features/content-management/navigation-manifest', () => ({
+	writeNavigationManifest: localMocks.writeNavigationManifest,
+	saveCollectionOrder: localMocks.saveCollectionOrder
 }));
 
 function createGitHubContext(fetcher: typeof fetch): PagesWorkspaceAdapterContext {
@@ -48,6 +117,30 @@ function createGitHubContext(fetcher: typeof fetch): PagesWorkspaceAdapterContex
 		bootstrap: EMPTY_REPO_CONFIGS_BOOTSTRAP,
 		getConfigs: () => [],
 		getNavigationManifest: () => null,
+		getRootConfig: () => null,
+		getCurrentConfig: () => null,
+		getRoutePath: () => '/pages',
+		redirectToExpiredSession: vi.fn(),
+		switchToRepos: vi.fn(),
+		resolveEndpoint: (path) => `/base${path}`
+	};
+}
+
+function createLocalContext(fetcher: typeof fetch): PagesWorkspaceAdapterContext {
+	return {
+		mode: 'local',
+		fetcher,
+		selectedRepo: null,
+		repositoryIdentity: null,
+		activeDraftBranch: null,
+		bootstrap: EMPTY_REPO_CONFIGS_BOOTSTRAP,
+		getConfigs: () => [],
+		getNavigationManifest: () => ({
+			version: 1,
+			content: {
+				items: []
+			}
+		}),
 		getRootConfig: () => null,
 		getCurrentConfig: () => null,
 		getRoutePath: () => '/pages',
@@ -102,5 +195,54 @@ describe('pages workspace adapter', () => {
 			'tentman/navigation-manifest.json'
 		]);
 		expect(draftBranchMock.setBranch).toHaveBeenCalledWith('tentman-draft', 'acme/docs');
+	});
+
+	it('rescans local workspaces through local content without warming GitHub caches', async () => {
+		const fetcher = vi.fn() as unknown as typeof fetch;
+		const adapter = createPagesWorkspaceAdapter(createLocalContext(fetcher));
+
+		const result = await adapter.refreshWorkspace();
+
+		expect(result).toMatchObject({
+			type: 'workspace-refreshed',
+			message: 'Found 0 content configs and 0 blocks.',
+			remountWorkspace: true
+		});
+		expect(localMocks.localContent.refresh).toHaveBeenCalledWith({ force: true });
+		expect(fetcher).not.toHaveBeenCalled();
+		expect(githubRepositoryCacheMock.hydrateFromBootstrap).not.toHaveBeenCalled();
+		expect(githubRepositoryCacheMock.startFreshnessScheduler).not.toHaveBeenCalled();
+	});
+
+	it('saves local navigation through direct local writes without draft branches', async () => {
+		const fetcher = vi.fn() as unknown as typeof fetch;
+		const adapter = createPagesWorkspaceAdapter(createLocalContext(fetcher));
+		const manifest = {
+			version: 1 as const,
+			content: {
+				items: []
+			}
+		};
+
+		const result = await adapter.saveNavigation({ manifest });
+
+		expect(result).toMatchObject({
+			type: 'navigation-saved',
+			message: 'Navigation saved.',
+			invalidateWorkspace: true,
+			localCollections: {},
+			localConfigStates: {}
+		});
+		expect(localMocks.writeNavigationManifest).toHaveBeenCalledWith(
+			localMocks.backend,
+			manifest,
+			{
+				message: 'Update Tentman navigation manifest'
+			}
+		);
+		expect(localMocks.localContent.refresh).toHaveBeenCalledWith({ force: true });
+		expect(fetcher).not.toHaveBeenCalled();
+		expect(githubRepositoryCacheMock.invalidatePaths).not.toHaveBeenCalled();
+		expect(draftBranchMock.setBranch).not.toHaveBeenCalled();
 	});
 });

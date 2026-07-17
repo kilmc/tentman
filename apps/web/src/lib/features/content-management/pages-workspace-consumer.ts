@@ -48,6 +48,7 @@ type LocalWorkspaceData = {
 	rootConfig?: RootConfig | null;
 	navigationManifest?: NavigationManifestState | null;
 	instructionDiscovery?: InstructionDiscoveryResult | null;
+	workflowData?: WorkflowWorkspaceBootstrapData | null;
 };
 
 export type ResolvePagesWorkspaceSurfaceInput = {
@@ -223,7 +224,12 @@ export function resolvePagesWorkspaceSurface(
 	input: ResolvePagesWorkspaceSurfaceInput
 ): PagesWorkspaceSurface {
 	const mode = getMode(input.selectedBackend);
-	const workflowData = mode === 'github' ? input.layoutData.workflowData ?? null : null;
+	const workflowData =
+		mode === 'local'
+			? (input.localContent.workflowData ?? null)
+			: mode === 'github'
+				? (input.layoutData.workflowData ?? null)
+				: null;
 	const instructionDiscovery = getInstructionDiscovery(
 		mode,
 		input.layoutData,
@@ -236,15 +242,17 @@ export function resolvePagesWorkspaceSurface(
 		capabilities: CAPABILITIES_BY_MODE[mode],
 		configs:
 			mode === 'local'
-				? (input.localContent.configs ?? [])
+				? (workflowData?.configs ?? input.localContent.configs ?? [])
 				: (workflowData?.configs ?? input.layoutData.configs ?? []),
 		rootConfig:
 			mode === 'local'
-				? (input.localContent.rootConfig ?? null)
+				? (workflowData?.rootConfig ?? input.localContent.rootConfig ?? null)
 				: (workflowData?.rootConfig ?? input.layoutData.rootConfig ?? null),
 		navigationManifest:
 			mode === 'local'
-				? (input.localContent.navigationManifest ?? EMPTY_NAVIGATION_MANIFEST)
+				? (workflowData?.navigationManifest ??
+					input.localContent.navigationManifest ??
+					EMPTY_NAVIGATION_MANIFEST)
 				: (workflowData?.navigationManifest ??
 					input.layoutData.navigationManifest ??
 					EMPTY_NAVIGATION_MANIFEST),
