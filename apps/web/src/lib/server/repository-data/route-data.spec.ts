@@ -90,6 +90,14 @@ const backend = {
 	label: 'acme/docs'
 } as never;
 
+function expectNoRouteDataFallbackEvents() {
+	expect(
+		getWorkflowInstrumentationEventsForTests().filter(
+			(event) => event.kind === 'route-data-fallback'
+		)
+	).toEqual([]);
+}
+
 describe('repository-data route data', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -201,6 +209,7 @@ describe('repository-data route data', () => {
 			slug: 'posts'
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
+		expectNoRouteDataFallbackEvents();
 	});
 
 	it('falls back to legacy content cache for singleton page content when indexing cannot answer', async () => {
@@ -239,6 +248,36 @@ describe('repository-data route data', () => {
 			singletonConfig.path,
 			singletonConfig.slug
 		);
+	});
+
+	it('uses repository-data singleton page content when available', async () => {
+		vi.mocked(getSingletonDocument).mockResolvedValue({
+			title: 'About from index'
+		});
+
+		const result = await resolvePageViewContentForRoute({
+			backend,
+			discoveredConfig: singletonConfig as never
+		});
+
+		expect(result).toMatchObject({
+			source: 'repository-data',
+			content: {
+				title: 'About from index'
+			},
+			collectionNavigation: null,
+			workflowData: {
+				slug: 'about',
+				readiness: 'ready',
+				cacheMiss: null
+			}
+		});
+		expect(getSingletonDocument).toHaveBeenCalledWith({
+			backend,
+			slug: 'about'
+		});
+		expect(getCachedContent).not.toHaveBeenCalled();
+		expectNoRouteDataFallbackEvents();
 	});
 
 	it('falls back to legacy content cache for singleton config states when indexing cannot answer', async () => {
@@ -359,6 +398,7 @@ describe('repository-data route data', () => {
 			}
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
+		expectNoRouteDataFallbackEvents();
 	});
 
 	it('uses repository-data for collection item route lookups when available', async () => {
@@ -393,6 +433,7 @@ describe('repository-data route data', () => {
 			itemId: 'hello-world'
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
+		expectNoRouteDataFallbackEvents();
 	});
 
 	it('exposes mode-neutral workflow data for collection item route lookups', async () => {
@@ -433,6 +474,7 @@ describe('repository-data route data', () => {
 				cacheMiss: null
 			}
 		});
+		expectNoRouteDataFallbackEvents();
 	});
 
 	it('falls back to legacy collection lookup for unsupported item resolvers', async () => {

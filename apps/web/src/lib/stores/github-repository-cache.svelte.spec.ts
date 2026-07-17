@@ -598,7 +598,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			workflow: 'desktop-collection-landing',
 			route: '/pages/posts',
 			maxBrowserRequests: 2,
-			maxGitHubRequests: 0
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 2
 		});
 	});
 
@@ -651,7 +653,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			workflow: 'warm-collection-reload',
 			route: '/pages/posts',
 			maxBrowserRequests: 0,
-			maxGitHubRequests: 0
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 0
 		});
 	});
 

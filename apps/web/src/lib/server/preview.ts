@@ -5,6 +5,7 @@ import type { ContentRecord } from '$lib/features/content-management/types';
 import type { RepositoryBackend } from '$lib/repository/types';
 import { resolveCollectionItemDocument } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
+import { logRouteDataFallback } from '$lib/utils/workflow-instrumentation';
 
 export function parseEncodedPreviewContentData(encodedData: string): ContentRecord {
 	return JSON.parse(Buffer.from(encodedData, 'base64url').toString()) as ContentRecord;
@@ -51,6 +52,13 @@ async function resolveExistingDirectoryItemFilename({
 		return resolvedItem.indexItem.filename;
 	}
 
+	logRouteDataFallback({
+		route: `/pages/${discoveredConfig.slug}/${itemId}/preview-changes`,
+		slug: discoveredConfig.slug,
+		itemId,
+		source: 'preview-filename',
+		reason: 'directory item filename repository-data unavailable'
+	});
 	const content = await getCachedContent(
 		backend,
 		discoveredConfig.config,

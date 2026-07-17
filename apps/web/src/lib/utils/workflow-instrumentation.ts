@@ -130,6 +130,7 @@ export interface RequestBudgetAssertion {
 	maxBrowserRequests?: number;
 	maxGitHubRequests?: number;
 	maxRequests?: number;
+	maxRouteDataFallbacks?: number;
 	maxDurationMs?: number;
 }
 
@@ -394,30 +395,41 @@ export function getWorkflowInstrumentationEventsForTests(): WorkflowInstrumentat
 }
 
 export function assertWorkflowRequestBudgetForTests(assertion: RequestBudgetAssertion): void {
-	const events = recordedEvents.filter((event) => {
-		if (assertion.workflow && 'workflow' in event && event.workflow !== assertion.workflow) {
-			return false;
-		}
-		if (assertion.workflow && !('workflow' in event)) {
-			return false;
-		}
+	const matchesRoute = (event: WorkflowInstrumentationEvent): boolean => {
 		if (assertion.route && !('route' in event)) {
 			return false;
 		}
 		if (assertion.route && 'route' in event && event.route !== assertion.route) {
 			return false;
 		}
+		return true;
+	};
+	const requestEvents = recordedEvents.filter((event) => {
+		if (assertion.workflow && 'workflow' in event && event.workflow !== assertion.workflow) {
+			return false;
+		}
+		if (assertion.workflow && !('workflow' in event)) {
+			return false;
+		}
+		if (!matchesRoute(event)) {
+			return false;
+		}
 		return event.kind === 'browser-request' || event.kind === 'github-request';
 	});
-	const browserRequests = events.filter((event) => event.kind === 'browser-request');
-	const githubRequests = events.filter((event) => event.kind === 'github-request');
-	const totalDurationMs = events.reduce(
+	const fallbackEvents = recordedEvents.filter(
+		(event) => event.kind === 'route-data-fallback' && matchesRoute(event)
+	);
+	const browserRequests = requestEvents.filter((event) => event.kind === 'browser-request');
+	const githubRequests = requestEvents.filter((event) => event.kind === 'github-request');
+	const totalDurationMs = requestEvents.reduce(
 		(total, event) => total + ('durationMs' in event ? event.durationMs : 0),
 		0
 	);
 
-	if (assertion.maxRequests !== undefined && events.length > assertion.maxRequests) {
-		throw new Error(`Expected at most ${assertion.maxRequests} requests, got ${events.length}.`);
+	if (assertion.maxRequests !== undefined && requestEvents.length > assertion.maxRequests) {
+		throw new Error(
+			`Expected at most ${assertion.maxRequests} requests, got ${requestEvents.length}.`
+		);
 	}
 	if (
 		assertion.maxBrowserRequests !== undefined &&
@@ -433,6 +445,14 @@ export function assertWorkflowRequestBudgetForTests(assertion: RequestBudgetAsse
 	) {
 		throw new Error(
 			`Expected at most ${assertion.maxGitHubRequests} GitHub requests, got ${githubRequests.length}.`
+		);
+	}
+	if (
+		assertion.maxRouteDataFallbacks !== undefined &&
+		fallbackEvents.length > assertion.maxRouteDataFallbacks
+	) {
+		throw new Error(
+			`Expected at most ${assertion.maxRouteDataFallbacks} route-data fallbacks, got ${fallbackEvents.length}.`
 		);
 	}
 	if (assertion.maxDurationMs !== undefined && totalDurationMs > assertion.maxDurationMs) {

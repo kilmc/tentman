@@ -915,6 +915,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			route: '/pages/news',
 			maxBrowserRequests: 4,
 			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
 			maxRequests: 4
 		});
 	});

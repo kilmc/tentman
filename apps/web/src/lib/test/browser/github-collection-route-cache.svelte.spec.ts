@@ -4,6 +4,10 @@ import {
 	githubRepositoryCache,
 	githubRepositoryCacheTestApi
 } from '$lib/stores/github-repository-cache';
+import {
+	assertWorkflowRequestBudgetForTests,
+	clearWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 import { load as loadCollectionLanding } from '../../../routes/pages/[page]/+page';
 import { load as loadItemView } from '../../../routes/pages/[page]/[itemId]/+page';
 import { load as loadItemEditView } from '../../../routes/pages/[page]/[itemId]/edit/+page';
@@ -183,10 +187,12 @@ function createItemLoadEvent(
 describe('GitHub collection route cache in the browser', () => {
 	beforeEach(async () => {
 		await githubRepositoryCacheTestApi.reset();
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	afterEach(async () => {
 		await githubRepositoryCacheTestApi.reset();
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	it('returns warm collection navigation without calling the page-view endpoint', async () => {
@@ -241,6 +247,14 @@ describe('GitHub collection route cache in the browser', () => {
 				method: 'POST'
 			})
 		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'desktop-collection-landing',
+			route: '/pages/projects',
+			maxBrowserRequests: 2,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 2
+		});
 
 		await expect(githubRepositoryCache.getCollectionNavigation('projects')).resolves.toMatchObject({
 			items: [{ title: 'Panorama 4' }]
@@ -286,6 +300,14 @@ describe('GitHub collection route cache in the browser', () => {
 
 		expect(fetch).toHaveBeenCalledTimes(1);
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/about',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('opens a cached singleton route by fetching only missing block support', async () => {
@@ -327,6 +349,14 @@ describe('GitHub collection route cache in the browser', () => {
 
 		expect(fetch).toHaveBeenCalledTimes(1);
 		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=about');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/about',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('uses a cached item document without calling the item-view endpoint', async () => {
@@ -385,6 +415,14 @@ describe('GitHub collection route cache in the browser', () => {
 		expect(fetch).toHaveBeenCalledTimes(2);
 		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
 		expect(fetch).toHaveBeenNthCalledWith(2, '/api/repo/form-config?slug=projects');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/projects/panorama-4',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('fetches only the selected item view when an indexed item document is not cached', async () => {
@@ -439,6 +477,14 @@ describe('GitHub collection route cache in the browser', () => {
 			2,
 			'/api/repo/item-view?slug=projects&itemId=panorama-4'
 		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/projects/panorama-4',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 		await expect(
 			githubRepositoryCache.getItemDocumentForRoute({
 				slug: 'projects',

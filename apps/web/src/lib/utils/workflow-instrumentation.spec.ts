@@ -57,7 +57,9 @@ describe('workflow instrumentation', () => {
 		expect(() =>
 			assertWorkflowRequestBudgetForTests({
 				workflow: 'desktop-collection-landing',
+				route: '/pages/posts',
 				maxBrowserRequests: 1,
+				maxRouteDataFallbacks: 0,
 				maxRequests: 1
 			})
 		).not.toThrow();
@@ -146,6 +148,7 @@ describe('workflow instrumentation', () => {
 				route: '/pages/posts/hello',
 				maxBrowserRequests: 1,
 				maxGitHubRequests: 0,
+				maxRouteDataFallbacks: 0,
 				maxRequests: 1
 			})
 		).not.toThrow();
