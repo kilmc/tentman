@@ -4,7 +4,7 @@
 
 **Blocked by:** 17 — Diagnose cache progress, Review Draft, and return timings.
 
-**Status:** ready-for-human
+**Status:** complete
 
 - [x] A repeatable regression covers the live failure shape where a collection has returned index/projection data but the UI renders an empty state.
 - [x] Desktop/sidebar GitHub collection pages render item navigation or item cards after indexed projection data is available.
@@ -20,3 +20,4 @@
   - `node /Users/kilmc/code/tentman/tentman/scripts/run-vitest.mjs --browser run --project client src/lib/test/browser/manual-navigation-sidebar.svelte.spec.ts`
   - `node /Users/kilmc/code/tentman/tentman/scripts/run-vitest.mjs --browser run --project client src/lib/test/browser/github-collection-route-cache.svelte.spec.ts`
   - `npm run check`
+- 2026-07-17 live QA against `kilmc/theresagrieben` passed the release-risk checks: `/pages/projects` loaded usable collection navigation and showed loading instead of `No items yet`; `/pages/news` was slow but loaded without showing `No items yet`; cache progress jumped as expected when larger collection inventory was discovered.
