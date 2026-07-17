@@ -6,6 +6,8 @@ const { privateEnv } = vi.hoisted(() => ({
 		GITHUB_CLIENT_SECRET: '',
 		GITHUB_OAUTH_CALLBACK_URL: '',
 		GITHUB_SESSION_SECRET: '',
+		SITE_NAME: '',
+		URL: '',
 		NODE_ENV: 'test'
 	}
 }));
@@ -97,6 +99,8 @@ function setPrivateEnv(values: Partial<typeof privateEnv>) {
 	privateEnv.GITHUB_CLIENT_SECRET = values.GITHUB_CLIENT_SECRET ?? '';
 	privateEnv.GITHUB_OAUTH_CALLBACK_URL = values.GITHUB_OAUTH_CALLBACK_URL ?? '';
 	privateEnv.GITHUB_SESSION_SECRET = values.GITHUB_SESSION_SECRET ?? '';
+	privateEnv.SITE_NAME = values.SITE_NAME ?? '';
+	privateEnv.URL = values.URL ?? '';
 	privateEnv.NODE_ENV = values.NODE_ENV ?? 'test';
 }
 
@@ -481,9 +485,48 @@ describe('server/auth/github', () => {
 		).toBe('https://deploy-preview-40--tentman.netlify.app/auth/callback');
 	});
 
+	it('uses the Netlify main site URL as the GitHub OAuth callback from deploy previews', () => {
+		setPrivateEnv({
+			SITE_NAME: 'tentman',
+			URL: 'https://tentman.netlify.app'
+		});
+
+		expect(
+			getGitHubOAuthCallbackUrl(
+				new URL('https://deploy-preview-40--tentman.netlify.app/auth/login')
+			)
+		).toBe('https://tentman.netlify.app/auth/callback');
+	});
+
+	it('uses custom Netlify main site URLs as the GitHub OAuth callback from deploy previews', () => {
+		setPrivateEnv({
+			SITE_NAME: 'tentman',
+			URL: 'https://admin.tentman.dev'
+		});
+
+		expect(
+			getGitHubOAuthCallbackUrl(
+				new URL('https://deploy-preview-40--tentman.netlify.app/auth/login')
+			)
+		).toBe('https://admin.tentman.dev/auth/callback');
+	});
+
+	it('does not use the Netlify main site URL outside matching deploy hosts', () => {
+		setPrivateEnv({
+			SITE_NAME: 'tentman',
+			URL: 'https://tentman.netlify.app'
+		});
+
+		expect(getGitHubOAuthCallbackUrl(new URL('http://localhost:5173/auth/login'))).toBe(
+			'http://localhost:5173/auth/callback'
+		);
+	});
+
 	it('uses the configured GitHub OAuth callback URL when present', () => {
 		setPrivateEnv({
-			GITHUB_OAUTH_CALLBACK_URL: 'https://tentman.netlify.app/auth/callback'
+			GITHUB_OAUTH_CALLBACK_URL: 'https://tentman.netlify.app/auth/callback',
+			SITE_NAME: 'tentman',
+			URL: 'https://other-tentman.netlify.app'
 		});
 
 		expect(

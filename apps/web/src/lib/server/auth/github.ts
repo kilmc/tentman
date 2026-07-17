@@ -134,6 +134,11 @@ export function getGitHubOAuthCallbackUrl(requestUrl: URL): string {
 	const configuredCallbackUrl = env.GITHUB_OAUTH_CALLBACK_URL?.trim();
 
 	if (!configuredCallbackUrl) {
+		const netlifySiteUrl = getNetlifyMainSiteUrlForDeployHost(requestUrl);
+		if (netlifySiteUrl) {
+			return new URL('/auth/callback', netlifySiteUrl).toString();
+		}
+
 		return new URL('/auth/callback', requestUrl).toString();
 	}
 
@@ -150,6 +155,32 @@ export function getGitHubOAuthCallbackUrl(requestUrl: URL): string {
 			503,
 			'GitHub OAuth callback URL is not configured correctly. Set GITHUB_OAUTH_CALLBACK_URL to a full http or https URL.'
 		);
+	}
+}
+
+function getNetlifyMainSiteUrlForDeployHost(requestUrl: URL): URL | null {
+	const siteName = env.SITE_NAME?.trim();
+	const siteUrl = env.URL?.trim();
+
+	if (!siteName || !siteUrl) {
+		return null;
+	}
+
+	const expectedDeployHostSuffix = `--${siteName}.netlify.app`;
+	if (!requestUrl.hostname.endsWith(expectedDeployHostSuffix)) {
+		return null;
+	}
+
+	try {
+		const parsedSiteUrl = new URL(siteUrl);
+
+		if (parsedSiteUrl.protocol !== 'http:' && parsedSiteUrl.protocol !== 'https:') {
+			return null;
+		}
+
+		return parsedSiteUrl;
+	} catch {
+		return null;
 	}
 }
 
