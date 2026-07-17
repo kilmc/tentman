@@ -10,6 +10,7 @@ import type { RepositoryBackend } from '$lib/repository/types';
 import type { RepositorySnapshot } from '$lib/server/repository-data';
 import { isConfigContentFileChange } from '$lib/server/repository-data/path-classification';
 import { getChangedDirectoryReviewDocuments } from '$lib/server/repository-data/review-documents';
+import { logRouteDataFallback } from '$lib/utils/workflow-instrumentation';
 import {
 	classifyReviewDraftChangedFiles,
 	type ReviewDraftChangedFile,
@@ -24,6 +25,7 @@ import type {
 	OtherSiteChangesFile,
 	OtherSiteChangesReview,
 	PublishReviewModel,
+	PublishReviewStatus,
 	ReviewSection
 } from './types';
 
@@ -91,6 +93,33 @@ function canUseScopedDirectoryReview(input: {
 	);
 }
 
+function buildReviewStatus(input: {
+	changedFileCount: number;
+	degradedChanges: PublishReviewStatus['degradedChanges'];
+	usedChangedDocuments: boolean;
+}): PublishReviewStatus {
+	if (input.degradedChanges.length) {
+		return {
+			mode: 'degraded',
+			source: 'unsupported-scope',
+			message:
+				'Tentman used the scoped compare result and skipped collection-wide document comparison for changes that need a narrower review path.',
+			changedFileCount: input.changedFileCount,
+			degradedChanges: input.degradedChanges
+		};
+	}
+
+	return {
+		mode: 'scoped',
+		source: input.usedChangedDocuments ? 'changed-documents' : 'compare-metadata',
+		message: input.usedChangedDocuments
+			? 'Tentman reviewed only the changed documents from this draft.'
+			: 'Tentman summarized this draft from compare metadata.',
+		changedFileCount: input.changedFileCount,
+		degradedChanges: []
+	};
+}
+
 export async function buildPublishReviewModel(input: {
 	octokit: Octokit;
 	owner: string;
@@ -142,7 +171,9 @@ export async function buildPublishReviewModel(input: {
 		input.draftSnapshot
 			? Promise.resolve(input.draftSnapshot.navigationManifest)
 			: loadNavigationManifestState(draftBackend),
-		input.baseSnapshot ? Promise.resolve(input.baseSnapshot.rootConfig) : baseBackend.readRootConfig(),
+		input.baseSnapshot
+			? Promise.resolve(input.baseSnapshot.rootConfig)
+			: baseBackend.readRootConfig(),
 		input.draftSnapshot
 			? Promise.resolve(input.draftSnapshot.rootConfig)
 			: draftBackend.readRootConfig()
@@ -150,6 +181,8 @@ export async function buildPublishReviewModel(input: {
 	const draftConfigMap = new Map(draftConfigs.map((config) => [config.slug, config]));
 	const sections: ReviewSection[] = [];
 	const unmappedConfigFiles: OtherSiteChangesFile[] = [];
+	const degradedChanges: PublishReviewStatus['degradedChanges'] = [];
+	let usedChangedDocuments = false;
 	const candidateSlugs = new Set(candidateChanges.configFilesBySlug.keys());
 
 	if (candidateChanges.manifestChanged) {
@@ -207,30 +240,60 @@ export async function buildPublishReviewModel(input: {
 			baseAssets: baseRootConfig?.assets ?? null,
 			draftAssets: draftRootConfig?.assets ?? null
 		};
-		const scopedDocuments = shouldReviewContent && canUseScopedDirectoryReview({
-			config: draftConfig,
-			files: configFiles
-		})
-			? await getChangedDirectoryReviewDocuments({
-					baseBackend,
-					draftBackend,
-					config: draftConfig.config,
-					configPath: draftConfig.path,
-					files: configFiles,
-					baseBranch: input.baseBranch,
-					draftBranch: input.draftBranch
-				})
-			: null;
-		const fullDocuments = scopedDocuments || !shouldReviewContent
-			? null
-			: await Promise.all([
-					fetchContentDocument(baseBackend, baseConfig.config, baseConfig.path, {
-						branch: input.baseBranch
-					}),
-					fetchContentDocument(draftBackend, draftConfig.config, draftConfig.path, {
-						branch: input.draftBranch
+		const scopedDocuments =
+			shouldReviewContent &&
+			canUseScopedDirectoryReview({
+				config: draftConfig,
+				files: configFiles
+			})
+				? await getChangedDirectoryReviewDocuments({
+						baseBackend,
+						draftBackend,
+						config: draftConfig.config,
+						configPath: draftConfig.path,
+						files: configFiles,
+						baseBranch: input.baseBranch,
+						draftBranch: input.draftBranch
 					})
-				]);
+				: null;
+		if (scopedDocuments) {
+			usedChangedDocuments = true;
+		}
+		if (shouldReviewContent && !scopedDocuments && draftConfig.config.collection) {
+			const reason = `${draftConfig.config.label} needs collection-wide comparison, which is unsupported on the scoped publish-summary path.`;
+			degradedChanges.push({
+				slug: draftConfig.slug,
+				label: draftConfig.config.label,
+				reason
+			});
+			logRouteDataFallback({
+				route: '/publish',
+				slug: draftConfig.slug,
+				source: 'publish-summary',
+				reason
+			});
+			for (const file of configFiles) {
+				unmappedConfigFiles.push({
+					path: file.filename,
+					status: file.status
+				});
+			}
+			continue;
+		}
+		const fullDocuments =
+			scopedDocuments || !shouldReviewContent
+				? null
+				: await Promise.all([
+						fetchContentDocument(baseBackend, baseConfig.config, baseConfig.path, {
+							branch: input.baseBranch
+						}),
+						fetchContentDocument(draftBackend, draftConfig.config, draftConfig.path, {
+							branch: input.draftBranch
+						})
+					]);
+		if (fullDocuments) {
+			usedChangedDocuments = true;
+		}
 
 		const section = scopedDocuments
 			? buildScopedCollectionItemsReviewSection({
@@ -250,17 +313,17 @@ export async function buildPublishReviewModel(input: {
 						singleConfigVisible: false,
 						collectionOrderChange
 					})
-			: buildConfigReviewSection({
-					config: draftConfig,
-					beforeContent: fullDocuments?.[0] ?? [],
-					afterContent: fullDocuments?.[1] ?? [],
-					baseManifest,
-					draftManifest,
-					baseRootConfig,
-					draftRootConfig,
-					fieldOptions,
-					singleConfigVisible: false
-				});
+				: buildConfigReviewSection({
+						config: draftConfig,
+						beforeContent: fullDocuments?.[0] ?? [],
+						afterContent: fullDocuments?.[1] ?? [],
+						baseManifest,
+						draftManifest,
+						baseRootConfig,
+						draftRootConfig,
+						fieldOptions,
+						singleConfigVisible: false
+					});
 
 		if (section) {
 			sections.push(section);
@@ -346,6 +409,12 @@ export async function buildPublishReviewModel(input: {
 		topLevelOrderChange,
 		sections: finalSections,
 		otherSiteChanges,
-		hasHiddenUnreviewedChanges: candidateChanges.hiddenFiles.length > 0
+		hasHiddenUnreviewedChanges:
+			candidateChanges.hiddenFiles.length > 0 || degradedChanges.length > 0,
+		reviewStatus: buildReviewStatus({
+			changedFileCount: changedFiles.length,
+			degradedChanges,
+			usedChangedDocuments
+		})
 	};
 }

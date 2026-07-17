@@ -104,7 +104,14 @@ const baseData = {
 			files: [{ path: 'tentman.json', status: 'modified' as const }],
 			defaultExpanded: false
 		},
-		hasHiddenUnreviewedChanges: false
+		hasHiddenUnreviewedChanges: false,
+		reviewStatus: {
+			mode: 'scoped' as const,
+			source: 'changed-documents' as const,
+			message: 'Tentman reviewed only the changed documents from this draft.',
+			changedFileCount: 2,
+			degradedChanges: []
+		}
 	}
 };
 
@@ -146,6 +153,38 @@ describe('review draft publish page', () => {
 
 		await screen.getByRole('button', { name: 'Expand Other site changes' }).click();
 		await expectElement(screen.getByText('tentman.json')).toBeVisible();
+	});
+
+	it('shows partial scoped review status when broad review is degraded', async () => {
+		const screen = await render(PublishReviewPage, {
+			data: {
+				...baseData,
+				reviewModel: {
+					...baseData.reviewModel,
+					reviewStatus: {
+						mode: 'degraded' as const,
+						source: 'unsupported-scope' as const,
+						message:
+							'Tentman used the scoped compare result and skipped collection-wide document comparison for changes that need a narrower review path.',
+						changedFileCount: 3,
+						degradedChanges: [
+							{
+								slug: 'posts',
+								label: 'Posts',
+								reason:
+									'Posts needs collection-wide comparison, which is unsupported on the scoped publish-summary path.'
+							}
+						]
+					}
+				}
+			} as never
+		});
+
+		await expectElement(screen.getByText('Scoped review is partial')).toBeVisible();
+		await expectElement(
+			screen.getByText(/skipped collection-wide document comparison/)
+		).toBeVisible();
+		await expectElement(screen.getByText(/Posts needs collection-wide comparison/)).toBeVisible();
 	});
 
 	it('shows a blocked review warning and hides publish actions', async () => {

@@ -101,7 +101,13 @@ const baseData = {
 		draftBranch: null,
 		changedPages: [],
 		totalChanges: 0,
-		hasConfigs: true
+		hasConfigs: true,
+		status: {
+			mode: 'scoped' as const,
+			source: 'compare-metadata' as const,
+			message: 'Tentman summarized this draft from compare metadata.',
+			degradedPages: []
+		}
 	}
 };
 
@@ -151,6 +157,34 @@ describe('routes/pages/+page.svelte', () => {
 
 		await expectElement(screen.getByRole('heading', { name: 'Add a page' })).toBeVisible();
 		await expectElement(screen.getByRole('link', { name: 'Add page' })).toBeVisible();
+	});
+
+	it('shows degraded draft summary status when broad comparison is skipped', async () => {
+		const screen = await render(Page, {
+			data: {
+				...baseData,
+				summary: {
+					...baseData.summary,
+					status: {
+						mode: 'degraded' as const,
+						source: 'unsupported-scope' as const,
+						message:
+							'Tentman used scoped compare metadata and skipped collection-wide draft comparison for pages that need a narrower review path.',
+						degradedPages: [
+							{
+								slug: 'posts',
+								label: 'Posts',
+								reason:
+									'Posts needs full document comparison, which is unsupported on the scoped pages-summary path.'
+							}
+						]
+					}
+				}
+			}
+		});
+
+		await expectElement(screen.getByText('Draft review needs attention')).toBeVisible();
+		await expectElement(screen.getByText(/skipped collection-wide draft comparison/)).toBeVisible();
 	});
 
 	it('shows a local discovery error instead of the empty config state', async () => {

@@ -25,6 +25,10 @@ import { fetchContentDocument } from '$lib/content/service';
 import { loadNavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import { listChangedFilesBetweenRefs } from '$lib/github/branch';
 import { createGitHubRepositoryBackend } from '$lib/repository/github';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 import { buildPublishReviewModel } from './build-review-model';
 
 function canonicalManifest(manifest: NavigationManifestInput) {
@@ -108,6 +112,7 @@ function markdownPost(data: Record<string, string>): string {
 describe('buildPublishReviewModel', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearWorkflowInstrumentationEventsForTests();
 
 		vi.mocked(createGitHubRepositoryBackend).mockImplementation((_octokit, _repo, options) => {
 			const ref = options?.defaultRef;
@@ -430,6 +435,87 @@ describe('buildPublishReviewModel', () => {
 				}
 			]
 		});
+	});
+
+	it('reports unsupported collection reviews as degraded instead of fetching full documents', async () => {
+		const fileBackedCollectionConfig = {
+			slug: 'posts',
+			path: 'posts.tentman.json',
+			config: {
+				type: 'content',
+				label: 'Posts',
+				_tentmanId: 'posts',
+				idField: 'slug',
+				collection: true,
+				content: {
+					mode: 'file',
+					path: 'src/content/posts.json'
+				},
+				blocks: [{ id: 'title', type: 'text', label: 'Title' }]
+			}
+		};
+
+		const reviewModel = await buildPublishReviewModel({
+			octokit: {} as never,
+			owner: 'acme',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			},
+			backend: {} as never,
+			configs: [fileBackedCollectionConfig] as never,
+			baseBranch: 'main',
+			draftBranch: 'tentman-preview',
+			baseSnapshot: createSnapshot([fileBackedCollectionConfig] as never) as never,
+			draftSnapshot: createSnapshot([fileBackedCollectionConfig] as never) as never,
+			changedFiles: [
+				{
+					filename: 'src/content/posts.json',
+					status: 'modified'
+				}
+			]
+		});
+
+		expect(fetchContentDocument).not.toHaveBeenCalled();
+		expect(reviewModel.sections).toEqual([]);
+		expect(reviewModel.otherSiteChanges).toMatchObject({
+			files: [
+				{
+					path: 'src/content/posts.json',
+					status: 'modified'
+				}
+			]
+		});
+		expect(reviewModel.hasHiddenUnreviewedChanges).toBe(true);
+		expect(reviewModel.reviewStatus).toEqual({
+			mode: 'degraded',
+			source: 'unsupported-scope',
+			message:
+				'Tentman used the scoped compare result and skipped collection-wide document comparison for changes that need a narrower review path.',
+			changedFileCount: 1,
+			degradedChanges: [
+				{
+					slug: 'posts',
+					label: 'Posts',
+					reason:
+						'Posts needs collection-wide comparison, which is unsupported on the scoped publish-summary path.'
+				}
+			]
+		});
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'route-data-fallback',
+					route: '/publish',
+					slug: 'posts',
+					source: 'publish-summary',
+					reason:
+						'Posts needs collection-wide comparison, which is unsupported on the scoped publish-summary path.'
+				})
+			])
+		);
 	});
 
 	it('reviews manifest-only collection order changes without fetching full content documents', async () => {

@@ -107,14 +107,7 @@ describe('GET /api/repo/publish-view', () => {
 				configs
 			}
 		};
-		const draftSnapshot = {
-			configIndex: {
-				configs: configs.slice().reverse()
-			}
-		};
-		vi.mocked(getRepositorySnapshot)
-			.mockResolvedValueOnce(baseSnapshot as never)
-			.mockResolvedValueOnce(draftSnapshot as never);
+		vi.mocked(getRepositorySnapshot).mockResolvedValueOnce(baseSnapshot as never);
 		vi.mocked(getDraftChangeIndex).mockResolvedValue(draftChangeIndex as never);
 		vi.mocked(buildPublishReviewModel).mockResolvedValue({
 			topLevelOrderChange: {
@@ -136,7 +129,14 @@ describe('GET /api/repo/publish-view', () => {
 				}
 			],
 			otherSiteChanges: null,
-			hasHiddenUnreviewedChanges: false
+			hasHiddenUnreviewedChanges: false,
+			reviewStatus: {
+				mode: 'scoped',
+				source: 'changed-documents',
+				message: 'Tentman reviewed only the changed documents from this draft.',
+				changedFileCount: 1,
+				degradedChanges: []
+			}
 		});
 
 		const response = await GET({
@@ -167,19 +167,15 @@ describe('GET /api/repo/publish-view', () => {
 			draftBranch: 'tentman-preview',
 			configs
 		});
-		expect(getRepositorySnapshot).toHaveBeenNthCalledWith(1, {
+		expect(getRepositorySnapshot).toHaveBeenCalledTimes(1);
+		expect(getRepositorySnapshot).toHaveBeenCalledWith({
 			backend: { cacheKey: 'github:acme/docs' },
 			ref: 'trunk'
-		});
-		expect(getRepositorySnapshot).toHaveBeenNthCalledWith(2, {
-			backend: { cacheKey: 'github:acme/docs' },
-			ref: 'tentman-preview'
 		});
 		expect(buildPublishReviewModel).toHaveBeenCalledWith(
 			expect.objectContaining({
 				changedFiles: draftChangeIndex.files,
-				baseSnapshot,
-				draftSnapshot
+				baseSnapshot
 			})
 		);
 	});

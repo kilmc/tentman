@@ -8,18 +8,36 @@ export interface ChangedPageSummary {
 	isCollection: boolean;
 }
 
+export interface PagesOverviewSummaryStatus {
+	mode: 'scoped' | 'degraded';
+	source: 'compare-metadata' | 'unsupported-scope';
+	message: string;
+	degradedPages: Array<{
+		slug: string;
+		label: string;
+		reason: string;
+	}>;
+}
+
 export interface PagesOverviewSummary {
 	draftBranch: string | null;
 	changedPages: ChangedPageSummary[];
 	totalChanges: number;
 	hasConfigs: boolean;
+	status: PagesOverviewSummaryStatus;
 }
 
 export const EMPTY_PAGES_OVERVIEW_SUMMARY: PagesOverviewSummary = {
 	draftBranch: null,
 	changedPages: [],
 	totalChanges: 0,
-	hasConfigs: false
+	hasConfigs: false,
+	status: {
+		mode: 'scoped',
+		source: 'compare-metadata',
+		message: 'Tentman summarized this draft from compare metadata.',
+		degradedPages: []
+	}
 };
 
 export function createEmptyPagesOverviewSummary(hasConfigs: boolean): PagesOverviewSummary {
@@ -46,7 +64,8 @@ export function normalizePagesOverviewSummary(
 			typeof value?.totalChanges === 'number'
 				? value.totalChanges
 				: changedPages.reduce((total, page) => total + page.changeCount, 0),
-		hasConfigs: value?.hasConfigs ?? false
+		hasConfigs: value?.hasConfigs ?? false,
+		status: value?.status ?? EMPTY_PAGES_OVERVIEW_SUMMARY.status
 	};
 }
 

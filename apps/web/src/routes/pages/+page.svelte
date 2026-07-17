@@ -6,6 +6,7 @@
 	let { data }: { data: PageData } = $props();
 
 	const hasChanges = $derived(data.summary.changedPages.length > 0);
+	const hasDegradedSummary = $derived(data.summary.status.mode === 'degraded');
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const localDiscoveryError = $derived(isLocalMode ? $localContent.error : null);
 	const hasConfigs = $derived(
@@ -62,44 +63,57 @@
 				editing this site.
 			</p>
 		</section>
-	{:else if hasChanges}
+	{:else if hasChanges || hasDegradedSummary}
 		<section class="rounded-xl border border-stone-200 bg-white p-5">
+			{#if hasDegradedSummary}
+				<div
+					class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"
+				>
+					{data.summary.status.message}
+				</div>
+			{/if}
 			<div class="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-4">
 				<div>
 					<p class="text-xs font-semibold tracking-[0.22em] text-stone-500 uppercase">
 						Current state
 					</p>
 					<h2 class="mt-2 text-2xl font-bold tracking-[-0.04em] text-stone-950">
-						{data.summary.totalChanges}
-						{data.summary.totalChanges === 1 ? 'change' : 'changes'} waiting
+						{#if hasChanges}
+							{data.summary.totalChanges}
+							{data.summary.totalChanges === 1 ? 'change' : 'changes'} waiting
+						{:else}
+							Draft review needs attention
+						{/if}
 					</h2>
 				</div>
 			</div>
 
-			<div class="mt-4 grid gap-3">
-				{#each data.summary.changedPages as changedPage (changedPage.slug)}
-					<a
-						href={resolve(
-							changedPage.isCollection
-								? `/pages/${changedPage.slug}`
-								: `/pages/${changedPage.slug}/edit`
-						)}
-						class="grid gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 transition-colors hover:border-stone-300 hover:bg-white"
-					>
-						<div class="flex items-start justify-between gap-4">
-							<div>
-								<p class="text-lg font-semibold text-stone-950">{changedPage.label}</p>
-								<p class="mt-1 text-sm text-stone-500">
-									{changedPage.changeCount}
-									{changedPage.changeCount === 1 ? 'change' : 'changes'}
-									{changedPage.isCollection ? ' in this collection' : ' on this page'}
-								</p>
+			{#if hasChanges}
+				<div class="mt-4 grid gap-3">
+					{#each data.summary.changedPages as changedPage (changedPage.slug)}
+						<a
+							href={resolve(
+								changedPage.isCollection
+									? `/pages/${changedPage.slug}`
+									: `/pages/${changedPage.slug}/edit`
+							)}
+							class="grid gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 transition-colors hover:border-stone-300 hover:bg-white"
+						>
+							<div class="flex items-start justify-between gap-4">
+								<div>
+									<p class="text-lg font-semibold text-stone-950">{changedPage.label}</p>
+									<p class="mt-1 text-sm text-stone-500">
+										{changedPage.changeCount}
+										{changedPage.changeCount === 1 ? 'change' : 'changes'}
+										{changedPage.isCollection ? ' in this collection' : ' on this page'}
+									</p>
+								</div>
+								<span class="text-sm font-semibold text-stone-700">Open</span>
 							</div>
-							<span class="text-sm font-semibold text-stone-700">Open</span>
-						</div>
-					</a>
-				{/each}
-			</div>
+						</a>
+					{/each}
+				</div>
+			{/if}
 		</section>
 	{:else}
 		<section

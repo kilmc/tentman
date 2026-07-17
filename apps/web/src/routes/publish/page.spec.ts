@@ -27,7 +27,14 @@ describe('routes/publish/+page', () => {
 							topLevelOrderChange: null,
 							sections: [],
 							otherSiteChanges: null,
-							hasHiddenUnreviewedChanges: false
+							hasHiddenUnreviewedChanges: false,
+							reviewStatus: {
+								mode: 'scoped',
+								source: 'compare-metadata',
+								message: 'Tentman summarized this draft from compare metadata.',
+								changedFileCount: 0,
+								degradedChanges: []
+							}
 						}
 					}),
 					{
@@ -67,7 +74,14 @@ describe('routes/publish/+page', () => {
 				topLevelOrderChange: null,
 				sections: [],
 				otherSiteChanges: null,
-				hasHiddenUnreviewedChanges: false
+				hasHiddenUnreviewedChanges: false,
+				reviewStatus: {
+					mode: 'scoped',
+					source: 'compare-metadata',
+					message: 'Tentman summarized this draft from compare metadata.',
+					changedFileCount: 0,
+					degradedChanges: []
+				}
 			}
 		});
 

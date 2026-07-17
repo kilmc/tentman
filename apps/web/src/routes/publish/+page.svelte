@@ -15,6 +15,9 @@
 	let discarding = $state(false);
 	const reviewModel = $derived(data.reviewModel);
 	const blockedReview = $derived(data.blockedReview);
+	const degradedReviewStatus = $derived(
+		reviewModel?.reviewStatus.mode === 'degraded' ? reviewModel.reviewStatus : null
+	);
 
 	const confirmDiscard = () =>
 		confirm('Are you sure you want to discard all draft changes? This cannot be undone.');
@@ -209,6 +212,20 @@
 			{/if}
 		</section>
 	{:else if reviewModel}
+		{#if degradedReviewStatus}
+			<section class="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
+				<p class="text-sm font-semibold">Scoped review is partial</p>
+				<p class="mt-2 text-sm leading-6">{degradedReviewStatus.message}</p>
+				{#if degradedReviewStatus.degradedChanges.length}
+					<ul class="mt-3 list-disc space-y-1 pl-5 text-sm leading-6">
+						{#each degradedReviewStatus.degradedChanges as change}
+							<li>{change.label}: {change.reason}</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
+		{/if}
+
 		<div class="flex flex-wrap items-center gap-3">
 			<button
 				type="button"

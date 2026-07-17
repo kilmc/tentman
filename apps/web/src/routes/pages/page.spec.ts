@@ -18,6 +18,13 @@ vi.mock('$lib/features/content-management/overview-summary', async () => {
 import { load } from './+page';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
+const scopedSummaryStatus = {
+	mode: 'scoped',
+	source: 'compare-metadata',
+	message: 'Tentman summarized this draft from compare metadata.',
+	degradedPages: []
+} as const;
+
 describe('routes/pages/+page', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -25,7 +32,8 @@ describe('routes/pages/+page', () => {
 			draftBranch: null,
 			changedPages: [],
 			totalChanges: 0,
-			hasConfigs: true
+			hasConfigs: true,
+			status: scopedSummaryStatus
 		});
 	});
 
@@ -52,7 +60,8 @@ describe('routes/pages/+page', () => {
 				draftBranch: null,
 				changedPages: [],
 				totalChanges: 0,
-				hasConfigs: false
+				hasConfigs: false,
+				status: scopedSummaryStatus
 			},
 			canAddPage: false
 		});
@@ -121,7 +130,8 @@ describe('routes/pages/+page', () => {
 				draftBranch: null,
 				changedPages: [],
 				totalChanges: 0,
-				hasConfigs: false
+				hasConfigs: false,
+				status: scopedSummaryStatus
 			},
 			canAddPage: false
 		});
@@ -141,7 +151,8 @@ describe('routes/pages/+page', () => {
 				}
 			],
 			totalChanges: 2,
-			hasConfigs: true
+			hasConfigs: true,
+			status: scopedSummaryStatus
 		});
 		const configs = [
 			{
@@ -208,7 +219,8 @@ describe('routes/pages/+page', () => {
 					}
 				],
 				totalChanges: 2,
-				hasConfigs: true
+				hasConfigs: true,
+				status: scopedSummaryStatus
 			},
 			canAddPage: true
 		});

@@ -135,9 +135,22 @@ export interface OtherSiteChangesReview {
 	defaultExpanded: boolean;
 }
 
+export interface PublishReviewStatus {
+	mode: 'scoped' | 'degraded';
+	source: 'compare-metadata' | 'changed-documents' | 'unsupported-scope';
+	message: string;
+	changedFileCount: number;
+	degradedChanges: Array<{
+		slug: string;
+		label: string;
+		reason: string;
+	}>;
+}
+
 export interface PublishReviewModel {
 	topLevelOrderChange: OrderChangeReview | null;
 	sections: ReviewSection[];
 	otherSiteChanges: OtherSiteChangesReview | null;
 	hasHiddenUnreviewedChanges: boolean;
+	reviewStatus: PublishReviewStatus;
 }
