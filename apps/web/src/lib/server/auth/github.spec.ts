@@ -557,12 +557,74 @@ describe('server/auth/github', () => {
 		);
 	});
 
-	it('rejects tampered oauth relay state', () => {
+	it('relays Netlify deploy preview callbacks when production has a different state secret', () => {
 		const state = createGitHubOAuthState({
 			returnOrigin: 'https://deploy-preview-40--tentman.netlify.app'
 		});
-		const tamperedState = `${state.slice(0, -1)}${state.endsWith('a') ? 'b' : 'a'}`;
+		setPrivateEnv({
+			GITHUB_SESSION_SECRET: 'production-session-secret',
+			SITE_NAME: 'tentman',
+			URL: 'https://tentman.netlify.app'
+		});
 
+		expect(
+			getGitHubOAuthCallbackRelayUrl({
+				callbackUrl: 'https://tentman.netlify.app/auth/callback',
+				currentUrl: new URL(
+					`https://tentman.netlify.app/auth/callback?code=abc123&state=${encodeURIComponent(
+						state
+					)}`
+				),
+				state
+			})?.toString()
+		).toBe(
+			`https://deploy-preview-40--tentman.netlify.app/auth/callback?code=abc123&state=${encodeURIComponent(
+				state
+			)}`
+		);
+	});
+
+	it('rejects relay state signed with a different secret when Netlify site context is unavailable', () => {
+		const state = createGitHubOAuthState({
+			returnOrigin: 'https://deploy-preview-40--tentman.netlify.app'
+		});
+		setPrivateEnv({
+			GITHUB_SESSION_SECRET: 'production-session-secret'
+		});
+
+		expect(
+			getGitHubOAuthCallbackRelayUrl({
+				callbackUrl: 'https://tentman.netlify.app/auth/callback',
+				currentUrl: new URL(
+					`https://tentman.netlify.app/auth/callback?code=abc123&state=${encodeURIComponent(
+						state
+					)}`
+				),
+				state
+			})
+		).toBeNull();
+	});
+
+	it('rejects tampered oauth relay state to origins outside the Netlify site', () => {
+		const state = createGitHubOAuthState({
+			returnOrigin: 'https://deploy-preview-40--tentman.netlify.app'
+		});
+		const [, encodedPayload] = state.split('.');
+		const tamperedPayload = Buffer.from(
+			JSON.stringify({
+				v: 1,
+				nonce: 'nonce',
+				returnOrigin: 'https://evil.example',
+				issuedAt: Date.now()
+			})
+		).toString('base64url');
+		const tamperedState = `relay.${tamperedPayload}.${state.split('.')[2]}`;
+		setPrivateEnv({
+			SITE_NAME: 'tentman',
+			URL: 'https://tentman.netlify.app'
+		});
+
+		expect(encodedPayload).toEqual(expect.any(String));
 		expect(
 			getGitHubOAuthCallbackRelayUrl({
 				callbackUrl: 'https://tentman.netlify.app/auth/callback',
