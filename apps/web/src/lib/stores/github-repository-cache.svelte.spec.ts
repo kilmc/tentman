@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import {
 	githubCacheInventoryStatus,
+	githubCacheWorkObservabilityStatus,
 	githubCacheWarmDebugStatus,
 	githubCacheWarmStatus,
 	githubRepositoryCache,
@@ -286,6 +287,16 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			missingTargets: 3
 		});
 		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'completed',
+			operation: 'collection-index-warming',
+			label: 'Posts'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).recent[0]).toMatchObject({
+			result: 'completed',
+			operation: 'collection-index-warming',
+			label: 'Posts'
+		});
 
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
 			items: [
@@ -2281,6 +2292,11 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		await expect.poll(() => get(githubCacheWarmStatus).message).toBe(
 			'GitHub rate limit reached; retrying cache work'
 		);
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'backing-off',
+			operation: 'retry-backoff',
+			label: 'Posts'
+		});
 		await expect(promise).resolves.toBeUndefined();
 		expect(fetcher).toHaveBeenCalledTimes(2);
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
@@ -2458,6 +2474,11 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		expect(get(githubCacheWarmStatus)).toMatchObject({
 			message: 'Cache warm paused',
 			error: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'rate-limited',
+			operation: 'rate-limit-pause',
+			reason: 'GitHub rate limit exhausted; background cache warm paused'
 		});
 		expect(itemViewCalls).toEqual([]);
 	});

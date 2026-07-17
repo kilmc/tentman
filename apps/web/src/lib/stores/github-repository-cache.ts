@@ -48,6 +48,8 @@ import {
 	recordCacheOutcome,
 	recordCacheWork,
 	traceBrowserRequest,
+	type CacheWorkOperation,
+	type CacheWorkPhase,
 	type RequestDuplicateState
 } from '$lib/utils/workflow-instrumentation';
 
@@ -75,6 +77,7 @@ const SITE_WARM_PROJECTION_BATCH_SIZE = 20;
 const SITE_WARM_READY_RESET_MS = 2500;
 const CACHE_PROGRESS_LARGE_TASK_THRESHOLD = 25;
 const CACHE_PROGRESS_SLOW_JOB_MS = 800;
+const RECENT_CACHE_WORK_LIMIT = 8;
 const DEFAULT_ENDPOINT_RETRY_ATTEMPTS = 2;
 const DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS = 500;
 const DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS = 5000;
@@ -148,6 +151,55 @@ export interface GithubCacheWarmDebugStatus extends GithubCacheWarmStatus {
 	pendingTaskKeys: string[];
 	runningTaskKind: CacheTaskKind | null;
 	taskKinds: Record<CacheTaskKind, GithubCacheTaskKindDebug>;
+}
+
+export type GithubCacheCurrentWorkState =
+	| 'idle'
+	| 'queued'
+	| 'running'
+	| 'waiting-for-idle'
+	| 'blocked-by-foreground'
+	| 'backing-off'
+	| 'paused'
+	| 'rate-limited'
+	| 'completed'
+	| 'error';
+
+export type GithubCacheWorkResult = 'completed' | 'error' | 'paused' | 'canceled';
+
+export interface GithubCacheCurrentWork {
+	state: GithubCacheCurrentWorkState;
+	operation: CacheWorkOperation;
+	taskKey: string | null;
+	taskKind: CacheTaskKind | null;
+	label: string;
+	route: string | null;
+	reason: string | null;
+	startedAt: number | null;
+	updatedAt: number;
+	progressCompleted: number;
+	progressTotal: number;
+	queuedTasks: number;
+	runningTasks: number;
+}
+
+export interface GithubCacheWorkHistoryRecord {
+	id: string;
+	label: string;
+	operation: CacheWorkOperation;
+	taskKey: string | null;
+	taskKind: CacheTaskKind | null;
+	route: string | null;
+	result: GithubCacheWorkResult;
+	reason: string | null;
+	durationMs: number;
+	finishedAt: number;
+}
+
+export interface GithubCacheWorkObservabilityStatus {
+	current: GithubCacheCurrentWork;
+	recent: GithubCacheWorkHistoryRecord[];
+	progressExplanation: string;
 }
 
 export type GithubCacheInventoryTargetType =
@@ -349,6 +401,8 @@ interface CacheTask<T = unknown> {
 	passive: boolean;
 	duplicateState: RequestDuplicateState;
 	order: number;
+	queuedAt: number;
+	startedAt: number | null;
 	status: 'queued' | 'running' | 'done' | 'error';
 	run: () => Promise<T>;
 	promise: Promise<T>;
@@ -377,9 +431,12 @@ let runningTask: CacheTask | null = null;
 let freshnessTimer: ReturnType<typeof setTimeout> | null = null;
 let freshnessBackoffIndex = 0;
 let cacheRetryStatusMessage: string | null = null;
+let currentCacheWorkStartedAt: number | null = null;
+let currentCacheWorkHistoryId = 0;
 const freshnessChecksInFlight = new Map<string, Promise<void>>();
 const collectionListeners = new Map<string, Set<CollectionListener>>();
 const cacheTasks = new Map<string, CacheTask<unknown>>();
+const recentCacheWork: GithubCacheWorkHistoryRecord[] = [];
 const totalQueuedTasksByKind = new Map<CacheTaskKind, number>();
 const completedQueuedTasksByKind = new Map<CacheTaskKind, number>();
 const erroredQueuedTasksByKind = new Map<CacheTaskKind, number>();
@@ -426,6 +483,34 @@ export const githubCacheWarmDebugStatus = writable<GithubCacheWarmDebugStatus>(
 
 export const githubCacheInventoryStatus =
 	writable<GithubCacheInventorySummary>(emptyInventorySummary);
+
+function createIdleCacheWorkStatus(
+	summary = get(githubCacheInventoryStatus)
+): GithubCacheWorkObservabilityStatus {
+	const now = Date.now();
+	return {
+		current: {
+			state: 'idle',
+			operation: 'no-active-work',
+			taskKey: null,
+			taskKind: null,
+			label: 'No cache work is running',
+			route: null,
+			reason: null,
+			startedAt: null,
+			updatedAt: now,
+			progressCompleted: summary.cachedTargets + summary.skippedBudgetTargets,
+			progressTotal: summary.totalTargets,
+			queuedTasks: 0,
+			runningTasks: 0
+		},
+		recent: recentCacheWork,
+		progressExplanation: getCacheProgressExplanation(summary)
+	};
+}
+
+export const githubCacheWorkObservabilityStatus =
+	writable<GithubCacheWorkObservabilityStatus>(createIdleCacheWorkStatus(emptyInventorySummary));
 
 function openDatabase(): Promise<IDBDatabase> {
 	if (!browser) {
@@ -686,14 +771,247 @@ function createInventorySummary(
 	};
 }
 
+function getCacheProgressExplanation(summary: GithubCacheInventorySummary): string {
+	if (summary.totalTargets <= 0) {
+		return 'No cache targets have been discovered for the active workspace yet.';
+	}
+
+	const completedTargets = summary.cachedTargets + summary.skippedBudgetTargets;
+	const staleTargets = summary.staleTargets + summary.missingTargets;
+	const parts = [
+		`${completedTargets} of ${summary.totalTargets} cache targets are complete.`,
+		'The total can grow after Tentman discovers collection items.'
+	];
+	if (staleTargets > 0) {
+		parts.push(`${staleTargets} target${staleTargets === 1 ? '' : 's'} still need work.`);
+	}
+	if (summary.refreshingTargets > 0) {
+		parts.push(
+			`${summary.refreshingTargets} target${
+				summary.refreshingTargets === 1 ? '' : 's'
+			} currently refreshing.`
+		);
+	}
+	if (summary.errorTargets > 0) {
+		parts.push(
+			`${summary.errorTargets} target${summary.errorTargets === 1 ? '' : 's'} failed.`
+		);
+	}
+	if (summary.skippedBudgetTargets > 0) {
+		parts.push('Budget-skipped full documents count as completed for progress.');
+	}
+
+	return parts.join(' ');
+}
+
+function getTaskLabelFromInventory(taskKey: string | null): string | null {
+	if (!taskKey) {
+		return null;
+	}
+
+	const records = get(githubCacheInventoryStatus).records;
+	const record =
+		records.find((candidate) => candidate.targetId === taskKey || candidate.key === taskKey) ??
+		records.find((candidate) => taskKey.startsWith(candidate.targetId));
+	if (!record) {
+		return null;
+	}
+
+	if (record.configSlug && record.itemId) {
+		return `${record.configSlug} / ${record.label}`;
+	}
+
+	return record.label;
+}
+
+function getTaskFallbackLabel(taskKey: string | null, taskKind: CacheTaskKind | null): string {
+	if (!taskKey) {
+		return 'No cache work is running';
+	}
+
+	const [, slug, itemId] = taskKey.split(':');
+	if (slug && itemId) {
+		return `${slug} / ${itemId}`;
+	}
+	if (slug) {
+		return slug;
+	}
+	if (taskKind) {
+		return taskKind;
+	}
+	return taskKey;
+}
+
+function getCacheWorkLabel(taskKey: string | null, taskKind: CacheTaskKind | null): string {
+	return getTaskLabelFromInventory(taskKey) ?? getTaskFallbackLabel(taskKey, taskKind);
+}
+
+function getTaskKindFromOperation(operation: CacheWorkOperation): CacheTaskKind | null {
+	if (operation === 'projection-hydration') {
+		return 'collectionProjectionBatch';
+	}
+	if (operation === 'item-document-warming' || operation === 'full-document-warming') {
+		return 'itemDocument';
+	}
+	if (operation === 'collection-index-warming') {
+		return 'collectionIndex';
+	}
+	if (operation === 'singleton-document-warming') {
+		return 'singletonDocument';
+	}
+	if (operation === 'block-support-warming') {
+		return 'blockRegistry';
+	}
+	return null;
+}
+
+function getCacheWorkStateFromPhase(
+	phase: CacheWorkPhase,
+	operation: CacheWorkOperation,
+	task: CacheTask | null
+): GithubCacheCurrentWorkState {
+	if (operation === 'rate-limit-pause') {
+		return 'rate-limited';
+	}
+	if (operation === 'retry-backoff' || phase === 'backoff') {
+		return 'backing-off';
+	}
+	if (operation === 'queue-wait') {
+		return task?.passive ? 'waiting-for-idle' : 'queued';
+	}
+	if (phase === 'paused') {
+		return 'paused';
+	}
+	if (phase === 'running') {
+		return 'running';
+	}
+	if (phase === 'completed') {
+		return 'completed';
+	}
+	if (phase === 'error') {
+		return 'error';
+	}
+	if (phase === 'queued') {
+		return runningTask &&
+			task &&
+			task.priority < runningTask.priority &&
+			(runningTask.priorityLabel === 'foreground' || runningTask.priorityLabel === 'intent')
+			? 'blocked-by-foreground'
+			: 'queued';
+	}
+	if (phase === 'canceled') {
+		return 'paused';
+	}
+	return 'idle';
+}
+
+function getCacheWorkDurationMs(
+	startedAt: number | null,
+	finishedAt: number,
+	fallbackStartedAt: number | null = currentCacheWorkStartedAt
+): number {
+	const start = startedAt ?? fallbackStartedAt ?? finishedAt;
+	return Math.max(0, finishedAt - start);
+}
+
+function setCurrentCacheWork(input: {
+	phase: CacheWorkPhase;
+	operation: CacheWorkOperation;
+	task?: CacheTask | null;
+	taskKey?: string | null;
+	taskKind?: CacheTaskKind | null;
+	route?: string | null;
+	reason?: string | null;
+}): void {
+	const now = Date.now();
+	const task = input.task ?? null;
+	const taskKey = input.taskKey ?? task?.key ?? null;
+	const taskKind = input.taskKind ?? task?.kind ?? getTaskKindFromOperation(input.operation);
+	const state = getCacheWorkStateFromPhase(input.phase, input.operation, task);
+	const progress = getCacheWorkProgress();
+	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
+	const runningTasks = [...cacheTasks.values()].filter(
+		(cacheTask) => cacheTask.status === 'running'
+	);
+	if (state !== 'idle' && !currentCacheWorkStartedAt) {
+		currentCacheWorkStartedAt = task?.startedAt ?? task?.queuedAt ?? now;
+	}
+
+	githubCacheWorkObservabilityStatus.set({
+		current: {
+			state,
+			operation: input.operation,
+			taskKey,
+			taskKind,
+			label: getCacheWorkLabel(taskKey, taskKind),
+			route: input.route ?? (task ? getCacheWorkRoute(task) : null),
+			reason: input.reason ?? null,
+			startedAt: task?.startedAt ?? task?.queuedAt ?? currentCacheWorkStartedAt,
+			updatedAt: now,
+			progressCompleted: progress.progressCompleted,
+			progressTotal: progress.progressTotal,
+			queuedTasks: queuedTasks.length,
+			runningTasks: runningTasks.length
+		},
+		recent: [...recentCacheWork],
+		progressExplanation: getCacheProgressExplanation(get(githubCacheInventoryStatus))
+	});
+}
+
+function addRecentCacheWork(input: {
+	task?: CacheTask | null;
+	taskKey?: string | null;
+	taskKind?: CacheTaskKind | null;
+	operation: CacheWorkOperation;
+	result: GithubCacheWorkResult;
+	route?: string | null;
+	reason?: string | null;
+	finishedAt?: number;
+}): void {
+	const finishedAt = input.finishedAt ?? Date.now();
+	const task = input.task ?? null;
+	const taskKey = input.taskKey ?? task?.key ?? null;
+	const taskKind = input.taskKind ?? task?.kind ?? getTaskKindFromOperation(input.operation);
+	recentCacheWork.unshift({
+		id: `cache-work:${++currentCacheWorkHistoryId}`,
+		label: getCacheWorkLabel(taskKey, taskKind),
+		operation: input.operation,
+		taskKey,
+		taskKind,
+		route: input.route ?? (task ? getCacheWorkRoute(task) : null),
+		result: input.result,
+		reason: input.reason ?? null,
+		durationMs: getCacheWorkDurationMs(task?.startedAt ?? task?.queuedAt ?? null, finishedAt),
+		finishedAt
+	});
+	recentCacheWork.splice(RECENT_CACHE_WORK_LIMIT);
+}
+
+function syncCacheWorkObservabilityFromInventory(
+	summary = get(githubCacheInventoryStatus)
+): void {
+	const current = get(githubCacheWorkObservabilityStatus).current;
+	if (current.state === 'idle' || current.state === 'completed' || current.state === 'error') {
+		githubCacheWorkObservabilityStatus.set(createIdleCacheWorkStatus(summary));
+		return;
+	}
+
+	githubCacheWorkObservabilityStatus.update((status) => ({
+		...status,
+		progressExplanation: getCacheProgressExplanation(summary)
+	}));
+}
+
 async function refreshInventoryStatus(): Promise<void> {
 	if (!browser) {
 		githubCacheInventoryStatus.set(emptyInventorySummary);
+		syncCacheWorkObservabilityFromInventory(emptyInventorySummary);
 		return;
 	}
 
 	const summary = createInventorySummary(await readActiveInventoryRecords());
 	githubCacheInventoryStatus.set(summary);
+	syncCacheWorkObservabilityFromInventory(summary);
 	updateWarmStatusFromInventory(summary);
 }
 
@@ -1265,10 +1583,19 @@ function recordCacheEndpointBackoff(input: {
 	reason: string;
 }) {
 	const snapshot = getActiveSnapshot();
+	const taskKind = getCacheEndpointTaskKind(input.url, input.taskKey);
 	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
 	const runningTasks = [...cacheTasks.values()].filter(
 		(cacheTask) => cacheTask.status === 'running'
 	);
+	setCurrentCacheWork({
+		phase: 'backoff',
+		operation: 'retry-backoff',
+		taskKey: input.taskKey,
+		taskKind,
+		route: input.route,
+		reason: input.reason
+	});
 	recordCacheWork({
 		phase: 'backoff',
 		operation: 'retry-backoff',
@@ -1277,7 +1604,7 @@ function recordCacheEndpointBackoff(input: {
 		repoFullName: snapshot?.repoFullName ?? null,
 		ref: snapshot?.identity.ref ?? null,
 		taskKey: input.taskKey,
-		taskKind: getCacheEndpointTaskKind(input.url, input.taskKey),
+		taskKind,
 		priority: input.priority,
 		...getCacheWorkProgress(),
 		queuedTasks: queuedTasks.length,
@@ -1450,6 +1777,12 @@ function resetTaskCounters() {
 	erroredQueuedTasksByKind.clear();
 }
 
+function clearRecentCacheWork() {
+	recentCacheWork.length = 0;
+	currentCacheWorkHistoryId = 0;
+	currentCacheWorkStartedAt = null;
+}
+
 function clearWarmReadyResetTimer() {
 	if (!warmReadyResetTimer) {
 		return;
@@ -1513,6 +1846,7 @@ function resetWarmStatus() {
 	clearWarmProgressRevealTimer();
 	resetTaskCounters();
 	cacheRetryStatusMessage = null;
+	currentCacheWorkStartedAt = null;
 	githubCacheWarmStatus.set({
 		phase: 'idle',
 		message: null,
@@ -1527,6 +1861,7 @@ function resetWarmStatus() {
 		error: null
 	});
 	syncWarmDebugStatus();
+	githubCacheWorkObservabilityStatus.set(createIdleCacheWorkStatus());
 }
 
 function updateWarmStatus(nextStatus: Partial<GithubCacheWarmStatus>) {
@@ -1583,6 +1918,11 @@ function markWarmReady(totalCollections: number, totalItems: number) {
 		error: null
 	});
 	syncWarmDebugStatus();
+	setCurrentCacheWork({
+		phase: 'completed',
+		operation: 'no-active-work',
+		reason: 'Site data cached'
+	});
 	clearWarmReadyResetTimer();
 	warmReadyResetTimer = setTimeout(() => {
 		warmReadyResetTimer = null;
@@ -1591,11 +1931,17 @@ function markWarmReady(totalCollections: number, totalItems: number) {
 }
 
 function markWarmError(error: unknown) {
+	const reason = error instanceof Error ? error.message : 'Failed to warm repository cache';
 	updateWarmStatus({
 		phase: 'error',
 		message: 'Cache warm paused',
 		currentCollectionSlug: null,
-		error: error instanceof Error ? error.message : 'Failed to warm repository cache'
+		error: reason
+	});
+	setCurrentCacheWork({
+		phase: error instanceof BackgroundCacheWarmPausedError ? 'paused' : 'error',
+		operation: error instanceof BackgroundCacheWarmPausedError ? 'rate-limit-pause' : 'no-active-work',
+		reason
 	});
 }
 
@@ -1736,6 +2082,12 @@ async function runQueue(runId: number): Promise<void> {
 	}
 
 	if (task.passive) {
+		setCurrentCacheWork({
+			phase: 'waiting',
+			operation: 'queue-wait',
+			task,
+			reason: 'waiting for route readiness and browser idle'
+		});
 		recordCacheTaskWork(task, 'waiting', 'waiting for route readiness and browser idle', 'queue-wait');
 		if (!(await waitForIdle(runId))) {
 			return;
@@ -1750,12 +2102,19 @@ async function runQueue(runId: number): Promise<void> {
 	}
 
 	task.status = 'running';
+	task.startedAt = Date.now();
 	runningTask = task;
 	syncWarmDebugStatus();
 	updateQueueProgress({
 		phase: 'warming',
 		message: 'Caching site data',
 		error: null
+	});
+	setCurrentCacheWork({
+		phase: 'running',
+		operation: getCacheTaskOperation(task),
+		task,
+		reason: 'running cache task'
 	});
 	recordCacheTaskWork(task, 'running', 'running cache task');
 
@@ -1767,26 +2126,66 @@ async function runQueue(runId: number): Promise<void> {
 			incrementTaskKindCount(completedQueuedTasksByKind, task.kind);
 		}
 		recordCacheTaskWork(task, 'completed', 'completed cache task');
+		addRecentCacheWork({
+			task,
+			operation: getCacheTaskOperation(task),
+			result: 'completed',
+			reason: 'completed cache task'
+		});
+		setCurrentCacheWork({
+			phase: 'completed',
+			operation: getCacheTaskOperation(task),
+			task,
+			reason: 'completed cache task'
+		});
 		task.resolve(result);
 	} catch (error) {
 		task.status = 'error';
+		const errorReason = error instanceof Error ? error.message : 'cache task failed';
+		const isRateLimitPause = error instanceof BackgroundCacheWarmPausedError;
 		await updateInventoryTarget(task.key, {
 			status: 'error',
-			error: error instanceof Error ? error.message : 'Failed to refresh cache target',
+			error: errorReason,
 			lastCheckedAt: Date.now()
 		});
 		task.reject(error);
 		if (isRunCurrent(runId)) {
-			if (error instanceof BackgroundCacheWarmPausedError) {
+			if (isRateLimitPause) {
 				cacheTasks.clear();
 				queueScheduled = false;
-				recordCacheTaskWork(task, 'paused', error.message, 'rate-limit-pause');
+				recordCacheTaskWork(task, 'paused', errorReason, 'rate-limit-pause');
+				addRecentCacheWork({
+					task,
+					operation: 'rate-limit-pause',
+					result: 'paused',
+					reason: errorReason
+				});
+				setCurrentCacheWork({
+					phase: 'paused',
+					operation: 'rate-limit-pause',
+					task,
+					reason: errorReason
+				});
 			}
 			erroredQueuedTasks += 1;
 			incrementTaskKindCount(erroredQueuedTasksByKind, task.kind);
 			markWarmError(error);
 		}
-		recordCacheTaskWork(task, 'error', error instanceof Error ? error.message : 'cache task failed');
+		if (!isRateLimitPause) {
+			addRecentCacheWork({
+				task,
+				operation: getCacheTaskOperation(task),
+				result: 'error',
+				reason: errorReason
+			});
+			setCurrentCacheWork({
+				phase: 'error',
+				operation: getCacheTaskOperation(task),
+				task,
+				reason: errorReason
+			});
+		}
+		recordCacheTaskWork(task, 'error', errorReason);
 	} finally {
 		cacheTasks.delete(task.key);
 		if (runningTask === task) {
@@ -1834,6 +2233,8 @@ function enqueueCacheTask<T>(input: {
 		passive: input.passive ?? input.priority === 'passive',
 		duplicateState: 'unique',
 		order: taskOrder++,
+		queuedAt: Date.now(),
+		startedAt: null,
 		status: 'queued',
 		run: input.run,
 		promise,
@@ -1856,6 +2257,12 @@ function enqueueCacheTask<T>(input: {
 		phase: 'checking',
 		message: 'Caching site data',
 		error: null
+	});
+	setCurrentCacheWork({
+		phase: 'queued',
+		operation: getCacheTaskOperation(task as CacheTask<unknown>),
+		task: task as CacheTask<unknown>,
+		reason: 'queued cache task'
 	});
 	recordCacheTaskWork(task as CacheTask<unknown>, 'queued', 'queued cache task');
 	scheduleQueueRun(input.runId);
@@ -2631,6 +3038,7 @@ export const githubRepositoryCache = {
 		const nextIdentityKey = getSnapshotIdentityKey(snapshot);
 		if (activeSnapshotIdentityKey && activeSnapshotIdentityKey !== nextIdentityKey) {
 			cancelActiveSiteWarm();
+			clearRecentCacheWork();
 		}
 		activeSnapshot = snapshot;
 		activeSnapshotIdentityKey = nextIdentityKey;
@@ -4589,6 +4997,7 @@ export const githubRepositoryCacheTestApi = {
 		resetFreshnessBackoff();
 		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
+		clearRecentCacheWork();
 		idleFullDocumentBudgetPolicy = {
 			bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
@@ -4618,6 +5027,7 @@ export const githubRepositoryCacheTestApi = {
 				recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
 			};
 			cacheRetryStatusMessage = null;
+			clearRecentCacheWork();
 			endpointRetryPolicy = {
 				attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
 				baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
@@ -4640,6 +5050,7 @@ export const githubRepositoryCacheTestApi = {
 			recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
 		};
 		cacheRetryStatusMessage = null;
+		clearRecentCacheWork();
 		endpointRetryPolicy = {
 			attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
 			baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
