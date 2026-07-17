@@ -17,18 +17,21 @@ describe('draft-assets/store browser fallback', () => {
 		const file = new File(['fallback-bytes'], 'hero.png', { type: 'image/png' });
 		const result = await store.create(file, {
 			repoKey: 'local:test',
-			storagePath: 'static/images/'
+			storagePath: 'static/images/',
+			publicPath: '/images'
 		});
 
 		expect(result.ref).toBe('draft-asset:asset-fallback-12345678');
 		expect(result.previewUrl).toBe(previewUrl);
 		expect(result.metadata.byteStore).toBe('idb');
 		expect(result.metadata.targetPath).toBe('static/images/hero-asset-fa.png');
+		expect(result.metadata.publicPath).toBe('/images/hero-asset-fa.png');
 		expect(await store.resolveUrl(result.ref)).toBe(previewUrl);
 		await expect((await store.readFile(result.ref)).text()).resolves.toBe('fallback-bytes');
 		await expect(store.getMetadata(result.ref)).resolves.toMatchObject({
 			byteStore: 'idb',
-			targetPath: 'static/images/hero-asset-fa.png'
+			targetPath: 'static/images/hero-asset-fa.png',
+			publicPath: '/images/hero-asset-fa.png'
 		});
 	});
 });

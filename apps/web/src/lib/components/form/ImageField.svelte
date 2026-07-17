@@ -145,13 +145,13 @@
 	}
 </script>
 
-<div class="mb-4">
-	<div class="mb-1 block text-sm font-medium text-gray-700">
+<fieldset class="mb-4">
+	<legend class="mb-1 block text-sm font-medium text-gray-700">
 		{label}
 		{#if required}
 			<span class="text-red-600">*</span>
 		{/if}
-	</div>
+	</legend>
 
 	{#if uploadError}
 		<div class="mb-2 rounded border border-red-200 bg-red-50 p-2">
@@ -224,7 +224,6 @@
 	<p class="mt-1 text-xs text-gray-500">
 		Select an image under 5 MB. The file will be staged locally until you explicitly save.
 	</p>
-</div>
 
 <AssetPicker
 	open={pickerOpen}
@@ -239,3 +238,4 @@
 	onclose={() => (pickerOpen = false)}
 	loadentries={loadAssetEntries}
 />
+</fieldset>
