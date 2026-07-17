@@ -24,37 +24,47 @@ function createCookies() {
 
 function createGitHubBackend(options?: {
 	commitSha?: string;
+	identitiesByRef?: Record<string, { commitSha: string; treeSha: string }>;
 	treeSha?: string;
 	trees?: Record<string, Array<{ path: string; sha: string; type?: string }>>;
 	missingTrees?: string[];
 }): GitHubRepositoryBackend {
 	const commitSha = options?.commitSha ?? 'commit-main';
+	const identitiesByRef = options?.identitiesByRef ?? {};
 	const treeSha = options?.treeSha ?? 'tree-main';
 	const trees = options?.trees ?? {};
 	const missingTrees = new Set(options?.missingTrees ?? []);
 	const octokit = {
 		rest: {
 			repos: {
-				getBranch: vi.fn(async () => ({
-					status: 200,
-					headers: {},
-					data: {
-						commit: {
-							sha: commitSha
+				getBranch: vi.fn(async ({ branch }: { branch: string }) => {
+					const identity = identitiesByRef[branch];
+					return {
+						status: 200,
+						headers: {},
+						data: {
+							commit: {
+								sha: identity?.commitSha ?? commitSha
+							}
 						}
-					}
-				}))
+					};
+				})
 			},
 			git: {
-				getCommit: vi.fn(async () => ({
-					status: 200,
-					headers: {},
-					data: {
-						tree: {
-							sha: treeSha
+				getCommit: vi.fn(async ({ commit_sha }: { commit_sha: string }) => {
+					const identity = Object.values(identitiesByRef).find(
+						(candidate) => candidate.commitSha === commit_sha
+					);
+					return {
+						status: 200,
+						headers: {},
+						data: {
+							tree: {
+								sha: identity?.treeSha ?? treeSha
+							}
 						}
-					}
-				})),
+					};
+				}),
 				getTree: vi.fn(async ({ tree_sha }: { tree_sha: string }) => {
 					if (missingTrees.has(tree_sha)) {
 						throw { status: 404 };
@@ -154,6 +164,70 @@ describe('GET /api/repo/freshness', () => {
 		});
 		expect(backend.octokit.rest.repos.getBranch).toHaveBeenCalledTimes(1);
 		expect(backend.octokit.rest.git.getCommit).toHaveBeenCalledTimes(1);
+		expect(backend.octokit.rest.git.getTree).not.toHaveBeenCalled();
+		expect(backend.octokit.rest.git.getBlob).not.toHaveBeenCalled();
+		expect(getCachedConfigs).not.toHaveBeenCalled();
+		expect(backend.readRootConfig).not.toHaveBeenCalled();
+		expect(backend.discoverBlockConfigs).not.toHaveBeenCalled();
+	});
+
+	it('returns unchanged draft freshness without reading the main ref identity', async () => {
+		const backend = createGitHubBackend({
+			identitiesByRef: {
+				main: { commitSha: 'commit-main', treeSha: 'tree-main' },
+				'tentman-preview': { commitSha: 'commit-draft', treeSha: 'tree-draft' }
+			}
+		});
+		pageContextMocks.requireGitHubContentRepository.mockResolvedValue({
+			backend,
+			draftBranch: 'tentman-preview',
+			repo: {
+				owner: 'acme',
+				name: 'docs',
+				full_name: 'acme/docs',
+				default_branch: 'main'
+			}
+		});
+
+		const response = await GET({
+			locals: {
+				isAuthenticated: true,
+				githubToken: 'secret-token',
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				}
+			},
+			cookies: createCookies(),
+			url: new URL(
+				'https://tentman.test/api/repo/freshness?previousRef=tentman-preview&previousHeadSha=commit-draft&previousTreeSha=tree-draft'
+			)
+		} as never);
+
+		await expect(response.json()).resolves.toMatchObject({
+			unchanged: true,
+			activeDraftBranch: 'tentman-preview',
+			repositoryIdentity: {
+				ref: 'tentman-preview',
+				headSha: 'commit-draft',
+				treeSha: 'tree-draft'
+			},
+			mainRepositoryIdentity: null,
+			draftRepositoryIdentity: {
+				ref: 'tentman-preview',
+				headSha: 'commit-draft',
+				treeSha: 'tree-draft'
+			}
+		});
+		expect(backend.octokit.rest.repos.getBranch).toHaveBeenCalledTimes(1);
+		expect(backend.octokit.rest.repos.getBranch).toHaveBeenCalledWith(
+			expect.objectContaining({ branch: 'tentman-preview' })
+		);
+		expect(backend.octokit.rest.git.getCommit).toHaveBeenCalledTimes(1);
+		expect(backend.octokit.rest.git.getCommit).toHaveBeenCalledWith(
+			expect.objectContaining({ commit_sha: 'commit-draft' })
+		);
 		expect(backend.octokit.rest.git.getTree).not.toHaveBeenCalled();
 		expect(backend.octokit.rest.git.getBlob).not.toHaveBeenCalled();
 		expect(getCachedConfigs).not.toHaveBeenCalled();

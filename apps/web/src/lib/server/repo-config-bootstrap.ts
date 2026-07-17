@@ -204,12 +204,24 @@ export async function loadSelectedGitHubRepoFreshness(
 	}
 
 	const { backend, draftBranch, repo } = await requireGitHubContentRepository({ locals, cookies });
-	const mainBackend = draftBranch ? createGitHubRepositoryBackend(backend.octokit, repo) : backend;
-	const [activeIdentity, mainIdentity] = await Promise.all([
-		getRepositoryRefIdentity(backend, draftBranch),
-		draftBranch ? getRepositoryRefIdentity(mainBackend) : Promise.resolve(null)
-	]);
+	const activeIdentity = await getRepositoryRefIdentity(backend, draftBranch);
 	const activeIdentityUnchanged = matchesPreviousFreshnessIdentity(activeIdentity, freshness);
+	if (draftBranch && activeIdentityUnchanged) {
+		return {
+			activeDraftBranch: draftBranch,
+			repositoryIdentity: activeIdentity,
+			mainRepositoryIdentity: null,
+			draftRepositoryIdentity: activeIdentity,
+			unchanged: true,
+			freshnessStatus: 'unchanged',
+			changedPaths: null,
+			error: null,
+			recovery: null
+		};
+	}
+
+	const mainBackend = draftBranch ? createGitHubRepositoryBackend(backend.octokit, repo) : backend;
+	const mainIdentity = draftBranch ? await getRepositoryRefIdentity(mainBackend) : null;
 	const mainIdentityUnchanged = draftBranch
 		? true
 		: matchesPreviousFreshnessIdentity(mainIdentity ?? activeIdentity, freshness);
