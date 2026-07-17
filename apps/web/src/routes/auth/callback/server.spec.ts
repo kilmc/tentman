@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockFetch = vi.fn();
 
@@ -6,6 +6,8 @@ vi.stubGlobal('fetch', mockFetch);
 
 vi.mock('$lib/server/auth/github', () => ({
 	clearGitHubOAuthRequest: vi.fn(),
+	getGitHubOAuthCallbackRelayUrl: vi.fn(() => null),
+	getGitHubOAuthCallbackUrl: vi.fn((url: URL) => new URL('/auth/callback', url).toString()),
 	getGitHubOAuthCredentials: vi.fn(() => ({
 		clientId: 'github-client-id',
 		clientSecret: 'github-client-secret'
@@ -20,13 +22,29 @@ vi.mock('$lib/server/auth/github', () => ({
 import { GET } from './+server';
 import {
 	clearGitHubOAuthRequest,
+	getGitHubOAuthCallbackRelayUrl,
+	getGitHubOAuthCallbackUrl,
 	persistGitHubSession,
 	readGitHubOAuthRequest
 } from '$lib/server/auth/github';
 
 describe('routes/auth/callback/+server', () => {
-	it('redirects to the stored destination after a successful login', async () => {
+	beforeEach(() => {
 		mockFetch.mockReset();
+		vi.mocked(getGitHubOAuthCallbackRelayUrl).mockReturnValue(null);
+		vi.mocked(getGitHubOAuthCallbackUrl).mockImplementation((url: URL) =>
+			new URL('/auth/callback', url).toString()
+		);
+		vi.mocked(readGitHubOAuthRequest).mockReturnValue({
+			state: 'oauth-state-token',
+			redirectTo: '/repos'
+		});
+		vi.mocked(readGitHubOAuthRequest).mockClear();
+		vi.mocked(clearGitHubOAuthRequest).mockClear();
+		vi.mocked(persistGitHubSession).mockClear();
+	});
+
+	it('redirects to the stored destination after a successful login', async () => {
 		mockFetch
 			.mockResolvedValueOnce(
 				new Response(
@@ -90,6 +108,36 @@ describe('routes/auth/callback/+server', () => {
 		}
 
 		throw new Error('Expected callback route to redirect');
+	});
+
+	it('relays a configured callback back to the preview origin before reading preview cookies', async () => {
+		const relayUrl = new URL(
+			'https://deploy-preview-40--tentman.netlify.app/auth/callback?code=abc123&state=oauth-state-token'
+		);
+		vi.mocked(getGitHubOAuthCallbackUrl).mockReturnValue(
+			'https://tentman.netlify.app/auth/callback'
+		);
+		vi.mocked(getGitHubOAuthCallbackRelayUrl).mockReturnValue(relayUrl);
+
+		await expect(
+			GET({
+				url: new URL(
+					'https://tentman.netlify.app/auth/callback?code=abc123&state=oauth-state-token'
+				),
+				cookies: {
+					get: vi.fn(),
+					set: vi.fn(),
+					delete: vi.fn()
+				}
+			} as never)
+		).rejects.toMatchObject({
+			status: 302,
+			location:
+				'https://deploy-preview-40--tentman.netlify.app/auth/callback?code=abc123&state=oauth-state-token'
+		});
+
+		expect(readGitHubOAuthRequest).not.toHaveBeenCalled();
+		expect(mockFetch).not.toHaveBeenCalled();
 	});
 
 	it('rejects callbacks with a mismatched oauth state', async () => {

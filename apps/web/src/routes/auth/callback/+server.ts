@@ -4,6 +4,8 @@ import type { RequestHandler } from './$types';
 import type { GitHubUserSnapshot } from '$lib/auth/session';
 import {
 	clearGitHubOAuthRequest,
+	getGitHubOAuthCallbackRelayUrl,
+	getGitHubOAuthCallbackUrl,
 	getGitHubOAuthCredentials,
 	persistGitHubSession,
 	readGitHubOAuthRequest
@@ -12,8 +14,18 @@ import {
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const code = url.searchParams.get('code');
 	const returnedState = url.searchParams.get('state');
+	const callbackUrl = getGitHubOAuthCallbackUrl(url);
+	const relayUrl = getGitHubOAuthCallbackRelayUrl({
+		callbackUrl,
+		currentUrl: url,
+		state: returnedState
+	});
+
+	if (relayUrl) {
+		throw redirect(302, relayUrl.toString());
+	}
+
 	const { state: storedState, redirectTo } = readGitHubOAuthRequest(cookies);
-	const callbackUrl = new URL('/auth/callback', url).toString();
 
 	if (!code) {
 		throw error(400, 'Missing authorization code');

@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/server/auth/github', () => ({
 	createGitHubOAuthState: vi.fn(() => 'oauth-state-token'),
+	getGitHubOAuthCallbackUrl: vi.fn((url: URL) => new URL('/auth/callback', url).toString()),
 	getGitHubClientId: vi.fn(() => 'github-client-id'),
 	hasRecentGitHubLoginAttempt: vi.fn(() => false),
 	isGitHubOAuthConfigured: vi.fn(() => true),
@@ -11,6 +12,8 @@ vi.mock('$lib/server/auth/github', () => ({
 
 import { GET } from './+server';
 import {
+	createGitHubOAuthState,
+	getGitHubOAuthCallbackUrl,
 	hasRecentGitHubLoginAttempt,
 	isGitHubOAuthConfigured,
 	markGitHubLoginAttempt,
@@ -18,6 +21,17 @@ import {
 } from '$lib/server/auth/github';
 
 describe('routes/auth/login/+server', () => {
+	beforeEach(() => {
+		vi.mocked(createGitHubOAuthState).mockReturnValue('oauth-state-token');
+		vi.mocked(getGitHubOAuthCallbackUrl).mockImplementation((url: URL) =>
+			new URL('/auth/callback', url).toString()
+		);
+		vi.mocked(hasRecentGitHubLoginAttempt).mockReturnValue(false);
+		vi.mocked(isGitHubOAuthConfigured).mockReturnValue(true);
+		vi.mocked(markGitHubLoginAttempt).mockClear();
+		vi.mocked(persistGitHubOAuthRequest).mockClear();
+	});
+
 	it('redirects back home when GitHub OAuth is not configured', async () => {
 		vi.mocked(isGitHubOAuthConfigured).mockReturnValue(false);
 
@@ -63,6 +77,41 @@ describe('routes/auth/login/+server', () => {
 				redirectTo: '/repos'
 			});
 			expect(markGitHubLoginAttempt).toHaveBeenCalledWith(cookies);
+			return;
+		}
+
+		throw new Error('Expected login route to redirect');
+	});
+
+	it('uses the configured GitHub callback URL from deploy previews', async () => {
+		vi.mocked(isGitHubOAuthConfigured).mockReturnValue(true);
+		vi.mocked(getGitHubOAuthCallbackUrl).mockReturnValue(
+			'https://tentman.netlify.app/auth/callback'
+		);
+		const cookies = {
+			get: vi.fn(),
+			set: vi.fn()
+		};
+
+		try {
+			await GET({
+				url: new URL('https://deploy-preview-40--tentman.netlify.app/auth/login?redirect=/repos'),
+				cookies
+			} as never);
+		} catch (error) {
+			expect(error).toMatchObject({
+				status: 302
+			});
+
+			const redirectLocation = (error as { location?: string }).location;
+			expect(redirectLocation).toEqual(expect.any(String));
+			const location = new URL(redirectLocation as string);
+			expect(location.searchParams.get('redirect_uri')).toBe(
+				'https://tentman.netlify.app/auth/callback'
+			);
+			expect(createGitHubOAuthState).toHaveBeenCalledWith({
+				returnOrigin: 'https://deploy-preview-40--tentman.netlify.app'
+			});
 			return;
 		}
 

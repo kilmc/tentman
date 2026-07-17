@@ -4,6 +4,7 @@ const { privateEnv } = vi.hoisted(() => ({
 	privateEnv: {
 		GITHUB_CLIENT_ID: '',
 		GITHUB_CLIENT_SECRET: '',
+		GITHUB_OAUTH_CALLBACK_URL: '',
 		GITHUB_SESSION_SECRET: '',
 		NODE_ENV: 'test'
 	}
@@ -43,6 +44,8 @@ import {
 	clearGitHubSession,
 	hasRecentGitHubLoginAttempt,
 	handleGitHubSessionError,
+	getGitHubOAuthCallbackRelayUrl,
+	getGitHubOAuthCallbackUrl,
 	isGitHubOAuthConfigured,
 	markGitHubLoginAttempt,
 	persistGitHubOAuthRequest,
@@ -92,6 +95,7 @@ function createCookieStore(initial: Record<string, string> = {}) {
 function setPrivateEnv(values: Partial<typeof privateEnv>) {
 	privateEnv.GITHUB_CLIENT_ID = values.GITHUB_CLIENT_ID ?? '';
 	privateEnv.GITHUB_CLIENT_SECRET = values.GITHUB_CLIENT_SECRET ?? '';
+	privateEnv.GITHUB_OAUTH_CALLBACK_URL = values.GITHUB_OAUTH_CALLBACK_URL ?? '';
 	privateEnv.GITHUB_SESSION_SECRET = values.GITHUB_SESSION_SECRET ?? '';
 	privateEnv.NODE_ENV = values.NODE_ENV ?? 'test';
 }
@@ -467,6 +471,66 @@ describe('server/auth/github', () => {
 
 		expect(cookies.delete).toHaveBeenCalledWith(GITHUB_OAUTH_STATE_COOKIE, { path: '/' });
 		expect(cookies.delete).toHaveBeenCalledWith(GITHUB_OAUTH_REDIRECT_COOKIE, { path: '/' });
+	});
+
+	it('uses the request origin as the GitHub OAuth callback when no callback URL is configured', () => {
+		expect(
+			getGitHubOAuthCallbackUrl(
+				new URL('https://deploy-preview-40--tentman.netlify.app/auth/login')
+			)
+		).toBe('https://deploy-preview-40--tentman.netlify.app/auth/callback');
+	});
+
+	it('uses the configured GitHub OAuth callback URL when present', () => {
+		setPrivateEnv({
+			GITHUB_OAUTH_CALLBACK_URL: 'https://tentman.netlify.app/auth/callback'
+		});
+
+		expect(
+			getGitHubOAuthCallbackUrl(
+				new URL('https://deploy-preview-40--tentman.netlify.app/auth/login')
+			)
+		).toBe('https://tentman.netlify.app/auth/callback');
+	});
+
+	it('builds a callback relay URL from a signed oauth state', () => {
+		const state = createGitHubOAuthState({
+			returnOrigin: 'https://deploy-preview-40--tentman.netlify.app'
+		});
+		const currentUrl = new URL(
+			`https://tentman.netlify.app/auth/callback?code=abc123&state=${encodeURIComponent(state)}`
+		);
+
+		expect(
+			getGitHubOAuthCallbackRelayUrl({
+				callbackUrl: 'https://tentman.netlify.app/auth/callback',
+				currentUrl,
+				state
+			})?.toString()
+		).toBe(
+			`https://deploy-preview-40--tentman.netlify.app/auth/callback?code=abc123&state=${encodeURIComponent(
+				state
+			)}`
+		);
+	});
+
+	it('rejects tampered oauth relay state', () => {
+		const state = createGitHubOAuthState({
+			returnOrigin: 'https://deploy-preview-40--tentman.netlify.app'
+		});
+		const tamperedState = `${state.slice(0, -1)}${state.endsWith('a') ? 'b' : 'a'}`;
+
+		expect(
+			getGitHubOAuthCallbackRelayUrl({
+				callbackUrl: 'https://tentman.netlify.app/auth/callback',
+				currentUrl: new URL(
+					`https://tentman.netlify.app/auth/callback?code=abc123&state=${encodeURIComponent(
+						tamperedState
+					)}`
+				),
+				state: tamperedState
+			})
+		).toBeNull();
 	});
 
 	it('redirects to repos after clearing the session on a GitHub 401 in route code', () => {
