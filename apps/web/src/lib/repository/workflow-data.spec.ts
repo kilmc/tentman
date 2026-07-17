@@ -3,6 +3,7 @@ import {
 	createWorkflowBlockSupportData,
 	createWorkflowCacheMissResult,
 	createWorkflowFreshnessData,
+	createOpaqueWorkflowRouteDataIdentity,
 	createWorkflowPageViewData,
 	createWorkflowRouteDataIdentity,
 	createWorkflowWorkspaceBootstrapData
@@ -80,6 +81,28 @@ describe('workflow-data contract', () => {
 		expect(identity?.dataSetKey).not.toContain('opaque-active-source');
 		expect(identity?.dataSetKey).not.toContain('opaque-head');
 		expect(identity?.dataSetKey).not.toContain('opaque-tree');
+	});
+
+	it('builds opaque route-data identity from mode-neutral dataset parts', () => {
+		const identity = createOpaqueWorkflowRouteDataIdentity({
+			mode: 'local',
+			workspaceKey: 'local:docs',
+			workspaceLabel: 'Docs',
+			dataSetParts: ['discovery:abc123'],
+			resolvedAt: 1811427200000
+		});
+
+		expect(identity).toEqual({
+			mode: 'local',
+			workspaceKey: 'local:docs',
+			workspaceLabel: 'Docs',
+			dataSetKey: expect.stringMatching(/^dataset:/),
+			resolvedAt: 1811427200000,
+			hasEditableDraft: false
+		});
+		expect(JSON.stringify(identity)).not.toContain('ref');
+		expect(JSON.stringify(identity)).not.toContain('headSha');
+		expect(JSON.stringify(identity)).not.toContain('treeSha');
 	});
 
 	it('provides representative mode-neutral fixtures for read-route workflow data', () => {

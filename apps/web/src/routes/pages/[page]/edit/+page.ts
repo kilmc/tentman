@@ -3,6 +3,7 @@ import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildReposRedirect } from '$lib/utils/routing';
 import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
+import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
@@ -37,6 +38,12 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	});
 
 	if (workflowResult.status === 'ready') {
+		markWorkflowReadiness({
+			workflow: 'page-route-shell',
+			mark: 'page-route-shell-ready',
+			route: `/pages/${params.page}/edit`,
+			slug: params.page
+		});
 		return workflowResult.data;
 	}
 

@@ -113,8 +113,8 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		throw httpError(500, 'Failed to load page view');
 	}
 	markWorkflowReadiness({
-		workflow: 'item-route-shell',
-		mark: 'ready',
+		workflow: 'page-route-shell',
+		mark: 'page-route-shell-ready',
 		route: `/pages/${params.page}`,
 		slug: params.page
 	});

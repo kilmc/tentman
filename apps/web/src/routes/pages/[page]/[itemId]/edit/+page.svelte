@@ -242,7 +242,7 @@
 	onMount(() => {
 		markWorkflowReadiness({
 			workflow: 'rich-editor-interactive',
-			mark: 'ready',
+			mark: 'rich-editor-interactive',
 			route: `/pages/${data.pageSlug}/${data.itemId}/edit`,
 			slug: data.pageSlug,
 			itemId: data.itemId

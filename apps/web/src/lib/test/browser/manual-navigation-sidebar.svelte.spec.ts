@@ -906,7 +906,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 				expect.objectContaining({
 					kind: 'workflow-readiness',
 					workflow: 'desktop-collection-landing',
-					mark: 'ready',
+					mark: 'collection-landing-ready',
 					route: '/pages/news',
 					slug: 'news'
 				})

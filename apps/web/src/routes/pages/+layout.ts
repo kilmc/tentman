@@ -157,7 +157,7 @@ export const load: LayoutLoad = async ({ parent, fetch, url }) => {
 		});
 		markWorkflowReadiness({
 			workflow: 'return-to-pages',
-			mark: 'warm-shell-ready',
+			mark: 'workspace-shell-ready',
 			route: '/pages'
 		});
 		markWorkflowReadiness({
@@ -180,7 +180,7 @@ export const load: LayoutLoad = async ({ parent, fetch, url }) => {
 		});
 		markWorkflowReadiness({
 			workflow: 'first-repository-open',
-			mark: 'bootstrap-ready',
+			mark: 'workspace-bootstrap-ready',
 			route: '/pages'
 		});
 		const data = {

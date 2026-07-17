@@ -47,6 +47,7 @@
 	} from '$lib/features/content-management/transforms';
 	import { resolveConfigPath } from '$lib/utils/validation';
 	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
+	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -172,6 +173,12 @@
 	});
 
 	onMount(() => {
+		markWorkflowReadiness({
+			workflow: 'rich-editor-interactive',
+			mark: 'rich-editor-interactive',
+			route: `/pages/${data.pageSlug}/new`,
+			slug: data.pageSlug
+		});
 		const cleanup = registerKeyboardShortcuts([
 			{
 				key: 's',

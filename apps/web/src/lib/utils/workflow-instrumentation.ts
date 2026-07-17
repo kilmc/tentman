@@ -14,10 +14,25 @@ export type WorkflowName =
 	| 'return-to-pages'
 	| 'desktop-collection-landing'
 	| 'warm-collection-reload'
+	| 'page-route-shell'
 	| 'item-route-shell'
 	| 'rich-editor-interactive'
 	| 'freshness'
 	| 'publish-summary';
+export type WorkflowReadinessMark =
+	| 'workspace-bootstrap-ready'
+	| 'workspace-shell-ready'
+	| 'validation-deferred'
+	| 'pages-overview-ready'
+	| 'collection-landing-ready'
+	| 'collection-reload-ready'
+	| 'page-route-shell-ready'
+	| 'item-route-shell-ready'
+	| 'rich-editor-interactive'
+	| 'freshness-start'
+	| 'freshness-end'
+	| 'publish-summary-first-status'
+	| 'publish-summary-complete';
 
 export type RequestPriority = 'foreground' | 'intent' | 'topLevel' | 'passive' | 'background';
 export type RequestResultStatus = 'ok' | 'error';
@@ -68,7 +83,7 @@ export type WorkflowInstrumentationEvent =
 export interface WorkflowReadinessEvent {
 	kind: 'workflow-readiness';
 	workflow: WorkflowName;
-	mark: string;
+	mark: WorkflowReadinessMark;
 	route?: string | null;
 	slug?: string | null;
 	itemId?: string | null;
@@ -265,7 +280,7 @@ function recordEvent(event: WorkflowInstrumentationEvent): void {
 
 export function markWorkflowReadiness(input: {
 	workflow: WorkflowName;
-	mark: string;
+	mark: WorkflowReadinessMark;
 	route?: string | null;
 	slug?: string | null;
 	itemId?: string | null;

@@ -114,14 +114,8 @@ export interface WorkflowCacheMissResult {
 	recovery: WorkflowCacheMissRecovery;
 }
 
-function getDataSetKey(identity: RepoBootstrapIdentity): string {
-	const value = [
-		identity.mode,
-		identity.repoKey,
-		identity.ref,
-		identity.headSha,
-		identity.treeSha
-	].join('\u001f');
+function hashDataSetParts(parts: string[]): string {
+	const value = parts.join('\u001f');
 	let hash = 0x811c9dc5;
 
 	for (let index = 0; index < value.length; index += 1) {
@@ -130,6 +124,34 @@ function getDataSetKey(identity: RepoBootstrapIdentity): string {
 	}
 
 	return `dataset:${(hash >>> 0).toString(36)}`;
+}
+
+function getRepositoryDataSetKey(identity: RepoBootstrapIdentity): string {
+	return hashDataSetParts([
+		identity.mode,
+		identity.repoKey,
+		identity.ref,
+		identity.headSha,
+		identity.treeSha
+	]);
+}
+
+export function createOpaqueWorkflowRouteDataIdentity(input: {
+	mode: WorkflowDataMode;
+	workspaceKey: string;
+	workspaceLabel: string;
+	dataSetParts: string[];
+	resolvedAt?: number | null;
+	hasEditableDraft?: boolean;
+}): WorkflowRouteDataIdentity {
+	return {
+		mode: input.mode,
+		workspaceKey: input.workspaceKey,
+		workspaceLabel: input.workspaceLabel,
+		dataSetKey: hashDataSetParts([input.mode, input.workspaceKey, ...input.dataSetParts]),
+		resolvedAt: input.resolvedAt ?? null,
+		hasEditableDraft: input.hasEditableDraft ?? false
+	};
 }
 
 export function createWorkflowRouteDataIdentity(
@@ -146,7 +168,7 @@ export function createWorkflowRouteDataIdentity(
 		mode: identity.mode === 'local' ? 'local' : 'github',
 		workspaceKey: identity.repoKey,
 		workspaceLabel: identity.label,
-		dataSetKey: getDataSetKey(identity),
+		dataSetKey: getRepositoryDataSetKey(identity),
 		resolvedAt: identity.resolvedAt ?? null,
 		hasEditableDraft: options.hasEditableDraft ?? false
 	};

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
 import { setMockFormGeneratorResult } from '$lib/test/mock-form-generator';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -220,6 +224,7 @@ import PageEditPage from '../../../routes/pages/[page]/edit/+page.svelte';
 describe('routes/pages/[page]/edit/+page.svelte', () => {
 	beforeEach(() => {
 		localStorage.clear();
+		clearWorkflowInstrumentationEventsForTests();
 		localFlowMocks.refresh.mockClear();
 		localFlowMocks.materializeDraftAssets.mockReset();
 		localFlowMocks.fetchContentDocument.mockReset();
@@ -311,6 +316,35 @@ describe('routes/pages/[page]/edit/+page.svelte', () => {
 		);
 		expect(localFlowMocks.deleteDraftAsset).toHaveBeenCalledWith('draft-asset:hero');
 		expect(localFlowMocks.goto).toHaveBeenCalledWith('/pages/about/edit?published=true');
+	});
+
+	it('marks the singleton rich editor as interactive after mount', async () => {
+		const screen = await render(PageEditPage, {
+			data: {
+				mode: 'local',
+				pageSlug: 'about',
+				discoveredConfig: null,
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null,
+				content: null,
+				contentError: null,
+				branch: null
+			},
+			form: undefined as never
+		});
+
+		await waitForElement(screen.getByTestId('mock-form-generator'));
+
+		expect(getWorkflowInstrumentationEventsForTests()).toContainEqual(
+			expect.objectContaining({
+				kind: 'workflow-readiness',
+				workflow: 'rich-editor-interactive',
+				mark: 'rich-editor-interactive',
+				route: '/pages/about/edit',
+				slug: 'about'
+			})
+		);
 	});
 
 	it('recovers unsaved local page edits after interruption', async () => {

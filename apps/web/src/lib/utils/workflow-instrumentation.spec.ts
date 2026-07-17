@@ -17,7 +17,7 @@ describe('workflow instrumentation', () => {
 	it('records readiness marks and browser request traces for budget assertions', async () => {
 		markWorkflowReadiness({
 			workflow: 'desktop-collection-landing',
-			mark: 'ready',
+			mark: 'collection-landing-ready',
 			route: '/pages/posts',
 			slug: 'posts'
 		});
@@ -39,7 +39,7 @@ describe('workflow instrumentation', () => {
 				expect.objectContaining({
 					kind: 'workflow-readiness',
 					workflow: 'desktop-collection-landing',
-					mark: 'ready',
+					mark: 'collection-landing-ready',
 					route: '/pages/posts',
 					slug: 'posts'
 				}),

@@ -199,7 +199,7 @@ describe('routes/pages/+layout', () => {
 			expect.objectContaining({
 				kind: 'workflow-readiness',
 				workflow: 'return-to-pages',
-				mark: 'warm-shell-ready',
+				mark: 'workspace-shell-ready',
 				route: '/pages'
 			})
 		);

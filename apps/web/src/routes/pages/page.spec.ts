@@ -341,7 +341,7 @@ describe('routes/pages/+page', () => {
 			expect.objectContaining({
 				kind: 'workflow-readiness',
 				workflow: 'return-to-pages',
-				mark: 'overview-ready',
+				mark: 'pages-overview-ready',
 				route: '/pages'
 			})
 		);

@@ -11,6 +11,7 @@ import type { RepoBootstrapIdentity } from '$lib/repository/config-bootstrap';
 import type { LocalDiscoverySignature } from '$lib/repository/local';
 import type { RepositoryBackend } from '$lib/repository/types';
 import {
+	createOpaqueWorkflowRouteDataIdentity,
 	createWorkflowBlockSupportData,
 	createWorkflowCollectionNavigationData,
 	createWorkflowConfigStatesData,
@@ -28,9 +29,9 @@ import {
 	type WorkflowWorkspaceBootstrapData
 } from '$lib/repository/workflow-data';
 
-function getDiscoverySignatureDataSetKey(signature: LocalDiscoverySignature | null): string {
+function getLocalDiscoveryDataSetKey(signature: LocalDiscoverySignature | null): string {
 	if (!signature) {
-		return 'local-empty';
+		return 'empty-discovery';
 	}
 
 	let hash = 0x811c9dc5;
@@ -40,14 +41,14 @@ function getDiscoverySignatureDataSetKey(signature: LocalDiscoverySignature | nu
 		hash = Math.imul(hash, 0x01000193);
 	}
 
-	return `local:${(hash >>> 0).toString(36)}`;
+	return `discovery:${(hash >>> 0).toString(36)}`;
 }
 
 function createLocalRepositoryIdentity(
 	backend: RepositoryBackend,
 	discoverySignature: LocalDiscoverySignature | null
 ): RepoBootstrapIdentity {
-	const dataSetKey = getDiscoverySignatureDataSetKey(discoverySignature);
+	const dataSetKey = getLocalDiscoveryDataSetKey(discoverySignature);
 
 	return {
 		mode: 'local',
@@ -64,12 +65,14 @@ export function createLocalWorkflowIdentity(input: {
 	backend: RepositoryBackend;
 	discoverySignature: LocalDiscoverySignature | null;
 }): WorkflowRouteDataIdentity | null {
-	return createWorkflowRouteDataIdentity(
-		createLocalRepositoryIdentity(input.backend, input.discoverySignature),
-		{
-			hasEditableDraft: false
-		}
-	);
+	return createOpaqueWorkflowRouteDataIdentity({
+		mode: 'local',
+		workspaceKey: input.backend.cacheKey,
+		workspaceLabel: input.backend.label,
+		dataSetParts: [getLocalDiscoveryDataSetKey(input.discoverySignature)],
+		resolvedAt: Date.now(),
+		hasEditableDraft: false
+	});
 }
 
 export function createLocalWorkflowBlockSupportData(input: {
@@ -96,6 +99,7 @@ export function createLocalWorkflowWorkspaceBootstrapData(input: {
 		input.backend,
 		input.discoverySignature
 	);
+	const workflowIdentity = createLocalWorkflowIdentity(input);
 	const workflowData = createWorkflowWorkspaceBootstrapData({
 		configs: input.configs,
 		blockConfigs: input.blockConfigs,
@@ -112,21 +116,25 @@ export function createLocalWorkflowWorkspaceBootstrapData(input: {
 
 	return {
 		...workflowData,
+		identity: workflowIdentity,
 		blockSupport: createLocalWorkflowBlockSupportData({
 			blockConfigs: input.blockConfigs,
 			blockRegistryError: input.blockRegistryError
 		}),
-		freshness: createWorkflowFreshnessData({
-			activeDraftBranch: null,
-			repositoryIdentity,
-			mainRepositoryIdentity: repositoryIdentity,
-			draftRepositoryIdentity: null,
-			unchanged: true,
-			freshnessStatus: 'unchanged',
-			changedPaths: [],
-			error: null,
-			recovery: null
-		})
+		freshness: {
+			...createWorkflowFreshnessData({
+				activeDraftBranch: null,
+				repositoryIdentity,
+				mainRepositoryIdentity: repositoryIdentity,
+				draftRepositoryIdentity: null,
+				unchanged: true,
+				freshnessStatus: 'unchanged',
+				changedPaths: [],
+				error: null,
+				recovery: null
+			}),
+			identity: workflowIdentity
+		}
 	};
 }
 

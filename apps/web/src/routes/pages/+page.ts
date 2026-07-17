@@ -145,7 +145,7 @@ export const load: PageLoad = async ({ parent, fetch }) => {
 		if (cachedSummary) {
 			markWorkflowReadiness({
 				workflow: 'return-to-pages',
-				mark: 'overview-ready',
+				mark: 'pages-overview-ready',
 				route: '/pages'
 			});
 			return {

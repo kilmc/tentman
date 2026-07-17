@@ -127,7 +127,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			: [];
 	markWorkflowReadiness({
 		workflow: 'item-route-shell',
-		mark: 'edit-ready',
+		mark: 'item-route-shell-ready',
 		route: `/pages/${params.page}/${params.itemId}/edit`,
 		slug: params.page,
 		itemId: params.itemId

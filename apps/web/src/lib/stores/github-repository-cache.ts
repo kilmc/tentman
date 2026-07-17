@@ -3222,7 +3222,10 @@ export const githubRepositoryCache = {
 			await notifyCollection(slug);
 			markWorkflowReadiness({
 				workflow: options.workflow ?? 'warm-collection-reload',
-				mark: 'ready',
+				mark:
+					(options.workflow ?? 'warm-collection-reload') === 'warm-collection-reload'
+						? 'collection-reload-ready'
+						: 'collection-landing-ready',
 				route: `/pages/${slug}`,
 				slug
 			});
@@ -3334,7 +3337,11 @@ export const githubRepositoryCache = {
 			workflow:
 				options.workflow ??
 				(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
-			mark: 'ready',
+			mark:
+				(options.workflow ?? (options.force ? 'warm-collection-reload' : 'desktop-collection-landing')) ===
+				'warm-collection-reload'
+					? 'collection-reload-ready'
+					: 'collection-landing-ready',
 			route: `/pages/${slug}`,
 			slug
 		});
@@ -4286,7 +4293,7 @@ export const githubRepositoryCache = {
 			});
 			markWorkflowReadiness({
 				workflow: 'freshness',
-				mark: 'start',
+				mark: 'freshness-start',
 				route: '/pages',
 				slug: null
 			});
@@ -4333,7 +4340,7 @@ export const githubRepositoryCache = {
 					);
 					markWorkflowReadiness({
 						workflow: 'freshness',
-						mark: 'end',
+						mark: 'freshness-end',
 						route: '/pages',
 						slug: null
 					});
@@ -4351,7 +4358,7 @@ export const githubRepositoryCache = {
 					});
 					markWorkflowReadiness({
 						workflow: 'freshness',
-						mark: 'end',
+						mark: 'freshness-end',
 						route: '/pages',
 						slug: null
 					});
@@ -4367,7 +4374,7 @@ export const githubRepositoryCache = {
 					});
 					markWorkflowReadiness({
 						workflow: 'freshness',
-						mark: 'end',
+						mark: 'freshness-end',
 						route: '/pages',
 						slug: null
 					});
@@ -4393,7 +4400,7 @@ export const githubRepositoryCache = {
 				}
 				markWorkflowReadiness({
 					workflow: 'freshness',
-					mark: 'end',
+					mark: 'freshness-end',
 					route: '/pages',
 					slug: null
 				});
@@ -4405,7 +4412,7 @@ export const githubRepositoryCache = {
 				});
 				markWorkflowReadiness({
 					workflow: 'freshness',
-					mark: 'end',
+					mark: 'freshness-end',
 					route: '/pages',
 					slug: null
 				});

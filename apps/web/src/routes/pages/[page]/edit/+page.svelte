@@ -34,6 +34,7 @@
 	import { localWorkflowRouteCapabilities } from '$lib/repository/local-workflow-route-capabilities';
 	import type { WorkflowPageViewData } from '$lib/repository/workflow-data';
 	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
+	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 	import { resolveConfigPath } from '$lib/utils/validation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -164,6 +165,12 @@
 	});
 
 	onMount(() => {
+		markWorkflowReadiness({
+			workflow: 'rich-editor-interactive',
+			mark: 'rich-editor-interactive',
+			route: `/pages/${data.pageSlug}/edit`,
+			slug: data.pageSlug
+		});
 		handleUrlMessages();
 
 		const cleanup = registerKeyboardShortcuts([

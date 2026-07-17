@@ -4,6 +4,7 @@ import type { RepositoryBackend } from '$lib/repository/types';
 import {
 	createLocalWorkflowCollectionNavigationData,
 	createLocalWorkflowConfigStatesData,
+	createLocalWorkflowIdentity,
 	createLocalWorkflowItemViewData,
 	createLocalWorkflowPageViewData,
 	createLocalWorkflowWorkspaceBootstrapData
@@ -59,6 +60,24 @@ const navigationManifest = {
 };
 
 describe('local workflow data', () => {
+	it('expresses local identity from workspace and discovery vocabulary', () => {
+		const identity = createLocalWorkflowIdentity({
+			backend,
+			discoverySignature
+		});
+
+		expect(identity).toMatchObject({
+			mode: 'local',
+			workspaceKey: 'local:docs',
+			workspaceLabel: 'Docs',
+			dataSetKey: expect.stringMatching(/^dataset:/),
+			hasEditableDraft: false
+		});
+		expect(JSON.stringify(identity)).not.toContain('ref');
+		expect(JSON.stringify(identity)).not.toContain('headSha');
+		expect(JSON.stringify(identity)).not.toContain('treeSha');
+	});
+
 	it('builds local bootstrap data without draft or GitHub mechanics', () => {
 		const workflowData = createLocalWorkflowWorkspaceBootstrapData({
 			backend,
@@ -97,6 +116,7 @@ describe('local workflow data', () => {
 				changedContentPaths: []
 			}
 		});
+		expect(workflowData.freshness.identity).toEqual(workflowData.identity);
 	});
 
 	it('builds local collection navigation and config states workflow outputs', () => {

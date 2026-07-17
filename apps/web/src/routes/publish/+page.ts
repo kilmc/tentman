@@ -30,7 +30,7 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 	);
 	markWorkflowReadiness({
 		workflow: 'publish-summary',
-		mark: 'first-status',
+		mark: 'publish-summary-first-status',
 		route: '/publish'
 	});
 
@@ -46,7 +46,7 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 		const payload = await response.json();
 		markWorkflowReadiness({
 			workflow: 'publish-summary',
-			mark: 'complete',
+			mark: 'publish-summary-complete',
 			route: '/publish'
 		});
 		return {
@@ -62,7 +62,7 @@ export const load: PageLoad = async ({ parent, fetch, depends }) => {
 	const payload = await response.json();
 	markWorkflowReadiness({
 		workflow: 'publish-summary',
-		mark: 'complete',
+		mark: 'publish-summary-complete',
 		route: '/publish'
 	});
 	return {
