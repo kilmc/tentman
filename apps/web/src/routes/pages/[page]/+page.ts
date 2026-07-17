@@ -37,12 +37,8 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			repoFullName: workspace.selectedRepo.full_name,
 			bootstrap: parentData
 		});
-		await githubRepositoryCache.ensureCollectionIndex(params.page, { fetcher: fetch });
-		markWorkflowReadiness({
-			workflow: 'desktop-collection-landing',
-			mark: 'ready',
-			route: `/pages/${params.page}`,
-			slug: params.page
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData(params.page, {
+			fetcher: fetch
 		});
 
 		return {
@@ -51,8 +47,10 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			packageBlocks: [],
 			blockRegistryError: null,
 			content: null,
-			collectionNavigation: await githubRepositoryCache.getCollectionNavigation(params.page),
-			contentError: null,
+			collectionNavigation: workflowData.navigation,
+			contentError:
+				workflowData.readiness === 'error' ? workflowData.cacheMiss?.reason ?? null : null,
+			workflowData,
 			branch: parentData.activeDraftBranch,
 			pageSlug: params.page,
 			mode: 'github' as const

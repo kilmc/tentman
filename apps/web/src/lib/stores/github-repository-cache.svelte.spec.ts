@@ -9,6 +9,7 @@ import {
 } from '$lib/stores/github-repository-cache';
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
 import {
+	assertWorkflowRequestBudgetForTests,
 	clearWorkflowInstrumentationEventsForTests,
 	getWorkflowInstrumentationEventsForTests
 } from '$lib/utils/workflow-instrumentation';
@@ -536,6 +537,321 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			const navigation = await githubRepositoryCache.getCollectionNavigation('posts');
 			return navigation?.items.map((item) => item.title);
 		}).toEqual(['Post 1', 'Post 2', 'Post 3', 'Post 4']);
+	});
+
+	it('loads collection route workflow data with one index request and one visible projection batch', async () => {
+		const fallbackItems = createFallbackItems(3);
+		const fetchedEndpoints: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			fetchedEndpoints.push(url);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(fallbackItems));
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+				expect(body.blobShas).toEqual(['blob-1', 'blob-2']);
+				return Response.json({
+					indexIdentity: createIndexPayload().identity,
+					items: createProjectionItems(body.blobShas)
+				});
+			}
+			throw new Error(`Unexpected foreground collection route fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		clearWorkflowInstrumentationEventsForTests();
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 2
+		});
+
+		expect(workflowData).toMatchObject({
+			slug: 'posts',
+			readiness: 'ready',
+			cacheMiss: null,
+			identity: {
+				mode: 'github',
+				workspaceKey: 'github:acme/docs?ref=main',
+				workspaceLabel: 'acme/docs'
+			},
+			navigation: {
+				items: [
+					{ title: 'Post 1', hydration: 'hydrated' },
+					{ title: 'Post 2', hydration: 'hydrated' },
+					{ title: 'post 3', hydration: 'fallback' }
+				]
+			}
+		});
+		expect(fetchedEndpoints).toEqual([
+			'/api/repo/collection-index?slug=posts',
+			'/api/repo/collection-projections'
+		]);
+		expect(fetchedEndpoints).not.toEqual(
+			expect.arrayContaining(['/api/repo/page-view?slug=posts', '/api/repo/item-view'])
+		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'desktop-collection-landing',
+			route: '/pages/posts',
+			maxBrowserRequests: 2,
+			maxGitHubRequests: 0
+		});
+	});
+
+	it('reloads matching collection route workflow data from cached identities without foreground calls', async () => {
+		const fallbackItems = createFallbackItems(1);
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(fallbackItems));
+			}
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayload().identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+		const bootstrap = createBootstrap();
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 1
+		});
+
+		githubRepositoryCacheTestApi.resetMemoryForReloadTests();
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		fetcher.mockClear();
+		clearWorkflowInstrumentationEventsForTests();
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 1
+		});
+
+		expect(workflowData).toMatchObject({
+			readiness: 'ready',
+			cacheMiss: null,
+			navigation: {
+				items: [{ title: 'Post 1', hydration: 'hydrated' }]
+			}
+		});
+		expect(fetcher).not.toHaveBeenCalled();
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'warm-collection-reload',
+			route: '/pages/posts',
+			maxBrowserRequests: 0,
+			maxGitHubRequests: 0
+		});
+	});
+
+	it('returns degraded collection workflow data when route cache records fail to load', async () => {
+		const fetcher = vi.fn(async () => new Response(null, { status: 503 }));
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 2
+		});
+
+		expect(workflowData).toMatchObject({
+			slug: 'posts',
+			readiness: 'error',
+			navigation: {
+				items: [],
+				groups: []
+			},
+			cacheMiss: {
+				target: 'collection-navigation',
+				slug: 'posts',
+				readiness: 'error',
+				reason: 'collection index request failed (503)',
+				recovery: 'fetch-route-data'
+			}
+		});
+	});
+
+	it('names projection failures in degraded collection workflow data', async () => {
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				return new Response(null, { status: 502 });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 1
+		});
+
+		expect(workflowData).toMatchObject({
+			readiness: 'error',
+			cacheMiss: {
+				reason: 'collection projection batch request failed (502)'
+			}
+		});
+	});
+
+	it('logs exact collection route cache miss reasons', async () => {
+		const fetcher = vi.fn(async () => Response.json(createIndexPayload()));
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.getCollectionNavigation('posts');
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'collection-index',
+					outcome: 'miss',
+					reason: 'missing record',
+					slug: 'posts'
+				})
+			])
+		);
+
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap('tree-next')
+		});
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.getCollectionNavigation('posts');
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'collection-index',
+					outcome: 'miss',
+					reason: 'stale identity',
+					slug: 'posts'
+				})
+			])
+		);
+	});
+
+	it('logs exact projection cache miss reasons for schema and blob identity mismatches', async () => {
+		const [item] = createFallbackItems(1);
+		const basePayload = createIndexPayloadWithItems([item]);
+		const createFetcher = (payload: ReturnType<typeof createIndexPayloadWithItems>) =>
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return Response.json(payload);
+				}
+
+				const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+				return Response.json({
+					indexIdentity: payload.identity,
+					items: createProjectionItems(body.blobShas)
+				});
+			});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		const baseFetcher = createFetcher(basePayload);
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: baseFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		const schemaPayload = {
+			...basePayload,
+			identity: {
+				...basePayload.identity,
+				schemaIdentity: 'summary'
+			}
+		};
+		const schemaFetcher = createFetcher(schemaPayload);
+		await githubRepositoryCache.ensureCollectionIndex('posts', {
+			fetcher: schemaFetcher,
+			force: true
+		});
+
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: schemaFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'projection',
+					outcome: 'miss',
+					reason: 'schema mismatch',
+					slug: 'posts'
+				})
+			])
+		);
+
+		await githubRepositoryCacheTestApi.reset();
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: baseFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		const blobPayload = createIndexPayloadWithItems([{ ...item, blobSha: 'blob-new' }]);
+		const blobFetcher = createFetcher(blobPayload);
+		await githubRepositoryCache.ensureCollectionIndex('posts', {
+			fetcher: blobFetcher,
+			force: true
+		});
+
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: blobFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'projection',
+					outcome: 'miss',
+					reason: 'blob identity mismatch',
+					slug: 'posts'
+				})
+			])
+		);
 	});
 
 	it('stales the repository snapshot without clearing collection indexes for navigation changes', async () => {

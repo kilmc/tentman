@@ -212,13 +212,14 @@ export function createWorkflowCollectionNavigationData(input: {
 	identity?: WorkflowRouteDataIdentity | null;
 	slug: string;
 	navigation: OrderedCollectionNavigation;
+	readiness?: WorkflowDataReadiness;
 	cacheMiss?: WorkflowCacheMissResult | null;
 }): WorkflowCollectionNavigationData {
 	return {
 		identity: input.identity ?? null,
 		slug: input.slug,
 		navigation: input.navigation,
-		readiness: 'ready',
+		readiness: input.readiness ?? 'ready',
 		cacheMiss: input.cacheMiss ?? null
 	};
 }

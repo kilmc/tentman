@@ -32,9 +32,16 @@ import type {
 	RepoSingletonContentIdentity
 } from '$lib/repository/config-bootstrap';
 import {
+	createWorkflowCacheMissResult,
+	createWorkflowCollectionNavigationData,
+	createWorkflowRouteDataIdentity,
+	type WorkflowCollectionNavigationData
+} from '$lib/repository/workflow-data';
+import {
 	markWorkflowReadiness,
 	recordCacheOutcome,
 	traceBrowserRequest,
+	type RequestPriority,
 	type RequestDuplicateState
 } from '$lib/utils/workflow-instrumentation';
 
@@ -304,6 +311,7 @@ type CacheTaskKind =
 	| 'itemDocument';
 
 type CacheTaskPriority = 'foreground' | 'intent' | 'topLevel' | 'passive';
+type CollectionRouteWorkflow = 'desktop-collection-landing' | 'warm-collection-reload';
 type CacheWorkContext = {
 	runId: number;
 	identityKey: string | null;
@@ -955,6 +963,98 @@ function getProjectionKey(input: {
 	schemaIdentity: string;
 }): string {
 	return `${input.repoFullName}:${input.blobSha}:${input.schemaIdentity}`;
+}
+
+function formatCacheReadFailure(error: unknown): string {
+	return `cache read failure: ${error instanceof Error ? error.message : String(error)}`;
+}
+
+function getCollectionIndexMissReason(input: {
+	indexes: SerializableCollectionIndex[];
+	snapshot: CachedSnapshot;
+	slug: string;
+}): string {
+	const slugIndexes = input.indexes.filter((index) => index.identity.configSlug === input.slug);
+	if (slugIndexes.length === 0) {
+		return 'missing record';
+	}
+
+	const repositoryIndexes = slugIndexes.filter(
+		(index) =>
+			index.identity.repoKey === input.snapshot.identity.repoKey &&
+			index.identity.ref === input.snapshot.identity.ref
+	);
+	if (repositoryIndexes.length === 0) {
+		return 'stale identity';
+	}
+
+	const activeTreeIndexes = repositoryIndexes.filter(
+		(index) => index.identity.treeSha === input.snapshot.identity.treeSha
+	);
+	if (activeTreeIndexes.length === 0) {
+		return 'stale identity';
+	}
+
+	const config = getConfig(input.snapshot, input.slug);
+	if (config && activeTreeIndexes.some((index) => index.identity.configPath !== config.path)) {
+		return 'stale identity';
+	}
+
+	return 'missing record';
+}
+
+function isSameProjectionItem(record: CachedProjection, item: CollectionIndexItem): boolean {
+	const cachedItemId = record.item.hrefItemId ?? record.item.itemId;
+	const itemId = item.hrefItemId ?? item.itemId;
+	return cachedItemId === itemId || record.item.path === item.path;
+}
+
+function getProjectionMissReason(input: {
+	projections: CachedProjection[];
+	snapshot: CachedSnapshot;
+	index: SerializableCollectionIndex;
+	item: CollectionIndexItem;
+}): string {
+	const repoProjections = input.projections.filter(
+		(projection) => projection.repoFullName === input.snapshot.repoFullName
+	);
+	const sameBlob = repoProjections.filter(
+		(projection) => projection.blobSha === input.item.blobSha
+	);
+	if (
+		sameBlob.length > 0 &&
+		sameBlob.every((projection) => projection.schemaIdentity !== input.index.identity.schemaIdentity)
+	) {
+		return 'schema mismatch';
+	}
+
+	if (
+		repoProjections.some(
+			(projection) =>
+				isSameProjectionItem(projection, input.item) &&
+				projection.blobSha !== input.item.blobSha
+		)
+	) {
+		return 'blob identity mismatch';
+	}
+
+	return 'missing record';
+}
+
+async function getCollectionRouteWorkflow(input: {
+	cachedIndex: SerializableCollectionIndex | null;
+	snapshot: CachedSnapshot;
+	visibleLimit?: number;
+}): Promise<CollectionRouteWorkflow> {
+	if (!input.cachedIndex) {
+		return 'desktop-collection-landing';
+	}
+
+	const missingBlobShas = await getMissingProjectionBlobShas(input.cachedIndex, input.snapshot);
+	const visibleLimit = input.visibleLimit ?? VISIBLE_PROJECTION_LIMIT;
+	return missingBlobShas.slice(0, visibleLimit).length === 0
+		? 'warm-collection-reload'
+		: 'desktop-collection-landing';
 }
 
 function getDocumentKey(input: {
@@ -1657,21 +1757,37 @@ async function getCachedCollectionIndex(slug: string): Promise<SerializableColle
 		return null;
 	}
 
-	const indexes = await readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE);
+	let indexes: SerializableCollectionIndex[];
+	try {
+		indexes = await readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE);
+	} catch (error) {
+		recordCacheOutcome({
+			cacheArea: 'collection-index',
+			outcome: 'miss',
+			reason: formatCacheReadFailure(error),
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: null,
+			slug
+		});
+		return null;
+	}
 	const cached =
-		indexes.find(
-			(index) =>
-				index.identity.repoKey === snapshot.identity.repoKey &&
-				index.identity.ref === snapshot.identity.ref &&
-				index.identity.treeSha === snapshot.identity.treeSha &&
-				index.identity.configSlug === slug
-		) ?? null;
+		indexes
+			.filter(
+				(index) =>
+					index.identity.repoKey === snapshot.identity.repoKey &&
+					index.identity.ref === snapshot.identity.ref &&
+					index.identity.treeSha === snapshot.identity.treeSha &&
+					index.identity.configSlug === slug
+			)
+			.sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
 	recordCacheOutcome({
 		cacheArea: 'collection-index',
 		outcome: cached ? 'hit' : 'miss',
 		reason: cached
 			? 'collection index cached for active tree'
-			: 'collection index missing for active tree',
+			: getCollectionIndexMissReason({ indexes, snapshot, slug }),
 		repoFullName: snapshot.repoFullName,
 		ref: snapshot.identity.ref,
 		key: cached?.key ?? null,
@@ -1757,22 +1873,39 @@ async function getMissingProjectionBlobShas(
 	index: SerializableCollectionIndex,
 	snapshot: CachedSnapshot
 ): Promise<string[]> {
+	let projections: CachedProjection[];
+	try {
+		projections = await readAllStore<CachedProjection>(PROJECTION_STORE);
+	} catch (error) {
+		const reason = formatCacheReadFailure(error);
+		for (const item of index.items) {
+			recordCacheOutcome({
+				cacheArea: 'projection',
+				outcome: 'miss',
+				reason,
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				slug: index.configSlug,
+				itemId: item.hrefItemId ?? item.itemId ?? null,
+				path: item.path
+			});
+		}
+		return index.items.map((item) => item.blobSha);
+	}
 	const missingBlobShas = await Promise.all(
 		index.items.map(async (item) => {
-			const cached = await readStore<CachedProjection>(
-				PROJECTION_STORE,
-				getProjectionKey({
-					repoFullName: snapshot.repoFullName,
-					blobSha: item.blobSha,
-					schemaIdentity: index.identity.schemaIdentity
-				})
-			);
+			const projectionKey = getProjectionKey({
+				repoFullName: snapshot.repoFullName,
+				blobSha: item.blobSha,
+				schemaIdentity: index.identity.schemaIdentity
+			});
+			const cached = projections.find((projection) => projection.key === projectionKey) ?? null;
 			recordCacheOutcome({
 				cacheArea: 'projection',
 				outcome: cached ? 'hit' : 'miss',
 				reason: cached
 					? 'collection projection cached for item blob'
-					: 'collection projection missing for item blob',
+					: getProjectionMissReason({ projections, snapshot, index, item }),
 				repoFullName: snapshot.repoFullName,
 				ref: snapshot.identity.ref,
 				slug: index.configSlug,
@@ -1962,6 +2095,8 @@ async function hydrateProjectionBatch(input: {
 	slug: string;
 	blobShas: string[];
 	context?: CacheWorkContext;
+	workflow?: CollectionRouteWorkflow;
+	priority?: RequestPriority;
 }): Promise<void> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot || input.blobShas.length === 0) {
@@ -1970,11 +2105,11 @@ async function hydrateProjectionBatch(input: {
 
 	const response = await traceBrowserRequest(
 		{
-			workflow: 'desktop-collection-landing',
+			workflow: input.workflow ?? 'desktop-collection-landing',
 			route: `/pages/${input.slug}`,
 			endpoint: '/api/repo/collection-projections',
 			method: 'POST',
-			priority: 'background',
+			priority: input.priority ?? 'background',
 			cacheTaskKey: getInventoryTargetId({
 				targetType: 'collectionProjection',
 				configSlug: input.slug,
@@ -2222,12 +2357,119 @@ export const githubRepositoryCache = {
 		);
 	},
 
+	async loadCollectionNavigationWorkflowData(
+		slug: string,
+		options: {
+			fetcher: typeof fetch;
+			visibleLimit?: number;
+			force?: boolean;
+		}
+	): Promise<WorkflowCollectionNavigationData> {
+		const emptyNavigation: OrderedCollectionNavigation = { items: [], groups: [] };
+		if (!browser) {
+			return createWorkflowCollectionNavigationData({
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'missing',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					reason: 'browser cache unavailable'
+				})
+			});
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return createWorkflowCollectionNavigationData({
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'missing',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					reason: 'missing active repository snapshot'
+				})
+			});
+		}
+
+		const identity = createWorkflowRouteDataIdentity(snapshot.identity, {
+			hasEditableDraft: Boolean(snapshot.activeDraftBranch)
+		});
+		const cachedIndex = options.force ? null : await getCachedCollectionIndex(slug);
+		const workflow = await getCollectionRouteWorkflow({
+			cachedIndex,
+			snapshot,
+			visibleLimit: options.visibleLimit
+		});
+
+		try {
+			await githubRepositoryCache.warmCollection(slug, {
+				fetcher: options.fetcher,
+				visibleLimit: options.visibleLimit,
+				force: options.force,
+				hydrateRemaining: false,
+				warmDocuments: false,
+				priority: 'foreground',
+				workflow
+			});
+		} catch (error) {
+			const status =
+				error instanceof Error
+					? error.message.match(/\((\d+)\)/)?.[1]
+					: null;
+			const failedRequest =
+				error instanceof Error && error.message.includes('projection')
+					? 'collection projection batch request'
+					: 'collection index request';
+			const reason = status
+				? `${failedRequest} failed (${status})`
+				: error instanceof Error
+					? error.message
+					: 'failed to load collection navigation';
+			return createWorkflowCollectionNavigationData({
+				identity,
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'error',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					readiness: 'error',
+					reason
+				})
+			});
+		}
+
+		const navigation = await githubRepositoryCache.getCollectionNavigation(slug);
+		if (!navigation) {
+			return createWorkflowCollectionNavigationData({
+				identity,
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'missing',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					reason: 'missing record'
+				})
+			});
+		}
+
+		return createWorkflowCollectionNavigationData({
+			identity,
+			slug,
+			navigation
+		});
+	},
+
 	async ensureCollectionIndex(
 		slug: string,
 		options: {
 			fetcher: typeof fetch;
 			force?: boolean;
 			priority?: CacheTaskPriority;
+			workflow?: CollectionRouteWorkflow;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2238,7 +2480,7 @@ export const githubRepositoryCache = {
 		if (cached) {
 			await notifyCollection(slug);
 			markWorkflowReadiness({
-				workflow: 'warm-collection-reload',
+				workflow: options.workflow ?? 'warm-collection-reload',
 				mark: 'ready',
 				route: `/pages/${slug}`,
 				slug
@@ -2258,7 +2500,9 @@ export const githubRepositoryCache = {
 			run: async () => {
 				const endpoint = `/api/repo/collection-index?slug=${encodeURIComponent(slug)}`;
 				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
-					workflow: options.force ? 'warm-collection-reload' : 'desktop-collection-landing',
+					workflow:
+						options.workflow ??
+						(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
 					route: `/pages/${slug}`,
 					priority: options.priority ?? 'foreground',
 					taskKey: targetId
@@ -2294,6 +2538,7 @@ export const githubRepositoryCache = {
 			priority?: CacheTaskPriority;
 			hydrateRemaining?: boolean;
 			warmDocuments?: boolean;
+			workflow?: CollectionRouteWorkflow;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2303,7 +2548,8 @@ export const githubRepositoryCache = {
 		await githubRepositoryCache.ensureCollectionIndex(slug, {
 			fetcher: options.fetcher,
 			force: options.force,
-			priority: options.priority ?? 'foreground'
+			priority: options.priority ?? 'foreground',
+			workflow: options.workflow
 		});
 		const index = await getCachedCollectionIndex(slug);
 
@@ -2334,13 +2580,19 @@ export const githubRepositoryCache = {
 			fetcher: options.fetcher,
 			slug,
 			blobShas: visibleBlobShas,
-			context: visibleProjectionContext
+			context: visibleProjectionContext,
+			workflow:
+				options.workflow ??
+				(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
+			priority: options.priority ?? 'foreground'
 		});
 		if (!isCacheWorkContextCurrent(visibleProjectionContext)) {
 			return;
 		}
 		markWorkflowReadiness({
-			workflow: options.force ? 'warm-collection-reload' : 'desktop-collection-landing',
+			workflow:
+				options.workflow ??
+				(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
 			mark: 'ready',
 			route: `/pages/${slug}`,
 			slug

@@ -887,7 +887,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 					route: '/pages/news',
 					endpoint: '/api/repo/collection-projections',
 					method: 'POST',
-					priority: 'background',
+					priority: 'foreground',
 					resultStatus: 'ok'
 				}),
 				expect.objectContaining({

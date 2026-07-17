@@ -158,13 +158,29 @@ describe('GitHub collection route cache in the browser', () => {
 	});
 
 	it('returns warm collection navigation without calling the page-view endpoint', async () => {
-		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+		const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
 			if (url.startsWith('/api/repo/page-view')) {
 				throw new Error('collection landing should not call page-view');
 			}
 			if (url.startsWith('/api/repo/collection-index')) {
 				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				expect(JSON.parse(String(init?.body))).toEqual({
+					slug: 'projects',
+					blobShas: ['blob-panorama']
+				});
+				return Response.json({
+					indexIdentity: createIndexPayload().identity,
+					items: [
+						{
+							...createIndexPayload().items[0],
+							title: 'Panorama 4',
+							hydration: 'hydrated'
+						}
+					]
+				});
 			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		});
@@ -175,20 +191,27 @@ describe('GitHub collection route cache in the browser', () => {
 		expect(firstResult).toMatchObject({
 			pageSlug: 'projects',
 			collectionNavigation: {
-				items: [{ title: 'panorama 4', hydration: 'fallback' }]
+				items: [{ title: 'Panorama 4', hydration: 'hydrated' }]
 			}
 		});
 		expect(secondResult).toMatchObject({
 			pageSlug: 'projects',
 			collectionNavigation: {
-				items: [{ title: 'panorama 4', hydration: 'fallback' }]
+				items: [{ title: 'Panorama 4', hydration: 'hydrated' }]
 			}
 		});
-		expect(fetch).toHaveBeenCalledTimes(1);
-		expect(fetch).toHaveBeenCalledWith('/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenNthCalledWith(
+			2,
+			'/api/repo/collection-projections',
+			expect.objectContaining({
+				method: 'POST'
+			})
+		);
 
 		await expect(githubRepositoryCache.getCollectionNavigation('projects')).resolves.toMatchObject({
-			items: [{ title: 'panorama 4' }]
+			items: [{ title: 'Panorama 4' }]
 		});
 	});
 
