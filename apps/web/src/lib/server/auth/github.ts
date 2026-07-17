@@ -1,5 +1,12 @@
 import { error as httpError, redirect, type Cookies } from '@sveltejs/kit';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import {
+	createCipheriv,
+	createDecipheriv,
+	createHash,
+	createHmac,
+	randomBytes,
+	timingSafeEqual
+} from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { Octokit } from 'octokit';
 import type { RootConfig } from '$lib/config/root-config';
@@ -26,7 +33,15 @@ const GITHUB_SESSION_ABSOLUTE_TIMEOUT_MS = 1000 * 60 * 60 * 24 * 30;
 const MAX_RECENT_REPOS = 5;
 const LOGIN_COOLDOWN_MAX_AGE = 15;
 const OAUTH_REQUEST_MAX_AGE = 60 * 10;
+const OAUTH_STATE_MAX_AGE_MS = OAUTH_REQUEST_MAX_AGE * 1000;
 export const GITHUB_REST_API_VERSION = '2022-11-28';
+
+interface GitHubOAuthRelayStatePayload {
+	v: 1;
+	nonce: string;
+	returnOrigin: string;
+	issuedAt: number;
+}
 
 interface GitHubSessionPayload {
 	token: string;
@@ -111,6 +126,29 @@ export function getGitHubOAuthCredentials(): {
 		clientId,
 		clientSecret
 	};
+}
+
+export function getGitHubOAuthCallbackUrl(requestUrl: URL): string {
+	const configuredCallbackUrl = env.GITHUB_OAUTH_CALLBACK_URL?.trim();
+
+	if (!configuredCallbackUrl) {
+		return new URL('/auth/callback', requestUrl).toString();
+	}
+
+	try {
+		const callbackUrl = new URL(configuredCallbackUrl);
+
+		if (callbackUrl.protocol !== 'http:' && callbackUrl.protocol !== 'https:') {
+			throw new Error('Unsupported callback protocol');
+		}
+
+		return callbackUrl.toString();
+	} catch {
+		throw httpError(
+			503,
+			'GitHub OAuth callback URL is not configured correctly. Set GITHUB_OAUTH_CALLBACK_URL to a full http or https URL.'
+		);
+	}
 }
 
 export function getGitHubCookieOptions(
@@ -336,8 +374,7 @@ export function readSelectedGitHubRepositorySession(cookies: Pick<Cookies, 'get'
 	const snapshot = rawSession ? decodeRepoSessionSnapshot(rawSession) : null;
 
 	return {
-		selectedRepoConfigSummary:
-			snapshot?.selectedRepoConfigSummary ?? snapshot?.rootConfig ?? null
+		selectedRepoConfigSummary: snapshot?.selectedRepoConfigSummary ?? snapshot?.rootConfig ?? null
 	};
 }
 
@@ -404,8 +441,104 @@ export function hasRecentGitHubLoginAttempt(cookies: Pick<Cookies, 'get'>): bool
 	return cookies.get(GITHUB_LOGIN_COOLDOWN_COOKIE) === '1';
 }
 
-export function createGitHubOAuthState(): string {
-	return randomBytes(32).toString('hex');
+function encodeGitHubOAuthRelayStatePayload(payload: GitHubOAuthRelayStatePayload): string {
+	return Buffer.from(JSON.stringify(payload)).toString('base64url');
+}
+
+function signGitHubOAuthRelayStatePayload(encodedPayload: string): string {
+	return createHmac('sha256', getGitHubSessionSecret()).update(encodedPayload).digest('base64url');
+}
+
+function verifyGitHubOAuthRelayStateSignature(encodedPayload: string, signature: string): boolean {
+	const expectedSignature = signGitHubOAuthRelayStatePayload(encodedPayload);
+	const signatureBuffer = Buffer.from(signature);
+	const expectedSignatureBuffer = Buffer.from(expectedSignature);
+
+	return (
+		signatureBuffer.length === expectedSignatureBuffer.length &&
+		timingSafeEqual(signatureBuffer, expectedSignatureBuffer)
+	);
+}
+
+export function createGitHubOAuthState(options: { returnOrigin?: string } = {}): string {
+	const nonce = randomBytes(32).toString('hex');
+
+	if (!options.returnOrigin) {
+		return nonce;
+	}
+
+	const payload = encodeGitHubOAuthRelayStatePayload({
+		v: 1,
+		nonce,
+		returnOrigin: new URL(options.returnOrigin).origin,
+		issuedAt: Date.now()
+	});
+	const signature = signGitHubOAuthRelayStatePayload(payload);
+
+	return `relay.${payload}.${signature}`;
+}
+
+export function readGitHubOAuthRelayState(
+	state: string | null | undefined
+): GitHubOAuthRelayStatePayload | null {
+	if (!state?.startsWith('relay.')) {
+		return null;
+	}
+
+	const [, encodedPayload, signature] = state.split('.');
+
+	if (
+		!encodedPayload ||
+		!signature ||
+		!verifyGitHubOAuthRelayStateSignature(encodedPayload, signature)
+	) {
+		return null;
+	}
+
+	try {
+		const payload = JSON.parse(
+			Buffer.from(encodedPayload, 'base64url').toString('utf8')
+		) as GitHubOAuthRelayStatePayload;
+
+		if (
+			payload?.v !== 1 ||
+			typeof payload.nonce !== 'string' ||
+			typeof payload.returnOrigin !== 'string' ||
+			typeof payload.issuedAt !== 'number' ||
+			Date.now() - payload.issuedAt > OAUTH_STATE_MAX_AGE_MS
+		) {
+			return null;
+		}
+
+		return {
+			...payload,
+			returnOrigin: new URL(payload.returnOrigin).origin
+		};
+	} catch {
+		return null;
+	}
+}
+
+export function getGitHubOAuthCallbackRelayUrl(input: {
+	callbackUrl: string;
+	currentUrl: URL;
+	state: string | null | undefined;
+}): URL | null {
+	const callbackUrl = new URL(input.callbackUrl);
+	const relayState = readGitHubOAuthRelayState(input.state);
+
+	if (!relayState || input.currentUrl.origin !== callbackUrl.origin) {
+		return null;
+	}
+
+	if (relayState.returnOrigin === input.currentUrl.origin) {
+		return null;
+	}
+
+	const relayUrl = new URL('/auth/callback', relayState.returnOrigin);
+	relayUrl.search = input.currentUrl.search;
+
+	return relayUrl;
 }
 
 export function persistGitHubOAuthRequest(

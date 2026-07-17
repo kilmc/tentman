@@ -3,6 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	createGitHubOAuthState,
+	getGitHubOAuthCallbackUrl,
 	getGitHubClientId,
 	hasRecentGitHubLoginAttempt,
 	isGitHubOAuthConfigured,
@@ -13,8 +14,6 @@ import { sanitizeAuthRedirectTarget } from '$lib/utils/routing';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const redirectTo = sanitizeAuthRedirectTarget(url.searchParams.get('redirect'), '/repos');
-	const callbackUrl = new URL('/auth/callback', url).toString();
-	const state = createGitHubOAuthState();
 
 	if (!isGitHubOAuthConfigured()) {
 		throw redirect(302, '/?github_oauth=unavailable');
@@ -23,6 +22,11 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	if (hasRecentGitHubLoginAttempt(cookies)) {
 		throw redirect(302, '/?github_oauth=retry_later');
 	}
+
+	const callbackUrl = getGitHubOAuthCallbackUrl(url);
+	const state = createGitHubOAuthState(
+		new URL(callbackUrl).origin === url.origin ? {} : { returnOrigin: url.origin }
+	);
 
 	// GitHub OAuth authorization URL
 	const authUrl = new URL('https://github.com/login/oauth/authorize');
