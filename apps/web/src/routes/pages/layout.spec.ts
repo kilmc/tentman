@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	assertWorkflowRequestBudgetForTests,
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 const mocks = vi.hoisted(() => ({
 	loadRepoConfigsBootstrap: vi.fn()
@@ -15,7 +20,7 @@ vi.mock('$lib/repository/config-bootstrap', async () => {
 	};
 });
 
-import { load } from './+layout';
+import { clearPagesWorkspaceWarmReturnCacheForTests, load } from './+layout';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 const emptyInstructionDiscovery = {
@@ -23,9 +28,40 @@ const emptyInstructionDiscovery = {
 	issues: []
 };
 
+const githubWorkspaceParentData = {
+	isAuthenticated: true,
+	selectedRepo: {
+		owner: 'acme',
+		name: 'docs',
+		full_name: 'acme/docs'
+	},
+	selectedBackend: {
+		kind: 'github' as const,
+		repo: {
+			owner: 'acme',
+			name: 'docs',
+			full_name: 'acme/docs'
+		}
+	}
+};
+
+function createRepoIdentity(ref = 'main') {
+	return {
+		repoKey: `github:acme/docs?ref=${ref}`,
+		mode: 'github',
+		label: 'acme/docs',
+		ref,
+		headSha: `head-${ref}`,
+		treeSha: `tree-${ref}`,
+		resolvedAt: 1
+	};
+}
+
 describe('routes/pages/+layout', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearWorkflowInstrumentationEventsForTests();
+		clearPagesWorkspaceWarmReturnCacheForTests();
 		mocks.loadRepoConfigsBootstrap.mockResolvedValue({
 			configs: [
 				{
@@ -103,6 +139,202 @@ describe('routes/pages/+layout', () => {
 			rootConfig: null,
 			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
 			instructionDiscovery: emptyInstructionDiscovery
+		});
+		expect(mocks.loadRepoConfigsBootstrap).toHaveBeenCalledWith(fetcher);
+	});
+
+	it('returns to pages from review using the cached no-draft workspace bootstrap', async () => {
+		const fetcher = vi.fn();
+		const bootstrap = {
+			configs: [
+				{
+					slug: 'posts',
+					path: 'content/posts.tentman.json',
+					config: {
+						label: 'Posts',
+						collection: true,
+						content: {
+							mode: 'directory' as const
+						},
+						blocks: []
+					}
+				}
+			],
+			blockConfigs: [],
+			rootConfig: {
+				siteName: 'Acme Docs'
+			},
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			singletonContentIdentities: {},
+			activeDraftBranch: null,
+			repositoryIdentity: createRepoIdentity()
+		};
+		mocks.loadRepoConfigsBootstrap.mockResolvedValueOnce(bootstrap);
+
+		await load({
+			parent: async () => githubWorkspaceParentData,
+			fetch: fetcher
+		} as never);
+		mocks.loadRepoConfigsBootstrap.mockClear();
+		fetcher.mockClear();
+		clearWorkflowInstrumentationEventsForTests();
+
+		await expect(
+			load({
+				parent: async () => githubWorkspaceParentData,
+				fetch: fetcher
+			} as never)
+		).resolves.toMatchObject({
+			configs: bootstrap.configs,
+			rootConfig: {
+				siteName: 'Acme Docs'
+			},
+			activeDraftBranch: null,
+			repositoryIdentity: createRepoIdentity(),
+			instructionDiscovery: emptyInstructionDiscovery
+		});
+		expect(mocks.loadRepoConfigsBootstrap).not.toHaveBeenCalled();
+		expect(fetcher).not.toHaveBeenCalled();
+		expect(getWorkflowInstrumentationEventsForTests()).toContainEqual(
+			expect.objectContaining({
+				kind: 'workflow-readiness',
+				workflow: 'return-to-pages',
+				mark: 'warm-shell-ready',
+				route: '/pages'
+			})
+		);
+		expect(getWorkflowInstrumentationEventsForTests()).toContainEqual(
+			expect.objectContaining({
+				kind: 'workflow-readiness',
+				workflow: 'return-to-pages',
+				mark: 'validation-deferred',
+				route: '/pages'
+			})
+		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'return-to-pages',
+			route: '/pages',
+			maxBrowserRequests: 0,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 0
+		});
+	});
+
+	it('returns to pages from review using the cached draft-bearing workspace bootstrap', async () => {
+		const fetcher = vi.fn();
+		const draftIdentity = createRepoIdentity('tentman-preview');
+		const bootstrap = {
+			configs: [
+				{
+					slug: 'posts',
+					path: 'content/posts.tentman.json',
+					config: {
+						label: 'Posts',
+						collection: true,
+						content: {
+							mode: 'directory' as const
+						},
+						blocks: []
+					}
+				}
+			],
+			blockConfigs: [],
+			rootConfig: {
+				siteName: 'Acme Draft Docs'
+			},
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			singletonContentIdentities: {},
+			activeDraftBranch: 'tentman-preview',
+			repositoryIdentity: draftIdentity,
+			mainRepositoryIdentity: createRepoIdentity(),
+			draftRepositoryIdentity: draftIdentity
+		};
+		mocks.loadRepoConfigsBootstrap.mockResolvedValueOnce(bootstrap);
+
+		await load({
+			parent: async () => githubWorkspaceParentData,
+			fetch: fetcher
+		} as never);
+		mocks.loadRepoConfigsBootstrap.mockClear();
+		fetcher.mockClear();
+		clearWorkflowInstrumentationEventsForTests();
+
+		await expect(
+			load({
+				parent: async () => githubWorkspaceParentData,
+				fetch: fetcher
+			} as never)
+		).resolves.toMatchObject({
+			configs: bootstrap.configs,
+			rootConfig: {
+				siteName: 'Acme Draft Docs'
+			},
+			activeDraftBranch: 'tentman-preview',
+			repositoryIdentity: draftIdentity,
+			mainRepositoryIdentity: createRepoIdentity(),
+			draftRepositoryIdentity: draftIdentity,
+			instructionDiscovery: emptyInstructionDiscovery
+		});
+		expect(mocks.loadRepoConfigsBootstrap).not.toHaveBeenCalled();
+		expect(fetcher).not.toHaveBeenCalled();
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'return-to-pages',
+			route: '/pages',
+			maxBrowserRequests: 0,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 0
+		});
+	});
+
+	it('refreshes the workspace bootstrap after publish result redirects', async () => {
+		const fetcher = vi.fn();
+		const cachedBootstrap = {
+			configs: [],
+			blockConfigs: [],
+			rootConfig: {
+				siteName: 'Draft Shell'
+			},
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			singletonContentIdentities: {},
+			activeDraftBranch: 'tentman-preview',
+			repositoryIdentity: createRepoIdentity('tentman-preview')
+		};
+		const refreshedBootstrap = {
+			configs: [],
+			blockConfigs: [],
+			rootConfig: {
+				siteName: 'Published Shell'
+			},
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			singletonContentIdentities: {},
+			activeDraftBranch: null,
+			repositoryIdentity: createRepoIdentity()
+		};
+		mocks.loadRepoConfigsBootstrap
+			.mockResolvedValueOnce(cachedBootstrap)
+			.mockResolvedValueOnce(refreshedBootstrap);
+
+		await load({
+			parent: async () => githubWorkspaceParentData,
+			fetch: fetcher,
+			url: new URL('http://localhost/pages')
+		} as never);
+		mocks.loadRepoConfigsBootstrap.mockClear();
+
+		await expect(
+			load({
+				parent: async () => githubWorkspaceParentData,
+				fetch: fetcher,
+				url: new URL('http://localhost/pages?merged=true')
+			} as never)
+		).resolves.toMatchObject({
+			rootConfig: {
+				siteName: 'Published Shell'
+			},
+			activeDraftBranch: null,
+			repositoryIdentity: createRepoIdentity()
 		});
 		expect(mocks.loadRepoConfigsBootstrap).toHaveBeenCalledWith(fetcher);
 	});

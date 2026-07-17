@@ -11,6 +11,7 @@ const RATE_LIMIT_HEADER_NAMES = [
 
 export type WorkflowName =
 	| 'first-repository-open'
+	| 'return-to-pages'
 	| 'desktop-collection-landing'
 	| 'warm-collection-reload'
 	| 'item-route-shell'
