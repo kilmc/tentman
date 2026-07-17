@@ -248,4 +248,3 @@ Every real finding should leave one of these behind:
 - a failing regression test and a small fix
 - a diagnosing-bugs note with the tightest known reproduction loop
 - an explicit decision that the behavior is acceptable compatibility behavior, with logs/tests proving it is intentional
-
