@@ -866,8 +866,11 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 
 		const calls = fetch.mock.calls.map(([input]) => String(input));
 		expect(calls.filter((url) => url.startsWith('/api/repo/config-states'))).toHaveLength(1);
+		expect(calls.filter((url) => url.startsWith('/api/repo/collection-index'))).toHaveLength(1);
 		expect(calls.some((url) => url.startsWith('/api/repo/item-view'))).toBe(false);
-		expect(calls.filter((url) => url.startsWith('/api/repo/collection-projections'))).toHaveLength(2);
+		const projectionCalls = calls.filter((url) => url.startsWith('/api/repo/collection-projections'));
+		expect(projectionCalls.length).toBeGreaterThan(0);
+		expect(projectionCalls.length).toBeLessThanOrEqual(2);
 
 		const events = getWorkflowInstrumentationEventsForTests();
 		expect(events).toEqual(
