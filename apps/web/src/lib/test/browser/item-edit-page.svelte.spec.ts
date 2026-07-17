@@ -21,6 +21,16 @@ function createStoreState<T>(initialValue: T) {
 	};
 }
 
+async function waitForElement(locator: { element: () => unknown }) {
+	await expect.poll(() => {
+		try {
+			return Boolean(locator.element());
+		} catch {
+			return false;
+		}
+	}).toBe(true);
+}
+
 const localFlowMocks = vi.hoisted(() => {
 	type EnhanceResultType = 'success' | 'redirect' | 'failure' | 'error';
 	type LocalRepoState = {
@@ -381,6 +391,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			form: undefined as never
 		});
 
+		await waitForElement(screen.getByTestId('mock-form-generator'));
 		await expectElement(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
 		const saveButton = screen.getByRole('button', { name: 'Save Changes' });
 		await expectElement(saveButton).toBeDisabled();
@@ -625,6 +636,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 			form: undefined as never
 		});
 
+		await waitForElement(screen.getByText('Local recovery available'));
 		await expectElement(screen.getByText('Local recovery available')).toBeVisible();
 		await screen.getByRole('button', { name: 'Recover changes' }).click();
 		await expectElement(screen.getByTestId('mock-form-data')).toHaveTextContent(

@@ -11,16 +11,11 @@
 	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
-	import { get } from 'svelte/store';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
-	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
-	import { localContent } from '$lib/stores/local-content';
-	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
-	import { fetchContentDocument, saveContentDocument } from '$lib/content/service';
 	import {
 		clearEditorRecoverySnapshot,
 		createEditorRecoverySnapshot,
@@ -36,7 +31,7 @@
 	} from '$lib/features/forms/editor-save-status';
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
-	import { createLocalWorkflowPageViewData } from '$lib/repository/local-workflow-data';
+	import { localWorkflowRouteCapabilities } from '$lib/repository/local-workflow-route-capabilities';
 	import type { WorkflowPageViewData } from '$lib/repository/workflow-data';
 	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 	import { resolveConfigPath } from '$lib/utils/validation';
@@ -87,6 +82,8 @@
 	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	let localRootConfig = $state<PageData['rootConfig'] | null>(null);
+	let localRecoveryContextKey = $state('local:none');
 	let recoveryState = $state<EditorRecoveryState>({ kind: 'none' });
 	let recoveryWriteTimer = $state<number | null>(null);
 	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
@@ -96,7 +93,7 @@
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
-			? `local:${$localRepo.backend?.cacheKey ?? 'none'}`
+			? localRecoveryContextKey
 			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
@@ -126,6 +123,11 @@
 		return createBlockRegistry(blockConfigs, { packageBlocks });
 	});
 
+	function resolveRoutePath(path: string) {
+		const resolvePath = resolve as unknown as (routePath: string) => string;
+		return resolvePath(path);
+	}
+
 	function handleDirtyStateChange(state: FormDirtyState) {
 		hasUnsavedChanges = state.isDirty;
 
@@ -151,6 +153,7 @@
 		routeWorkflowData = data.workflowData ?? null;
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
+		localRootConfig = data.rootConfig ?? null;
 		hasUnsavedChanges = false;
 		localError = null;
 	}
@@ -240,80 +243,24 @@
 		localError = null;
 		formGenerator = null;
 		hasUnsavedChanges = false;
-		await localContent.refresh();
-		const repoState = get(localRepo);
-		const contentState = get(localContent);
+		const localData =
+			await localWorkflowRouteCapabilities.loadSingletonEditWorkflowData({ slug: pageSlug });
 
 		if (requestId !== localLoadRequest) {
 			return;
 		}
 
-		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
-		blockConfigs = contentState.blockConfigs;
-		packageBlocks = [];
-		blockRegistry = contentState.blockRegistry;
-		blockRegistryError = contentState.blockRegistryError;
+		discoveredConfig = localData.discoveredConfig;
+		blockConfigs = localData.blockConfigs;
+		packageBlocks = localData.packageBlocks;
+		blockRegistry = localData.blockRegistry;
+		blockRegistryError = localData.blockRegistryError;
+		content = localData.content;
+		routeWorkflowData = localData.workflowData;
+		contentError = localData.contentError;
+		localRootConfig = localData.rootConfig;
+		localRecoveryContextKey = localData.recoveryContextKey;
 		hasUnsavedChanges = false;
-
-		if (!repoState.backend || !discoveredConfig) {
-			contentError = 'Configuration not found';
-			if (repoState.backend) {
-				routeWorkflowData = createLocalWorkflowPageViewData({
-					backend: repoState.backend,
-					discoverySignature: contentState.discoverySignature ?? null,
-					slug: pageSlug,
-					discoveredConfig,
-					content: null,
-					collectionNavigation: null,
-					blockConfigs: contentState.blockConfigs,
-					blockRegistryError: contentState.blockRegistryError,
-					contentError
-				});
-			}
-			return;
-		}
-
-		try {
-			const loadedContent = await fetchContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path
-			);
-
-			if (requestId !== localLoadRequest) {
-				return;
-			}
-
-			content = loadedContent;
-			routeWorkflowData = createLocalWorkflowPageViewData({
-				backend: repoState.backend,
-				discoverySignature: contentState.discoverySignature ?? null,
-				slug: pageSlug,
-				discoveredConfig,
-				content: loadedContent,
-				collectionNavigation: null,
-				blockConfigs: contentState.blockConfigs,
-				blockRegistryError: contentState.blockRegistryError,
-				contentError: null
-			});
-		} catch (error) {
-			if (requestId !== localLoadRequest) {
-				return;
-			}
-
-			contentError = error instanceof Error ? error.message : 'Failed to load content';
-			routeWorkflowData = createLocalWorkflowPageViewData({
-				backend: repoState.backend,
-				discoverySignature: contentState.discoverySignature ?? null,
-				slug: pageSlug,
-				discoveredConfig,
-				content: null,
-				collectionNavigation: null,
-				blockConfigs: contentState.blockConfigs,
-				blockRegistryError: contentState.blockRegistryError,
-				contentError
-			});
-		}
 	}
 
 	$effect(() => {
@@ -451,48 +398,16 @@
 			return;
 		}
 
-		const repoState = get(localRepo);
-		if (!repoState.backend) {
-			localError = 'No local repository is open.';
-			return;
-		}
-
 		persistRecoveryDraft();
 		saving = true;
 		hasUnsavedChanges = false;
 		localError = null;
 
 		try {
-			const materialized = await materializeDraftAssets({
-				backend: repoState.backend,
-				content: formData
-			});
-			await saveContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				materialized.content
-			);
-			const mutation = createWorkflowMutationResult({
-				mode: 'local',
-				intent: {
-					type: 'save-content',
-					slug: discoveredConfig.slug,
-					target: 'singleton'
-				},
-				message: 'Changes saved to local files.',
-				changedPaths: getCurrentContentPath(),
-				redirect: {
-					href: resolve(`/pages/${discoveredConfig.slug}/edit`) + '?published=true'
-				},
-				recoveryCleanup: {
-					clearEditorRecovery: true,
-					draftAssetRefs: materialized.cleanedRefs
-				},
-				refresh: {
-					workspace: true,
-					cachePaths: getCurrentContentPath()
-				}
+			const { mutation } = await localWorkflowRouteCapabilities.saveSingletonEditContent({
+				discoveredConfig,
+				content: formData,
+				resolveRoutePath
 			});
 
 			await Promise.all(
@@ -500,9 +415,6 @@
 			);
 			if (mutation.recoveryCleanup.clearEditorRecovery) {
 				clearRecoveryDraft();
-			}
-			if (mutation.refresh.workspace) {
-				await localContent.refresh({ force: true });
 			}
 			if (mutation.redirect) {
 				await goto(mutation.redirect.href);
@@ -609,7 +521,7 @@
 						bind:this={formGenerator}
 						{config}
 						configPath={discoveredConfig?.path}
-						defaultAssetStoragePath={$localContent.rootConfig?.assets?.path}
+						defaultAssetStoragePath={localRootConfig?.assets?.path}
 						{blockConfigs}
 						{blockRegistry}
 						initialData={content}

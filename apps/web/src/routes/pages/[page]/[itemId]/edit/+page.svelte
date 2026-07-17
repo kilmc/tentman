@@ -13,7 +13,6 @@
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
-	import { get } from 'svelte/store';
 	import { getCardFields } from '$lib/features/forms/helpers';
 	import { getConfigItemLabel } from '$lib/features/content-management/navigation';
 	import {
@@ -21,24 +20,13 @@
 		resolveCollectionItemState
 	} from '$lib/features/content-management/state';
 	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
-	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
-	import {
-		findContentItemByRoute,
-		formatContentValue
-	} from '$lib/features/content-management/item';
+	import { formatContentValue } from '$lib/features/content-management/item';
 	import { buildCollectionFilePath } from '$lib/features/content-management/transforms';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
-	import { localContent } from '$lib/stores/local-content';
-	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
-	import {
-		deleteContentDocument,
-		fetchContentDocument,
-		saveContentDocument
-	} from '$lib/content/service';
 	import {
 		clearEditorRecoverySnapshot,
 		createEditorRecoverySnapshot,
@@ -57,8 +45,6 @@
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 	import {
 		detectCollectionGroupField,
-		manageCollectionGroups,
-		syncCollectionItemGroupSelection,
 		syncCollectionItemGroupSelectionInManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import {
@@ -68,7 +54,7 @@
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { resolveConfigPath } from '$lib/utils/validation';
 	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
-	import { createLocalWorkflowItemViewData } from '$lib/repository/local-workflow-data';
+	import { localWorkflowRouteCapabilities } from '$lib/repository/local-workflow-route-capabilities';
 	import type { WorkflowItemViewData } from '$lib/repository/workflow-data';
 	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
@@ -131,6 +117,8 @@
 	let navigationManifest = $state<NavigationManifestState | null>(getInitialNavigationManifest());
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	let localRootConfig = $state<PageData['rootConfig'] | null>(null);
+	let localRecoveryContextKey = $state('local:none');
 	let recoveryState = $state<EditorRecoveryState>({ kind: 'none' });
 	let recoveryWriteTimer = $state<number | null>(null);
 	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
@@ -149,7 +137,7 @@
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
-			? `local:${$localRepo.backend?.cacheKey ?? 'none'}`
+			? localRecoveryContextKey
 			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
@@ -186,12 +174,12 @@
 		return resolveCollectionItemState(
 			config,
 			item as ContentRecord,
-			isLocalMode ? $localContent.rootConfig : (data.rootConfig ?? null)
+			isLocalMode ? localRootConfig : (data.rootConfig ?? null)
 		);
 	});
 	const siteName = $derived.by(() =>
 		isLocalMode
-			? ($localContent.rootConfig?.siteName ?? data.selectedBackend?.repo.name ?? 'Tentman')
+			? (localRootConfig?.siteName ?? data.selectedBackend?.repo.name ?? 'Tentman')
 			: (data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman')
 	);
 	const documentTitle = $derived.by(() => {
@@ -208,6 +196,11 @@
 			siteName
 		);
 	});
+
+	function resolveRoutePath(path: string) {
+		const resolvePath = resolve as unknown as (routePath: string) => string;
+		return resolvePath(path);
+	}
 
 	function handleDirtyStateChange(state: FormDirtyState) {
 		hasUnsavedChanges = state.isDirty;
@@ -236,6 +229,7 @@
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
 		navigationManifest = data.navigationManifest ?? null;
+		localRootConfig = data.rootConfig ?? null;
 		hasUnsavedChanges = false;
 		localError = null;
 	}
@@ -325,101 +319,28 @@
 		localError = null;
 		formGenerator = null;
 		hasUnsavedChanges = false;
-		await localContent.refresh();
-		const repoState = get(localRepo);
-		const contentState = get(localContent);
+		const localData = await localWorkflowRouteCapabilities.loadItemEditWorkflowData({
+			slug: pageSlug,
+			itemId
+		});
 
 		if (requestId !== localLoadRequest) {
 			return;
 		}
 
-		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
-		blockConfigs = contentState.blockConfigs;
-		packageBlocks = [];
-		blockRegistry = contentState.blockRegistry;
-		blockRegistryError = contentState.blockRegistryError;
-		navigationManifest = contentState.navigationManifest;
+		discoveredConfig = localData.discoveredConfig;
+		blockConfigs = localData.blockConfigs;
+		packageBlocks = localData.packageBlocks;
+		blockRegistry = localData.blockRegistry;
+		blockRegistryError = localData.blockRegistryError;
+		navigationManifest = localData.navigationManifest;
+		item = localData.item;
+		routeWorkflowData = localData.workflowData;
+		existingItems = localData.existingItems;
+		contentError = localData.contentError;
+		localRootConfig = localData.rootConfig;
+		localRecoveryContextKey = localData.recoveryContextKey;
 		hasUnsavedChanges = false;
-		if (!repoState.backend || !discoveredConfig) {
-			contentError = 'Configuration not found';
-			if (repoState.backend) {
-				routeWorkflowData = createLocalWorkflowItemViewData({
-					backend: repoState.backend,
-					discoverySignature: contentState.discoverySignature ?? null,
-					slug: pageSlug,
-					itemId,
-					discoveredConfig,
-					item: null,
-					navigationManifest: contentState.navigationManifest,
-					blockConfigs: contentState.blockConfigs,
-					blockRegistryError: contentState.blockRegistryError,
-					contentError
-				});
-			}
-			return;
-		}
-
-		try {
-			const loadedContent = await fetchContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path
-			);
-
-			if (requestId !== localLoadRequest) {
-				return;
-			}
-
-			if (Array.isArray(loadedContent)) {
-				existingItems = loadedContent;
-				const localItem =
-					findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
-				routeWorkflowData = createLocalWorkflowItemViewData({
-					backend: repoState.backend,
-					discoverySignature: contentState.discoverySignature ?? null,
-					slug: pageSlug,
-					itemId,
-					discoveredConfig,
-					item: localItem,
-					navigationManifest: contentState.navigationManifest,
-					blockConfigs: contentState.blockConfigs,
-					blockRegistryError: contentState.blockRegistryError,
-					contentError: null
-				});
-				item = routeWorkflowData.item;
-			} else {
-				routeWorkflowData = createLocalWorkflowItemViewData({
-					backend: repoState.backend,
-					discoverySignature: contentState.discoverySignature ?? null,
-					slug: pageSlug,
-					itemId,
-					discoveredConfig,
-					item: null,
-					navigationManifest: contentState.navigationManifest,
-					blockConfigs: contentState.blockConfigs,
-					blockRegistryError: contentState.blockRegistryError,
-					contentError: null
-				});
-			}
-		} catch (error) {
-			if (requestId !== localLoadRequest) {
-				return;
-			}
-
-			contentError = error instanceof Error ? error.message : 'Failed to load content';
-			routeWorkflowData = createLocalWorkflowItemViewData({
-				backend: repoState.backend,
-				discoverySignature: contentState.discoverySignature ?? null,
-				slug: pageSlug,
-				itemId,
-				discoveredConfig,
-				item: null,
-				navigationManifest: contentState.navigationManifest,
-				blockConfigs: contentState.blockConfigs,
-				blockRegistryError: contentState.blockRegistryError,
-				contentError
-			});
-		}
 	}
 
 	$effect(() => {
@@ -439,28 +360,17 @@
 		label: string;
 	}) {
 		if (isLocalMode) {
-			const repoState = get(localRepo);
-			if (!repoState.backend) {
-				throw new Error('No local repository is open.');
-			}
-
 			if (!discoveredConfig) {
 				throw new Error('Collection config not found.');
 			}
 
-			await manageCollectionGroups(
-				repoState.backend,
+			navigationManifest = await localWorkflowRouteCapabilities.createCollectionGroup({
 				discoveredConfig,
-				{
-					action: 'create',
-					id: input.id,
-					label: input.label,
-					value: input.value
-				},
-				navigationManifest?.manifest
-			);
-			await localContent.refresh({ force: true });
-			navigationManifest = get(localContent).navigationManifest;
+				navigationManifest: navigationManifest?.manifest ?? null,
+				id: input.id,
+				value: input.value,
+				label: input.label
+			});
 			return;
 		}
 
@@ -694,63 +604,19 @@
 			return;
 		}
 
-		const repoState = get(localRepo);
-		if (!repoState.backend) {
-			localError = 'No local repository is open.';
-			return;
-		}
-
 		persistRecoveryDraft();
 		saving = true;
 		hasUnsavedChanges = false;
 		localError = null;
 
 		try {
-			const materialized = await materializeDraftAssets({
-				backend: repoState.backend,
-				content: formData
-			});
-			await saveContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				materialized.content,
-				discoveredConfig.config.content.mode === 'directory'
-					? { filename: item?._filename }
-					: { itemId: data.itemId }
-			);
-			await syncCollectionItemGroupSelection(
-				repoState.backend,
+			const { mutation } = await localWorkflowRouteCapabilities.saveItemEditContent({
 				discoveredConfig,
-				materialized.content,
-				navigationManifest?.manifest,
-				{
-					message: 'Update Tentman navigation manifest'
-				}
-			);
-			const changedPaths = getCurrentItemContentCachePath();
-			const mutation = createWorkflowMutationResult({
-				mode: 'local',
-				intent: {
-					type: 'save-content',
-					slug: discoveredConfig.slug,
-					target: 'collection-item',
-					itemId: data.itemId
-				},
-				message: 'Changes saved to local files.',
-				changedPaths,
-				redirect: {
-					href: resolve(`/pages/${discoveredConfig.slug}/${data.itemId}/edit`) + '?published=true'
-				},
-				recoveryCleanup: {
-					clearEditorRecovery: true,
-					draftAssetRefs: materialized.cleanedRefs
-				},
-				refresh: {
-					workspace: true,
-					collections: [discoveredConfig.slug],
-					cachePaths: changedPaths
-				}
+				itemId: data.itemId,
+				item,
+				content: formData,
+				navigationManifest: navigationManifest?.manifest ?? null,
+				resolveRoutePath
 			});
 
 			await Promise.all(
@@ -758,9 +624,6 @@
 			);
 			if (mutation.recoveryCleanup.clearEditorRecovery) {
 				clearRecoveryDraft();
-			}
-			if (mutation.refresh.workspace) {
-				await localContent.refresh({ force: true });
 			}
 			if (mutation.redirect) {
 				await goto(mutation.redirect.href);
@@ -776,47 +639,17 @@
 	async function handleLocalDelete() {
 		if (!discoveredConfig) return;
 
-		const repoState = get(localRepo);
-		if (!repoState.backend) {
-			localError = 'No local repository is open.';
-			return;
-		}
-
 		deleting = true;
 		localError = null;
 
 		try {
-			await deleteContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				discoveredConfig.config.content.mode === 'directory'
-					? { filename: item?._filename, itemId: data.itemId }
-					: { itemId: data.itemId }
-			);
-			const changedPaths = getCurrentItemContentCachePath();
-			const mutation = createWorkflowMutationResult({
-				mode: 'local',
-				intent: {
-					type: 'delete-item',
-					slug: discoveredConfig.slug,
-					itemId: data.itemId
-				},
-				message: 'Item deleted from local files.',
-				changedPaths,
-				redirect: {
-					href: `${resolve(`/pages/${discoveredConfig.slug}`)}?deleted=true`
-				},
-				refresh: {
-					workspace: true,
-					collections: [discoveredConfig.slug],
-					cachePaths: changedPaths
-				}
+			const { mutation } = await localWorkflowRouteCapabilities.deleteItem({
+				discoveredConfig,
+				itemId: data.itemId,
+				item,
+				resolveRoutePath
 			});
 
-			if (mutation.refresh.workspace) {
-				await localContent.refresh({ force: true });
-			}
 			if (mutation.redirect) {
 				await goto(mutation.redirect.href);
 			}
@@ -981,7 +814,7 @@
 						bind:this={formGenerator}
 						{config}
 						configPath={discoveredConfig?.path}
-						defaultAssetStoragePath={$localContent.rootConfig?.assets?.path}
+						defaultAssetStoragePath={localRootConfig?.assets?.path}
 						{blockConfigs}
 						{blockRegistry}
 						initialData={item}
