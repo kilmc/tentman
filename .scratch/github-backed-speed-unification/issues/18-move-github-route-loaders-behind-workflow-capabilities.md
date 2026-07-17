@@ -4,10 +4,10 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Page and item route loaders no longer import the GitHub repository cache store directly.
-- [ ] A workflow capability surface owns GitHub bootstrap hydration, route cache misses, and cache-backed page/item/collection workflow data assembly underneath.
-- [ ] Existing collection, singleton page, item view, and item edit route payload behavior is preserved.
-- [ ] Request-budget and route-data regression tests assert behavior through the workflow capability surface rather than cache-store method names.
-- [ ] Compatibility fallback logging remains behind the workflow-data boundary and continues to report route, source, and reason when it fires.
+- [x] Page and item route loaders no longer import the GitHub repository cache store directly.
+- [x] A workflow capability surface owns GitHub bootstrap hydration, route cache misses, and cache-backed page/item/collection workflow data assembly underneath.
+- [x] Existing collection, singleton page, item view, and item edit route payload behavior is preserved.
+- [x] Request-budget and route-data regression tests assert behavior through the workflow capability surface rather than cache-store method names.
+- [x] Compatibility fallback logging remains behind the workflow-data boundary and continues to report route, source, and reason when it fires.
