@@ -80,11 +80,17 @@ const DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS = 500;
 const DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS = 5000;
 const DEFAULT_FULL_DOCUMENT_BUDGET_BYTES = 50 * 1024 * 1024;
 const DEFAULT_FULL_DOCUMENT_RECORD_LIMIT = 2500;
+const DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES = 10 * 1024 * 1024;
+const DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT = 50;
 const FRESHNESS_BACKOFF_INTERVALS_MS = [5, 15, 30, 60].map((minutes) => minutes * 60 * 1000);
 
 let fullDocumentBudgetPolicy = {
 	bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 	recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+};
+let idleFullDocumentBudgetPolicy = {
+	bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+	recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
 };
 let endpointRetryPolicy = {
 	attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
@@ -323,6 +329,10 @@ type CacheWorkContext = {
 	runId: number;
 	identityKey: string | null;
 };
+interface FullDocumentWarmBudget {
+	remainingBytes: number;
+	remainingRecords: number;
+}
 
 interface CacheTask<T = unknown> {
 	key: string;
@@ -2232,6 +2242,7 @@ async function enqueueItemDocumentTask(input: {
 	indexItem: CollectionIndexItem;
 	fetcher: typeof fetch;
 	priority: CacheTaskPriority;
+	documentBudget?: FullDocumentWarmBudget;
 }): Promise<CachedItemDocumentResult | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
@@ -2271,6 +2282,31 @@ async function enqueueItemDocumentTask(input: {
 		return cached;
 	}
 
+	const documentBudget = input.priority === 'passive' ? input.documentBudget : undefined;
+	if (documentBudget) {
+		if (documentBudget.remainingRecords <= 0 || documentBudget.remainingBytes <= 0) {
+			await updateInventoryTarget(targetId, {
+				status: 'skipped-budget',
+				error: null,
+				lastCheckedAt: Date.now()
+			});
+			recordCacheOutcome({
+				cacheArea: 'item-document',
+				outcome: 'skip',
+				reason: 'idle full document warm budget skipped passive item document warm',
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				key: targetId,
+				slug: input.slug,
+				itemId: input.itemId,
+				path: input.indexItem.path
+			});
+			return null;
+		}
+		documentBudget.remainingRecords -= 1;
+	}
+
+	const warmBudget = documentBudget;
 	const context = captureCacheWorkContext(input.runId);
 	await enqueueCacheTask({
 		runId: input.runId,
@@ -2311,11 +2347,15 @@ async function enqueueItemDocumentTask(input: {
 				packageBlocks: data.packageBlocks ?? [],
 				blockRegistryError: data.blockRegistryError ?? null
 			});
+			const itemContent = data.item ?? null;
 			await githubRepositoryCache.setItemDocumentForRoute({
 				slug: input.slug,
 				itemId: input.itemId,
-				content: data.item ?? null
+				content: itemContent
 			});
+			if (warmBudget && itemContent) {
+				warmBudget.remainingBytes -= getSerializedByteSize(itemContent) ?? 0;
+			}
 		}
 	});
 
@@ -2698,6 +2738,7 @@ export const githubRepositoryCache = {
 			promotedItemId?: string | null;
 			promotedPriority?: CacheTaskPriority;
 			waitForBackground?: boolean;
+			documentBudget?: FullDocumentWarmBudget;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2722,7 +2763,7 @@ export const githubRepositoryCache = {
 		const orderedItems = promotedItem
 			? [promotedItem, ...index.items.filter((item) => item !== promotedItem)]
 			: index.items;
-		const tasks = orderedItems.map((item) => {
+		const createTask = (item: CollectionIndexItem) => {
 			const itemId = item.hrefItemId ?? item.itemId;
 			const isPromoted =
 				options.promotedItemId !== undefined &&
@@ -2736,9 +2777,19 @@ export const githubRepositoryCache = {
 				fetcher: options.fetcher,
 				priority: isPromoted
 					? (options.promotedPriority ?? options.priority ?? 'intent')
-					: (options.priority ?? 'passive')
+					: (options.priority ?? 'passive'),
+				documentBudget: options.documentBudget
 			});
-		});
+		};
+
+		if (options.documentBudget) {
+			for (const item of orderedItems) {
+				await createTask(item);
+			}
+			return;
+		}
+
+		const tasks = orderedItems.map((item) => createTask(item));
 
 		if (options.waitForBackground) {
 			await Promise.all(tasks);
@@ -3496,12 +3547,6 @@ export const githubRepositoryCache = {
 					currentCollectionSlug: index.configSlug,
 					hydratedItems
 				});
-				void githubRepositoryCache
-					.warmCollectionDocuments(index.configSlug, {
-						fetcher: options.fetcher,
-						priority: 'passive'
-					})
-					.catch(() => {});
 
 				for (
 					let batchStart = 0;
@@ -3553,14 +3598,18 @@ export const githubRepositoryCache = {
 				return;
 			}
 
-			const documentTasks = indexes.map((index) =>
-				githubRepositoryCache.warmCollectionDocuments(index.configSlug, {
+			const documentBudget: FullDocumentWarmBudget = {
+				remainingBytes: idleFullDocumentBudgetPolicy.bytes,
+				remainingRecords: idleFullDocumentBudgetPolicy.recordLimit
+			};
+			for (const index of indexes) {
+				await githubRepositoryCache.warmCollectionDocuments(index.configSlug, {
 					fetcher: options.fetcher,
 					priority: 'passive',
-					waitForBackground: true
-				})
-			);
-			await Promise.all(documentTasks);
+					waitForBackground: true,
+					documentBudget
+				});
+			}
 
 			if (isRunCurrent(runId)) {
 				markWarmReady(collectionSlugs.length, totalItems);
@@ -4319,6 +4368,10 @@ export const githubRepositoryCacheTestApi = {
 		resetFreshnessBackoff();
 		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
+		idleFullDocumentBudgetPolicy = {
+			bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+			recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+		};
 		cacheRetryStatusMessage = null;
 		endpointRetryPolicy = {
 			attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
@@ -4339,6 +4392,10 @@ export const githubRepositoryCacheTestApi = {
 				bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 				recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
 			};
+			idleFullDocumentBudgetPolicy = {
+				bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+				recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+			};
 			cacheRetryStatusMessage = null;
 			endpointRetryPolicy = {
 				attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
@@ -4356,6 +4413,10 @@ export const githubRepositoryCacheTestApi = {
 		fullDocumentBudgetPolicy = {
 			bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+		};
+		idleFullDocumentBudgetPolicy = {
+			bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+			recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
 		};
 		cacheRetryStatusMessage = null;
 		endpointRetryPolicy = {
@@ -4406,6 +4467,13 @@ export const githubRepositoryCacheTestApi = {
 		fullDocumentBudgetPolicy = {
 			bytes: input.bytes ?? DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: input.recordLimit ?? DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+		};
+	},
+
+	setIdleFullDocumentWarmBudgetForTests(input: { bytes?: number; recordLimit?: number }): void {
+		idleFullDocumentBudgetPolicy = {
+			bytes: input.bytes ?? DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+			recordLimit: input.recordLimit ?? DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
 		};
 	},
 

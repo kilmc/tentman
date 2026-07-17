@@ -1805,6 +1805,132 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		expect(itemViewCalls).toEqual(['post-1']);
 	});
 
+	it('caps idle full-document warming without limiting projection hydration', async () => {
+		githubRepositoryCacheTestApi.setIdleFullDocumentWarmBudgetForTests({ recordLimit: 2 });
+		const itemViewCalls: string[] = [];
+		const items = createFallbackItems(4);
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createCollectionConfig('posts', 'Posts', 'src/content/posts')]
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(items));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				const parsedUrl = new URL(url, 'http://localhost');
+				const itemId = parsedUrl.searchParams.get('itemId') ?? '';
+				itemViewCalls.push(itemId);
+				return Response.json({
+					item: {
+						title: itemId
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayloadWithItems(items).identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('ready');
+
+		expect(itemViewCalls).toEqual(['post-1', 'post-2']);
+		const inventory = get(githubCacheInventoryStatus);
+		expect(
+			inventory.records
+				.filter((record) => record.targetType === 'collectionProjection')
+				.sort((a, b) => a.targetId.localeCompare(b.targetId))
+				.map((record) => record.status)
+		).toEqual(['fresh', 'fresh', 'fresh', 'fresh']);
+		expect(
+			inventory.records
+				.filter((record) => record.targetType === 'itemDocument')
+				.sort((a, b) => a.targetId.localeCompare(b.targetId))
+				.map((record) => record.status)
+		).toEqual(['fresh', 'fresh', 'skipped-budget', 'skipped-budget']);
+	});
+
+	it('stops later idle full-document fetches after the byte budget is exhausted', async () => {
+		githubRepositoryCacheTestApi.setIdleFullDocumentWarmBudgetForTests({
+			bytes: 1,
+			recordLimit: 10
+		});
+		const itemViewCalls: string[] = [];
+		const items = createFallbackItems(3);
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createCollectionConfig('posts', 'Posts', 'src/content/posts')]
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(items));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				const parsedUrl = new URL(url, 'http://localhost');
+				const itemId = parsedUrl.searchParams.get('itemId') ?? '';
+				itemViewCalls.push(itemId);
+				return Response.json({
+					item: {
+						title: itemId
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayloadWithItems(items).identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('ready');
+
+		expect(itemViewCalls).toEqual(['post-1']);
+		expect(
+			get(githubCacheInventoryStatus).records
+				.filter((record) => record.targetType === 'itemDocument')
+				.sort((a, b) => a.targetId.localeCompare(b.targetId))
+				.map((record) => record.status)
+		).toEqual(['fresh', 'skipped-budget', 'skipped-budget']);
+	});
+
 	it('schedules only the requested collection item document when a single item route is warmed', async () => {
 		const documentCalls: string[] = [];
 		const itemDocuments = new Map(
@@ -2160,6 +2286,14 @@ describe('githubRepositoryCache IndexedDB records', () => {
 				})
 			])
 		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'freshness',
+			route: '/pages',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 		expect(get(githubCacheInventoryStatus).lastCheckedAt).toEqual(expect.any(Number));
 	});
 
@@ -2192,6 +2326,14 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 		await expect(Promise.all([firstCheck, secondCheck])).resolves.toEqual([undefined, undefined]);
 		expect(fetcher).toHaveBeenCalledTimes(1);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'freshness',
+			route: '/pages',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('surfaces failed freshness checks through inventory while keeping cached navigation usable', async () => {
