@@ -175,6 +175,9 @@ describe('stores/local-content', () => {
 		const backend = createBackend({
 			readRootConfig: vi.fn(async () => ({
 				siteName: 'Local Docs',
+				local: {
+					previewUrl: 'http://localhost:5173/'
+				},
 				debug: { cacheConfigs: false }
 			}))
 		});
@@ -199,7 +202,10 @@ describe('stores/local-content', () => {
 				hasEditableDraft: false
 			},
 			rootConfig: {
-				siteName: 'Local Docs'
+				siteName: 'Local Docs',
+				local: {
+					previewUrl: 'http://localhost:5173/'
+				}
 			},
 			configs: [
 				{

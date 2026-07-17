@@ -48,6 +48,15 @@ const localMocks = vi.hoisted(() => {
 		},
 		rootConfig: null,
 		blockRegistryError: null,
+		discoverySignature: {
+			rootConfigText: null,
+			navigationManifestText: null,
+			contentConfigPaths: [],
+			contentConfigFiles: [],
+			blockConfigPaths: [],
+			blockConfigFiles: [],
+			contentComponentFiles: []
+		},
 		error: null
 	};
 	type Subscriber = (value: typeof state) => void;
@@ -55,6 +64,7 @@ const localMocks = vi.hoisted(() => {
 
 	return {
 		backend,
+		fetchContentDocument: vi.fn(async (): Promise<unknown[]> => []),
 		writeNavigationManifest: vi.fn(),
 		saveCollectionOrder: vi.fn(),
 		localRepo: {
@@ -101,6 +111,10 @@ vi.mock('$lib/features/content-management/navigation-manifest', () => ({
 	saveCollectionOrder: localMocks.saveCollectionOrder
 }));
 
+vi.mock('$lib/content/service', () => ({
+	fetchContentDocument: localMocks.fetchContentDocument
+}));
+
 function createGitHubContext(fetcher: typeof fetch): PagesWorkspaceAdapterContext {
 	return {
 		mode: 'github',
@@ -125,6 +139,27 @@ function createGitHubContext(fetcher: typeof fetch): PagesWorkspaceAdapterContex
 		resolveEndpoint: (path) => `/base${path}`
 	};
 }
+
+const localCollectionConfig = {
+	slug: 'posts',
+	path: 'content/posts.tentman.json',
+	config: {
+		type: 'content' as const,
+		label: 'Posts',
+		collection: true,
+		content: {
+			mode: 'file' as const,
+			path: 'src/content/posts.json'
+		},
+		blocks: [
+			{
+				id: 'title',
+				type: 'text' as const,
+				label: 'Title'
+			}
+		]
+	}
+};
 
 function createLocalContext(fetcher: typeof fetch): PagesWorkspaceAdapterContext {
 	return {
@@ -212,6 +247,63 @@ describe('pages workspace adapter', () => {
 		expect(fetcher).not.toHaveBeenCalled();
 		expect(githubRepositoryCacheMock.hydrateFromBootstrap).not.toHaveBeenCalled();
 		expect(githubRepositoryCacheMock.startFreshnessScheduler).not.toHaveBeenCalled();
+	});
+
+	it('loads local collection navigation with workflow route data', async () => {
+		localMocks.fetchContentDocument.mockResolvedValueOnce([
+			{
+				_tentmanId: 'tent_hello',
+				title: 'Hello'
+			}
+		]);
+		const fetcher = vi.fn() as unknown as typeof fetch;
+		const adapter = createPagesWorkspaceAdapter(createLocalContext(fetcher));
+
+		const result = await adapter.loadCollectionNavigation({
+			config: localCollectionConfig
+		});
+
+		expect(result).toMatchObject({
+			type: 'collection-navigation-loaded',
+			slug: 'posts',
+			workflowData: {
+				identity: {
+					mode: 'local',
+					workspaceKey: 'local:docs',
+					hasEditableDraft: false
+				},
+				slug: 'posts',
+				readiness: 'ready'
+			}
+		});
+		expect(fetcher).not.toHaveBeenCalled();
+		expect(githubRepositoryCacheMock.warmCollection).not.toHaveBeenCalled();
+	});
+
+	it('loads local config states with workflow route data', async () => {
+		const fetcher = vi.fn() as unknown as typeof fetch;
+		const adapter = createPagesWorkspaceAdapter({
+			...createLocalContext(fetcher),
+			getConfigs: () => []
+		});
+
+		const result = await adapter.loadConfigStates();
+
+		expect(result).toMatchObject({
+			type: 'config-states-loaded',
+			statesBySlug: {},
+			workflowData: {
+				identity: {
+					mode: 'local',
+					workspaceKey: 'local:docs',
+					hasEditableDraft: false
+				},
+				statesBySlug: {},
+				stateConfigCount: 0,
+				readiness: 'ready'
+			}
+		});
+		expect(fetcher).not.toHaveBeenCalled();
 	});
 
 	it('saves local navigation through direct local writes without draft branches', async () => {

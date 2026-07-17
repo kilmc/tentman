@@ -89,7 +89,7 @@ export interface WorkflowItemViewData {
 
 export interface WorkflowConfigStatesData {
 	identity: WorkflowRouteDataIdentity | null;
-	statesBySlug: Record<string, ResolvedContentState>;
+	statesBySlug: Record<string, ResolvedContentState | null>;
 	stateConfigCount: number;
 	readiness: WorkflowDataReadiness;
 	cacheMiss: WorkflowCacheMissResult | null;
@@ -289,7 +289,7 @@ export function createWorkflowItemViewData(input: {
 
 export function createWorkflowConfigStatesData(input: {
 	identity?: WorkflowRouteDataIdentity | null;
-	statesBySlug: Record<string, ResolvedContentState>;
+	statesBySlug: Record<string, ResolvedContentState | null>;
 	stateConfigCount: number;
 	cacheMiss?: WorkflowCacheMissResult | null;
 }): WorkflowConfigStatesData {

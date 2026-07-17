@@ -21,6 +21,10 @@ import { localContent } from '$lib/stores/local-content';
 import { localRepo } from '$lib/stores/local-repo';
 import { traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
+import {
+	createLocalWorkflowCollectionNavigationData,
+	createLocalWorkflowConfigStatesData
+} from '$lib/repository/local-workflow-data';
 import type {
 	PagesWorkspaceAdapter,
 	PagesWorkspaceAdapterResult,
@@ -85,6 +89,19 @@ function emptyCollectionNavigation(): OrderedCollectionNavigation {
 
 function getConfigsWithTopLevelState(configs: DiscoveredConfig[]) {
 	return configs.filter((config) => !!config.config.state);
+}
+
+function getLocalWorkflowContext() {
+	const repoState = get(localRepo);
+	const contentState = get(localContent);
+	if (!repoState.backend) {
+		return null;
+	}
+
+	return {
+		backend: repoState.backend,
+		discoverySignature: contentState.discoverySignature ?? null
+	};
 }
 
 async function loadLocalCollectionNavigation(
@@ -329,10 +346,18 @@ export function createPagesWorkspaceAdapter(
 					context.getNavigationManifest(),
 					context.getRootConfig()
 				);
+				const workflowContext = getLocalWorkflowContext();
 				return {
 					type: 'collection-navigation-loaded',
 					slug: config.slug,
-					navigation
+					navigation,
+					workflowData: workflowContext
+						? createLocalWorkflowCollectionNavigationData({
+								...workflowContext,
+								slug: config.slug,
+								navigation
+							})
+						: null
 				};
 			}
 
@@ -392,9 +417,19 @@ export function createPagesWorkspaceAdapter(
 
 		async loadConfigStates({ force } = {}) {
 			if (context.mode === 'local') {
+				const configs = context.getConfigs();
+				const statesBySlug = await loadLocalConfigStates(configs, context.getRootConfig());
+				const workflowContext = getLocalWorkflowContext();
 				return {
 					type: 'config-states-loaded',
-					statesBySlug: await loadLocalConfigStates(context.getConfigs(), context.getRootConfig())
+					statesBySlug,
+					workflowData: workflowContext
+						? createLocalWorkflowConfigStatesData({
+								...workflowContext,
+								statesBySlug,
+								stateConfigCount: getConfigsWithTopLevelState(configs).length
+							})
+						: null
 				};
 			}
 

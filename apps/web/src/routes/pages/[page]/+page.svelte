@@ -23,6 +23,8 @@
 	import { localRepo } from '$lib/stores/local-repo';
 	import { fetchContentDocument } from '$lib/content/service';
 	import { syncDraftBranchStoreForRepo } from './draft-status';
+	import { createLocalWorkflowPageViewData } from '$lib/repository/local-workflow-data';
+	import type { WorkflowPageViewData } from '$lib/repository/workflow-data';
 
 	let { data }: { data: PageData } = $props();
 
@@ -52,6 +54,10 @@
 		return data.blockRegistryError ?? null;
 	}
 
+	function getInitialWorkflowData() {
+		return data.workflowData ?? null;
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let content = $state(getInitialContent());
@@ -59,6 +65,7 @@
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
+	let routeWorkflowData = $state<WorkflowPageViewData | null>(getInitialWorkflowData());
 	let draftBranch = $state<string | null>(null);
 	let draftChanges = $state<DraftComparison | null>(null);
 	let draftStatusError = $state<string | null>(null);
@@ -79,9 +86,10 @@
 	});
 	const collectionItemCount = $derived(Array.isArray(content) ? content.length : 0);
 	const indexedCollectionNavigation = $derived(
-		!isLocalMode && isCollectionContent
-			? ((data.collectionNavigation ?? null) as OrderedCollectionNavigation | null)
-			: null
+		routeWorkflowData?.collectionNavigation ??
+			(!isLocalMode && isCollectionContent
+				? ((data.collectionNavigation ?? null) as OrderedCollectionNavigation | null)
+				: null)
 	);
 	const indexedCollectionItemCount = $derived.by(() => {
 		if (!indexedCollectionNavigation) {
@@ -161,6 +169,7 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistryError = data.blockRegistryError ?? null;
 		localBlockRegistry = null;
+		routeWorkflowData = data.workflowData ?? null;
 	}
 
 	function resetDraftStatus() {
@@ -289,6 +298,7 @@
 		blockConfigs = [];
 		packageBlocks = [];
 		localBlockRegistry = null;
+		routeWorkflowData = null;
 		content = null;
 		contentError = null;
 		blockRegistryError = null;
@@ -314,11 +324,33 @@
 
 		if (!discoveredConfig) {
 			contentError = 'Configuration not found';
+			routeWorkflowData = createLocalWorkflowPageViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				discoveredConfig: null,
+				content: null,
+				collectionNavigation: null,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 			return;
 		}
 
 		if (!localBlockRegistry) {
 			contentError = contentState.blockRegistryError ?? 'Block registry is still loading';
+			routeWorkflowData = createLocalWorkflowPageViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				discoveredConfig,
+				content: null,
+				collectionNavigation: null,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 			return;
 		}
 
@@ -334,12 +366,43 @@
 			}
 
 			content = loadedContent;
+			const collectionNavigation =
+				discoveredConfig.config.collection && Array.isArray(loadedContent)
+					? getOrderedCollectionNavigation(
+							discoveredConfig.config,
+							loadedContent,
+							contentState.navigationManifest.manifest,
+							contentState.rootConfig
+						)
+					: null;
+			routeWorkflowData = createLocalWorkflowPageViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				discoveredConfig,
+				content: loadedContent,
+				collectionNavigation,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError: null
+			});
 		} catch (error) {
 			if (requestId !== localLoadRequest) {
 				return;
 			}
 
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
+			routeWorkflowData = createLocalWorkflowPageViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				discoveredConfig,
+				content: null,
+				collectionNavigation: null,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 		}
 	}
 

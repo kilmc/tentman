@@ -15,3 +15,4 @@
 ## Comments
 
 - Completed in this implementation. Local content discovery now derives a normalized workflow bootstrap from local adapter state, the pages workspace consumer reads local workflow data through the same vocabulary as GitHub while preserving local capabilities, and adapter tests pin local rescan/direct-write behavior away from GitHub cache, polling, and draft branch mechanics.
+- Follow-up completed after review. Local collection navigation, config states, page view, and item view now build route-sized workflow data from the browser local adapter reads; local preview URL output is covered through workflow bootstrap tests; and local route workflow helpers are tested without exposing File System Access handles, discovery signatures, direct writes, or GitHub draft/cache mechanics to callers.

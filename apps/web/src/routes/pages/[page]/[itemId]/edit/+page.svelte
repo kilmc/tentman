@@ -68,6 +68,8 @@
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { resolveConfigPath } from '$lib/utils/validation';
 	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
+	import { createLocalWorkflowItemViewData } from '$lib/repository/local-workflow-data';
+	import type { WorkflowItemViewData } from '$lib/repository/workflow-data';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -105,11 +107,16 @@
 		return data.existingItems ?? [];
 	}
 
+	function getInitialWorkflowData() {
+		return data.workflowData ?? null;
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let item = $state(getInitialItem());
+	let routeWorkflowData = $state<WorkflowItemViewData | null>(getInitialWorkflowData());
 	let existingItems = $state<ContentRecord[]>(getInitialExistingItems());
 	let contentError = $state(getInitialContentError());
 	let formGenerator = $state<FormGenerator | null>(null);
@@ -223,6 +230,7 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistry = null;
 		item = data.item;
+		routeWorkflowData = data.workflowData ?? null;
 		existingItems = data.existingItems ?? [];
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
@@ -309,6 +317,7 @@
 		packageBlocks = [];
 		blockRegistry = null;
 		item = null;
+		routeWorkflowData = null;
 		existingItems = [];
 		contentError = null;
 		blockRegistryError = null;
@@ -332,6 +341,20 @@
 		hasUnsavedChanges = false;
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
+			if (repoState.backend) {
+				routeWorkflowData = createLocalWorkflowItemViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					itemId,
+					discoveredConfig,
+					item: null,
+					navigationManifest: contentState.navigationManifest,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError
+				});
+			}
 			return;
 		}
 
@@ -348,7 +371,34 @@
 
 			if (Array.isArray(loadedContent)) {
 				existingItems = loadedContent;
-				item = findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
+				const localItem =
+					findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
+				routeWorkflowData = createLocalWorkflowItemViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					itemId,
+					discoveredConfig,
+					item: localItem,
+					navigationManifest: contentState.navigationManifest,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError: null
+				});
+				item = routeWorkflowData.item;
+			} else {
+				routeWorkflowData = createLocalWorkflowItemViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					itemId,
+					discoveredConfig,
+					item: null,
+					navigationManifest: contentState.navigationManifest,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError: null
+				});
 			}
 		} catch (error) {
 			if (requestId !== localLoadRequest) {
@@ -356,6 +406,18 @@
 			}
 
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
+			routeWorkflowData = createLocalWorkflowItemViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				itemId,
+				discoveredConfig,
+				item: null,
+				navigationManifest: contentState.navigationManifest,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 		}
 	}
 

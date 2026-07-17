@@ -15,13 +15,8 @@ import { localRepo } from '$lib/stores/local-repo';
 import { shouldUseLocalConfigCache, type RootConfig } from '$lib/config/root-config';
 import type { LocalDiscoverySignature } from '$lib/repository/local';
 import type { RepositoryBackend } from '$lib/repository/types';
-import type { RepoBootstrapIdentity } from '$lib/repository/config-bootstrap';
-import {
-	createWorkflowBlockSupportData,
-	createWorkflowFreshnessData,
-	createWorkflowWorkspaceBootstrapData,
-	type WorkflowWorkspaceBootstrapData
-} from '$lib/repository/workflow-data';
+import { createLocalWorkflowWorkspaceBootstrapData } from '$lib/repository/local-workflow-data';
+import type { WorkflowWorkspaceBootstrapData } from '$lib/repository/workflow-data';
 
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
@@ -106,86 +101,6 @@ function areDiscoverySignaturesEqual(
 	right: LocalDiscoverySignature | null | undefined
 ): boolean {
 	return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
-}
-
-function getDiscoverySignatureDataSetKey(signature: LocalDiscoverySignature | null): string {
-	if (!signature) {
-		return 'local-empty';
-	}
-
-	let hash = 0x811c9dc5;
-	const value = JSON.stringify(signature);
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 0x01000193);
-	}
-
-	return `local:${(hash >>> 0).toString(36)}`;
-}
-
-function createLocalRepositoryIdentity(
-	backend: RepositoryBackend,
-	discoverySignature: LocalDiscoverySignature | null
-): RepoBootstrapIdentity {
-	const dataSetKey = getDiscoverySignatureDataSetKey(discoverySignature);
-
-	return {
-		mode: 'local',
-		repoKey: backend.cacheKey,
-		label: backend.label,
-		ref: dataSetKey,
-		headSha: dataSetKey,
-		treeSha: dataSetKey,
-		resolvedAt: Date.now()
-	};
-}
-
-function createLocalWorkflowData(input: {
-	backend: RepositoryBackend;
-	configs: DiscoveredConfig[];
-	blockConfigs: DiscoveredBlockConfig[];
-	blockRegistryError: string | null;
-	rootConfig: RootConfig | null;
-	navigationManifest: NavigationManifestState;
-	discoverySignature: LocalDiscoverySignature | null;
-}): WorkflowWorkspaceBootstrapData {
-	const repositoryIdentity = createLocalRepositoryIdentity(
-		input.backend,
-		input.discoverySignature
-	);
-	const workflowData = createWorkflowWorkspaceBootstrapData({
-		configs: input.configs,
-		blockConfigs: input.blockConfigs,
-		rootConfig: input.rootConfig,
-		navigationManifest: input.navigationManifest,
-		singletonContentIdentities: {},
-		activeDraftBranch: null,
-		repositoryIdentity,
-		mainRepositoryIdentity: repositoryIdentity,
-		draftRepositoryIdentity: null,
-		changedPaths: [],
-		freshnessStatus: 'unchanged'
-	});
-
-	return {
-		...workflowData,
-		blockSupport: createWorkflowBlockSupportData({
-			blockConfigs: input.blockConfigs,
-			packageBlocks: [],
-			blockRegistryError: input.blockRegistryError
-		}),
-		freshness: createWorkflowFreshnessData({
-			activeDraftBranch: null,
-			repositoryIdentity,
-			mainRepositoryIdentity: repositoryIdentity,
-			draftRepositoryIdentity: null,
-			unchanged: true,
-			freshnessStatus: 'unchanged',
-			changedPaths: [],
-			error: null,
-			recovery: null
-		})
-	};
 }
 
 async function loadBlockRegistry(
@@ -394,7 +309,7 @@ function createStore() {
 						navigationManifest: persistedState.navigationManifest,
 						instructionDiscovery: persistedState.instructionDiscovery,
 						discoverySignature: persistedState.discoverySignature ?? null,
-						workflowData: createLocalWorkflowData({
+						workflowData: createLocalWorkflowWorkspaceBootstrapData({
 							backend,
 							configs: persistedState.configs,
 							blockConfigs: persistedState.blockConfigs,
@@ -429,7 +344,7 @@ function createStore() {
 						blockConfigs,
 						rootConfig
 					);
-					const workflowData = createLocalWorkflowData({
+					const workflowData = createLocalWorkflowWorkspaceBootstrapData({
 						backend,
 						configs,
 						blockConfigs,

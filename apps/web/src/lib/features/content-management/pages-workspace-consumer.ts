@@ -8,7 +8,11 @@ import type {
 } from '$lib/features/content-management/navigation-manifest';
 import type { OrderedCollectionNavigation } from '$lib/features/content-management/navigation';
 import type { ResolvedContentState } from '$lib/features/content-management/state';
-import type { WorkflowWorkspaceBootstrapData } from '$lib/repository/workflow-data';
+import type {
+	WorkflowCollectionNavigationData,
+	WorkflowConfigStatesData,
+	WorkflowWorkspaceBootstrapData
+} from '$lib/repository/workflow-data';
 import type { SelectedBackend } from '$lib/repository/selection';
 
 export type PagesWorkspaceMode = 'none' | 'local' | 'github';
@@ -96,10 +100,15 @@ export type PagesWorkspaceAdapterResult =
 			type: 'collection-navigation-loaded';
 			slug: string;
 			navigation: OrderedCollectionNavigation;
+			workflowData?: WorkflowCollectionNavigationData | null;
 	  }
 	| { type: 'collection-navigation-loading'; slug: string }
 	| { type: 'collection-navigation-error'; slug: string; error: string }
-	| { type: 'config-states-loaded'; statesBySlug: Record<string, ResolvedContentState | null> }
+	| {
+			type: 'config-states-loaded';
+			statesBySlug: Record<string, ResolvedContentState | null>;
+			workflowData?: WorkflowConfigStatesData | null;
+	  }
 	| {
 			type: 'navigation-saved';
 			message: string;

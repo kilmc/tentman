@@ -36,6 +36,8 @@
 	} from '$lib/features/forms/editor-save-status';
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
+	import { createLocalWorkflowPageViewData } from '$lib/repository/local-workflow-data';
+	import type { WorkflowPageViewData } from '$lib/repository/workflow-data';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -65,11 +67,16 @@
 		return data.blockRegistryError ?? null;
 	}
 
+	function getInitialWorkflowData() {
+		return data.workflowData ?? null;
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let content = $state(getInitialContent());
+	let routeWorkflowData = $state<WorkflowPageViewData | null>(getInitialWorkflowData());
 	let contentError = $state(getInitialContentError());
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
@@ -139,6 +146,7 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistry = null;
 		content = data.content;
+		routeWorkflowData = data.workflowData ?? null;
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
 		hasUnsavedChanges = false;
@@ -224,6 +232,7 @@
 		packageBlocks = [];
 		blockRegistry = null;
 		content = null;
+		routeWorkflowData = null;
 		contentError = null;
 		blockRegistryError = null;
 		localError = null;
@@ -246,6 +255,19 @@
 
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
+			if (repoState.backend) {
+				routeWorkflowData = createLocalWorkflowPageViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					discoveredConfig,
+					content: null,
+					collectionNavigation: null,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError
+				});
+			}
 			return;
 		}
 
@@ -261,12 +283,34 @@
 			}
 
 			content = loadedContent;
+			routeWorkflowData = createLocalWorkflowPageViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				discoveredConfig,
+				content: loadedContent,
+				collectionNavigation: null,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError: null
+			});
 		} catch (error) {
 			if (requestId !== localLoadRequest) {
 				return;
 			}
 
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
+			routeWorkflowData = createLocalWorkflowPageViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				discoveredConfig,
+				content: null,
+				collectionNavigation: null,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 		}
 	}
 
