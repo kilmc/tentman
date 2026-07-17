@@ -5,8 +5,10 @@ import {
 	createGitHubOAuthState,
 	getGitHubOAuthCallbackUrl,
 	getGitHubClientId,
+	getGitHubOAuthStateFingerprint,
 	hasRecentGitHubLoginAttempt,
 	isGitHubOAuthConfigured,
+	logGitHubOAuthDebug,
 	markGitHubLoginAttempt,
 	persistGitHubOAuthRequest
 } from '$lib/server/auth/github';
@@ -14,19 +16,37 @@ import { sanitizeAuthRedirectTarget } from '$lib/utils/routing';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const redirectTo = sanitizeAuthRedirectTarget(url.searchParams.get('redirect'), '/repos');
+	const oauthConfigured = isGitHubOAuthConfigured();
 
-	if (!isGitHubOAuthConfigured()) {
+	if (!oauthConfigured) {
+		logGitHubOAuthDebug('login.unavailable', {
+			requestOrigin: url.origin,
+			redirectTo
+		});
 		throw redirect(302, '/?github_oauth=unavailable');
 	}
 
 	if (hasRecentGitHubLoginAttempt(cookies)) {
+		logGitHubOAuthDebug('login.cooldown', {
+			requestOrigin: url.origin,
+			redirectTo
+		});
 		throw redirect(302, '/?github_oauth=retry_later');
 	}
 
 	const callbackUrl = getGitHubOAuthCallbackUrl(url);
+	const callbackOrigin = new URL(callbackUrl).origin;
 	const state = createGitHubOAuthState(
-		new URL(callbackUrl).origin === url.origin ? {} : { returnOrigin: url.origin }
+		callbackOrigin === url.origin ? {} : { returnOrigin: url.origin }
 	);
+	logGitHubOAuthDebug('login.start', {
+		requestOrigin: url.origin,
+		callbackOrigin,
+		callbackPath: new URL(callbackUrl).pathname,
+		usesRelayState: callbackOrigin !== url.origin,
+		stateFingerprint: getGitHubOAuthStateFingerprint(state),
+		redirectTo
+	});
 
 	// GitHub OAuth authorization URL
 	const authUrl = new URL('https://github.com/login/oauth/authorize');

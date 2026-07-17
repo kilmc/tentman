@@ -43,6 +43,8 @@ interface GitHubOAuthRelayStatePayload {
 	issuedAt: number;
 }
 
+type GitHubOAuthDebugDetails = Record<string, boolean | number | string | null | undefined>;
+
 interface GitHubSessionPayload {
 	token: string;
 	user: GitHubUserSnapshot;
@@ -149,6 +151,18 @@ export function getGitHubOAuthCallbackUrl(requestUrl: URL): string {
 			'GitHub OAuth callback URL is not configured correctly. Set GITHUB_OAUTH_CALLBACK_URL to a full http or https URL.'
 		);
 	}
+}
+
+export function logGitHubOAuthDebug(event: string, details: GitHubOAuthDebugDetails = {}): void {
+	console.info(`[DEBUG-github-oauth] ${event}`, JSON.stringify(details));
+}
+
+export function getGitHubOAuthStateFingerprint(state: string | null | undefined): string | null {
+	if (!state) {
+		return null;
+	}
+
+	return createHash('sha256').update(state).digest('hex').slice(0, 12);
 }
 
 export function getGitHubCookieOptions(

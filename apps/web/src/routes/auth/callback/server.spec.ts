@@ -8,10 +8,14 @@ vi.mock('$lib/server/auth/github', () => ({
 	clearGitHubOAuthRequest: vi.fn(),
 	getGitHubOAuthCallbackRelayUrl: vi.fn(() => null),
 	getGitHubOAuthCallbackUrl: vi.fn((url: URL) => new URL('/auth/callback', url).toString()),
+	getGitHubOAuthStateFingerprint: vi.fn((state: string | null | undefined) =>
+		state ? 'state-fingerprint' : null
+	),
 	getGitHubOAuthCredentials: vi.fn(() => ({
 		clientId: 'github-client-id',
 		clientSecret: 'github-client-secret'
 	})),
+	logGitHubOAuthDebug: vi.fn(),
 	persistGitHubSession: vi.fn(),
 	readGitHubOAuthRequest: vi.fn(() => ({
 		state: 'oauth-state-token',
