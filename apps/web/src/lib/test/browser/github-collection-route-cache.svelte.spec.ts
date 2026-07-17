@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
+import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
 import {
 	githubRepositoryCache,
 	githubRepositoryCacheTestApi
@@ -573,7 +574,11 @@ describe('GitHub collection route cache in the browser', () => {
 		});
 
 		await expect(
-			githubRepositoryCache.loadItemViewWorkflowData('projects', 'panorama-4', {
+			githubWorkflowRouteCapabilities.loadItemViewWorkflowData({
+				repoFullName: 'acme/docs',
+				bootstrap: createBootstrap(),
+				slug: 'projects',
+				itemId: 'panorama-4',
 				fetcher: fetch,
 				priority: 'foreground',
 				route: '/pages/projects/panorama-4'

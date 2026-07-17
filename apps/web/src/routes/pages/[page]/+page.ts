@@ -3,7 +3,7 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
-import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
 import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
@@ -34,13 +34,14 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 
 	const discoveredConfig = parentData.configs.find((config) => config.slug === params.page);
 	if (discoveredConfig?.config.collection && url.searchParams.size === 0) {
-		await githubRepositoryCache.hydrateFromBootstrap({
-			repoFullName: workspace.selectedRepo.full_name,
-			bootstrap: parentData
-		});
-		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData(params.page, {
-			fetcher: fetch
-		});
+		const workflowData = await githubWorkflowRouteCapabilities.loadCollectionNavigationWorkflowData(
+			{
+				repoFullName: workspace.selectedRepo.full_name,
+				bootstrap: parentData,
+				slug: params.page,
+				fetcher: fetch
+			}
+		);
 
 		return {
 			discoveredConfig,
@@ -50,7 +51,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			content: null,
 			collectionNavigation: workflowData.navigation,
 			contentError:
-				workflowData.readiness === 'error' ? workflowData.cacheMiss?.reason ?? null : null,
+				workflowData.readiness === 'error' ? (workflowData.cacheMiss?.reason ?? null) : null,
 			workflowData,
 			branch: parentData.activeDraftBranch,
 			pageSlug: params.page,
@@ -94,11 +95,10 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
-	await githubRepositoryCache.hydrateFromBootstrap({
+	const workflowData = await githubWorkflowRouteCapabilities.loadPageViewWorkflowData({
 		repoFullName: workspace.selectedRepo.full_name,
-		bootstrap: parentData
-	});
-	const workflowData = await githubRepositoryCache.loadPageViewWorkflowData(params.page, {
+		bootstrap: parentData,
+		slug: params.page,
 		fetcher: fetch,
 		priority: 'foreground'
 	});

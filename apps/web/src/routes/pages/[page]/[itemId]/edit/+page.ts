@@ -3,7 +3,7 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
-import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
 import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 import { hasTagsBlock } from '$lib/features/content-management/collection-existing-items';
 
@@ -83,14 +83,13 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
-	await githubRepositoryCache.hydrateFromBootstrap({
-		repoFullName: workspace.selectedRepo.full_name,
-		bootstrap: parentData
-	});
-
 	const discoveredConfig =
 		parentData.configs?.find((config) => config.slug === params.page) ?? null;
-	const workflowData = await githubRepositoryCache.loadItemViewWorkflowData(params.page, params.itemId, {
+	const workflowData = await githubWorkflowRouteCapabilities.loadItemViewWorkflowData({
+		repoFullName: workspace.selectedRepo.full_name,
+		bootstrap: parentData,
+		slug: params.page,
+		itemId: params.itemId,
 		fetcher: fetch,
 		priority: 'foreground',
 		route: `/pages/${params.page}/${params.itemId}/edit`
@@ -118,7 +117,10 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 	const routeConfig = workflowData.discoveredConfig ?? discoveredConfig;
 	const existingItems =
 		routeConfig && hasTagsBlock(routeConfig.config?.blocks)
-			? await githubRepositoryCache.loadExistingItemsForRoute(params.page, {
+			? await githubWorkflowRouteCapabilities.loadExistingItemsForRoute({
+					repoFullName: workspace.selectedRepo.full_name,
+					bootstrap: parentData,
+					slug: params.page,
 					fetcher: fetch,
 					priority: 'foreground'
 				})
