@@ -74,6 +74,7 @@ const REQUIRED_STORE_NAMES = [
 const VISIBLE_PROJECTION_LIMIT = 30;
 const BACKGROUND_PROJECTION_BATCH_SIZE = 20;
 const SITE_WARM_PROJECTION_BATCH_SIZE = 20;
+const BACKGROUND_CACHE_CORE_QUOTA_PAUSE_THRESHOLD = 500;
 const SITE_WARM_READY_RESET_MS = 2500;
 const CACHE_PROGRESS_LARGE_TASK_THRESHOLD = 25;
 const CACHE_PROGRESS_SLOW_JOB_MS = 800;
@@ -1544,13 +1545,24 @@ async function isRetryableCacheResponse(response: Response): Promise<boolean> {
 }
 
 function assertBackgroundCacheQuotaAvailable(response: Response, priority: CacheTaskPriority): void {
-	if ((priority === 'foreground' || priority === 'intent') && response.ok) {
+	if (priority === 'foreground' || priority === 'intent') {
 		return;
 	}
 
-	if (getRateLimitRemaining(response) === 0) {
+	const remaining = getRateLimitRemaining(response);
+	if (remaining === null) {
+		return;
+	}
+
+	if (remaining === 0) {
 		throw new BackgroundCacheWarmPausedError(
 			'GitHub rate limit exhausted; background cache warm paused'
+		);
+	}
+
+	if (remaining < BACKGROUND_CACHE_CORE_QUOTA_PAUSE_THRESHOLD) {
+		throw new BackgroundCacheWarmPausedError(
+			'GitHub core quota low; background cache warm paused'
 		);
 	}
 }
@@ -1651,6 +1663,7 @@ async function fetchCacheEndpoint(
 		const hasAttemptsRemaining = attemptIndex < endpointRetryPolicy.attempts - 1;
 		if (!hasAttemptsRemaining || !(await isRetryableCacheResponse(response))) {
 			cacheRetryStatusMessage = null;
+			assertBackgroundCacheQuotaAvailable(response, input.priority);
 			return response;
 		}
 

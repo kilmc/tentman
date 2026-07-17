@@ -220,6 +220,23 @@ function createProjectionItems(blobShas: string[]) {
 	});
 }
 
+function createLowQuotaProjectionBatchResponse(init?: RequestInit): Response {
+	const body = JSON.parse(String(init?.body)) as { blobShas: string[]; slug?: string };
+	return Response.json(
+		{
+			indexIdentity:
+				body.slug === 'notes' ? createNotesIndexPayload().identity : createIndexPayload().identity,
+			items: createProjectionItems(body.blobShas)
+		},
+		{
+			headers: {
+				'x-ratelimit-remaining': '499',
+				'x-ratelimit-reset': '123'
+			}
+		}
+	);
+}
+
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
 	let reject!: (error: unknown) => void;
@@ -2482,6 +2499,219 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		});
 		expect(itemViewCalls).toEqual([]);
 	});
+
+	it('pauses passive warming when final projection responses report exhausted quota with a failure status', async () => {
+		githubRepositoryCacheTestApi.setEndpointRetryPolicyForTests({
+			attempts: 1,
+			baseDelayMs: 50,
+			maxDelayMs: 50
+		});
+		const itemViewCalls: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				if (url.includes('slug=notes')) {
+					return Response.json(createNotesIndexPayload());
+				}
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				itemViewCalls.push(url);
+				return Response.json({
+					item: { title: 'Should not warm' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			return Response.json(
+				{ message: 'API rate limit exceeded' },
+				{
+					status: 403,
+					headers: {
+						'x-ratelimit-remaining': '0',
+						'x-ratelimit-reset': '123'
+					}
+				}
+			);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('error');
+		expect(get(githubCacheWarmStatus)).toMatchObject({
+			message: 'Cache warm paused',
+			error: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'rate-limited',
+			operation: 'rate-limit-pause',
+			reason: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(itemViewCalls).toEqual([]);
+	});
+
+	it('pauses passive warming before document fetches when projection responses report low quota', async () => {
+		const itemViewCalls: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				if (url.includes('slug=notes')) {
+					return Response.json(createNotesIndexPayload());
+				}
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				itemViewCalls.push(url);
+				return Response.json({
+					item: { title: 'Should not warm' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			return createLowQuotaProjectionBatchResponse(init);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('error');
+		expect(get(githubCacheWarmStatus)).toMatchObject({
+			message: 'Cache warm paused',
+			error: 'GitHub core quota low; background cache warm paused'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'rate-limited',
+			operation: 'rate-limit-pause',
+			reason: 'GitHub core quota low; background cache warm paused'
+		});
+		expect(itemViewCalls).toEqual([]);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-work',
+					phase: 'paused',
+					operation: 'rate-limit-pause',
+					taskKind: 'collectionProjectionBatch',
+					priority: 'topLevel',
+					reason: 'GitHub core quota low; background cache warm paused'
+				})
+			])
+		);
+	});
+
+	it.each(['foreground', 'intent'] as const)(
+		'allows %s route cache work to use successful low-quota projection responses',
+		async (priority) => {
+			const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+				}
+
+				return createLowQuotaProjectionBatchResponse(init);
+			});
+
+			await githubRepositoryCache.hydrateFromBootstrap({
+				repoFullName: 'acme/docs',
+				bootstrap: createBootstrap()
+			});
+
+			await expect(
+				githubRepositoryCache.warmCollection('posts', {
+					fetcher,
+					visibleLimit: 1,
+					hydrateRemaining: false,
+					warmDocuments: false,
+					priority
+				})
+			).resolves.toBeUndefined();
+
+			expect(get(githubCacheWarmStatus).error).toBeNull();
+			await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+				items: [{ title: 'Post 1', hydration: 'hydrated' }]
+			});
+		}
+	);
+
+	it.each(['foreground', 'intent'] as const)(
+		'allows %s route cache work to fail visibly when low quota is reported',
+		async (priority) => {
+			const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+				}
+
+				return Response.json(
+					{ message: 'API rate limit nearly exhausted' },
+					{
+						status: 403,
+						headers: {
+							'x-ratelimit-remaining': '499',
+							'x-ratelimit-reset': '123'
+						}
+					}
+				);
+			});
+
+			await githubRepositoryCache.hydrateFromBootstrap({
+				repoFullName: 'acme/docs',
+				bootstrap: createBootstrap()
+			});
+
+			await expect(
+				githubRepositoryCache.warmCollection('posts', {
+					fetcher,
+					visibleLimit: 1,
+					hydrateRemaining: false,
+					warmDocuments: false,
+					priority
+				})
+			).rejects.toThrow('Failed to hydrate collection projections (403)');
+
+			expect(get(githubCacheWarmStatus).error).toBeNull();
+			expect(get(githubCacheWorkObservabilityStatus).current).not.toMatchObject({
+				state: 'rate-limited',
+				operation: 'rate-limit-pause'
+			});
+			expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						kind: 'browser-request',
+						endpoint: '/api/repo/collection-projections',
+						priority,
+						responseStatus: 403,
+						resultStatus: 'error'
+					})
+				])
+			);
+		}
+	);
 
 	it('does not refetch projections already cached by blob SHA and schema identity', async () => {
 		const projectionCalls: string[][] = [];
