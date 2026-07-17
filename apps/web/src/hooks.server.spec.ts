@@ -91,6 +91,9 @@ describe('hooks.server', () => {
 		expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
 		expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
 		expect(response.headers.get('Content-Security-Policy')).toContain(
+			"frame-src 'self' https://app.netlify.com"
+		);
+		expect(response.headers.get('Content-Security-Policy')).toContain(
 			"media-src 'self' blob: https:"
 		);
 	});
