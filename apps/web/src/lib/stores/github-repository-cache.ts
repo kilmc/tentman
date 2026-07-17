@@ -47,7 +47,6 @@ import {
 	markWorkflowReadiness,
 	recordCacheOutcome,
 	traceBrowserRequest,
-	type RequestPriority,
 	type RequestDuplicateState
 } from '$lib/utils/workflow-instrumentation';
 
@@ -97,6 +96,13 @@ let endpointRetryPolicy = {
 	baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
 	maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
 };
+
+class BackgroundCacheWarmPausedError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'BackgroundCacheWarmPausedError';
+	}
+}
 
 export type GithubCacheWarmPhase =
 	| 'idle'
@@ -1183,8 +1189,50 @@ function getEndpointBackoffDelayMs(response: Response, attemptIndex: number): nu
 	return Math.min(retryAfterDelay ?? exponentialDelay, endpointRetryPolicy.maxDelayMs);
 }
 
-function isRetryableCacheResponse(response: Response): boolean {
-	return response.status === 429 || response.status === 408 || response.status >= 500;
+function getRateLimitRemaining(response: Response): number | null {
+	const remaining = response.headers.get('x-ratelimit-remaining');
+	if (remaining === null) {
+		return null;
+	}
+
+	const value = Number(remaining);
+	return Number.isFinite(value) ? value : null;
+}
+
+async function isSecondaryOrAbuseLimitResponse(response: Response): Promise<boolean> {
+	if (response.status !== 403) {
+		return false;
+	}
+	if (response.headers.has('retry-after') || getRateLimitRemaining(response) === 0) {
+		return true;
+	}
+
+	const body = await response
+		.clone()
+		.text()
+		.catch(() => '');
+	const lowerBody = body.toLowerCase();
+	return lowerBody.includes('secondary rate limit') || lowerBody.includes('abuse');
+}
+
+async function isRetryableCacheResponse(response: Response): Promise<boolean> {
+	if (response.status === 429 || response.status === 408 || response.status >= 500) {
+		return true;
+	}
+
+	return await isSecondaryOrAbuseLimitResponse(response);
+}
+
+function assertBackgroundCacheQuotaAvailable(response: Response, priority: CacheTaskPriority): void {
+	if ((priority === 'foreground' || priority === 'intent') && response.ok) {
+		return;
+	}
+
+	if (getRateLimitRemaining(response) === 0) {
+		throw new BackgroundCacheWarmPausedError(
+			'GitHub rate limit exhausted; background cache warm paused'
+		);
+	}
 }
 
 async function waitForEndpointBackoff(delayMs: number): Promise<void> {
@@ -1223,13 +1271,13 @@ async function fetchCacheEndpoint(
 			() => (input.init ? fetcher(url, input.init) : fetcher(url))
 		);
 		const hasAttemptsRemaining = attemptIndex < endpointRetryPolicy.attempts - 1;
-		if (!hasAttemptsRemaining || !isRetryableCacheResponse(response)) {
+		if (!hasAttemptsRemaining || !(await isRetryableCacheResponse(response))) {
 			cacheRetryStatusMessage = null;
 			return response;
 		}
 
 		cacheRetryStatusMessage =
-			response.status === 429
+			response.status === 429 || response.status === 403
 				? 'GitHub rate limit reached; retrying cache work'
 				: 'GitHub request failed; retrying cache work';
 		updateWarmStatus({
@@ -1596,6 +1644,10 @@ async function runQueue(runId: number): Promise<void> {
 		});
 		task.reject(error);
 		if (isRunCurrent(runId)) {
+			if (error instanceof BackgroundCacheWarmPausedError) {
+				cacheTasks.clear();
+				queueScheduled = false;
+			}
 			erroredQueuedTasks += 1;
 			incrementTaskKindCount(erroredQueuedTasksByKind, task.kind);
 			markWarmError(error);
@@ -2170,41 +2222,37 @@ async function hydrateProjectionBatch(input: {
 	blobShas: string[];
 	context?: CacheWorkContext;
 	workflow?: CollectionRouteWorkflow;
-	priority?: RequestPriority;
+	priority?: CacheTaskPriority;
 }): Promise<void> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot || input.blobShas.length === 0) {
 		return;
 	}
 
-	const response = await traceBrowserRequest(
-		{
-			workflow: input.workflow ?? 'desktop-collection-landing',
-			route: `/pages/${input.slug}`,
-			endpoint: '/api/repo/collection-projections',
+	const priority = input.priority ?? 'passive';
+	const response = await fetchCacheEndpoint(input.fetcher, '/api/repo/collection-projections', {
+		workflow: input.workflow ?? 'desktop-collection-landing',
+		route: `/pages/${input.slug}`,
+		priority,
+		taskKey: getInventoryTargetId({
+			targetType: 'collectionProjection',
+			configSlug: input.slug,
+			itemId: input.blobShas.join(',')
+		}),
+		init: {
 			method: 'POST',
-			priority: input.priority ?? 'background',
-			cacheTaskKey: getInventoryTargetId({
-				targetType: 'collectionProjection',
-				configSlug: input.slug,
-				itemId: input.blobShas.join(',')
-			}),
-			duplicateState: 'unique'
-		},
-		() =>
-			input.fetcher('/api/repo/collection-projections', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					slug: input.slug,
-					blobShas: input.blobShas
-				})
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				slug: input.slug,
+				blobShas: input.blobShas
 			})
-	);
+		}
+	});
 
 	if (!response.ok) {
 		throw new Error(`Failed to hydrate collection projections (${response.status})`);
 	}
+	assertBackgroundCacheQuotaAvailable(response, priority);
 	if (input.context && !isCacheWorkContextCurrent(input.context)) {
 		return;
 	}
@@ -2220,6 +2268,49 @@ async function hydrateProjectionBatch(input: {
 		result.items
 	);
 	await notifyCollection(input.slug);
+}
+
+function enqueueProjectionBatchTask(input: {
+	runId: number;
+	slug: string;
+	blobShas: string[];
+	fetcher: typeof fetch;
+	priority: CacheTaskPriority;
+	passive?: boolean;
+	onComplete?: () => void;
+}): Promise<void> {
+	if (input.blobShas.length === 0) {
+		return Promise.resolve();
+	}
+
+	const context = captureCacheWorkContext(input.runId);
+	return enqueueCacheTask({
+		runId: input.runId,
+		key: [
+			getInventoryTargetId({
+				targetType: 'collectionProjection',
+				configSlug: input.slug,
+				itemId: input.blobShas[0]
+			}),
+			input.blobShas.join(',')
+		].join(':'),
+		kind: 'collectionProjectionBatch',
+		priority: input.priority,
+		passive: input.passive ?? input.priority === 'passive',
+		run: async () => {
+			await hydrateProjectionBatch({
+				fetcher: input.fetcher,
+				slug: input.slug,
+				blobShas: input.blobShas,
+				context,
+				priority: input.priority
+			});
+			if (!isCacheWorkContextCurrent(context)) {
+				return;
+			}
+			input.onComplete?.();
+		}
+	});
 }
 
 async function getCachedItemDocumentForIndexItem(
@@ -2705,29 +2796,35 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		const hydrateRemaining = async () => {
-			for (
-				let index = 0;
-				index < remainingBlobShas.length;
-				index += BACKGROUND_PROJECTION_BATCH_SIZE
-			) {
-				await hydrateProjectionBatch({
+		const runId = siteWarmRunId;
+		const remainingTasks: Promise<void>[] = [];
+		for (
+			let index = 0;
+			index < remainingBlobShas.length;
+			index += BACKGROUND_PROJECTION_BATCH_SIZE
+		) {
+			remainingTasks.push(
+				enqueueProjectionBatchTask({
+					runId,
 					fetcher: options.fetcher,
 					slug,
 					blobShas: remainingBlobShas.slice(index, index + BACKGROUND_PROJECTION_BATCH_SIZE),
-					context: captureCacheWorkContext(siteWarmRunId)
-				});
-			}
-		};
+					priority: 'passive',
+					passive: true
+				})
+			);
+		}
 
 		if (options.waitForBackground) {
-			await hydrateRemaining();
+			await Promise.all(remainingTasks);
 			return;
 		}
 
-		void hydrateRemaining().catch((error) => {
-			console.error(`Failed to hydrate background projections for ${slug}:`, error);
-		});
+		for (const task of remainingTasks) {
+			void task.catch((error) => {
+				console.error(`Failed to hydrate background projections for ${slug}:`, error);
+			});
+		}
 	},
 
 	async warmCollectionDocuments(
@@ -3557,31 +3654,15 @@ export const githubRepositoryCache = {
 						batchStart,
 						batchStart + SITE_WARM_PROJECTION_BATCH_SIZE
 					);
-					const context = captureCacheWorkContext(runId);
 					projectionTasks.push(
-						enqueueCacheTask({
+						enqueueProjectionBatchTask({
 							runId,
-							key: [
-								getInventoryTargetId({
-									targetType: 'collectionProjection',
-									configSlug: index.configSlug,
-									itemId: blobShas[0]
-								}),
-								blobShas.join(',')
-							].join(':'),
-							kind: 'collectionProjectionBatch',
+							slug: index.configSlug,
+							blobShas,
+							fetcher: options.fetcher,
 							priority: 'topLevel',
 							passive: true,
-							run: async () => {
-								await hydrateProjectionBatch({
-									fetcher: options.fetcher,
-									slug: index.configSlug,
-									blobShas,
-									context
-								});
-								if (!isCacheWorkContextCurrent(context)) {
-									return;
-								}
+							onComplete: () => {
 								hydratedItems += blobShas.length;
 								updateWarmStatus({
 									currentCollectionSlug: index.configSlug,
