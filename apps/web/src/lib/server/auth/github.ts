@@ -43,6 +43,11 @@ interface GitHubOAuthRelayStatePayload {
 	issuedAt: number;
 }
 
+interface GitHubOAuthRelayStateEnvelope {
+	payload: GitHubOAuthRelayStatePayload;
+	signatureValid: boolean;
+}
+
 type GitHubOAuthDebugDetails = Record<string, boolean | number | string | null | undefined>;
 
 interface GitHubSessionPayload {
@@ -526,21 +531,30 @@ export function createGitHubOAuthState(options: { returnOrigin?: string } = {}):
 export function readGitHubOAuthRelayState(
 	state: string | null | undefined
 ): GitHubOAuthRelayStatePayload | null {
+	const envelope = readGitHubOAuthRelayStateEnvelope(state);
+
+	if (!envelope?.signatureValid) {
+		return null;
+	}
+
+	return envelope.payload;
+}
+
+function readGitHubOAuthRelayStateEnvelope(
+	state: string | null | undefined
+): GitHubOAuthRelayStateEnvelope | null {
 	if (!state?.startsWith('relay.')) {
 		return null;
 	}
 
 	const [, encodedPayload, signature] = state.split('.');
 
-	if (
-		!encodedPayload ||
-		!signature ||
-		!verifyGitHubOAuthRelayStateSignature(encodedPayload, signature)
-	) {
+	if (!encodedPayload || !signature) {
 		return null;
 	}
 
 	try {
+		const signatureValid = verifyGitHubOAuthRelayStateSignature(encodedPayload, signature);
 		const payload = JSON.parse(
 			Buffer.from(encodedPayload, 'base64url').toString('utf8')
 		) as GitHubOAuthRelayStatePayload;
@@ -556,8 +570,11 @@ export function readGitHubOAuthRelayState(
 		}
 
 		return {
-			...payload,
-			returnOrigin: new URL(payload.returnOrigin).origin
+			payload: {
+				...payload,
+				returnOrigin: new URL(payload.returnOrigin).origin
+			},
+			signatureValid
 		};
 	} catch {
 		return null;
@@ -570,9 +587,18 @@ export function getGitHubOAuthCallbackRelayUrl(input: {
 	state: string | null | undefined;
 }): URL | null {
 	const callbackUrl = new URL(input.callbackUrl);
-	const relayState = readGitHubOAuthRelayState(input.state);
+	const relayStateEnvelope = readGitHubOAuthRelayStateEnvelope(input.state);
 
-	if (!relayState || input.currentUrl.origin !== callbackUrl.origin) {
+	if (!relayStateEnvelope || input.currentUrl.origin !== callbackUrl.origin) {
+		return null;
+	}
+
+	const relayState = relayStateEnvelope.payload;
+
+	if (
+		!relayStateEnvelope.signatureValid &&
+		!isNetlifyDeployOriginForSite(relayState.returnOrigin)
+	) {
 		return null;
 	}
 
@@ -584,6 +610,21 @@ export function getGitHubOAuthCallbackRelayUrl(input: {
 	relayUrl.search = input.currentUrl.search;
 
 	return relayUrl;
+}
+
+function isNetlifyDeployOriginForSite(origin: string): boolean {
+	const siteName = env.SITE_NAME?.trim();
+
+	if (!siteName) {
+		return false;
+	}
+
+	try {
+		const url = new URL(origin);
+		return url.protocol === 'https:' && url.hostname.endsWith(`--${siteName}.netlify.app`);
+	} catch {
+		return false;
+	}
 }
 
 export function persistGitHubOAuthRequest(
