@@ -68,6 +68,11 @@
 	type CollectionItemsBySlug = Record<string, OrderedCollectionNavigation>;
 	type ConfigStatesBySlug = Record<string, ResolvedContentState | null>;
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+	type PageCollectionRouteData = {
+		pageSlug?: string;
+		collectionNavigation?: OrderedCollectionNavigation | null;
+		contentError?: string | null;
+	};
 
 	// Canonical layout terms:
 	// - Sidebar: left app/site navigation
@@ -330,15 +335,55 @@
 		return githubCollectionErrorBySlug[slug] ?? null;
 	}
 
+	function getNavigationItemCount(navigation: OrderedCollectionNavigation | null | undefined) {
+		return (
+			(navigation?.items ?? []).length +
+			(navigation?.groups ?? []).reduce((count, group) => count + group.items.length, 0)
+		);
+	}
+
+	function getCurrentRouteCollectionNavigation(slug: string): OrderedCollectionNavigation | null {
+		if (isLocalMode || currentPageSlug !== slug) {
+			return null;
+		}
+
+		const routeData = page.data as PageCollectionRouteData;
+
+		if (routeData.pageSlug && routeData.pageSlug !== slug) {
+			return null;
+		}
+
+		return routeData.collectionNavigation ?? null;
+	}
+
+	function getCurrentRouteCollectionError(slug: string): string | null {
+		if (isLocalMode || currentPageSlug !== slug) {
+			return null;
+		}
+
+		const routeData = page.data as PageCollectionRouteData;
+		if (routeData.pageSlug && routeData.pageSlug !== slug) {
+			return null;
+		}
+
+		return routeData.contentError ?? null;
+	}
+
 	function getCollectionSetup(slug: string) {
 		return setup.collections.find((collection) => collection.slug === slug) ?? null;
 	}
 
 	function getCollectionItems(slug: string) {
-		const navigation = collectionItemsBySlug[slug] ?? {
-			items: [],
-			groups: []
-		};
+		const routeNavigation = getCurrentRouteCollectionNavigation(slug);
+		const storedNavigation = collectionItemsBySlug[slug];
+		const navigation =
+			storedNavigation &&
+			(getGitHubCollectionStatus(slug) === 'ready' || getNavigationItemCount(storedNavigation) > 0)
+				? storedNavigation
+				: (routeNavigation ?? storedNavigation ?? {
+						items: [],
+						groups: []
+					});
 		const config = configs.find((entry: DiscoveredConfig) => entry.slug === slug);
 
 		if (!config?.config.collection) {
@@ -360,6 +405,14 @@
 			return $localContent.status === 'loading' ? 'loading' : 'ready';
 		}
 
+		if (getNavigationItemCount(getCurrentRouteCollectionNavigation(slug)) > 0) {
+			return 'ready';
+		}
+
+		if (getCurrentRouteCollectionError(slug)) {
+			return 'error';
+		}
+
 		return getGitHubCollectionStatus(slug);
 	}
 
@@ -368,7 +421,7 @@
 			return $localContent.error;
 		}
 
-		return getGitHubCollectionError(slug);
+		return getCurrentRouteCollectionError(slug) ?? getGitHubCollectionError(slug);
 	}
 
 	function isShadowItem(item: { id: string } & Record<string, unknown>) {

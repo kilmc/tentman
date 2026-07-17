@@ -166,7 +166,8 @@ const sidebarEditorMocks = vi.hoisted(() => {
 		localContentReadyState,
 		page: {
 			params: {} as Record<string, string>,
-			url: new URL('http://localhost/pages')
+			url: new URL('http://localhost/pages'),
+			data: {} as Record<string, unknown>
 		},
 		localRepoStore,
 		localContentStore,
@@ -478,6 +479,7 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		sidebarEditorMocks.localContentStore.set(sidebarEditorMocks.localContentReadyState);
 		sidebarEditorMocks.page.params = {};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages');
+		sidebarEditorMocks.page.data = {};
 		clearWorkflowInstrumentationEventsForTests();
 	});
 
@@ -918,6 +920,83 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 			maxRouteDataFallbacks: 0,
 			maxRequests: 4
 		});
+	});
+
+	for (const itemCount of [25, 222]) {
+		it(`renders ${itemCount} GitHub collection route-data items before a client collection refresh completes`, async () => {
+			sidebarEditorMocks.page.params = {
+				page: 'news'
+			};
+			sidebarEditorMocks.page.url = new URL('http://localhost/pages/news');
+			sidebarEditorMocks.page.data = {
+				collectionNavigation: {
+					items: createGitHubProjectionItems(
+						Array.from({ length: itemCount }, (_, index) => `blob-${index + 1}`)
+					),
+					groups: []
+				}
+			};
+			const collectionRefresh = createDeferred<Response>();
+			const fetch = vi.fn(async (input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return collectionRefresh.promise;
+				}
+				if (url.startsWith('/api/repo/config-states')) {
+					return Response.json({ statesBySlug: {} });
+				}
+				throw new Error(`Unexpected fetch: ${url}`);
+			});
+			vi.stubGlobal('fetch', fetch);
+
+			const screen = await render(PagesLayoutCollectionLandingHarness, {
+				data: newsGithubLayoutData
+			});
+
+			await expectElement(screen.getByRole('link', { name: /^Post 1$/ })).toBeVisible();
+			await expectElement(
+				screen.getByRole('link', { name: new RegExp(`^Post ${itemCount}$`) })
+			).toBeVisible();
+			await expectElement(screen.getByText('No items yet.')).not.toBeInTheDocument();
+			collectionRefresh.resolve(Response.json(createGitHubNewsIndexPayload([])));
+		});
+	}
+
+	it('surfaces GitHub collection route-data errors instead of the empty collection state', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'news'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/news');
+		sidebarEditorMocks.page.data = {
+			pageSlug: 'news',
+			collectionNavigation: {
+				items: [],
+				groups: []
+			},
+			contentError: 'collection projection batch request failed (503)'
+		};
+		const collectionRefresh = createDeferred<Response>();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return collectionRefresh.promise;
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayoutCollectionLandingHarness, {
+			data: newsGithubLayoutData
+		});
+
+		await expectElement(
+			screen.getByText('collection projection batch request failed (503)')
+		).toBeVisible();
+		await expectElement(screen.getByText('No items yet.')).not.toBeInTheDocument();
+		collectionRefresh.resolve(Response.json(createGitHubNewsIndexPayload([])));
 	});
 
 	it('shows GitHub cache progress in the sidebar with a cache details link', async () => {
