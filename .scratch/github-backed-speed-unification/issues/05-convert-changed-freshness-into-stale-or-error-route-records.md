@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — Make GitHub freshness identity-only when unchanged; 04 — Make GitHub cache work prioritized, deduped, cancelable, and rate-limit-aware.
 
-**Status:** resolved
+**Status:** complete
 
 - [x] Changed freshness loads only the tree data needed to derive changed paths within the background freshness budget.
 - [x] Affected collection, page, item, singleton, config-state, and block-support records are marked stale or error according to changed-path results.

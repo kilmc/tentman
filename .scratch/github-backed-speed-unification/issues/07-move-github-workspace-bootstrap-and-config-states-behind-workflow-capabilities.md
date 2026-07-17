@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 — Introduce the app-level workflow-data contract for read routes.
 
-**Status:** resolved
+**Status:** complete
 
 - [x] GitHub workspace bootstrap returns normalized shell, root config, page list, Navigation Manifest, sidebar-ready state, and relevant status output through the workflow contract.
 - [x] Config-state loading is available as a scoped workflow capability without forcing broad bootstrap or config parsing on unchanged freshness paths.
