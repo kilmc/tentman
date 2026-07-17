@@ -4,6 +4,7 @@ export function buildSecurityHeaders(): Record<string, string> {
 			"default-src 'self'",
 			"base-uri 'self'",
 			"frame-ancestors 'none'",
+			"frame-src 'self' https://app.netlify.com",
 			"form-action 'self' https://github.com",
 			"img-src 'self' data: blob: https:",
 			"media-src 'self' blob: https:",
