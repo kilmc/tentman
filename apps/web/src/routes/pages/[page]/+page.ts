@@ -1,9 +1,10 @@
+import { browser } from '$app/environment';
 import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
 import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
-import { markWorkflowReadiness, traceBrowserRequest } from '$lib/utils/workflow-instrumentation';
+import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
@@ -57,71 +58,60 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		};
 	}
 
+	if (!browser) {
+		const response = await fetch(
+			buildPathWithQuery('/api/repo/page-view', {
+				slug: params.page
+			})
+		);
+
+		if (response.status === 401) {
+			throw redirect(302, reposRedirect);
+		}
+		if (response.status === 404) {
+			throw httpError(404, 'Configuration not found');
+		}
+		if (!response.ok) {
+			throw httpError(response.status, 'Failed to load page view');
+		}
+
+		const data = await response.json();
+		const workflowData = data.workflowData ?? null;
+		if (!workflowData) {
+			return data;
+		}
+
+		return {
+			...data,
+			discoveredConfig: workflowData.discoveredConfig ?? data.discoveredConfig,
+			blockConfigs: workflowData.blockSupport.blockConfigs,
+			packageBlocks: workflowData.blockSupport.packageBlocks,
+			blockRegistryError: workflowData.blockSupport.error,
+			content: workflowData.content,
+			collectionNavigation: workflowData.collectionNavigation,
+			contentError: workflowData.contentError,
+			workflowData
+		};
+	}
+
 	await githubRepositoryCache.hydrateFromBootstrap({
 		repoFullName: workspace.selectedRepo.full_name,
 		bootstrap: parentData
 	});
-	const cachedSingleton = await githubRepositoryCache.warmSingletonDocumentRoute({
-		slug: params.page,
+	const workflowData = await githubRepositoryCache.loadPageViewWorkflowData(params.page, {
 		fetcher: fetch,
 		priority: 'foreground'
 	});
-	if (discoveredConfig && cachedSingleton?.blockSupport) {
-		markWorkflowReadiness({
-			workflow: 'item-route-shell',
-			mark: 'ready',
-			route: `/pages/${params.page}`,
-			slug: params.page
-		});
-		return {
-			discoveredConfig,
-			blockConfigs: cachedSingleton.blockSupport.blockConfigs,
-			packageBlocks: cachedSingleton.blockSupport.packageBlocks,
-			blockRegistryError: cachedSingleton.blockSupport.blockRegistryError,
-			content: cachedSingleton.content,
-			collectionNavigation: null,
-			contentError: null,
-			branch: parentData.activeDraftBranch,
-			pageSlug: params.page,
-			mode: 'github' as const
-		};
-	}
-
-	const pageViewEndpoint = buildPathWithQuery('/api/repo/page-view', {
-		slug: params.page
-	});
-	const response = await traceBrowserRequest(
-		{
-			workflow: 'item-route-shell',
-			route: `/pages/${params.page}`,
-			endpoint: pageViewEndpoint,
-			priority: 'foreground',
-			cacheTaskKey: null,
-			duplicateState: 'unique'
-		},
-		() => fetch(pageViewEndpoint)
-	);
-
-	if (response.status === 401) {
+	const routeStatus = workflowData.cacheMiss?.status ?? null;
+	if (routeStatus === 401) {
 		throw redirect(302, reposRedirect);
 	}
-
-	if (response.status === 404) {
+	if (routeStatus === 404) {
 		throw httpError(404, 'Configuration not found');
 	}
-
-	if (!response.ok) {
-		throw httpError(response.status, 'Failed to load page view');
+	if (workflowData.readiness === 'error') {
+		throw httpError(500, 'Failed to load page view');
 	}
-
-	const data = await response.json();
-	await githubRepositoryCache.setSingletonPageView({
-		slug: params.page,
-		content: data.content ?? null,
-		blockConfigs: data.blockConfigs,
-		packageBlocks: data.packageBlocks,
-		blockRegistryError: data.blockRegistryError ?? null
-	});
 	markWorkflowReadiness({
 		workflow: 'item-route-shell',
 		mark: 'ready',
@@ -129,5 +119,17 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		slug: params.page
 	});
 
-	return data;
+	return {
+		discoveredConfig: workflowData.discoveredConfig ?? discoveredConfig,
+		blockConfigs: workflowData.blockSupport.blockConfigs,
+		packageBlocks: workflowData.blockSupport.packageBlocks,
+		blockRegistryError: workflowData.blockSupport.error,
+		content: workflowData.content,
+		collectionNavigation: workflowData.collectionNavigation,
+		contentError: workflowData.contentError,
+		workflowData,
+		branch: parentData.activeDraftBranch,
+		pageSlug: params.page,
+		mode: 'github' as const
+	};
 };

@@ -33,9 +33,15 @@ import type {
 } from '$lib/repository/config-bootstrap';
 import {
 	createWorkflowCacheMissResult,
+	createWorkflowBlockSupportData,
 	createWorkflowCollectionNavigationData,
+	createWorkflowItemViewData,
+	createWorkflowPageViewData,
 	createWorkflowRouteDataIdentity,
-	type WorkflowCollectionNavigationData
+	type WorkflowBlockSupportData,
+	type WorkflowCollectionNavigationData,
+	type WorkflowItemViewData,
+	type WorkflowPageViewData
 } from '$lib/repository/workflow-data';
 import {
 	markWorkflowReadiness,
@@ -312,6 +318,7 @@ type CacheTaskKind =
 
 type CacheTaskPriority = 'foreground' | 'intent' | 'topLevel' | 'passive';
 type CollectionRouteWorkflow = 'desktop-collection-landing' | 'warm-collection-reload';
+type ReadRouteWorkflow = CollectionRouteWorkflow | 'item-route-shell';
 type CacheWorkContext = {
 	runId: number;
 	identityKey: string | null;
@@ -967,6 +974,18 @@ function getProjectionKey(input: {
 
 function formatCacheReadFailure(error: unknown): string {
 	return `cache read failure: ${error instanceof Error ? error.message : String(error)}`;
+}
+
+function getErrorResponseStatus(error: unknown): number | null {
+	if (error && typeof error === 'object' && 'status' in error && typeof error.status === 'number') {
+		return error.status;
+	}
+	if (!(error instanceof Error)) {
+		return null;
+	}
+
+	const status = error.message.match(/\((\d{3})\)/)?.[1];
+	return status ? Number(status) : null;
 }
 
 function getCollectionIndexMissReason(input: {
@@ -1704,6 +1723,35 @@ async function getCachedBlockSupport(): Promise<CachedBlockSupport | null> {
 	return cached;
 }
 
+function createWorkflowBlockSupportFromCached(
+	cached: CachedBlockSupport | null,
+	cacheMissReason = 'block support missing for active tree'
+): WorkflowBlockSupportData {
+	if (!cached) {
+		return createWorkflowBlockSupportData({
+			readiness: 'missing',
+			cacheMiss: createWorkflowCacheMissResult({
+				target: 'block-support',
+				reason: cacheMissReason
+			})
+		});
+	}
+
+	return createWorkflowBlockSupportData({
+		blockConfigs: cached.blockConfigs,
+		packageBlocks: cached.packageBlocks,
+		blockRegistryError: cached.blockRegistryError,
+		readiness: cached.blockRegistryError ? 'error' : 'ready',
+		cacheMiss: cached.blockRegistryError
+			? createWorkflowCacheMissResult({
+					target: 'block-support',
+					readiness: 'error',
+					reason: cached.blockRegistryError
+				})
+			: null
+	});
+}
+
 async function writeBlockSupport(input: {
 	blockConfigs: DiscoveredBlockConfig[];
 	packageBlocks: SerializablePackageBlock[];
@@ -1946,6 +1994,22 @@ async function mergeCachedProjections(
 	);
 
 	return index.items.map((item) => projectionByBlobSha.get(item.blobSha) ?? item);
+}
+
+function collectionIndexItemToExistingContentRecord(
+	config: DiscoveredConfig | null,
+	item: CollectionIndexItem
+): ContentRecord {
+	const itemId = item.hrefItemId ?? item.route ?? item.itemId;
+	const idField = config?.config.idField ?? 'id';
+
+	return {
+		...item,
+		[idField]: itemId,
+		title: item.title,
+		_tentmanId: item.itemId,
+		_filename: item.filename
+	} as ContentRecord;
 }
 
 function isMatchingCollectionIndexItem(item: CollectionIndexItem, itemId: string): boolean {
@@ -2414,10 +2478,7 @@ export const githubRepositoryCache = {
 				workflow
 			});
 		} catch (error) {
-			const status =
-				error instanceof Error
-					? error.message.match(/\((\d+)\)/)?.[1]
-					: null;
+			const status = getErrorResponseStatus(error);
 			const failedRequest =
 				error instanceof Error && error.message.includes('projection')
 					? 'collection projection batch request'
@@ -2436,6 +2497,7 @@ export const githubRepositoryCache = {
 					target: 'collection-navigation',
 					slug,
 					readiness: 'error',
+					status,
 					reason
 				})
 			});
@@ -2469,7 +2531,7 @@ export const githubRepositoryCache = {
 			fetcher: typeof fetch;
 			force?: boolean;
 			priority?: CacheTaskPriority;
-			workflow?: CollectionRouteWorkflow;
+			workflow?: ReadRouteWorkflow;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2803,6 +2865,9 @@ export const githubRepositoryCache = {
 	async warmBlockSupport(options: {
 		fetcher: typeof fetch;
 		priority?: CacheTaskPriority;
+		slug?: string | null;
+		workflow?: ReadRouteWorkflow | 'rich-editor-interactive';
+		route?: string | null;
 	}): Promise<CachedBlockSupport | null> {
 		if (!browser) {
 			return null;
@@ -2818,7 +2883,7 @@ export const githubRepositoryCache = {
 			return cached;
 		}
 
-		const slug = snapshot.configs[0]?.slug;
+		const slug = options.slug ?? snapshot.configs[0]?.slug;
 		if (!slug) {
 			await writeBlockSupport({
 				blockConfigs: snapshot.blockConfigs,
@@ -2839,8 +2904,8 @@ export const githubRepositoryCache = {
 			run: async () => {
 				const endpoint = `/api/repo/form-config?slug=${encodeURIComponent(slug)}`;
 				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
-					workflow: 'rich-editor-interactive',
-					route: `/pages/${slug}`,
+					workflow: options.workflow ?? 'rich-editor-interactive',
+					route: options.route ?? `/pages/${slug}`,
 					priority: options.priority ?? 'topLevel',
 					taskKey: getInventoryTargetId({ targetType: 'blockSupport' })
 				});
@@ -2870,6 +2935,49 @@ export const githubRepositoryCache = {
 		return await getCachedBlockSupport();
 	},
 
+	async loadBlockSupportWorkflowData(options: {
+		fetcher: typeof fetch;
+		slug?: string | null;
+		priority?: CacheTaskPriority;
+		workflow?: ReadRouteWorkflow | 'rich-editor-interactive';
+		route?: string | null;
+	}): Promise<WorkflowBlockSupportData> {
+		if (!browser) {
+			return createWorkflowBlockSupportFromCached(null, 'browser cache unavailable');
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return createWorkflowBlockSupportFromCached(null, 'missing active repository snapshot');
+		}
+
+		try {
+			const cached =
+				(await getCachedBlockSupport()) ??
+				(await githubRepositoryCache.warmBlockSupport({
+					fetcher: options.fetcher,
+					slug: options.slug,
+					priority: options.priority ?? 'foreground',
+					workflow: options.workflow,
+					route: options.route
+				}));
+			return createWorkflowBlockSupportFromCached(cached);
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'failed to load block support';
+			const status = getErrorResponseStatus(error);
+			return createWorkflowBlockSupportData({
+				readiness: 'error',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'block-support',
+					slug: options.slug ?? null,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
+	},
+
 	async getBlockSupport(): Promise<CachedBlockSupport | null> {
 		if (!browser) {
 			return null;
@@ -2896,7 +3004,10 @@ export const githubRepositoryCache = {
 		if (cached && !cached.blockSupport) {
 			await githubRepositoryCache.warmBlockSupport({
 				fetcher: input.fetcher,
-				priority: input.priority ?? 'foreground'
+				priority: input.priority ?? 'foreground',
+				slug: input.slug,
+				workflow: 'item-route-shell',
+				route: `/pages/${input.slug}`
 			});
 			return await githubRepositoryCache.getSingletonDocumentForRoute({ slug: input.slug });
 		}
@@ -2950,6 +3061,108 @@ export const githubRepositoryCache = {
 		return await githubRepositoryCache.getSingletonDocumentForRoute({ slug: input.slug });
 	},
 
+	async loadPageViewWorkflowData(
+		slug: string,
+		options: {
+			fetcher: typeof fetch;
+			priority?: CacheTaskPriority;
+		}
+	): Promise<WorkflowPageViewData> {
+		const snapshot = getActiveSnapshot();
+		const identity = snapshot
+			? createWorkflowRouteDataIdentity(snapshot.identity, {
+					hasEditableDraft: Boolean(snapshot.activeDraftBranch)
+				})
+			: null;
+		const discoveredConfig = snapshot ? getConfig(snapshot, slug) : null;
+
+		if (!browser) {
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'page-view',
+					slug,
+					reason: 'browser cache unavailable'
+				})
+			});
+		}
+
+		if (!snapshot) {
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'page-view',
+					slug,
+					reason: 'missing active repository snapshot'
+				})
+			});
+		}
+
+		const cached = await githubRepositoryCache.getSingletonDocumentForRoute({ slug });
+		if (cached) {
+			const blockSupport = await githubRepositoryCache.loadBlockSupportWorkflowData({
+				fetcher: options.fetcher,
+				slug,
+				priority: options.priority ?? 'foreground',
+				workflow: 'item-route-shell',
+				route: `/pages/${slug}`
+			});
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				content: cached.content,
+				collectionNavigation: null,
+				blockSupport,
+				cacheMiss: blockSupport.cacheMiss
+			});
+		}
+
+		try {
+			const warmed = await githubRepositoryCache.warmSingletonDocumentRoute({
+				slug,
+				fetcher: options.fetcher,
+				priority: options.priority ?? 'foreground'
+			});
+			const blockSupport = createWorkflowBlockSupportFromCached(warmed?.blockSupport ?? null);
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				content: warmed?.content ?? null,
+				collectionNavigation: null,
+				blockSupport,
+				cacheMiss: warmed
+					? blockSupport.cacheMiss
+					: createWorkflowCacheMissResult({
+							target: 'page-view',
+							slug,
+							reason: 'missing singleton route record'
+						})
+			});
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'failed to load page view';
+			const status = getErrorResponseStatus(error);
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				contentError: reason,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'page-view',
+					slug,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
+	},
+
 	async warmItemDocumentForRoute(input: {
 		slug: string;
 		itemId: string;
@@ -2972,14 +3185,18 @@ export const githubRepositoryCache = {
 		if (cached && !cachedBlockSupport) {
 			await githubRepositoryCache.warmBlockSupport({
 				fetcher: input.fetcher,
-				priority: input.priority ?? 'foreground'
+				priority: input.priority ?? 'foreground',
+				slug: input.slug,
+				workflow: 'item-route-shell',
+				route: `/pages/${input.slug}/${input.itemId}`
 			});
 			return cached;
 		}
 
 		await githubRepositoryCache.ensureCollectionIndex(input.slug, {
 			fetcher: input.fetcher,
-			priority: input.priority ?? 'foreground'
+			priority: input.priority ?? 'foreground',
+			workflow: 'item-route-shell'
 		});
 
 		const indexItem = await getCachedCollectionIndexItem(input.slug, input.itemId);
@@ -2995,6 +3212,153 @@ export const githubRepositoryCache = {
 			fetcher: input.fetcher,
 			priority: input.priority ?? 'foreground'
 		});
+	},
+
+	async loadItemViewWorkflowData(
+		slug: string,
+		itemId: string,
+		options: {
+			fetcher: typeof fetch;
+			priority?: CacheTaskPriority;
+			route?: string | null;
+		}
+	): Promise<WorkflowItemViewData> {
+		const snapshot = getActiveSnapshot();
+		const identity = snapshot
+			? createWorkflowRouteDataIdentity(snapshot.identity, {
+					hasEditableDraft: Boolean(snapshot.activeDraftBranch)
+				})
+			: null;
+		const discoveredConfig = snapshot ? getConfig(snapshot, slug) : null;
+		const route = options.route ?? `/pages/${slug}/${itemId}`;
+
+		if (!browser) {
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'item-view',
+					slug,
+					itemId,
+					reason: 'browser cache unavailable'
+				})
+			});
+		}
+
+		if (!snapshot) {
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'item-view',
+					slug,
+					itemId,
+					reason: 'missing active repository snapshot'
+				})
+			});
+		}
+
+		const cached = await githubRepositoryCache.getItemDocumentForRoute({ slug, itemId });
+		if (cached) {
+			const blockSupport = await githubRepositoryCache.loadBlockSupportWorkflowData({
+				fetcher: options.fetcher,
+				slug,
+				priority: options.priority ?? 'foreground',
+				workflow: 'item-route-shell',
+				route
+			});
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				item: cached.content,
+				navigationManifest: snapshot.navigationManifest,
+				blockSupport,
+				cacheMiss: blockSupport.cacheMiss
+			});
+		}
+
+		try {
+			const warmed = await githubRepositoryCache.warmItemDocumentForRoute({
+				slug,
+				itemId,
+				fetcher: options.fetcher,
+				priority: options.priority ?? 'foreground'
+			});
+			const blockSupport = createWorkflowBlockSupportFromCached(await getCachedBlockSupport());
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				item: warmed?.content ?? null,
+				navigationManifest: snapshot.navigationManifest,
+				blockSupport,
+				cacheMiss: warmed
+					? blockSupport.cacheMiss
+					: createWorkflowCacheMissResult({
+							target: 'item-view',
+							slug,
+							itemId,
+							reason: 'missing item route record'
+						})
+			});
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'failed to load item view';
+			const status = getErrorResponseStatus(error);
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				navigationManifest: snapshot.navigationManifest,
+				contentError: reason,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'item-view',
+					slug,
+					itemId,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
+	},
+
+	async loadExistingItemsForRoute(
+		slug: string,
+		options: {
+			fetcher: typeof fetch;
+			priority?: CacheTaskPriority;
+		}
+	): Promise<ContentRecord[]> {
+		if (!browser || !getActiveSnapshot()) {
+			return [];
+		}
+
+		try {
+			await githubRepositoryCache.ensureCollectionIndex(slug, {
+				fetcher: options.fetcher,
+				priority: options.priority ?? 'foreground',
+				workflow: 'item-route-shell'
+			});
+			const index = await getCachedCollectionIndex(slug);
+			if (!index) {
+				return [];
+			}
+
+			const snapshot = getActiveSnapshot();
+			const config = snapshot ? getConfig(snapshot, slug) : null;
+			const items = await mergeCachedProjections(index);
+			return items.map((item) => collectionIndexItemToExistingContentRecord(config, item));
+		} catch {
+			return [];
+		}
 	},
 
 	promoteRoute(input: { slug: string; itemId?: string | null; fetcher: typeof fetch }): void {

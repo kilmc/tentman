@@ -363,7 +363,7 @@
 	});
 
 	function getEditHref() {
-		return resolve(`/pages/${discoveredConfig.slug}/edit`);
+		return resolve(`/pages/${discoveredConfig?.slug ?? data.pageSlug}/edit`);
 	}
 </script>
 

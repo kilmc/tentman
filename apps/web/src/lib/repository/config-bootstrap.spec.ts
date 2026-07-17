@@ -20,7 +20,9 @@ describe('repository/config-bootstrap', () => {
 				blockSupport: {
 					blockConfigs: [],
 					packageBlocks: [],
-					error: null
+					error: null,
+					readiness: 'ready',
+					cacheMiss: null
 				},
 				changedContentPaths: [],
 				freshness: {
@@ -42,7 +44,9 @@ describe('repository/config-bootstrap', () => {
 			blockSupport: {
 				blockConfigs: [],
 				packageBlocks: [],
-				error: null
+				error: null,
+				readiness: 'ready',
+				cacheMiss: null
 			},
 			changedContentPaths: [],
 			freshness: {

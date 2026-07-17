@@ -137,6 +137,7 @@ describe('workflow-data contract', () => {
 			slug: 'posts',
 			itemId: 'missing-item',
 			readiness: 'missing',
+			status: null,
 			reason: 'item document is not available in prepared route data',
 			recovery: 'fetch-route-data'
 		});
@@ -208,7 +209,9 @@ describe('workflow-data contract', () => {
 		expect(createWorkflowBlockSupportData({})).toEqual({
 			blockConfigs: [],
 			packageBlocks: [],
-			error: null
+			error: null,
+			readiness: 'missing',
+			cacheMiss: null
 		});
 		expect(
 			createWorkflowPageViewData({
@@ -227,6 +230,7 @@ describe('workflow-data contract', () => {
 			readiness: 'missing',
 			cacheMiss: {
 				target: 'page-view',
+				status: null,
 				recovery: 'fetch-route-data'
 			}
 		});

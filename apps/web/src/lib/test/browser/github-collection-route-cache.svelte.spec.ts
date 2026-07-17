@@ -123,6 +123,34 @@ function createSingletonBootstrap(): RepoConfigsBootstrap {
 	} as RepoConfigsBootstrap;
 }
 
+function createTagBootstrap(): RepoConfigsBootstrap {
+	const bootstrap = createBootstrap();
+	return {
+		...bootstrap,
+		configs: [
+			{
+				...bootstrap.configs[0],
+				config: {
+					...bootstrap.configs[0].config,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'topics', type: 'tags', label: 'Topics' }
+					]
+				}
+			}
+		]
+	} as RepoConfigsBootstrap;
+}
+
+function createMixedConfigBootstrap(): RepoConfigsBootstrap {
+	const singleton = createSingletonBootstrap().configs[0];
+	const collection = createBootstrap().configs[0];
+	return {
+		...createBootstrap(),
+		configs: [singleton, collection]
+	} as RepoConfigsBootstrap;
+}
+
 function createLoadEvent(fetch: typeof globalThis.fetch, bootstrap = createBootstrap()) {
 	return {
 		parent: async () => bootstrap,
@@ -135,9 +163,13 @@ function createLoadEvent(fetch: typeof globalThis.fetch, bootstrap = createBoots
 	};
 }
 
-function createItemLoadEvent(fetch: typeof globalThis.fetch, pathname: string) {
+function createItemLoadEvent(
+	fetch: typeof globalThis.fetch,
+	pathname: string,
+	bootstrap = createBootstrap()
+) {
 	return {
-		parent: async () => createBootstrap(),
+		parent: async () => bootstrap,
 		fetch,
 		params: {
 			page: 'projects',
@@ -417,5 +449,147 @@ describe('GitHub collection route cache in the browser', () => {
 				title: 'Panorama 4'
 			}
 		});
+	});
+
+	it('loads item edit existing items from the index without a foreground projection batch', async () => {
+		const bootstrap = createTagBootstrap();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-projections')) {
+				throw new Error('edit shell should not read every collection projection');
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return Response.json({
+					discoveredConfig: bootstrap.configs[0],
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null,
+					navigationManifest: bootstrap.navigationManifest,
+					item: {
+						title: 'Panorama 4',
+						slug: 'panorama-4',
+						topics: ['berlin']
+					},
+					contentError: null,
+					itemId: 'panorama-4',
+					branch: null,
+					pageSlug: 'projects',
+					mode: 'github'
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+
+		await expect(
+			loadItemEditView(
+				createItemLoadEvent(fetch, '/pages/projects/panorama-4/edit', bootstrap) as never
+			)
+		).resolves.toMatchObject({
+			item: {
+				title: 'Panorama 4'
+			},
+			existingItems: [
+				expect.objectContaining({
+					slug: 'panorama-4',
+					_tentmanId: 'panorama-4'
+				})
+			]
+		});
+
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenNthCalledWith(
+			2,
+			'/api/repo/item-view?slug=projects&itemId=panorama-4'
+		);
+	});
+
+	it('returns a normalized item workflow error when route records fail to load', async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return new Response(null, { status: 503 });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		await expect(
+			githubRepositoryCache.loadItemViewWorkflowData('projects', 'panorama-4', {
+				fetcher: fetch,
+				priority: 'foreground',
+				route: '/pages/projects/panorama-4'
+			})
+		).resolves.toMatchObject({
+			slug: 'projects',
+			itemId: 'panorama-4',
+			readiness: 'error',
+			cacheMiss: {
+				target: 'item-view',
+				slug: 'projects',
+				itemId: 'panorama-4',
+				readiness: 'error',
+				status: 503,
+				reason: 'Failed to load collection index (503)'
+			}
+		});
+	});
+
+	it('scopes cached item block-support misses to the selected collection slug', async () => {
+		const bootstrap = createMixedConfigBootstrap();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				expect(url).toBe('/api/repo/form-config?slug=projects');
+				return Response.json({
+					blockConfigs: [{ id: 'gallery', path: 'tentman/blocks/gallery.tentman.json', config: {} }],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.ensureCollectionIndex('projects', { fetcher: fetch });
+		await githubRepositoryCache.setItemDocumentForRoute({
+			slug: 'projects',
+			itemId: 'panorama-4',
+			content: {
+				title: 'Panorama 4',
+				slug: 'panorama-4'
+			}
+		});
+		fetch.mockClear();
+
+		await expect(
+			loadItemView(createItemLoadEvent(fetch, '/pages/projects/panorama-4', bootstrap) as never)
+		).resolves.toMatchObject({
+			item: {
+				title: 'Panorama 4'
+			},
+			blockConfigs: [{ id: 'gallery' }]
+		});
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=projects');
 	});
 });

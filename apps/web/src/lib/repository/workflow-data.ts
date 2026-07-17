@@ -40,6 +40,8 @@ export interface WorkflowBlockSupportData {
 	blockConfigs: DiscoveredBlockConfig[];
 	packageBlocks: SerializablePackageBlock[];
 	error: string | null;
+	readiness: WorkflowDataReadiness;
+	cacheMiss: WorkflowCacheMissResult | null;
 }
 
 export interface WorkflowWorkspaceBootstrapData {
@@ -107,6 +109,7 @@ export interface WorkflowCacheMissResult {
 	slug: string | null;
 	itemId: string | null;
 	readiness: Exclude<WorkflowDataReadiness, 'ready'>;
+	status: number | null;
 	reason: string;
 	recovery: WorkflowCacheMissRecovery;
 }
@@ -154,6 +157,7 @@ export function createWorkflowCacheMissResult(input: {
 	slug?: string | null;
 	itemId?: string | null;
 	readiness?: Exclude<WorkflowDataReadiness, 'ready'>;
+	status?: number | null;
 	reason: string;
 	recovery?: WorkflowCacheMissRecovery;
 }): WorkflowCacheMissResult {
@@ -162,6 +166,7 @@ export function createWorkflowCacheMissResult(input: {
 		slug: input.slug ?? null,
 		itemId: input.itemId ?? null,
 		readiness: input.readiness ?? 'missing',
+		status: input.status ?? null,
 		reason: input.reason,
 		recovery: input.recovery ?? 'fetch-route-data'
 	};
@@ -171,11 +176,20 @@ export function createWorkflowBlockSupportData(input: {
 	blockConfigs?: DiscoveredBlockConfig[] | null;
 	packageBlocks?: SerializablePackageBlock[] | null;
 	blockRegistryError?: string | null;
+	readiness?: WorkflowDataReadiness;
+	cacheMiss?: WorkflowCacheMissResult | null;
 }): WorkflowBlockSupportData {
+	const blockRegistryError = input.blockRegistryError ?? null;
+	const hasPreparedData =
+		input.blockConfigs !== undefined ||
+		input.packageBlocks !== undefined ||
+		input.blockRegistryError !== undefined;
 	return {
 		blockConfigs: input.blockConfigs ?? [],
 		packageBlocks: input.packageBlocks ?? [],
-		error: input.blockRegistryError ?? null
+		error: blockRegistryError,
+		readiness: input.readiness ?? (blockRegistryError ? 'error' : hasPreparedData ? 'ready' : 'missing'),
+		cacheMiss: input.cacheMiss ?? null
 	};
 }
 
