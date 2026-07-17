@@ -580,6 +580,26 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 		expect(projectionCalls).toEqual([['blob-1', 'blob-2']]);
 		expect(get(githubCacheWarmDebugStatus).taskKinds.collectionProjectionBatch.total).toBe(1);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-work',
+					phase: 'queued',
+					operation: 'projection-hydration',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/posts',
+					repoFullName: 'acme/docs',
+					ref: 'main',
+					taskKind: 'collectionProjectionBatch',
+					priority: 'passive',
+					progressCompleted: 4,
+					progressTotal: 12,
+					queuedTasks: 1,
+					runningTasks: 0,
+					reason: 'queued cache task'
+				})
+			])
+		);
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
 			items: [
 				{ title: 'Post 1', hydration: 'hydrated' },
@@ -2310,6 +2330,22 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 		await expect.poll(() => get(githubCacheWarmStatus).message).toBe(
 			'GitHub rate limit reached; retrying cache work'
+		);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-work',
+					phase: 'backoff',
+					operation: 'retry-backoff',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/posts',
+					repoFullName: 'acme/docs',
+					ref: 'main',
+					taskKind: 'collectionProjectionBatch',
+					priority: 'foreground',
+					reason: 'GitHub rate limit reached; retrying cache work'
+				})
+			])
 		);
 		await expect(promise).resolves.toBeUndefined();
 		expect(projectionCalls).toBe(2);

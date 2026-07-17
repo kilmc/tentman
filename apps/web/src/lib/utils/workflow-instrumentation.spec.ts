@@ -4,6 +4,7 @@ import {
 	clearWorkflowInstrumentationEventsForTests,
 	getWorkflowInstrumentationEventsForTests,
 	markWorkflowReadiness,
+	recordCacheWork,
 	traceBrowserRequest,
 	traceGitHubRequest
 } from './workflow-instrumentation';
@@ -110,6 +111,45 @@ describe('workflow instrumentation', () => {
 					used: '1',
 					resource: 'core'
 				}
+			})
+		]);
+	});
+
+	it('records cache work state for stalled-looking progress diagnosis', () => {
+		recordCacheWork({
+			phase: 'running',
+			operation: 'projection-hydration',
+			workflow: 'desktop-collection-landing',
+			route: '/pages/projects',
+			repoFullName: 'kilmc/theresagrieben',
+			ref: 'tentman-preview',
+			taskKey: 'collectionProjection:projects:blob-31',
+			taskKind: 'collectionProjectionBatch',
+			priority: 'topLevel',
+			progressCompleted: 31,
+			progressTotal: 116,
+			queuedTasks: 4,
+			runningTasks: 1,
+			reason: 'hydrating remaining collection projections'
+		});
+
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual([
+			expect.objectContaining({
+				kind: 'cache-work',
+				phase: 'running',
+				operation: 'projection-hydration',
+				workflow: 'desktop-collection-landing',
+				route: '/pages/projects',
+				repoFullName: 'kilmc/theresagrieben',
+				ref: 'tentman-preview',
+				taskKey: 'collectionProjection:projects:blob-31',
+				taskKind: 'collectionProjectionBatch',
+				priority: 'topLevel',
+				progressCompleted: 31,
+				progressTotal: 116,
+				queuedTasks: 4,
+				runningTasks: 1,
+				reason: 'hydrating remaining collection projections'
 			})
 		]);
 	});

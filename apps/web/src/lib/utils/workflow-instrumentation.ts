@@ -22,6 +22,29 @@ export type RequestPriority = 'foreground' | 'intent' | 'topLevel' | 'passive' |
 export type RequestResultStatus = 'ok' | 'error';
 export type RequestDuplicateState = 'unique' | 'duplicate' | 'deduped';
 export type RequestCacheResult = 'hit' | 'miss' | 'stale' | 'write' | 'skip';
+export type CacheWorkPhase =
+	| 'queued'
+	| 'waiting'
+	| 'running'
+	| 'backoff'
+	| 'paused'
+	| 'completed'
+	| 'error'
+	| 'canceled'
+	| 'idle';
+export type CacheWorkOperation =
+	| 'projection-hydration'
+	| 'item-document-warming'
+	| 'full-document-warming'
+	| 'block-support-warming'
+	| 'singleton-document-warming'
+	| 'collection-index-warming'
+	| 'freshness'
+	| 'retry-backoff'
+	| 'rate-limit-pause'
+	| 'queue-wait'
+	| 'indexeddb-write'
+	| 'no-active-work';
 export type GitHubRequestKind =
 	| 'branch'
 	| 'commit'
@@ -38,6 +61,7 @@ export type WorkflowInstrumentationEvent =
 	| BrowserRequestTraceEvent
 	| GitHubRequestTraceEvent
 	| CacheOutcomeEvent
+	| CacheWorkEvent
 	| RouteDataFallbackEvent;
 
 export interface WorkflowReadinessEvent {
@@ -111,6 +135,25 @@ export interface CacheOutcomeEvent {
 	slug?: string | null;
 	itemId?: string | null;
 	path?: string | null;
+	timestamp: number;
+}
+
+export interface CacheWorkEvent {
+	kind: 'cache-work';
+	phase: CacheWorkPhase;
+	operation: CacheWorkOperation;
+	workflow?: WorkflowName | null;
+	route?: string | null;
+	repoFullName?: string | null;
+	ref?: string | null;
+	taskKey?: string | null;
+	taskKind?: string | null;
+	priority?: RequestPriority | null;
+	progressCompleted?: number | null;
+	progressTotal?: number | null;
+	queuedTasks?: number | null;
+	runningTasks?: number | null;
+	reason?: string | null;
 	timestamp: number;
 }
 
@@ -362,6 +405,14 @@ export async function traceGitHubRequest<T>(
 export function recordCacheOutcome(input: Omit<CacheOutcomeEvent, 'kind' | 'timestamp'>): void {
 	recordEvent({
 		kind: 'cache-outcome',
+		...input,
+		timestamp: now()
+	});
+}
+
+export function recordCacheWork(input: Omit<CacheWorkEvent, 'kind' | 'timestamp'>): void {
+	recordEvent({
+		kind: 'cache-work',
 		...input,
 		timestamp: now()
 	});

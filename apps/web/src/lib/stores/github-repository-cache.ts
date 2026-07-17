@@ -46,6 +46,7 @@ import {
 import {
 	markWorkflowReadiness,
 	recordCacheOutcome,
+	recordCacheWork,
 	traceBrowserRequest,
 	type RequestDuplicateState
 } from '$lib/utils/workflow-instrumentation';
@@ -344,6 +345,7 @@ interface CacheTask<T = unknown> {
 	key: string;
 	kind: CacheTaskKind;
 	priority: number;
+	priorityLabel: CacheTaskPriority;
 	passive: boolean;
 	duplicateState: RequestDuplicateState;
 	order: number;
@@ -1235,6 +1237,55 @@ function assertBackgroundCacheQuotaAvailable(response: Response, priority: Cache
 	}
 }
 
+function getCacheEndpointTaskKind(url: string, taskKey: string | null): CacheTaskKind | null {
+	if (taskKey?.startsWith('collectionProjection:') || url.includes('/collection-projections')) {
+		return 'collectionProjectionBatch';
+	}
+	if (taskKey?.startsWith('collectionIndex:') || url.includes('/collection-index')) {
+		return 'collectionIndex';
+	}
+	if (taskKey?.startsWith('itemDocument:') || url.includes('/item-view')) {
+		return 'itemDocument';
+	}
+	if (taskKey?.startsWith('singletonDocument:') || url.includes('/page-view')) {
+		return 'singletonDocument';
+	}
+	if (taskKey?.startsWith('blockSupport:') || url.includes('/form-config')) {
+		return 'blockRegistry';
+	}
+	return null;
+}
+
+function recordCacheEndpointBackoff(input: {
+	workflow: Parameters<typeof recordCacheWork>[0]['workflow'];
+	route: string;
+	url: string;
+	priority: CacheTaskPriority;
+	taskKey: string | null;
+	reason: string;
+}) {
+	const snapshot = getActiveSnapshot();
+	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
+	const runningTasks = [...cacheTasks.values()].filter(
+		(cacheTask) => cacheTask.status === 'running'
+	);
+	recordCacheWork({
+		phase: 'backoff',
+		operation: 'retry-backoff',
+		workflow: input.workflow,
+		route: input.route,
+		repoFullName: snapshot?.repoFullName ?? null,
+		ref: snapshot?.identity.ref ?? null,
+		taskKey: input.taskKey,
+		taskKind: getCacheEndpointTaskKind(input.url, input.taskKey),
+		priority: input.priority,
+		...getCacheWorkProgress(),
+		queuedTasks: queuedTasks.length,
+		runningTasks: runningTasks.length,
+		reason: input.reason
+	});
+}
+
 async function waitForEndpointBackoff(delayMs: number): Promise<void> {
 	await new Promise<void>((resolve) => {
 		setTimeout(resolve, delayMs);
@@ -1285,6 +1336,14 @@ async function fetchCacheEndpoint(
 			message: cacheRetryStatusMessage,
 			error: null,
 			showProgress: true
+		});
+		recordCacheEndpointBackoff({
+			workflow: input.workflow,
+			route: input.route,
+			url,
+			priority: input.priority,
+			taskKey: input.taskKey,
+			reason: cacheRetryStatusMessage
 		});
 		await waitForEndpointBackoff(getEndpointBackoffDelayMs(response, attemptIndex));
 	}
@@ -1585,6 +1644,75 @@ function getNextTask(): CacheTask | null {
 	return queuedTasks[0] ?? null;
 }
 
+function getCacheTaskOperation(task: CacheTask): Parameters<typeof recordCacheWork>[0]['operation'] {
+	if (task.kind === 'collectionProjectionBatch') {
+		return 'projection-hydration';
+	}
+	if (task.kind === 'itemDocument') {
+		return task.priorityLabel === 'passive' ? 'full-document-warming' : 'item-document-warming';
+	}
+	if (task.kind === 'blockRegistry') {
+		return 'block-support-warming';
+	}
+	if (task.kind === 'singletonDocument') {
+		return 'singleton-document-warming';
+	}
+	return 'collection-index-warming';
+}
+
+function getCacheWorkRoute(task: CacheTask): string | null {
+	const [, slug, itemId] = task.key.split(':');
+	if (!slug) {
+		return null;
+	}
+	if (task.kind === 'itemDocument' && itemId) {
+		return `/pages/${slug}/${itemId}`;
+	}
+	if (task.kind === 'collectionIndex' || task.kind === 'collectionProjectionBatch') {
+		return `/pages/${slug}`;
+	}
+	return null;
+}
+
+function getCacheWorkProgress() {
+	const status = get(githubCacheWarmStatus);
+	return {
+		progressCompleted: status.completedTasks,
+		progressTotal: status.totalTasks
+	};
+}
+
+function recordCacheTaskWork(
+	task: CacheTask,
+	phase: Parameters<typeof recordCacheWork>[0]['phase'],
+	reason: string,
+	operation = getCacheTaskOperation(task)
+) {
+	const snapshot = getActiveSnapshot();
+	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
+	const runningTasks = [...cacheTasks.values()].filter(
+		(cacheTask) => cacheTask.status === 'running'
+	);
+	recordCacheWork({
+		phase,
+		operation,
+		workflow:
+			task.kind === 'itemDocument' && task.priorityLabel !== 'passive'
+				? 'item-route-shell'
+				: 'desktop-collection-landing',
+		route: getCacheWorkRoute(task),
+		repoFullName: snapshot?.repoFullName ?? null,
+		ref: snapshot?.identity.ref ?? null,
+		taskKey: task.key,
+		taskKind: task.kind,
+		priority: task.priorityLabel,
+		...getCacheWorkProgress(),
+		queuedTasks: queuedTasks.length,
+		runningTasks: runningTasks.length,
+		reason
+	});
+}
+
 function scheduleQueueRun(runId: number) {
 	if (queueScheduled || runningTask || !isRunCurrent(runId)) {
 		return;
@@ -1607,8 +1735,11 @@ async function runQueue(runId: number): Promise<void> {
 		return;
 	}
 
-	if (task.passive && !(await waitForIdle(runId))) {
-		return;
+	if (task.passive) {
+		recordCacheTaskWork(task, 'waiting', 'waiting for route readiness and browser idle', 'queue-wait');
+		if (!(await waitForIdle(runId))) {
+			return;
+		}
 	}
 	if (runningTask || !isRunCurrent(runId)) {
 		return;
@@ -1626,6 +1757,7 @@ async function runQueue(runId: number): Promise<void> {
 		message: 'Caching site data',
 		error: null
 	});
+	recordCacheTaskWork(task, 'running', 'running cache task');
 
 	try {
 		const result = await task.run();
@@ -1634,6 +1766,7 @@ async function runQueue(runId: number): Promise<void> {
 			completedQueuedTasks += 1;
 			incrementTaskKindCount(completedQueuedTasksByKind, task.kind);
 		}
+		recordCacheTaskWork(task, 'completed', 'completed cache task');
 		task.resolve(result);
 	} catch (error) {
 		task.status = 'error';
@@ -1647,11 +1780,13 @@ async function runQueue(runId: number): Promise<void> {
 			if (error instanceof BackgroundCacheWarmPausedError) {
 				cacheTasks.clear();
 				queueScheduled = false;
+				recordCacheTaskWork(task, 'paused', error.message, 'rate-limit-pause');
 			}
 			erroredQueuedTasks += 1;
 			incrementTaskKindCount(erroredQueuedTasksByKind, task.kind);
 			markWarmError(error);
 		}
+		recordCacheTaskWork(task, 'error', error instanceof Error ? error.message : 'cache task failed');
 	} finally {
 		cacheTasks.delete(task.key);
 		if (runningTask === task) {
@@ -1675,6 +1810,9 @@ function enqueueCacheTask<T>(input: {
 	const nextPriority = getPriorityValue(input.priority);
 	const existing = cacheTasks.get(input.key) as CacheTask<T> | undefined;
 	if (existing) {
+		if (nextPriority > existing.priority) {
+			existing.priorityLabel = input.priority;
+		}
 		existing.priority = Math.max(existing.priority, nextPriority);
 		existing.passive = existing.passive && input.priority === 'passive';
 		existing.duplicateState = 'deduped';
@@ -1692,6 +1830,7 @@ function enqueueCacheTask<T>(input: {
 		key: input.key,
 		kind: input.kind,
 		priority: nextPriority,
+		priorityLabel: input.priority,
 		passive: input.passive ?? input.priority === 'passive',
 		duplicateState: 'unique',
 		order: taskOrder++,
@@ -1718,6 +1857,7 @@ function enqueueCacheTask<T>(input: {
 		message: 'Caching site data',
 		error: null
 	});
+	recordCacheTaskWork(task as CacheTask<unknown>, 'queued', 'queued cache task');
 	scheduleQueueRun(input.runId);
 	return promise;
 }
