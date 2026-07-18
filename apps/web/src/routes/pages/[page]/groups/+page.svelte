@@ -21,7 +21,6 @@
 		manageCollectionGroups,
 		type CollectionGroupManagementMutation
 	} from '$lib/features/content-management/navigation-manifest';
-	import { draftBranch } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
@@ -201,7 +200,6 @@
 				}
 
 				const result = (await response.json()) as {
-					branchName?: string | null;
 					changedPaths?: string[] | null;
 				};
 				const mutationResult = createWorkflowMutationResult({
@@ -224,9 +222,6 @@
 							: ['tentman/navigation-manifest.json', configEntry.path]
 					}
 				});
-				if (result.branchName && data.selectedRepo) {
-					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
-				}
 				await githubRepositoryCache.invalidatePaths(mutationResult.refresh.cachePaths);
 				await githubRepositoryCache.warmCollection(data.pageSlug, {
 					fetcher: fetch,

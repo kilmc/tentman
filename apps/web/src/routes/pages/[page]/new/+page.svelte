@@ -15,7 +15,6 @@
 	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
-	import { draftBranch } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
@@ -107,11 +106,12 @@
 	);
 	const requiresFilename = $derived(false);
 	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
+	const workflowEditor = $derived(data.editor ?? null);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
 			? `local:${$localRepo.backend?.cacheKey ?? 'none'}`
-			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
+			: (workflowEditor?.recoveryContextKey ?? 'editor:github:unknown')
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
 	const saveStatus = $derived.by<EditorSaveStatus>(() => {
@@ -340,16 +340,20 @@
 			discoveredConfig.path,
 			discoveredConfig.config.content.path
 		);
-		const itemPath =
-			discoveredConfig.config.content.mode === 'directory'
-				? buildCollectionFilePath(
-						contentPath,
-						ensureFilenameExtension(
-							filename || getCollectionFilenameBase(discoveredConfig.config, contentData),
-							getTemplateInfo(discoveredConfig.path, discoveredConfig.config).templateExt
-						)
-					)
-				: contentPath;
+		if (discoveredConfig.config.content.mode !== 'directory') {
+			return [contentPath];
+		}
+
+		const directoryConfig = discoveredConfig.config as Parameters<
+			typeof getCollectionFilenameBase
+		>[0];
+		const itemPath = buildCollectionFilePath(
+			contentPath,
+			ensureFilenameExtension(
+				filename || getCollectionFilenameBase(directoryConfig, contentData),
+				getTemplateInfo(discoveredConfig.path, directoryConfig).templateExt
+			)
+		);
 
 		return [itemPath];
 	}
@@ -409,9 +413,6 @@
 
 		const result = await response.json();
 		navigationManifest = result.navigationManifest;
-		if (result.branchName && data.selectedRepo) {
-			draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
-		}
 	}
 
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {

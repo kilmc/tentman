@@ -4,10 +4,7 @@ import type { RootConfig } from '$lib/config/root-config';
 import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
 import type { OrderedCollectionNavigation } from '$lib/features/content-management/navigation';
 import type { ResolvedContentState } from '$lib/features/content-management/state';
-import type {
-	ContentDocument,
-	ContentRecord
-} from '$lib/features/content-management/types';
+import type { ContentDocument, ContentRecord } from '$lib/features/content-management/types';
 import type {
 	RepoBootstrapIdentity,
 	RepoConfigsBootstrap,
@@ -24,8 +21,12 @@ export type WorkflowCacheMissTarget =
 	| 'config-states'
 	| 'block-support'
 	| 'freshness';
-export type WorkflowCacheMissRecovery = 'fetch-route-data' | 'refresh-workspace' | 'keep-current-data';
+export type WorkflowCacheMissRecovery =
+	| 'fetch-route-data'
+	| 'refresh-workspace'
+	| 'keep-current-data';
 export type WorkflowFreshnessStatus = 'unchanged' | 'changed' | 'stale' | 'error' | 'unknown';
+export type WorkflowEditorStatus = 'published' | 'draft';
 
 export interface WorkflowRouteDataIdentity {
 	mode: WorkflowDataMode;
@@ -34,6 +35,13 @@ export interface WorkflowRouteDataIdentity {
 	dataSetKey: string;
 	resolvedAt: number | null;
 	hasEditableDraft: boolean;
+}
+
+export interface WorkflowEditorState {
+	status: WorkflowEditorStatus;
+	isDraft: boolean;
+	recoveryContextKey: string;
+	message: string | null;
 }
 
 export interface WorkflowBlockSupportData {
@@ -69,6 +77,7 @@ export interface WorkflowPageViewData {
 	content: ContentDocument | null;
 	collectionNavigation: OrderedCollectionNavigation | null;
 	blockSupport: WorkflowBlockSupportData;
+	editor: WorkflowEditorState;
 	contentError: string | null;
 	readiness: WorkflowDataReadiness;
 	cacheMiss: WorkflowCacheMissResult | null;
@@ -82,6 +91,7 @@ export interface WorkflowItemViewData {
 	item: ContentRecord | null;
 	navigationManifest: NavigationManifestState | null;
 	blockSupport: WorkflowBlockSupportData;
+	editor: WorkflowEditorState;
 	contentError: string | null;
 	readiness: WorkflowDataReadiness;
 	cacheMiss: WorkflowCacheMissResult | null;
@@ -174,6 +184,52 @@ export function createWorkflowRouteDataIdentity(
 	};
 }
 
+export function createWorkflowEditorState(
+	identity: WorkflowRouteDataIdentity | null | undefined
+): WorkflowEditorState {
+	const isDraft = Boolean(identity?.hasEditableDraft);
+	const recoveryIdentity = identity
+		? hashDataSetParts([identity.mode, identity.workspaceKey, identity.dataSetKey])
+		: hashDataSetParts(['unknown-workflow']);
+
+	return {
+		status: isDraft ? 'draft' : 'published',
+		isDraft,
+		recoveryContextKey: `editor:${recoveryIdentity}`,
+		message: isDraft ? 'Changes will continue in the current draft.' : null
+	};
+}
+
+export function createWorkflowRouteDataIdentityFromRepositoryIdentity(input: {
+	mode: WorkflowDataMode;
+	workspaceKey: string;
+	workspaceLabel: string;
+	repositoryIdentity: RepoBootstrapIdentity | null | undefined;
+	hasEditableDraft: boolean;
+	dataSetParts?: string[];
+}): WorkflowRouteDataIdentity {
+	return (
+		createWorkflowRouteDataIdentity(input.repositoryIdentity, {
+			hasEditableDraft: input.hasEditableDraft
+		}) ??
+		createOpaqueWorkflowRouteDataIdentity({
+			mode: input.mode,
+			workspaceKey: input.workspaceKey,
+			workspaceLabel: input.workspaceLabel,
+			dataSetParts: input.dataSetParts ?? [
+				input.hasEditableDraft ? 'editable-draft' : 'published-content'
+			],
+			hasEditableDraft: input.hasEditableDraft
+		})
+	);
+}
+
+export function createWorkflowEditorStateFromRepositoryIdentity(
+	input: Parameters<typeof createWorkflowRouteDataIdentityFromRepositoryIdentity>[0]
+): WorkflowEditorState {
+	return createWorkflowEditorState(createWorkflowRouteDataIdentityFromRepositoryIdentity(input));
+}
+
 export function createWorkflowCacheMissResult(input: {
 	target: WorkflowCacheMissTarget;
 	slug?: string | null;
@@ -210,7 +266,8 @@ export function createWorkflowBlockSupportData(input: {
 		blockConfigs: input.blockConfigs ?? [],
 		packageBlocks: input.packageBlocks ?? [],
 		error: blockRegistryError,
-		readiness: input.readiness ?? (blockRegistryError ? 'error' : hasPreparedData ? 'ready' : 'missing'),
+		readiness:
+			input.readiness ?? (blockRegistryError ? 'error' : hasPreparedData ? 'ready' : 'missing'),
 		cacheMiss: input.cacheMiss ?? null
 	};
 }
@@ -271,13 +328,15 @@ export function createWorkflowPageViewData(input: {
 	cacheMiss?: WorkflowCacheMissResult | null;
 }): WorkflowPageViewData {
 	const hasData = input.content != null || input.collectionNavigation != null;
+	const identity = input.identity ?? null;
 	return {
-		identity: input.identity ?? null,
+		identity,
 		slug: input.slug,
 		discoveredConfig: input.discoveredConfig ?? null,
 		content: input.content ?? null,
 		collectionNavigation: input.collectionNavigation ?? null,
 		blockSupport: input.blockSupport ?? createWorkflowBlockSupportData({}),
+		editor: createWorkflowEditorState(identity),
 		contentError: input.contentError ?? null,
 		readiness: input.contentError ? 'error' : hasData ? 'ready' : 'missing',
 		cacheMiss: input.cacheMiss ?? null
@@ -295,14 +354,16 @@ export function createWorkflowItemViewData(input: {
 	contentError?: string | null;
 	cacheMiss?: WorkflowCacheMissResult | null;
 }): WorkflowItemViewData {
+	const identity = input.identity ?? null;
 	return {
-		identity: input.identity ?? null,
+		identity,
 		slug: input.slug,
 		itemId: input.itemId,
 		discoveredConfig: input.discoveredConfig ?? null,
 		item: input.item ?? null,
 		navigationManifest: input.navigationManifest ?? null,
 		blockSupport: input.blockSupport ?? createWorkflowBlockSupportData({}),
+		editor: createWorkflowEditorState(identity),
 		contentError: input.contentError ?? null,
 		readiness: input.contentError ? 'error' : input.item != null ? 'ready' : 'missing',
 		cacheMiss: input.cacheMiss ?? null

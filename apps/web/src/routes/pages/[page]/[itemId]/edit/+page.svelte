@@ -24,7 +24,6 @@
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import { buildCollectionFilePath } from '$lib/features/content-management/transforms';
 	import type { ContentRecord } from '$lib/features/content-management/types';
-	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { toasts } from '$lib/stores/toasts';
 	import {
@@ -60,7 +59,7 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const isLocalMode = $derived(data.mode === 'local');
+	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 
 	function getInitialDiscoveredConfig() {
 		return data.discoveredConfig;
@@ -133,12 +132,16 @@
 			: []
 	);
 	const cardFields = $derived(config ? getCardFields(config) : { primary: [], secondary: [] });
-	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const workflowEditor = $derived(routeWorkflowData?.editor ?? data.editor ?? null);
+	const isDraftView = $derived(!isLocalMode && workflowEditor?.isDraft === true);
+	const draftStatusMessage = $derived(
+		workflowEditor?.message ?? 'Changes will continue in the current draft.'
+	);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
 			? localRecoveryContextKey
-			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
+			: (workflowEditor?.recoveryContextKey ?? 'editor:github:unknown')
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
 	const canSaveChanges = $derived.by(() => {
@@ -397,19 +400,7 @@
 
 		const result = await response.json();
 		navigationManifest = result.navigationManifest;
-		if (result.branchName && data.selectedRepo) {
-			draftBranchStore.setBranch(result.branchName, data.selectedRepo.full_name);
-		}
 	}
-
-	$effect(() => {
-		if (!data.branch || !data.selectedRepo || isLocalMode) {
-			return;
-		}
-
-		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-		draftBranchStore.setBranch(data.branch, repoFullName);
-	});
 
 	$effect(() => {
 		if (item === null || hasUnsavedChanges || saving || typeof localStorage === 'undefined') {
@@ -732,10 +723,7 @@
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Editing draft content</p>
-			<p class="mt-1 text-sm text-stone-600">
-				Changes will continue from
-				<code class="rounded bg-white px-1 text-xs">{data.branch}</code>
-			</p>
+			<p class="mt-1 text-sm text-stone-600">{draftStatusMessage}</p>
 		</div>
 	{/if}
 

@@ -114,7 +114,6 @@ export type PagesWorkspaceAdapterResult =
 			type: 'navigation-saved';
 			message: string;
 			mutation: WorkflowMutationResult;
-			branchName?: string | null;
 			invalidateWorkspace: boolean;
 			localCollections?: Record<string, OrderedCollectionNavigation>;
 			localConfigStates?: Record<string, ResolvedContentState | null>;
@@ -124,7 +123,6 @@ export type PagesWorkspaceAdapterResult =
 			message: string;
 			slug: string;
 			mutation: WorkflowMutationResult;
-			branchName?: string | null;
 			invalidateWorkspace: boolean;
 			navigation?: OrderedCollectionNavigation;
 			localCollections?: Record<string, OrderedCollectionNavigation>;

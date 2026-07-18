@@ -78,7 +78,7 @@ describe('routes/pages/[page]/edit/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});
 
-	it('lets the server choose the managed draft branch for singleton draft editing', async () => {
+	it('returns workflow editor state for singleton draft editing without exposing the branch', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -91,6 +91,14 @@ describe('routes/pages/[page]/edit/+page', () => {
 						},
 						content: { title: 'Draft About' },
 						branch: 'tentman-preview',
+						workflowData: {
+							editor: {
+								status: 'draft',
+								isDraft: true,
+								recoveryContextKey: 'editor:dataset:abc123',
+								message: 'Changes will continue in the current draft.'
+							}
+						},
 						pageSlug: 'about',
 						mode: 'github'
 					}),
@@ -103,34 +111,40 @@ describe('routes/pages/[page]/edit/+page', () => {
 				)
 		);
 
-		await expect(
-			load({
-				parent: async () => ({
-					isAuthenticated: true,
-					selectedRepo: {
+		const result = await load({
+			parent: async () => ({
+				isAuthenticated: true,
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				},
+				selectedBackend: {
+					kind: 'github',
+					repo: {
 						owner: 'acme',
 						name: 'docs',
 						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
 					}
-				}),
-				fetch,
-				params: {
-					page: 'about'
-				},
-				url: new URL('http://localhost/pages/about/edit'),
-				depends: () => {}
-			} as never)
-		).resolves.toMatchObject({
-			branch: 'tentman-preview'
+				}
+			}),
+			fetch,
+			params: {
+				page: 'about'
+			},
+			url: new URL('http://localhost/pages/about/edit'),
+			depends: () => {}
+		} as never);
+
+		expect(result).toMatchObject({
+			editor: {
+				status: 'draft',
+				isDraft: true,
+				recoveryContextKey: 'editor:dataset:abc123'
+			}
 		});
+		expect(JSON.stringify(result)).not.toContain('branch');
+		expect(JSON.stringify(result)).not.toContain('tentman-preview');
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});

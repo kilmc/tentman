@@ -107,29 +107,37 @@ describe('githubWorkflowRouteCapabilities', () => {
 					title: 'About Tentman'
 				},
 				contentError: null,
-				branch: null,
+				branch: 'tentman-preview',
 				pageSlug: 'about',
 				mode: 'github'
 			})
 		);
 
-		await expect(
-			githubWorkflowRouteCapabilities.loadSingletonEditWorkflowData({
-				repoFullName: 'acme/docs',
-				bootstrap,
-				slug: 'about',
-				fetcher
-			})
-		).resolves.toMatchObject({
+		const result = await githubWorkflowRouteCapabilities.loadSingletonEditWorkflowData({
+			repoFullName: 'acme/docs',
+			bootstrap,
+			slug: 'about',
+			fetcher
+		});
+
+		expect(result).toMatchObject({
 			status: 'ready',
 			data: {
 				content: {
 					title: 'About Tentman'
 				},
+				editor: {
+					status: 'draft',
+					isDraft: true,
+					recoveryContextKey: expect.stringMatching(/^editor:dataset:/),
+					message: 'Changes will continue in the current draft.'
+				},
 				pageSlug: 'about',
 				mode: 'github'
 			}
 		});
+		expect(JSON.stringify(result)).not.toContain('branch');
+		expect(JSON.stringify(result)).not.toContain('tentman-preview');
 
 		expect(fetcher).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 		expect(cacheMocks.setSingletonPageView).toHaveBeenCalledWith({

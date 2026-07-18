@@ -23,7 +23,7 @@ describe('routes/pages/[page]/+page', () => {
 		});
 	});
 
-	it('lets the server choose the managed draft branch for singleton page reads', async () => {
+	it('returns draft workflow state for singleton page reads without exposing the branch', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -50,37 +50,42 @@ describe('routes/pages/[page]/+page', () => {
 				)
 		);
 
-		await expect(
-			load({
-				parent: async () => ({
-					isAuthenticated: true,
-					selectedRepo: {
+		const result = await load({
+			parent: async () => ({
+				isAuthenticated: true,
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				},
+				selectedBackend: {
+					kind: 'github',
+					repo: {
 						owner: 'acme',
 						name: 'docs',
 						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
-					},
-					configs: [],
-					blockConfigs: [],
-					navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
-				}),
-				fetch,
-				params: {
-					page: 'about'
+					}
 				},
-				url: new URL('http://localhost/pages/about'),
-				depends: () => {}
-			} as never)
-		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+				configs: [],
+				blockConfigs: [],
+				navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+			}),
+			fetch,
+			params: {
+				page: 'about'
+			},
+			url: new URL('http://localhost/pages/about'),
+			depends: () => {}
+		} as never);
+
+		expect(result).toMatchObject({
+			editor: {
+				status: 'draft',
+				isDraft: true
+			}
 		});
+		expect(JSON.stringify(result)).not.toContain('branch');
+		expect(JSON.stringify(result)).not.toContain('preview-2026-04-06');
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
 	});

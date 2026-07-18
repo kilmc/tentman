@@ -77,7 +77,7 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});
 
-	it('lets the server choose the managed draft branch when present', async () => {
+	it('returns draft workflow state when present without exposing the branch', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -98,35 +98,40 @@ describe('routes/pages/[page]/[itemId]/+page', () => {
 				)
 		);
 
-		await expect(
-			load({
-				parent: async () => ({
-					isAuthenticated: true,
-					selectedRepo: {
+		const result = await load({
+			parent: async () => ({
+				isAuthenticated: true,
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				},
+				selectedBackend: {
+					kind: 'github',
+					repo: {
 						owner: 'acme',
 						name: 'docs',
 						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
 					}
-				}),
-				fetch,
-				params: {
-					page: 'posts',
-					itemId: 'hello-world'
-				},
-				url: new URL('http://localhost/pages/posts/hello-world'),
-				depends: () => {}
-			} as never)
-		).resolves.toMatchObject({
-			branch: 'tentman-preview'
+				}
+			}),
+			fetch,
+			params: {
+				page: 'posts',
+				itemId: 'hello-world'
+			},
+			url: new URL('http://localhost/pages/posts/hello-world'),
+			depends: () => {}
+		} as never);
+
+		expect(result).toMatchObject({
+			editor: {
+				status: 'draft',
+				isDraft: true
+			}
 		});
+		expect(JSON.stringify(result)).not.toContain('branch');
+		expect(JSON.stringify(result)).not.toContain('tentman-preview');
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});

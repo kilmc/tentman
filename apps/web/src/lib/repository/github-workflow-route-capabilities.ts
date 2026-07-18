@@ -4,9 +4,13 @@ import type { ContentDocument, ContentRecord } from '$lib/features/content-manag
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
 import {
 	createWorkflowBlockSupportData,
+	createWorkflowEditorState,
+	createWorkflowItemViewData,
 	createWorkflowPageViewData,
+	createWorkflowRouteDataIdentityFromRepositoryIdentity,
 	createWorkflowRouteDataIdentity,
 	type WorkflowCollectionNavigationData,
+	type WorkflowEditorState,
 	type WorkflowItemViewData,
 	type WorkflowPageViewData
 } from '$lib/repository/workflow-data';
@@ -29,11 +33,53 @@ export interface GitHubSingletonEditWorkflowData {
 	blockRegistryError: string | null;
 	content: ContentDocument | null;
 	contentError: string | null;
-	branch: string | null | undefined;
+	editor: WorkflowEditorState;
 	pageSlug: string;
 	mode: 'github';
 	workflowData?: WorkflowPageViewData | null;
 }
+
+export type GitHubPageViewRouteData = {
+	discoveredConfig: DiscoveredConfig | null;
+	blockConfigs: DiscoveredBlockConfig[];
+	packageBlocks: SerializablePackageBlock[];
+	blockRegistryError: string | null;
+	content: ContentDocument | null;
+	collectionNavigation: WorkflowPageViewData['collectionNavigation'];
+	contentError: string | null;
+	editor: WorkflowEditorState;
+	pageSlug: string;
+	mode: 'github';
+	workflowData: WorkflowPageViewData;
+};
+
+export type GitHubItemViewRouteData = {
+	discoveredConfig: DiscoveredConfig | null;
+	blockConfigs: DiscoveredBlockConfig[];
+	packageBlocks: SerializablePackageBlock[];
+	blockRegistryError: string | null;
+	navigationManifest: WorkflowItemViewData['navigationManifest'];
+	item: ContentRecord | null;
+	existingItems?: ContentRecord[];
+	contentError: string | null;
+	editor: WorkflowEditorState;
+	itemId: string;
+	pageSlug: string;
+	mode: 'github';
+	workflowData: WorkflowItemViewData;
+};
+
+type GitHubPageViewTransportData = Partial<GitHubPageViewRouteData> & {
+	branch?: string | null;
+	editor?: WorkflowEditorState | null;
+	workflowData?: (Partial<WorkflowPageViewData> & { editor?: WorkflowEditorState | null }) | null;
+};
+
+type GitHubItemViewTransportData = Partial<GitHubItemViewRouteData> & {
+	branch?: string | null;
+	editor?: WorkflowEditorState | null;
+	workflowData?: (Partial<WorkflowItemViewData> & { editor?: WorkflowEditorState | null }) | null;
+};
 
 export type GitHubSingletonEditWorkflowResult =
 	| {
@@ -75,6 +121,18 @@ function createCachedSingletonEditWorkflowData(input: {
 		packageBlocks: input.packageBlocks,
 		blockRegistryError: input.blockRegistryError
 	});
+	const identity = createWorkflowRouteDataIdentity(input.bootstrap.repositoryIdentity, {
+		hasEditableDraft: Boolean(input.bootstrap.activeDraftBranch)
+	});
+	const workflowData = createWorkflowPageViewData({
+		identity,
+		slug: input.slug,
+		discoveredConfig: input.discoveredConfig,
+		content: input.content,
+		collectionNavigation: null,
+		blockSupport,
+		cacheMiss: blockSupport.cacheMiss
+	});
 
 	return {
 		discoveredConfig: input.discoveredConfig,
@@ -83,20 +141,164 @@ function createCachedSingletonEditWorkflowData(input: {
 		blockRegistryError: input.blockRegistryError,
 		content: input.content,
 		contentError: null,
-		branch: input.bootstrap.activeDraftBranch,
+		editor: workflowData.editor,
 		pageSlug: input.slug,
 		mode: 'github',
-		workflowData: createWorkflowPageViewData({
-			identity: createWorkflowRouteDataIdentity(input.bootstrap.repositoryIdentity, {
-				hasEditableDraft: Boolean(input.bootstrap.activeDraftBranch)
-			}),
-			slug: input.slug,
-			discoveredConfig: input.discoveredConfig,
-			content: input.content,
-			collectionNavigation: null,
-			blockSupport,
-			cacheMiss: blockSupport.cacheMiss
+		workflowData
+	};
+}
+
+function createGitHubTransportWorkflowIdentity(input: {
+	repoFullName: string;
+	bootstrap: RepoConfigsBootstrap;
+	hasEditableDraft: boolean;
+}) {
+	return createWorkflowRouteDataIdentityFromRepositoryIdentity({
+		mode: 'github',
+		workspaceKey: `github:${input.repoFullName}`,
+		workspaceLabel: input.repoFullName,
+		repositoryIdentity: input.bootstrap.repositoryIdentity ?? null,
+		hasEditableDraft: input.hasEditableDraft
+	});
+}
+
+function getTransportDraftStatus(input: {
+	branch?: string | null;
+	editor?: WorkflowEditorState | null;
+	workflowData?: {
+		identity?: { hasEditableDraft?: boolean } | null;
+		editor?: WorkflowEditorState | null;
+	} | null;
+	bootstrap: RepoConfigsBootstrap;
+}): boolean {
+	return Boolean(
+		input.workflowData?.identity?.hasEditableDraft ??
+		input.workflowData?.editor?.isDraft ??
+		input.editor?.isDraft ??
+		input.branch ??
+		input.bootstrap.activeDraftBranch
+	);
+}
+
+export function normalizeGitHubPageViewRouteData(input: {
+	repoFullName: string;
+	bootstrap: RepoConfigsBootstrap;
+	slug: string;
+	data: GitHubPageViewTransportData;
+}): GitHubPageViewRouteData {
+	const { branch, ...data } = input.data;
+	const identity = createGitHubTransportWorkflowIdentity({
+		repoFullName: input.repoFullName,
+		bootstrap: input.bootstrap,
+		hasEditableDraft: getTransportDraftStatus({
+			branch,
+			editor: data.editor,
+			workflowData: data.workflowData,
+			bootstrap: input.bootstrap
 		})
+	});
+	const workflowData = data.workflowData?.blockSupport
+		? data.workflowData
+		: createWorkflowPageViewData({
+				identity,
+				slug: input.slug,
+				discoveredConfig: data.discoveredConfig ?? null,
+				content: data.content ?? null,
+				collectionNavigation: data.collectionNavigation ?? null,
+				blockSupport: createWorkflowBlockSupportData({
+					blockConfigs: data.blockConfigs ?? [],
+					packageBlocks: data.packageBlocks ?? [],
+					blockRegistryError: data.blockRegistryError ?? null
+				}),
+				contentError: data.contentError ?? null
+			});
+	const editor =
+		data.editor ??
+		data.workflowData?.editor ??
+		workflowData.editor ??
+		createWorkflowEditorState(identity);
+
+	return {
+		discoveredConfig: data.discoveredConfig ?? workflowData.discoveredConfig,
+		blockConfigs: data.blockConfigs ?? workflowData.blockSupport.blockConfigs,
+		packageBlocks: data.packageBlocks ?? workflowData.blockSupport.packageBlocks,
+		blockRegistryError: data.blockRegistryError ?? workflowData.blockSupport.error,
+		content: data.content ?? workflowData.content,
+		collectionNavigation: data.collectionNavigation ?? workflowData.collectionNavigation,
+		contentError: data.contentError ?? workflowData.contentError,
+		editor,
+		pageSlug: data.pageSlug ?? input.slug,
+		mode: 'github',
+		workflowData: {
+			...workflowData,
+			editor
+		}
+	};
+}
+
+function normalizeSingletonEditWorkflowData(
+	input: Parameters<typeof normalizeGitHubPageViewRouteData>[0]
+): GitHubSingletonEditWorkflowData {
+	return normalizeGitHubPageViewRouteData(input) as GitHubSingletonEditWorkflowData;
+}
+
+export function normalizeGitHubItemViewRouteData(input: {
+	repoFullName: string;
+	bootstrap: RepoConfigsBootstrap;
+	slug: string;
+	itemId: string;
+	data: GitHubItemViewTransportData;
+}): GitHubItemViewRouteData {
+	const { branch, ...data } = input.data;
+	const identity = createGitHubTransportWorkflowIdentity({
+		repoFullName: input.repoFullName,
+		bootstrap: input.bootstrap,
+		hasEditableDraft: getTransportDraftStatus({
+			branch,
+			editor: data.editor,
+			workflowData: data.workflowData,
+			bootstrap: input.bootstrap
+		})
+	});
+	const workflowData = data.workflowData?.blockSupport
+		? data.workflowData
+		: createWorkflowItemViewData({
+				identity,
+				slug: input.slug,
+				itemId: input.itemId,
+				discoveredConfig: data.discoveredConfig ?? null,
+				item: data.item ?? null,
+				navigationManifest: data.navigationManifest ?? null,
+				blockSupport: createWorkflowBlockSupportData({
+					blockConfigs: data.blockConfigs ?? [],
+					packageBlocks: data.packageBlocks ?? [],
+					blockRegistryError: data.blockRegistryError ?? null
+				}),
+				contentError: data.contentError ?? null
+			});
+	const editor =
+		data.editor ??
+		data.workflowData?.editor ??
+		workflowData.editor ??
+		createWorkflowEditorState(identity);
+
+	return {
+		discoveredConfig: data.discoveredConfig ?? workflowData.discoveredConfig,
+		blockConfigs: data.blockConfigs ?? workflowData.blockSupport.blockConfigs,
+		packageBlocks: data.packageBlocks ?? workflowData.blockSupport.packageBlocks,
+		blockRegistryError: data.blockRegistryError ?? workflowData.blockSupport.error,
+		navigationManifest: data.navigationManifest ?? workflowData.navigationManifest,
+		item: data.item ?? workflowData.item,
+		existingItems: data.existingItems,
+		contentError: data.contentError ?? workflowData.contentError,
+		editor,
+		itemId: data.itemId ?? input.itemId,
+		pageSlug: data.pageSlug ?? input.slug,
+		mode: 'github',
+		workflowData: {
+			...workflowData,
+			editor
+		}
 	};
 }
 
@@ -226,7 +428,12 @@ export const githubWorkflowRouteCapabilities = {
 			return { status: 'error', httpStatus: response.status };
 		}
 
-		const data = (await response.json()) as GitHubSingletonEditWorkflowData;
+		const data = normalizeSingletonEditWorkflowData({
+			repoFullName: input.repoFullName,
+			bootstrap: input.bootstrap,
+			slug: input.slug,
+			data: await response.json()
+		});
 
 		if (data?.discoveredConfig?.config?.collection) {
 			return { status: 'collection' };

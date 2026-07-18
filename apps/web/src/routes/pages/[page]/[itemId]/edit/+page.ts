@@ -3,7 +3,10 @@ import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
-import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
+import {
+	githubWorkflowRouteCapabilities,
+	normalizeGitHubItemViewRouteData
+} from '$lib/repository/github-workflow-route-capabilities';
 import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 import { hasTagsBlock } from '$lib/features/content-management/collection-existing-items';
 
@@ -20,7 +23,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			item: null,
 			contentError: null,
 			blockRegistryError: null,
-			branch: null,
+			editor: null,
 			itemId: params.itemId,
 			pageSlug: params.page,
 			mode: 'local' as const
@@ -51,7 +54,13 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			throw httpError(response.status, 'Failed to load item edit view');
 		}
 
-		const data = await response.json();
+		const data = normalizeGitHubItemViewRouteData({
+			repoFullName: workspace.selectedRepo.full_name,
+			bootstrap: parentData,
+			slug: params.page,
+			itemId: params.itemId,
+			data: await response.json()
+		});
 		if (
 			data &&
 			typeof data === 'object' &&
@@ -61,10 +70,11 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			throw redirect(302, data.redirectTo);
 		}
 
-		const workflowData = data.workflowData ?? null;
+		const workflowData = data.workflowData?.blockSupport ? data.workflowData : null;
 		if (!workflowData) {
 			return {
 				...data,
+				editor: data.editor,
 				existingItems: data.existingItems ?? []
 			};
 		}
@@ -79,6 +89,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			item: workflowData.item,
 			existingItems: data.existingItems ?? [],
 			contentError: workflowData.contentError,
+			editor: workflowData.editor,
 			workflowData
 		};
 	}
@@ -142,9 +153,9 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 		item: workflowData.item,
 		existingItems,
 		contentError: workflowData.contentError,
+		editor: workflowData.editor,
 		workflowData,
 		itemId: params.itemId,
-		branch: parentData.activeDraftBranch,
 		pageSlug: params.page,
 		mode: 'github' as const
 	};

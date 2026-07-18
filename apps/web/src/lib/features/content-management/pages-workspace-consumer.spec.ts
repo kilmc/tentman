@@ -342,7 +342,6 @@ describe('pages workspace consumer', () => {
 			saveNavigation: vi.fn(async () => ({
 				type: 'navigation-saved',
 				message: 'Navigation saved.',
-				branchName: 'tentman-draft',
 				invalidateWorkspace: true
 			})),
 			saveCollectionOrder: vi.fn(async () => ({

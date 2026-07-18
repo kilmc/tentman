@@ -77,7 +77,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});
 
-	it('lets the server choose the managed draft branch for draft-backed item editing', async () => {
+	it('returns workflow editor state for draft-backed item editing without exposing the branch', async () => {
 		const fetch = vi.fn(
 			async () =>
 				new Response(
@@ -87,6 +87,14 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 						itemId: 'hello-world',
 						pageSlug: 'posts',
 						branch: 'preview-2026-04-06',
+						workflowData: {
+							editor: {
+								status: 'draft',
+								isDraft: true,
+								recoveryContextKey: 'editor:dataset:def456',
+								message: 'Changes will continue in the current draft.'
+							}
+						},
 						mode: 'github'
 					}),
 					{
@@ -98,35 +106,41 @@ describe('routes/pages/[page]/[itemId]/edit/+page', () => {
 				)
 		);
 
-		await expect(
-			load({
-				parent: async () => ({
-					isAuthenticated: true,
-					selectedRepo: {
+		const result = await load({
+			parent: async () => ({
+				isAuthenticated: true,
+				selectedRepo: {
+					owner: 'acme',
+					name: 'docs',
+					full_name: 'acme/docs'
+				},
+				selectedBackend: {
+					kind: 'github',
+					repo: {
 						owner: 'acme',
 						name: 'docs',
 						full_name: 'acme/docs'
-					},
-					selectedBackend: {
-						kind: 'github',
-						repo: {
-							owner: 'acme',
-							name: 'docs',
-							full_name: 'acme/docs'
-						}
 					}
-				}),
-				fetch,
-				params: {
-					page: 'posts',
-					itemId: 'hello-world'
-				},
-				url: new URL('http://localhost/pages/posts/hello-world/edit'),
-				depends: () => {}
-			} as never)
-		).resolves.toMatchObject({
-			branch: 'preview-2026-04-06'
+				}
+			}),
+			fetch,
+			params: {
+				page: 'posts',
+				itemId: 'hello-world'
+			},
+			url: new URL('http://localhost/pages/posts/hello-world/edit'),
+			depends: () => {}
+		} as never);
+
+		expect(result).toMatchObject({
+			editor: {
+				status: 'draft',
+				isDraft: true,
+				recoveryContextKey: 'editor:dataset:def456'
+			}
 		});
+		expect(JSON.stringify(result)).not.toContain('branch');
+		expect(JSON.stringify(result)).not.toContain('preview-2026-04-06');
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=hello-world');
 	});

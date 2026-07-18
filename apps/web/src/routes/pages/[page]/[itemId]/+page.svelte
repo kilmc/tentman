@@ -5,7 +5,6 @@
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { getContentItemTitle } from '$lib/features/content-management/navigation';
@@ -25,7 +24,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const isLocalMode = $derived(data.mode === 'local');
+	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 
 	function getInitialDiscoveredConfig() {
 		return data.discoveredConfig;
@@ -67,7 +66,11 @@
 	const flashMessageKeys = ['published', 'deleted', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const workflowEditor = $derived(routeWorkflowData?.editor ?? data.editor ?? null);
+	const isDraftView = $derived(!isLocalMode && workflowEditor?.isDraft === true);
+	const draftStatusMessage = $derived(
+		workflowEditor?.message ?? 'This item is being loaded from the current draft.'
+	);
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
 			return null;
@@ -254,15 +257,6 @@
 		applyRemoteData();
 	});
 
-	$effect(() => {
-		if (!data.branch || !data.selectedRepo || isLocalMode) {
-			return;
-		}
-
-		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-		draftBranchStore.setBranch(data.branch, repoFullName);
-	});
-
 	function getFlashMessageKey() {
 		const url = new URL(window.location.href);
 		const relevantEntries = flashMessageKeys
@@ -315,10 +309,7 @@
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Viewing draft content</p>
-			<p class="mt-1 text-sm text-stone-600">
-				This item is being loaded from
-				<code class="rounded bg-white px-1 text-xs">{data.branch}</code>
-			</p>
+			<p class="mt-1 text-sm text-stone-600">{draftStatusMessage}</p>
 		</div>
 	{/if}
 

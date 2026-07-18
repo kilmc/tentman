@@ -14,7 +14,6 @@
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
-	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import { toasts } from '$lib/stores/toasts';
 	import {
 		clearEditorRecoverySnapshot,
@@ -90,12 +89,16 @@
 	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const workflowEditor = $derived(routeWorkflowData?.editor ?? data.editor ?? null);
+	const isDraftView = $derived(!isLocalMode && workflowEditor?.isDraft === true);
+	const draftStatusMessage = $derived(
+		workflowEditor?.message ?? 'Changes will continue in the current draft.'
+	);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
 			? localRecoveryContextKey
-			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
+			: (workflowEditor?.recoveryContextKey ?? 'editor:github:unknown')
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
 	const canSaveChanges = $derived.by(() => {
@@ -250,8 +253,9 @@
 		localError = null;
 		formGenerator = null;
 		hasUnsavedChanges = false;
-		const localData =
-			await localWorkflowRouteCapabilities.loadSingletonEditWorkflowData({ slug: pageSlug });
+		const localData = await localWorkflowRouteCapabilities.loadSingletonEditWorkflowData({
+			slug: pageSlug
+		});
 
 		if (requestId !== localLoadRequest) {
 			return;
@@ -278,15 +282,6 @@
 
 		localLoadRequest += 1;
 		applyRemoteData();
-	});
-
-	$effect(() => {
-		if (!data.branch || !data.selectedRepo || isLocalMode) {
-			return;
-		}
-
-		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-		draftBranchStore.setBranch(data.branch, repoFullName);
 	});
 
 	$effect(() => {
@@ -449,10 +444,7 @@
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Editing draft content</p>
-			<p class="mt-1 text-sm text-stone-600">
-				Changes will continue from
-				<code class="rounded bg-white px-1 text-xs">{data.branch}</code>
-			</p>
+			<p class="mt-1 text-sm text-stone-600">{draftStatusMessage}</p>
 		</div>
 	{/if}
 

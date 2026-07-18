@@ -562,7 +562,6 @@ export function createPagesWorkspaceAdapter(
 						cachePaths: result.changedPaths ?? ['tentman/navigation-manifest.json']
 					}
 				}),
-				branchName: result.branchName ?? null,
 				invalidateWorkspace: true
 			};
 		},
@@ -671,7 +670,6 @@ export function createPagesWorkspaceAdapter(
 						cachePaths: result.changedPaths ?? ['tentman/navigation-manifest.json']
 					}
 				}),
-				branchName: result.branchName ?? null,
 				invalidateWorkspace: true,
 				navigation
 			};

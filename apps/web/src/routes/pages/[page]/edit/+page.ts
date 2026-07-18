@@ -18,7 +18,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			content: null,
 			contentError: null,
 			blockRegistryError: null,
-			branch: null,
+			editor: null,
 			pageSlug: params.page,
 			mode: 'local' as const
 		};

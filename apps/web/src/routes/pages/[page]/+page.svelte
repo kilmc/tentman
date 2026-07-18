@@ -77,6 +77,10 @@
 	const isSingletonContent = $derived(!config?.collection);
 	const isCollectionContent = $derived(!!config?.collection);
 	const collectionItemLabel = $derived(config ? getConfigItemLabel(config) : 'item');
+	const workflowEditor = $derived(routeWorkflowData?.editor ?? data.editor ?? null);
+	const hasDraftWorkflow = $derived(
+		!isLocalMode && (workflowEditor?.isDraft === true || !!draftBranch)
+	);
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
 			return null;
@@ -445,7 +449,7 @@
 			</div>
 		{/if}
 
-		{#if !isLocalMode && draftBranch && draftChanges}
+		{#if hasDraftWorkflow && draftChanges}
 			{@const hasChanges =
 				draftChanges.modified.length > 0 ||
 				draftChanges.created.length > 0 ||

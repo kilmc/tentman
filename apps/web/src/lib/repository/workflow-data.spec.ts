@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	createWorkflowBlockSupportData,
 	createWorkflowCacheMissResult,
+	createWorkflowEditorState,
+	createWorkflowEditorStateFromRepositoryIdentity,
 	createWorkflowFreshnessData,
 	createOpaqueWorkflowRouteDataIdentity,
 	createWorkflowPageViewData,
@@ -105,6 +107,32 @@ describe('workflow-data contract', () => {
 		expect(JSON.stringify(identity)).not.toContain('treeSha');
 	});
 
+	it('derives editor state from opaque workflow identity instead of draft branch names', () => {
+		const editor = createWorkflowEditorState(workflowRouteDataIdentityFixture);
+		const fallbackEditor = createWorkflowEditorStateFromRepositoryIdentity({
+			mode: 'github',
+			workspaceKey: 'github:acme/docs',
+			workspaceLabel: 'acme/docs',
+			repositoryIdentity: null,
+			hasEditableDraft: true
+		});
+
+		expect(editor).toEqual({
+			status: 'draft',
+			isDraft: true,
+			recoveryContextKey: expect.stringMatching(/^editor:dataset:/),
+			message: 'Changes will continue in the current draft.'
+		});
+		expect(JSON.stringify(editor)).not.toContain('opaque-active-source');
+		expect(JSON.stringify(editor)).not.toContain('draftBranch');
+		expect(JSON.stringify(editor)).not.toContain('branchName');
+		expect(fallbackEditor).toMatchObject({
+			status: 'draft',
+			isDraft: true,
+			recoveryContextKey: expect.stringMatching(/^editor:dataset:/)
+		});
+	});
+
 	it('provides representative mode-neutral fixtures for read-route workflow data', () => {
 		expect(workflowBootstrapFixture).toMatchObject({
 			identity: workflowRouteDataIdentityFixture,
@@ -125,6 +153,10 @@ describe('workflow-data contract', () => {
 		expect(workflowPageViewFixture).toMatchObject({
 			slug: 'posts',
 			collectionNavigation: workflowCollectionNavigationFixture.navigation,
+			editor: {
+				status: 'draft',
+				isDraft: true
+			},
 			readiness: 'ready'
 		});
 		expect(workflowItemViewFixture).toMatchObject({
@@ -132,6 +164,10 @@ describe('workflow-data contract', () => {
 			itemId: 'hello-world',
 			item: {
 				title: 'Hello world'
+			},
+			editor: {
+				status: 'draft',
+				isDraft: true
 			},
 			readiness: 'ready'
 		});

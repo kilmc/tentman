@@ -217,7 +217,6 @@ describe('pages workspace adapter', () => {
 		expect(result).toMatchObject({
 			type: 'navigation-saved',
 			message: 'Navigation saved.',
-			branchName: 'tentman-draft',
 			invalidateWorkspace: true,
 			mutation: {
 				mode: 'github',
@@ -232,6 +231,7 @@ describe('pages workspace adapter', () => {
 				}
 			}
 		});
+		expect(JSON.stringify(result)).not.toContain('branchName');
 		expect(fetcher).toHaveBeenCalledWith(
 			'/base/api/repo/navigation-manifest',
 			expect.objectContaining({
