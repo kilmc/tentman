@@ -7,7 +7,7 @@ import {
 import type { InstructionDiscoveryResult } from '$lib/features/instructions/types';
 import { resolveWorkspaceState, type WorkspaceState } from '$lib/repository/workspace-state';
 import { logDevRouting } from '$lib/utils/dev-routing-log';
-import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
+import { logRouteDataFallback, markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 import type { LayoutLoad } from './$types';
 
 const EMPTY_INSTRUCTION_DISCOVERY: InstructionDiscoveryResult = {
@@ -21,6 +21,7 @@ type PagesWorkspaceWarmReturnData = RepoConfigsBootstrap & {
 
 type PagesWorkspaceWarmReturnCacheEntry = {
 	repoFullName: string;
+	repositoryIdentityKey: string;
 	data: PagesWorkspaceWarmReturnData;
 };
 
@@ -63,12 +64,47 @@ function getRepositoryIdentityKey(bootstrap: RepoConfigsBootstrap): string | nul
 	return [identity.repoKey, identity.ref, identity.headSha, identity.treeSha].join(':');
 }
 
+function getCurrentRepositoryIdentityKey(workspace: WorkspaceState): string | null {
+	if (workspace.mode !== 'github') {
+		return null;
+	}
+
+	const identity = workspace.selectedRepoConfigSummary?.repositoryIdentity;
+
+	if (!identity) {
+		return null;
+	}
+
+	return [identity.repoKey, identity.ref, identity.headSha, identity.treeSha].join(':');
+}
+
 function getWarmReturnCacheEntry(workspace: WorkspaceState): PagesWorkspaceWarmReturnData | null {
 	if (workspace.mode !== 'github' || !pagesWorkspaceWarmReturnCache) {
 		return null;
 	}
 
 	if (pagesWorkspaceWarmReturnCache.repoFullName !== workspace.selectedRepo.full_name) {
+		return null;
+	}
+
+	const currentRepositoryIdentityKey = getCurrentRepositoryIdentityKey(workspace);
+	if (!currentRepositoryIdentityKey) {
+		logRouteDataFallback({
+			route: '/pages',
+			slug: null,
+			source: 'pages-layout:warm-return',
+			reason: 'repository-identity-unavailable'
+		});
+		return null;
+	}
+
+	if (currentRepositoryIdentityKey !== pagesWorkspaceWarmReturnCache.repositoryIdentityKey) {
+		logRouteDataFallback({
+			route: '/pages',
+			slug: null,
+			source: 'pages-layout:warm-return',
+			reason: 'repository-identity-changed'
+		});
 		return null;
 	}
 
@@ -100,6 +136,7 @@ function cacheWarmReturnData(input: {
 
 	pagesWorkspaceWarmReturnCache = {
 		repoFullName: input.workspace.selectedRepo.full_name,
+		repositoryIdentityKey,
 		data: input.data
 	};
 }

@@ -233,6 +233,16 @@ describe('server/auth/github', () => {
 	it('persists the selected GitHub repo shell snapshot for later requests', () => {
 		const cookies = createCookieStore();
 
+		const repositoryIdentity = {
+			mode: 'github',
+			repoKey: 'github:acme/docs?ref=trunk',
+			label: 'acme/docs',
+			ref: 'trunk',
+			headSha: 'head-trunk',
+			treeSha: 'tree-trunk',
+			resolvedAt: 1
+		};
+
 		persistSelectedGitHubRepository(
 			cookies,
 			{
@@ -250,7 +260,8 @@ describe('server/auth/github', () => {
 				netlify: {
 					siteName: 'acme-docs'
 				}
-			}
+			},
+			repositoryIdentity
 		);
 
 		expect(cookies.values.get(SELECTED_REPO_COOKIE)).toBe(
@@ -262,7 +273,8 @@ describe('server/auth/github', () => {
 				siteName: 'Acme Docs',
 				netlify: {
 					siteName: 'acme-docs'
-				}
+				},
+				repositoryIdentity
 			}
 		});
 		expect(readRecentGitHubRepositories(cookies)).toEqual([

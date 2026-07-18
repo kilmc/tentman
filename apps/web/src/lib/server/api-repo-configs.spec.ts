@@ -20,12 +20,21 @@ import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
 	GITHUB_TOKEN_COOKIE,
+	readSelectedGitHubRepositorySession,
 	SELECTED_REPO_COOKIE
 } from '$lib/server/auth/github';
 
 function createCookies() {
+	const values = new Map<string, string>();
 	return {
-		delete: vi.fn()
+		values,
+		get: vi.fn((name: string) => values.get(name)),
+		set: vi.fn((name: string, value: string) => {
+			values.set(name, value);
+		}),
+		delete: vi.fn((name: string) => {
+			values.delete(name);
+		})
 	};
 }
 
@@ -241,6 +250,15 @@ describe('GET /api/repo/configs', () => {
 					status: 'unchanged',
 					unchanged: true,
 					changedContentPaths: []
+				}
+			}
+		});
+		expect(readSelectedGitHubRepositorySession(cookies)).toMatchObject({
+			selectedRepoConfigSummary: {
+				repositoryIdentity: {
+					ref: 'main',
+					headSha: 'github:acme/docs?ref=main:main',
+					treeSha: 'github:acme/docs?ref=main:main'
 				}
 			}
 		});

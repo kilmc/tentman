@@ -10,6 +10,7 @@ import {
 import { env } from '$env/dynamic/private';
 import { Octokit } from 'octokit';
 import type { RootConfig } from '$lib/config/root-config';
+import type { RepoBootstrapIdentity } from '$lib/repository/config-bootstrap';
 import type {
 	GitHubUserSnapshot,
 	RecentGitHubRepositorySnapshot,
@@ -394,16 +395,20 @@ export function readGitHubSession(cookies: Pick<Cookies, 'get' | 'delete'>): {
 export function persistSelectedGitHubRepository(
 	cookies: Pick<Cookies, 'get' | 'set' | 'delete'>,
 	repository: GitHubRepositoryIdentity,
-	rootConfig: RootConfig | null
+	rootConfig: RootConfig | null,
+	repositoryIdentity?: RepoBootstrapIdentity | null
 ): void {
 	const options = getGitHubCookieOptions();
 	const selectedRepoConfigSummary: SelectedRepoConfigSummary | null = rootConfig
 		? {
 				...(rootConfig.siteName ? { siteName: rootConfig.siteName } : {}),
 				...(rootConfig.componentsDir ? { componentsDir: rootConfig.componentsDir } : {}),
-				...(rootConfig.netlify ? { netlify: rootConfig.netlify } : {})
+				...(rootConfig.netlify ? { netlify: rootConfig.netlify } : {}),
+				...(repositoryIdentity ? { repositoryIdentity } : {})
 			}
-		: null;
+		: repositoryIdentity
+			? { repositoryIdentity }
+			: null;
 
 	cookies.set(SELECTED_REPO_COOKIE, JSON.stringify(repository), options);
 	cookies.set(

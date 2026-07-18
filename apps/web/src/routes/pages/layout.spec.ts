@@ -45,6 +45,15 @@ const githubWorkspaceParentData = {
 	}
 };
 
+function createGithubWorkspaceParentData(repositoryIdentity = createRepoIdentity()) {
+	return {
+		...githubWorkspaceParentData,
+		selectedRepoConfigSummary: {
+			repositoryIdentity
+		}
+	};
+}
+
 function createRepoIdentity(ref = 'main') {
 	return {
 		repoKey: `github:acme/docs?ref=${ref}`,
@@ -170,9 +179,10 @@ describe('routes/pages/+layout', () => {
 			repositoryIdentity: createRepoIdentity()
 		};
 		mocks.loadRepoConfigsBootstrap.mockResolvedValueOnce(bootstrap);
+		const parentData = createGithubWorkspaceParentData(createRepoIdentity());
 
 		await load({
-			parent: async () => githubWorkspaceParentData,
+			parent: async () => parentData,
 			fetch: fetcher
 		} as never);
 		mocks.loadRepoConfigsBootstrap.mockClear();
@@ -181,7 +191,7 @@ describe('routes/pages/+layout', () => {
 
 		await expect(
 			load({
-				parent: async () => githubWorkspaceParentData,
+				parent: async () => parentData,
 				fetch: fetcher
 			} as never)
 		).resolves.toMatchObject({
@@ -251,9 +261,10 @@ describe('routes/pages/+layout', () => {
 			draftRepositoryIdentity: draftIdentity
 		};
 		mocks.loadRepoConfigsBootstrap.mockResolvedValueOnce(bootstrap);
+		const parentData = createGithubWorkspaceParentData(draftIdentity);
 
 		await load({
-			parent: async () => githubWorkspaceParentData,
+			parent: async () => parentData,
 			fetch: fetcher
 		} as never);
 		mocks.loadRepoConfigsBootstrap.mockClear();
@@ -262,7 +273,7 @@ describe('routes/pages/+layout', () => {
 
 		await expect(
 			load({
-				parent: async () => githubWorkspaceParentData,
+				parent: async () => parentData,
 				fetch: fetcher
 			} as never)
 		).resolves.toMatchObject({
@@ -286,6 +297,73 @@ describe('routes/pages/+layout', () => {
 			maxRouteDataFallbacks: 0,
 			maxRequests: 0
 		});
+	});
+
+	it('does not reuse stale warm-return bootstrap data after the repository identity changes', async () => {
+		const fetcher = vi.fn();
+		const staleBootstrap = {
+			configs: [],
+			blockConfigs: [],
+			rootConfig: {
+				siteName: 'Stale Shell'
+			},
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			singletonContentIdentities: {},
+			activeDraftBranch: null,
+			repositoryIdentity: createRepoIdentity()
+		};
+		const refreshedIdentity = {
+			...createRepoIdentity(),
+			headSha: 'head-next',
+			treeSha: 'tree-next'
+		};
+		const refreshedBootstrap = {
+			configs: [],
+			blockConfigs: [],
+			rootConfig: {
+				siteName: 'Fresh Shell'
+			},
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			singletonContentIdentities: {},
+			activeDraftBranch: null,
+			repositoryIdentity: refreshedIdentity
+		};
+		mocks.loadRepoConfigsBootstrap
+			.mockResolvedValueOnce(staleBootstrap)
+			.mockResolvedValueOnce(refreshedBootstrap);
+
+		await load({
+			parent: async () => githubWorkspaceParentData,
+			fetch: fetcher
+		} as never);
+		mocks.loadRepoConfigsBootstrap.mockClear();
+		clearWorkflowInstrumentationEventsForTests();
+
+		await expect(
+			load({
+				parent: async () => ({
+					...githubWorkspaceParentData,
+					selectedRepoConfigSummary: {
+						repositoryIdentity: refreshedIdentity
+					}
+				}),
+				fetch: fetcher
+			} as never)
+		).resolves.toMatchObject({
+			rootConfig: {
+				siteName: 'Fresh Shell'
+			},
+			repositoryIdentity: refreshedIdentity
+		});
+		expect(mocks.loadRepoConfigsBootstrap).toHaveBeenCalledWith(fetcher);
+		expect(getWorkflowInstrumentationEventsForTests()).toContainEqual(
+			expect.objectContaining({
+				kind: 'route-data-fallback',
+				route: '/pages',
+				source: 'pages-layout:warm-return',
+				reason: 'repository-identity-changed'
+			})
+		);
 	});
 
 	it('refreshes the workspace bootstrap after publish result redirects', async () => {
