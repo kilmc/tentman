@@ -63,9 +63,7 @@ function getRepositoryIdentityKey(bootstrap: RepoConfigsBootstrap): string | nul
 	return [identity.repoKey, identity.ref, identity.headSha, identity.treeSha].join(':');
 }
 
-function getWarmReturnCacheEntry(
-	workspace: WorkspaceState
-): PagesWorkspaceWarmReturnData | null {
+function getWarmReturnCacheEntry(workspace: WorkspaceState): PagesWorkspaceWarmReturnData | null {
 	if (workspace.mode !== 'github' || !pagesWorkspaceWarmReturnCache) {
 		return null;
 	}
@@ -106,7 +104,7 @@ function cacheWarmReturnData(input: {
 	};
 }
 
-export function clearPagesWorkspaceWarmReturnCacheForTests(): void {
+export function _clearPagesWorkspaceWarmReturnCacheForTests(): void {
 	pagesWorkspaceWarmReturnCache = null;
 }
 

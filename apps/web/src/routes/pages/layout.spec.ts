@@ -20,7 +20,7 @@ vi.mock('$lib/repository/config-bootstrap', async () => {
 	};
 });
 
-import { clearPagesWorkspaceWarmReturnCacheForTests, load } from './+layout';
+import { _clearPagesWorkspaceWarmReturnCacheForTests, load } from './+layout';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 const emptyInstructionDiscovery = {
@@ -61,7 +61,7 @@ describe('routes/pages/+layout', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		clearWorkflowInstrumentationEventsForTests();
-		clearPagesWorkspaceWarmReturnCacheForTests();
+		_clearPagesWorkspaceWarmReturnCacheForTests();
 		mocks.loadRepoConfigsBootstrap.mockResolvedValue({
 			configs: [
 				{

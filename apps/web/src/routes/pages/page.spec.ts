@@ -20,7 +20,7 @@ vi.mock('$lib/features/content-management/overview-summary', async () => {
 	};
 });
 
-import { clearPagesOverviewWarmReturnCacheForTests, load } from './+page';
+import { _clearPagesOverviewWarmReturnCacheForTests, load } from './+page';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
 
 const scopedSummaryStatus = {
@@ -106,7 +106,7 @@ describe('routes/pages/+page', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		clearWorkflowInstrumentationEventsForTests();
-		clearPagesOverviewWarmReturnCacheForTests();
+		_clearPagesOverviewWarmReturnCacheForTests();
 		overviewMocks.loadPagesOverviewSummary.mockResolvedValue({
 			draftBranch: null,
 			changedPages: [],

@@ -78,7 +78,7 @@ function cachePagesOverviewSummary(input: {
 	};
 }
 
-export function clearPagesOverviewWarmReturnCacheForTests(): void {
+export function _clearPagesOverviewWarmReturnCacheForTests(): void {
 	pagesOverviewWarmReturnCache = null;
 }
 
