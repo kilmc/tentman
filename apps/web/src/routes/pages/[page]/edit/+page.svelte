@@ -11,16 +11,10 @@
 	import { resolve } from '$app/paths';
 	import { registerKeyboardShortcuts } from '$lib/utils/keyboard';
 	import { onMount } from 'svelte';
-	import { get } from 'svelte/store';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
-	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
-	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
-	import { localContent } from '$lib/stores/local-content';
-	import { localRepo } from '$lib/stores/local-repo';
 	import { toasts } from '$lib/stores/toasts';
-	import { fetchContentDocument, saveContentDocument } from '$lib/content/service';
 	import {
 		clearEditorRecoverySnapshot,
 		createEditorRecoverySnapshot,
@@ -36,6 +30,11 @@
 	} from '$lib/features/forms/editor-save-status';
 	import { registerUnsavedChangesGuard } from '$lib/features/forms/unsaved-guard';
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
+	import { localWorkflowRouteCapabilities } from '$lib/repository/local-workflow-route-capabilities';
+	import type { WorkflowPageViewData } from '$lib/repository/workflow-data';
+	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
+	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
+	import { resolveConfigPath } from '$lib/utils/validation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -65,11 +64,16 @@
 		return data.blockRegistryError ?? null;
 	}
 
+	function getInitialWorkflowData() {
+		return data.workflowData ?? null;
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistry = $state<BlockRegistry | null>(null);
 	let content = $state(getInitialContent());
+	let routeWorkflowData = $state<WorkflowPageViewData | null>(getInitialWorkflowData());
 	let contentError = $state(getInitialContentError());
 	let formGenerator = $state<FormGenerator | null>(null);
 	let currentForm = $state<HTMLFormElement | null>(null);
@@ -78,17 +82,23 @@
 	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
 	let localError = $state<string | null>(null);
 	let localLoadRequest = 0;
+	let localRootConfig = $state<PageData['rootConfig'] | null>(null);
+	let localRecoveryContextKey = $state('local:none');
 	let recoveryState = $state<EditorRecoveryState>({ kind: 'none' });
 	let recoveryWriteTimer = $state<number | null>(null);
 	const flashMessageKeys = ['saved', 'published', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const workflowEditor = $derived(routeWorkflowData?.editor ?? data.editor ?? null);
+	const isDraftView = $derived(!isLocalMode && workflowEditor?.isDraft === true);
+	const draftStatusMessage = $derived(
+		workflowEditor?.message ?? 'Changes will continue in the current draft.'
+	);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
-			? `local:${$localRepo.backend?.cacheKey ?? 'none'}`
-			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
+			? localRecoveryContextKey
+			: (workflowEditor?.recoveryContextKey ?? 'editor:github:unknown')
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
 	const canSaveChanges = $derived.by(() => {
@@ -117,6 +127,11 @@
 		return createBlockRegistry(blockConfigs, { packageBlocks });
 	});
 
+	function resolveRoutePath(path: string) {
+		const resolvePath = resolve as unknown as (routePath: string) => string;
+		return resolvePath(path);
+	}
+
 	function handleDirtyStateChange(state: FormDirtyState) {
 		hasUnsavedChanges = state.isDirty;
 
@@ -139,8 +154,10 @@
 		packageBlocks = data.packageBlocks ?? [];
 		blockRegistry = null;
 		content = data.content;
+		routeWorkflowData = data.workflowData ?? null;
 		contentError = data.contentError;
 		blockRegistryError = data.blockRegistryError ?? null;
+		localRootConfig = data.rootConfig ?? null;
 		hasUnsavedChanges = false;
 		localError = null;
 	}
@@ -151,6 +168,12 @@
 	});
 
 	onMount(() => {
+		markWorkflowReadiness({
+			workflow: 'rich-editor-interactive',
+			mark: 'rich-editor-interactive',
+			route: `/pages/${data.pageSlug}/edit`,
+			slug: data.pageSlug
+		});
 		handleUrlMessages();
 
 		const cleanup = registerKeyboardShortcuts([
@@ -224,50 +247,31 @@
 		packageBlocks = [];
 		blockRegistry = null;
 		content = null;
+		routeWorkflowData = null;
 		contentError = null;
 		blockRegistryError = null;
 		localError = null;
 		formGenerator = null;
 		hasUnsavedChanges = false;
-		await localContent.refresh();
-		const repoState = get(localRepo);
-		const contentState = get(localContent);
+		const localData = await localWorkflowRouteCapabilities.loadSingletonEditWorkflowData({
+			slug: pageSlug
+		});
 
 		if (requestId !== localLoadRequest) {
 			return;
 		}
 
-		discoveredConfig = contentState.configs.find((entry) => entry.slug === pageSlug) ?? null;
-		blockConfigs = contentState.blockConfigs;
-		packageBlocks = [];
-		blockRegistry = contentState.blockRegistry;
-		blockRegistryError = contentState.blockRegistryError;
+		discoveredConfig = localData.discoveredConfig;
+		blockConfigs = localData.blockConfigs;
+		packageBlocks = localData.packageBlocks;
+		blockRegistry = localData.blockRegistry;
+		blockRegistryError = localData.blockRegistryError;
+		content = localData.content;
+		routeWorkflowData = localData.workflowData;
+		contentError = localData.contentError;
+		localRootConfig = localData.rootConfig;
+		localRecoveryContextKey = localData.recoveryContextKey;
 		hasUnsavedChanges = false;
-
-		if (!repoState.backend || !discoveredConfig) {
-			contentError = 'Configuration not found';
-			return;
-		}
-
-		try {
-			const loadedContent = await fetchContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path
-			);
-
-			if (requestId !== localLoadRequest) {
-				return;
-			}
-
-			content = loadedContent;
-		} catch (error) {
-			if (requestId !== localLoadRequest) {
-				return;
-			}
-
-			contentError = error instanceof Error ? error.message : 'Failed to load content';
-		}
 	}
 
 	$effect(() => {
@@ -278,15 +282,6 @@
 
 		localLoadRequest += 1;
 		applyRemoteData();
-	});
-
-	$effect(() => {
-		if (!data.branch || !data.selectedRepo || isLocalMode) {
-			return;
-		}
-
-		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-		draftBranchStore.setBranch(data.branch, repoFullName);
 	});
 
 	$effect(() => {
@@ -371,6 +366,14 @@
 		recoverDraft(recoveryState.snapshot);
 	}
 
+	function getCurrentContentPath(): string[] {
+		if (!discoveredConfig || typeof discoveredConfig.config.content.path !== 'string') {
+			return [];
+		}
+
+		return [resolveConfigPath(discoveredConfig.path, discoveredConfig.config.content.path)];
+	}
+
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
 		if (!formGenerator) {
 			event?.preventDefault();
@@ -397,32 +400,27 @@
 			return;
 		}
 
-		const repoState = get(localRepo);
-		if (!repoState.backend) {
-			localError = 'No local repository is open.';
-			return;
-		}
-
 		persistRecoveryDraft();
 		saving = true;
 		hasUnsavedChanges = false;
 		localError = null;
 
 		try {
-			const materialized = await materializeDraftAssets({
-				backend: repoState.backend,
-				content: formData
+			const { mutation } = await localWorkflowRouteCapabilities.saveSingletonEditContent({
+				discoveredConfig,
+				content: formData,
+				resolveRoutePath
 			});
-			await saveContentDocument(
-				repoState.backend,
-				discoveredConfig.config,
-				discoveredConfig.path,
-				materialized.content
+
+			await Promise.all(
+				mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
 			);
-			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
-			clearRecoveryDraft();
-			await localContent.refresh({ force: true });
-			await goto(resolve(`/pages/${discoveredConfig.slug}/edit`) + '?published=true');
+			if (mutation.recoveryCleanup.clearEditorRecovery) {
+				clearRecoveryDraft();
+			}
+			if (mutation.redirect) {
+				await goto(mutation.redirect.href);
+			}
 		} catch (error) {
 			hasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to save local changes';
@@ -446,10 +444,7 @@
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Editing draft content</p>
-			<p class="mt-1 text-sm text-stone-600">
-				Changes will continue from
-				<code class="rounded bg-white px-1 text-xs">{data.branch}</code>
-			</p>
+			<p class="mt-1 text-sm text-stone-600">{draftStatusMessage}</p>
 		</div>
 	{/if}
 
@@ -525,7 +520,7 @@
 						bind:this={formGenerator}
 						{config}
 						configPath={discoveredConfig?.path}
-						defaultAssetStoragePath={$localContent.rootConfig?.assets?.path}
+						defaultAssetStoragePath={localRootConfig?.assets?.path}
 						{blockConfigs}
 						{blockRegistry}
 						initialData={content}
@@ -582,8 +577,28 @@
 				return async ({ update, result }) => {
 					await update();
 					if (result.type === 'redirect' || result.type === 'success') {
-						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
-						clearRecoveryDraft();
+						const mutation = createWorkflowMutationResult({
+							mode: 'github',
+							intent: {
+								type: 'save-content',
+								slug: discoveredConfig?.slug ?? data.pageSlug,
+								target: 'singleton'
+							},
+							recoveryCleanup: {
+								clearEditorRecovery: true,
+								draftAssetRefs: submittedRefs
+							},
+							refresh: {
+								workspace: true,
+								cachePaths: getCurrentContentPath()
+							}
+						});
+						await Promise.all(
+							mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+						);
+						if (mutation.recoveryCleanup.clearEditorRecovery) {
+							clearRecoveryDraft();
+						}
 					} else {
 						hasUnsavedChanges = true;
 					}
@@ -615,11 +630,7 @@
 				{/key}
 			{/if}
 			<PageStickyFooter>
-				<button
-					type="submit"
-					disabled={!canSaveChanges}
-					class="tm-btn tm-btn-primary"
-				>
+				<button type="submit" disabled={!canSaveChanges} class="tm-btn tm-btn-primary">
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 			</PageStickyFooter>

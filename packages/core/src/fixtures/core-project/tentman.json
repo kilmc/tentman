@@ -1,0 +1,13 @@
+{
+	"siteName": "Test App",
+	"configsDir": "./tentman/configs",
+	"blocksDir": "./tentman/blocks",
+	"componentsDir": "./src/lib/content-components",
+	"assets": {
+		"path": "./static/images",
+		"publicPath": "/images"
+	},
+	"local": {
+		"previewUrl": "http://localhost:5173"
+	}
+}

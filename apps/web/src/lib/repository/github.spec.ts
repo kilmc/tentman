@@ -54,6 +54,15 @@ describe('repository/github', () => {
 	it('strips leading slashes before GitHub file reads', async () => {
 		const octokit = createOctokit();
 		octokit.rest.repos.getContent.mockResolvedValue({
+			status: 200,
+			headers: {
+				'x-ratelimit-limit': '5000',
+				'x-ratelimit-remaining': '4998',
+				'x-ratelimit-reset': '456',
+				'x-ratelimit-used': '2',
+				'x-ratelimit-resource': 'core',
+				'retry-after': '3'
+			},
 			data: {
 				type: 'file',
 				content: Buffer.from('hello').toString('base64')
@@ -329,6 +338,15 @@ describe('repository/github', () => {
 	it('records GitHub request stats for backend operations in dev mode', async () => {
 		const octokit = createOctokit();
 		octokit.rest.repos.getContent.mockResolvedValue({
+			status: 200,
+			headers: {
+				'x-ratelimit-limit': '5000',
+				'x-ratelimit-remaining': '4998',
+				'x-ratelimit-reset': '456',
+				'x-ratelimit-used': '2',
+				'x-ratelimit-resource': 'core',
+				'retry-after': '3'
+			},
 			data: {
 				type: 'file',
 				content: Buffer.from('hello').toString('base64')
@@ -349,9 +367,20 @@ describe('repository/github', () => {
 				expect.objectContaining({
 					repoKey: 'github:acme/docs?ref=trunk',
 					operation: 'readTextFile',
+					requestKind: 'contents',
 					path: 'content/about.md',
 					ref: 'trunk',
-					count: 1
+					count: 1,
+					lastResultStatus: 'ok',
+					lastResponseStatus: 200,
+					lastRateLimit: {
+						limit: '5000',
+						remaining: '4998',
+						reset: '456',
+						used: '2',
+						resource: 'core'
+					},
+					lastRetryAfter: '3'
 				})
 			])
 		);

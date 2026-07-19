@@ -5,7 +5,13 @@ import { loadGitHubBlockRegistryData } from '$lib/server/block-registry-data';
 import { handleGitHubSessionError } from '$lib/server/auth/github';
 import { requireGitHubContentRepository } from '$lib/server/page-context';
 import { getRepositorySnapshot } from '$lib/server/repository-data';
-import { resolveCollectionItemForRoute } from '$lib/server/repository-data/route-data';
+import { resolveCollectionItemRouteData } from '$lib/server/repository-data/route-data';
+import {
+	createWorkflowBlockSupportData,
+	createWorkflowItemViewData,
+	createWorkflowRouteDataIdentity,
+	type WorkflowItemViewData
+} from '$lib/repository/workflow-data';
 import { formatErrorMessage, logError } from '$lib/utils/errors';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
 
@@ -47,13 +53,16 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 				let contentError = null;
 				let item = null;
+				let workflowData: WorkflowItemViewData | null = null;
 
 				try {
-					item = await resolveCollectionItemForRoute({
+					const resolvedItem = await resolveCollectionItemRouteData({
 						backend,
 						discoveredConfig,
 						itemId
 					});
+					item = resolvedItem.item;
+					workflowData = resolvedItem.workflowData;
 
 					if (!item) {
 						throw error(404, 'Item not found');
@@ -74,6 +83,25 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 						rootConfig: snapshot.rootConfig
 					});
 				const navigationManifest = snapshot.navigationManifest;
+				const blockSupport = createWorkflowBlockSupportData({
+					blockConfigs,
+					packageBlocks,
+					blockRegistryError
+				});
+				const routeDataIdentity = createWorkflowRouteDataIdentity(snapshot.identity, {
+					hasEditableDraft: Boolean(draftBranch)
+				});
+				workflowData = createWorkflowItemViewData({
+					identity: workflowData?.identity ?? routeDataIdentity,
+					slug,
+					itemId,
+					discoveredConfig,
+					item,
+					navigationManifest,
+					blockSupport,
+					contentError,
+					cacheMiss: workflowData?.cacheMiss ?? null
+				});
 
 				logTiming('api.repo.item-view.result', {
 					repo: locals.selectedRepo?.full_name ?? null,
@@ -94,6 +122,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 					navigationManifest,
 					item,
 					contentError,
+					workflowData,
 					itemId,
 					branch: draftBranch,
 					pageSlug: slug,

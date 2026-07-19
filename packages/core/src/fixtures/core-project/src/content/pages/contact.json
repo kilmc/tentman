@@ -1,0 +1,22 @@
+{
+	"title": "Contact",
+	"intro": "A compact structured page for email, location, availability, and supporting markdown copy.",
+	"email": "hello@tentman.test",
+	"location": "Berlin, Germany",
+	"responseTime": "Within 2 working days",
+	"body": "## What this page is for\n\nContact is intentionally simple. It proves that Tentman can still handle ordinary information architecture cleanly while the rest of the fixture demonstrates richer shapes.\n\n### Good things to test here\n\n- editing a straightforward singleton\n- changing ordered availability rows\n- updating simple supporting markdown\n- making sure small-field pages still look intentional",
+	"hours": [
+		{
+			"day": "Editing support",
+			"hours": "Monday to Thursday"
+		},
+		{
+			"day": "Review windows",
+			"hours": "Friday"
+		},
+		{
+			"day": "Deep test sessions",
+			"hours": "By arrangement"
+		}
+	]
+}

@@ -188,6 +188,15 @@ describe('GET /api/repo/item-view', () => {
 				_filename: 'hello-world.md',
 				title: 'Hello world'
 			},
+			workflowData: {
+				identity: {
+					mode: 'github',
+					workspaceKey: 'github:acme/docs',
+					workspaceLabel: 'acme/docs',
+					dataSetKey: expect.stringMatching(/^dataset:/),
+					hasEditableDraft: false
+				}
+			},
 			itemId: 'hello-world',
 			mode: 'github',
 			pageSlug: 'posts'

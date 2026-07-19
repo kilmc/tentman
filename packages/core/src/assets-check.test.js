@@ -4,21 +4,24 @@ import path from 'node:path';
 import test from 'node:test';
 import { checkTentmanAssets, loadTentmanProject, runTentmanCi } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-assets-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-assets-');
 }
 
 test('checks current fixture assets conservatively', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const diagnostics = await checkTentmanAssets(project);
 
 	assert.deepEqual(diagnostics, []);
 });
 
-test('reports missing asset files and path mismatches', async () => {
-	const projectRoot = await copyFixture();
+test('reports missing asset files and path mismatches', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const blogPostPath = path.join(projectRoot, 'src/content/posts/designing-a-realistic-fixture.md');
 	const aboutContentPath = path.join(projectRoot, 'src/routes/about/+page.md');
 
@@ -49,8 +52,8 @@ test('reports missing asset files and path mismatches', async () => {
 	);
 });
 
-test('reports missing non-image assets referenced from markdown links and html media', async () => {
-	const projectRoot = await copyFixture();
+test('reports missing non-image assets referenced from markdown links and html media', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const aboutContentPath = path.join(projectRoot, 'src/routes/about/+page.md');
 	const aboutContent = await fs.readFile(aboutContentPath, 'utf8');
 	await fs.writeFile(
@@ -100,8 +103,8 @@ test('reports missing non-image assets referenced from markdown links and html m
 	);
 });
 
-test('reports missing root asset directory', async () => {
-	const projectRoot = await copyFixture();
+test('reports missing root asset directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.assets.path = './static/missing-images';
@@ -116,8 +119,8 @@ test('reports missing root asset directory', async () => {
 	);
 });
 
-test('warns for legacy assetsDir without using it for checks', async () => {
-	const projectRoot = await copyFixture();
+test('warns for legacy assetsDir without using it for checks', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 
@@ -141,7 +144,7 @@ test('warns for legacy assetsDir without using it for checks', async () => {
 });
 
 test('includes assets check in tentman ci aggregation', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const result = await runTentmanCi(project);
 
 	assert.deepEqual(

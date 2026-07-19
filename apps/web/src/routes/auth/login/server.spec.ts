@@ -4,8 +4,12 @@ vi.mock('$lib/server/auth/github', () => ({
 	createGitHubOAuthState: vi.fn(() => 'oauth-state-token'),
 	getGitHubOAuthCallbackUrl: vi.fn((url: URL) => new URL('/auth/callback', url).toString()),
 	getGitHubClientId: vi.fn(() => 'github-client-id'),
+	getGitHubOAuthStateFingerprint: vi.fn((state: string | null | undefined) =>
+		state ? 'state-fingerprint' : null
+	),
 	hasRecentGitHubLoginAttempt: vi.fn(() => false),
 	isGitHubOAuthConfigured: vi.fn(() => true),
+	logGitHubOAuthDebug: vi.fn(),
 	markGitHubLoginAttempt: vi.fn(),
 	persistGitHubOAuthRequest: vi.fn()
 }));

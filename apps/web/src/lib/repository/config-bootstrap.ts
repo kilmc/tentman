@@ -1,6 +1,7 @@
 import type { DiscoveredBlockConfig, DiscoveredConfig } from '$lib/config/discovery';
 import type { RootConfig } from '$lib/config/root-config';
 import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
+import type { WorkflowWorkspaceBootstrapData } from '$lib/repository/workflow-data';
 
 export interface RepoBootstrapIdentity {
 	mode: string;
@@ -28,6 +29,22 @@ export interface RepoConfigsBootstrap {
 	mainRepositoryIdentity?: RepoBootstrapIdentity | null;
 	draftRepositoryIdentity?: RepoBootstrapIdentity | null;
 	changedPaths?: string[] | null;
+	freshnessStatus?: 'unchanged' | 'changed' | 'stale' | 'error';
+	freshnessError?: string | null;
+	freshnessRecovery?: string | null;
+	workflowData?: WorkflowWorkspaceBootstrapData | null;
+}
+
+export interface RepoFreshnessIdentityResult {
+	activeDraftBranch: string | null;
+	repositoryIdentity: RepoBootstrapIdentity | null;
+	mainRepositoryIdentity: RepoBootstrapIdentity | null;
+	draftRepositoryIdentity: RepoBootstrapIdentity | null;
+	unchanged: boolean;
+	freshnessStatus?: 'unchanged' | 'changed' | 'stale' | 'error';
+	changedPaths?: string[] | null;
+	error?: string | null;
+	recovery?: string | null;
 }
 
 export const EMPTY_REPO_CONFIGS_BOOTSTRAP: RepoConfigsBootstrap = {
@@ -61,7 +78,11 @@ export function normalizeRepoConfigsBootstrap(
 		mainRepositoryIdentity: value?.mainRepositoryIdentity ?? null,
 		draftRepositoryIdentity: value?.draftRepositoryIdentity ?? null,
 		changedPaths: value?.changedPaths ?? null,
-		navigationManifest: value?.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest
+		navigationManifest: value?.navigationManifest ?? EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+		...(value?.freshnessStatus ? { freshnessStatus: value.freshnessStatus } : {}),
+		...(value?.freshnessError ? { freshnessError: value.freshnessError } : {}),
+		...(value?.freshnessRecovery ? { freshnessRecovery: value.freshnessRecovery } : {}),
+		...(value?.workflowData ? { workflowData: value.workflowData } : {})
 	};
 }
 

@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { navigating, page } from '$app/state';
 	import { onMount, setContext, type Snippet } from 'svelte';
-	import { get, writable } from 'svelte/store';
+	import { writable } from 'svelte/store';
 	import {
 		SHADOW_ITEM_MARKER_PROPERTY_NAME,
 		SHADOW_PLACEHOLDER_ITEM_ID,
@@ -11,7 +11,6 @@
 	} from 'svelte-dnd-action';
 	import type { LayoutData } from './$types';
 	import type { DiscoveredConfig } from '$lib/config/discovery';
-	import { fetchContentDocument } from '$lib/content/service';
 	import CollectionPanel from '$lib/features/content-management/components/CollectionPanel.svelte';
 	import Sidebar from '$lib/features/content-management/components/Sidebar.svelte';
 	import Header from '$lib/features/content-management/components/Header.svelte';
@@ -34,7 +33,6 @@
 	} from '$lib/features/content-management/navigation-draft';
 	import {
 		getConfigItemLabel,
-		getOrderedCollectionNavigation,
 		orderCollectionNavigationItems,
 		orderDiscoveredConfigs,
 		type OrderedCollectionNavigation
@@ -45,40 +43,36 @@
 	} from '$lib/features/content-management/state';
 	import {
 		getManualNavigationSetupState,
-		saveCollectionOrder,
-		writeNavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import { resolveCollectionSortCapabilities } from '$lib/features/content-management/collection-sorts';
 	import { isCollectionSearchEnabled } from '$lib/features/content-management/config';
 	import { draftBranch } from '$lib/stores/draft-branch';
-	import {
-		githubCacheWarmStatus,
-		githubRepositoryCache
-	} from '$lib/stores/github-repository-cache';
+	import { githubCacheWarmStatus } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
-	import { localRepo } from '$lib/stores/local-repo';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
 	import { traceRouting } from '$lib/utils/routing-trace';
 	import { toasts } from '$lib/stores/toasts';
 	import { buildReposRedirect } from '$lib/utils/routing';
+	import {
+		createPagesWorkspaceAdapter,
+		shouldInvalidatePagesWorkspaceData
+	} from '$lib/features/content-management/pages-workspace-adapters';
+	import {
+		createPagesWorkspaceConsumer,
+		resolvePagesWorkspaceSurface,
+		type PagesWorkspaceAdapterResult
+	} from '$lib/features/content-management/pages-workspace-consumer';
 
 	let { children, data } = $props<{ children?: Snippet; data: LayoutData }>();
 
 	type CollectionItemsBySlug = Record<string, OrderedCollectionNavigation>;
 	type ConfigStatesBySlug = Record<string, ResolvedContentState | null>;
 	type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-	const GITHUB_PAGES_INVALIDATION_PATHS = new Set([
-		'/api/repo/collection-items',
-		'/api/repo/collection-index',
-		'/api/repo/collection-projections',
-		'/api/repo/config-states',
-		'/api/repo/configs',
-		'/api/repo/draft-status',
-		'/api/repo/form-config',
-		'/api/repo/instructions',
-		'/api/repo/pages-summary'
-	]);
+	type PageCollectionRouteData = {
+		pageSlug?: string;
+		collectionNavigation?: OrderedCollectionNavigation | null;
+		contentError?: string | null;
+	};
 
 	// Canonical layout terms:
 	// - Sidebar: left app/site navigation
@@ -86,7 +80,6 @@
 	// - Collection Panel: panel for top-level collection item management
 	// - Main Panel: primary content/view/edit surface
 	// - Side Panel: flexible right-side panel for secondary editing flows
-	const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
 	const activeSidePanel = writable<FormSidePanelState | null>(null);
 
 	setContext<FormSidePanelContext>(FORM_SIDE_PANEL, {
@@ -101,9 +94,9 @@
 	let localConfigStatesBySlug = $state<ConfigStatesBySlug>({});
 	let githubConfigStatesBySlug = $state<ConfigStatesBySlug>({});
 	let githubConfigStatesLoaded = $state(false);
+	let githubConfigStatesLoading = $state(false);
 	let githubCollectionLoadStatusBySlug = $state<Record<string, CollectionLoadStatus>>({});
 	let githubCollectionErrorBySlug = $state<Record<string, string | null>>({});
-	let collectionLoadRequest = 0;
 	let isEditingNavigation = $state(false);
 	let preparingNavigationEditor = $state(false);
 	let savingNavigation = $state(false);
@@ -117,13 +110,18 @@
 	let initialNavigationDraft = $state<NavigationDraft | null>(null);
 	let topLevelEditorItems = $state<WorkspaceNavItem[]>([]);
 
-	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
-	const manifestState = $derived(
-		isLocalMode ? $localContent.navigationManifest : data.navigationManifest
+	const workspaceSurface = $derived(
+		resolvePagesWorkspaceSurface({
+			selectedBackend: data.selectedBackend ?? null,
+			layoutData: data,
+			localContent: $localContent
+		})
 	);
-	const availableConfigs = $derived(isLocalMode ? $localContent.configs : data.configs);
+	const isLocalMode = $derived(workspaceSurface.isLocalMode);
+	const manifestState = $derived(workspaceSurface.navigationManifest);
+	const availableConfigs = $derived(workspaceSurface.configs);
 	const navigationManifest = $derived(manifestState.manifest);
-	const rootConfig = $derived(isLocalMode ? $localContent.rootConfig : data.rootConfig);
+	const rootConfig = $derived(workspaceSurface.rootConfig);
 	const configs = $derived(
 		orderDiscoveredConfigs(availableConfigs, navigationManifest, rootConfig)
 	);
@@ -165,11 +163,7 @@
 		return 'grid min-h-0 overflow-hidden';
 	});
 	const canEditNavigation = $derived(setup.status === 'active' && manifestState.manifest !== null);
-	const canAddPage = $derived(
-		isLocalMode
-			? $localContent.instructionDiscovery.instructions.length > 0
-			: (data.instructionDiscovery?.instructions.length ?? 0) > 0
-	);
+	const canAddPage = $derived(workspaceSurface.canAddPage);
 	const hasUnsavedNavigationChanges = $derived(
 		isEditingNavigation &&
 			navigationDraft !== null &&
@@ -177,29 +171,15 @@
 			!areNavigationDraftsEqual(navigationDraft, initialNavigationDraft)
 	);
 	const siteName = $derived.by(() => {
-		if (isLocalMode) {
-			return $localContent.rootConfig?.siteName ?? data.selectedBackend?.repo.name ?? 'Tentman';
-		}
-
-		return data.rootConfig?.siteName ?? data.selectedRepo?.name ?? 'Tentman';
+		return rootConfig?.siteName ?? data.selectedBackend?.repo.name ?? data.selectedRepo?.name ?? 'Tentman';
 	});
-	const repoLabel = $derived.by(() => {
-		if (data.selectedBackend?.kind === 'github' && data.selectedRepo) {
-			return data.selectedRepo.full_name;
-		}
-
-		if (isLocalMode) {
-			return data.selectedBackend?.repo.pathLabel ?? data.selectedBackend?.repo.name ?? null;
-		}
-
-		return null;
-	});
+	const repoLabel = $derived(workspaceSurface.repoLabel);
 	const previewUrl = $derived.by(() => {
 		if (isLocalMode) {
-			return $localContent.rootConfig?.local?.previewUrl ?? null;
+			return rootConfig?.local?.previewUrl ?? null;
 		}
 
-		const netlifySiteName = data.rootConfig?.netlify?.siteName;
+		const netlifySiteName = rootConfig?.netlify?.siteName;
 		const branchName = $draftBranch.branchName;
 		return netlifySiteName && branchName ? getNetlifyPreviewUrl(branchName, netlifySiteName) : null;
 	});
@@ -347,38 +327,6 @@
 		return () => mediaQuery.removeEventListener('change', updateViewport);
 	});
 
-	$effect(() => {
-		if (!data.selectedRepo || isLocalMode) {
-			return;
-		}
-
-		let cancelled = false;
-		let stopFreshnessScheduler: (() => void) | null = null;
-
-		void (async () => {
-			await githubRepositoryCache.hydrateFromBootstrap({
-				repoFullName: data.selectedRepo!.full_name,
-				bootstrap: data
-			});
-
-			if (!cancelled) {
-				stopFreshnessScheduler = githubRepositoryCache.startFreshnessScheduler({ fetcher: fetch });
-			}
-		})();
-
-		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-		if (data.activeDraftBranch) {
-			draftBranch.setBranch(data.activeDraftBranch, repoFullName);
-		} else if (draftBranch.hasDraft(repoFullName)) {
-			draftBranch.clear();
-		}
-
-		return () => {
-			cancelled = true;
-			stopFreshnessScheduler?.();
-		};
-	});
-
 	function getGitHubCollectionStatus(slug: string): CollectionLoadStatus {
 		return githubCollectionLoadStatusBySlug[slug] ?? 'idle';
 	}
@@ -387,15 +335,55 @@
 		return githubCollectionErrorBySlug[slug] ?? null;
 	}
 
+	function getNavigationItemCount(navigation: OrderedCollectionNavigation | null | undefined) {
+		return (
+			(navigation?.items ?? []).length +
+			(navigation?.groups ?? []).reduce((count, group) => count + group.items.length, 0)
+		);
+	}
+
+	function getCurrentRouteCollectionNavigation(slug: string): OrderedCollectionNavigation | null {
+		if (isLocalMode || currentPageSlug !== slug) {
+			return null;
+		}
+
+		const routeData = page.data as PageCollectionRouteData;
+
+		if (routeData.pageSlug && routeData.pageSlug !== slug) {
+			return null;
+		}
+
+		return routeData.collectionNavigation ?? null;
+	}
+
+	function getCurrentRouteCollectionError(slug: string): string | null {
+		if (isLocalMode || currentPageSlug !== slug) {
+			return null;
+		}
+
+		const routeData = page.data as PageCollectionRouteData;
+		if (routeData.pageSlug && routeData.pageSlug !== slug) {
+			return null;
+		}
+
+		return routeData.contentError ?? null;
+	}
+
 	function getCollectionSetup(slug: string) {
 		return setup.collections.find((collection) => collection.slug === slug) ?? null;
 	}
 
 	function getCollectionItems(slug: string) {
-		const navigation = collectionItemsBySlug[slug] ?? {
-			items: [],
-			groups: []
-		};
+		const routeNavigation = getCurrentRouteCollectionNavigation(slug);
+		const storedNavigation = collectionItemsBySlug[slug];
+		const navigation =
+			storedNavigation &&
+			(getGitHubCollectionStatus(slug) === 'ready' || getNavigationItemCount(storedNavigation) > 0)
+				? storedNavigation
+				: (routeNavigation ?? storedNavigation ?? {
+						items: [],
+						groups: []
+					});
 		const config = configs.find((entry: DiscoveredConfig) => entry.slug === slug);
 
 		if (!config?.config.collection) {
@@ -417,6 +405,14 @@
 			return $localContent.status === 'loading' ? 'loading' : 'ready';
 		}
 
+		if (getNavigationItemCount(getCurrentRouteCollectionNavigation(slug)) > 0) {
+			return 'ready';
+		}
+
+		if (getCurrentRouteCollectionError(slug)) {
+			return 'error';
+		}
+
 		return getGitHubCollectionStatus(slug);
 	}
 
@@ -425,11 +421,7 @@
 			return $localContent.error;
 		}
 
-		return getGitHubCollectionError(slug);
-	}
-
-	function getConfigsWithTopLevelState(nextConfigs: DiscoveredConfig[]) {
-		return nextConfigs.filter((config) => !!config.config.state);
+		return getCurrentRouteCollectionError(slug) ?? getGitHubCollectionError(slug);
 	}
 
 	function isShadowItem(item: { id: string } & Record<string, unknown>) {
@@ -503,74 +495,208 @@
 		window.location.assign(redirectTarget);
 	}
 
-	function shouldInvalidateGitHubPagesData(url: URL): boolean {
-		return GITHUB_PAGES_INVALIDATION_PATHS.has(url.pathname);
+	function getWorkspaceConsumer() {
+		const adapter = createPagesWorkspaceAdapter({
+			mode: workspaceSurface.mode,
+			fetcher: fetch,
+			selectedRepo: data.selectedRepo ?? null,
+			repositoryIdentity: data.repositoryIdentity ?? null,
+			activeDraftBranch: data.activeDraftBranch ?? null,
+			bootstrap: data,
+			getConfigs: () => configs,
+			getNavigationManifest: () => navigationManifest,
+			getRootConfig: () => rootConfig,
+			getCurrentConfig: () => currentConfig,
+			getRoutePath: () => page.url.pathname,
+			redirectToExpiredSession: redirectToReposForExpiredSession,
+			switchToRepos: () => goto('/repos'),
+			resolveEndpoint: (path: string) =>
+				resolve(path as '/api/repo/config-states' | '/api/repo/navigation-manifest')
+		});
+		return createPagesWorkspaceConsumer(adapter);
 	}
 
-	async function invalidateGitHubPagesData() {
-		if (data.selectedRepo) {
-			await githubRepositoryCache.invalidatePaths(['tentman/navigation-manifest.json']);
-		}
-		await Promise.all([invalidate('app:content'), invalidate(shouldInvalidateGitHubPagesData)]);
+	async function invalidatePagesWorkspaceData() {
+		await Promise.all([
+			invalidate('app:content'),
+			invalidate(shouldInvalidatePagesWorkspaceData)
+		]);
 	}
 
-	async function handleSwitchSite() {
+	function getNavigationHydrationCounts(navigation: OrderedCollectionNavigation | null | undefined) {
+		const items = [
+			...(navigation?.items ?? []),
+			...(navigation?.groups ?? []).flatMap((group) => group.items)
+		];
+		return {
+			fallback: items.filter((item) => item.hydration === 'fallback').length,
+			hydrated: items.filter((item) => item.hydration === 'hydrated').length
+		};
+	}
+
+	function commitCollectionNavigationResult(
+		result: Extract<PagesWorkspaceAdapterResult, { type: 'collection-navigation-loaded' }>
+	) {
 		if (isLocalMode) {
-			localContent.reset();
-			await localRepo.clear({ invalidate: false });
-		}
-
-		await goto(resolve('/repos'));
-	}
-
-	async function handleRescanLocalRepo() {
-		if (!isLocalMode) {
+			localCollectionItemsBySlug = {
+				...localCollectionItemsBySlug,
+				[result.slug]: result.navigation
+			};
 			return;
 		}
 
-		try {
-			await localContent.refresh({ force: true });
-			const state = get(localContent);
+		githubCollectionItemsBySlug = {
+			...githubCollectionItemsBySlug,
+			[result.slug]: result.navigation
+		};
+		githubCollectionLoadStatusBySlug = {
+			...githubCollectionLoadStatusBySlug,
+			[result.slug]: 'ready'
+		};
+		githubCollectionErrorBySlug = {
+			...githubCollectionErrorBySlug,
+			[result.slug]: null
+		};
+	}
 
-			if (state.status === 'error') {
-				toasts.error(state.error ?? 'Failed to rescan repo.');
+	function applyCollectionNavigationResult(result: PagesWorkspaceAdapterResult) {
+		if (result.type !== 'collection-navigation-loaded') {
+			return;
+		}
+
+		if (!isLocalMode) {
+			const previousCounts = getNavigationHydrationCounts(githubCollectionItemsBySlug[result.slug]);
+			const nextCounts = getNavigationHydrationCounts(result.navigation);
+			if (
+				previousCounts.fallback > 0 &&
+				nextCounts.fallback === 0 &&
+				nextCounts.hydrated > previousCounts.hydrated
+			) {
+				const previousNavigation = githubCollectionItemsBySlug[result.slug];
+				globalThis.setTimeout(() => {
+					if (githubCollectionItemsBySlug[result.slug] !== previousNavigation) {
+						return;
+					}
+					commitCollectionNavigationResult(result);
+				}, 250);
 				return;
 			}
+		}
 
-			const configCount = state.configs.length;
-			const blockCount = state.blockConfigs.length;
-			toasts.success(
-				`Found ${configCount} content ${configCount === 1 ? 'config' : 'configs'} and ${blockCount} ${blockCount === 1 ? 'block' : 'blocks'}.`
-			);
-			localRescanVersion += 1;
+		commitCollectionNavigationResult(result);
+	}
+
+	async function applyWorkspaceResult(result: PagesWorkspaceAdapterResult) {
+		if (result.type === 'session-expired') {
+			return;
+		}
+
+		if (result.type === 'workspace-refreshed') {
+			if (result.message) {
+				toasts.success(result.message);
+			}
+			if (result.remountWorkspace) {
+				localRescanVersion += 1;
+			}
+			return;
+		}
+
+		if (result.type === 'workspace-cache-cleared') {
+			if (result.resetCollections) {
+				githubCollectionItemsBySlug = {};
+				githubCollectionLoadStatusBySlug = {};
+				githubCollectionErrorBySlug = {};
+			}
+			if (result.resetConfigStates) {
+				githubConfigStatesLoaded = false;
+				githubConfigStatesLoading = false;
+			}
+			if (currentConfig?.config.collection) {
+				await loadWorkspaceCollectionItems(currentConfig, { force: true });
+			}
+			if (result.message) {
+				toasts.success(result.message);
+			}
+			return;
+		}
+
+		if (result.type === 'config-states-loaded') {
+			if (isLocalMode) {
+				localConfigStatesBySlug = result.statesBySlug;
+			} else {
+				githubConfigStatesBySlug = result.statesBySlug;
+				githubConfigStatesLoaded = true;
+			}
+			return;
+		}
+
+		if (result.type === 'navigation-saved') {
+			if (result.localCollections) {
+				localCollectionItemsBySlug = result.localCollections;
+			}
+			if (result.localConfigStates) {
+				localConfigStatesBySlug = result.localConfigStates;
+			}
+			cancelNavigationEditing();
+			if (result.invalidateWorkspace) {
+				await invalidatePagesWorkspaceData();
+			}
+			toasts.success(result.message);
+			return;
+		}
+
+		if (result.type === 'collection-order-saved') {
+			if (result.localCollections) {
+				localCollectionItemsBySlug = result.localCollections;
+			}
+			if (result.localConfigStates) {
+				localConfigStatesBySlug = result.localConfigStates;
+			}
+			if (result.navigation && !isLocalMode) {
+				githubCollectionItemsBySlug = {
+					...githubCollectionItemsBySlug,
+					[result.slug]: result.navigation
+				};
+				githubCollectionLoadStatusBySlug = {
+					...githubCollectionLoadStatusBySlug,
+					[result.slug]: 'ready'
+				};
+			}
+			if (result.invalidateWorkspace) {
+				await invalidatePagesWorkspaceData();
+			}
+			toasts.success(result.message);
+			return;
+		}
+
+		applyCollectionNavigationResult(result);
+	}
+
+	async function runWorkspaceIntent(intent: Parameters<ReturnType<typeof getWorkspaceConsumer>['run']>[0]) {
+		const result = await getWorkspaceConsumer().run(intent);
+		await applyWorkspaceResult(result);
+		return result;
+	}
+
+	async function handleSwitchSite() {
+		try {
+			await runWorkspaceIntent({ type: 'switch-workspace' });
+		} catch (error) {
+			toasts.error(error instanceof Error ? error.message : 'Failed to switch site.');
+		}
+	}
+
+	async function handleRescanLocalRepo() {
+		try {
+			await runWorkspaceIntent({ type: 'refresh-workspace' });
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to rescan repo.');
 		}
 	}
 
 	async function handleClearGitHubCache() {
-		if (isLocalMode || !data.selectedRepo || !data.repositoryIdentity) {
-			return;
-		}
-
 		try {
-			await githubRepositoryCache.clearRepoRef({
-				repoFullName: data.selectedRepo.full_name,
-				ref: data.repositoryIdentity.ref
-			});
-			await githubRepositoryCache.hydrateFromBootstrap({
-				repoFullName: data.selectedRepo.full_name,
-				bootstrap: data
-			});
-			githubRepositoryCache.resetFreshnessSchedule();
-			githubCollectionItemsBySlug = {};
-			githubCollectionLoadStatusBySlug = {};
-			githubCollectionErrorBySlug = {};
-			githubConfigStatesLoaded = false;
-			if (currentConfig?.config.collection) {
-				await loadGitHubCollectionItems(currentConfig, { force: true });
-			}
-			toasts.success('GitHub cache cleared.');
+			await runWorkspaceIntent({ type: 'clear-workspace-cache' });
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to clear GitHub cache.');
 		}
@@ -585,88 +711,61 @@
 	}
 
 	function handlePromoteConfig(config: DiscoveredConfig) {
-		if (isLocalMode) {
-			return;
-		}
-
-		githubRepositoryCache.promoteRoute({
-			slug: config.slug,
-			fetcher: fetch
-		});
+		void runWorkspaceIntent({ type: 'promote-route', slug: config.slug });
 	}
 
 	function handlePromoteCollectionItem(slug: string, itemId: string) {
-		if (isLocalMode) {
-			return;
-		}
-
-		githubRepositoryCache.promoteRoute({
-			slug,
-			itemId,
-			fetcher: fetch
-		});
+		void runWorkspaceIntent({ type: 'promote-collection-item', slug, itemId });
 	}
 
-	async function loadGitHubCollectionItems(
+	async function loadWorkspaceCollectionItems(
 		config: DiscoveredConfig,
 		options?: { force?: boolean; hydrateRemaining?: boolean }
 	) {
-		if (isLocalMode || !config.config.collection) {
+		if (!config.config.collection) {
 			return;
 		}
 
-		const status = getGitHubCollectionStatus(config.slug);
-		if (!options?.force && (status === 'loading' || status === 'ready')) {
-			return;
-		}
+		if (!isLocalMode) {
+			const status = getGitHubCollectionStatus(config.slug);
+			if (
+				!options?.force &&
+				!options?.hydrateRemaining &&
+				(status === 'loading' || status === 'ready')
+			) {
+				return;
+			}
 
-		const cachedNavigation = !options?.force
-			? await githubRepositoryCache.getCollectionNavigation(config.slug)
-			: null;
-		if (cachedNavigation) {
-			githubCollectionItemsBySlug = {
-				...githubCollectionItemsBySlug,
-				[config.slug]: cachedNavigation
-			};
-			githubCollectionLoadStatusBySlug = {
-				...githubCollectionLoadStatusBySlug,
-				[config.slug]: 'ready'
-			};
-		} else {
 			githubCollectionLoadStatusBySlug = {
 				...githubCollectionLoadStatusBySlug,
 				[config.slug]: 'loading'
 			};
+			githubCollectionErrorBySlug = {
+				...githubCollectionErrorBySlug,
+				[config.slug]: null
+			};
 		}
-		githubCollectionErrorBySlug = {
-			...githubCollectionErrorBySlug,
-			[config.slug]: null
-		};
 
 		try {
-			await githubRepositoryCache.warmCollection(config.slug, {
-				fetcher: fetch,
+			await runWorkspaceIntent({
+				type: 'load-collection-navigation',
+				config,
 				force: options?.force,
-				hydrateRemaining: options?.hydrateRemaining ?? false,
-				warmDocuments: false
+				hydrateRemaining: options?.hydrateRemaining
 			});
-			const payload = await githubRepositoryCache.getCollectionNavigation(config.slug);
-			if (!payload) {
-				throw new Error('Failed to load collection navigation');
+		} catch (error) {
+			if (isLocalMode) {
+				console.error(`Failed to load local collection items for ${config.slug}:`, error);
+				localCollectionItemsBySlug = {
+					...localCollectionItemsBySlug,
+					[config.slug]: {
+						items: [],
+						groups: []
+					}
+				};
+				return;
 			}
 
-			githubCollectionItemsBySlug = {
-				...githubCollectionItemsBySlug,
-				[config.slug]: {
-					items: payload.items ?? [],
-					groups: payload.groups ?? []
-				}
-			};
-			githubCollectionLoadStatusBySlug = {
-				...githubCollectionLoadStatusBySlug,
-				[config.slug]: 'ready'
-			};
-		} catch (error) {
 			githubCollectionLoadStatusBySlug = {
 				...githubCollectionLoadStatusBySlug,
 				[config.slug]: 'error'
@@ -678,108 +777,26 @@
 		}
 	}
 
-	async function loadLocalCollectionItems(nextConfigs: DiscoveredConfig[]) {
-		const repoState = get(localRepo);
-		if (!repoState.backend) {
-			localCollectionItemsBySlug = {};
+	async function loadWorkspaceConfigStates(options?: { force?: boolean }) {
+		if (!isLocalMode && !options?.force && (githubConfigStatesLoaded || githubConfigStatesLoading)) {
 			return;
 		}
 
-		const requestId = ++collectionLoadRequest;
-		const collectionEntries = await Promise.all(
-			nextConfigs
-				.filter((config) => config.config.collection)
-				.map(async (config) => {
-					try {
-						const content = await fetchContentDocument(
-							repoState.backend!,
-							config.config,
-							config.path
-						);
-
-						return [
-							config.slug,
-							getOrderedCollectionNavigation(config.config, content, navigationManifest, rootConfig)
-						] as const;
-					} catch (error) {
-						console.error(`Failed to load local collection items for ${config.slug}:`, error);
-						return [
-							config.slug,
-							{
-								items: [],
-								groups: []
-							}
-						] as const;
-					}
-				})
-		);
-
-		if (requestId !== collectionLoadRequest) {
-			return;
-		}
-
-		localCollectionItemsBySlug = Object.fromEntries(collectionEntries);
-	}
-
-	async function loadLocalConfigStates(nextConfigs: DiscoveredConfig[]) {
-		const repoState = get(localRepo);
-		if (!repoState.backend) {
-			localConfigStatesBySlug = {};
-			return;
-		}
-
-		const stateEntries = await Promise.all(
-			getConfigsWithTopLevelState(nextConfigs).map(async (config) => {
-				try {
-					const content = await fetchContentDocument(
-						repoState.backend!,
-						config.config,
-						config.path
-					);
-
-					return [
-						config.slug,
-						resolveContentDocumentState(config.config, content, rootConfig)
-					] as const;
-				} catch (error) {
-					console.error(`Failed to load config state for ${config.slug}:`, error);
-					return [config.slug, null] as const;
-				}
-			})
-		);
-
-		localConfigStatesBySlug = Object.fromEntries(stateEntries);
-	}
-
-	async function loadGitHubConfigStates(options?: { force?: boolean }) {
-		if (isLocalMode) {
-			return;
-		}
-
-		if (!options?.force && githubConfigStatesLoaded) {
-			return;
+		if (!isLocalMode) {
+			githubConfigStatesLoading = true;
 		}
 
 		try {
-			const response = await fetch(resolve('/api/repo/config-states'));
-
-			if (response.status === 401) {
-				await redirectToReposForExpiredSession();
-				return;
-			}
-
-			if (!response.ok) {
-				throw new Error(`Failed to load config states (${response.status})`);
-			}
-
-			const payload = (await response.json()) as {
-				statesBySlug?: ConfigStatesBySlug;
-			};
-
-			githubConfigStatesBySlug = payload.statesBySlug ?? {};
-			githubConfigStatesLoaded = true;
+			await runWorkspaceIntent({
+				type: 'load-config-states',
+				force: options?.force
+			});
 		} catch (error) {
 			console.error('Failed to load config states:', error);
+		} finally {
+			if (!isLocalMode) {
+				githubConfigStatesLoading = false;
+			}
 		}
 	}
 
@@ -795,7 +812,7 @@
 				await Promise.all(
 					configs
 						.filter((config: DiscoveredConfig) => config.config.collection)
-						.map((config: DiscoveredConfig) => loadGitHubCollectionItems(config))
+						.map((config: DiscoveredConfig) => loadWorkspaceCollectionItems(config))
 				);
 			}
 
@@ -834,51 +851,7 @@
 
 		try {
 			const manifest = serializeNavigationDraft(navigationDraft);
-
-			if (isLocalMode) {
-				const repoState = get(localRepo);
-				if (!repoState.backend) {
-					throw new Error('No local repository is open.');
-				}
-
-				await writeNavigationManifest(repoState.backend, manifest, {
-					message: MANIFEST_COMMIT_MESSAGE
-				});
-				await localContent.refresh({ force: true });
-				await loadLocalCollectionItems(configs);
-				await loadLocalConfigStates(configs);
-			} else {
-				const response = await fetch('/api/repo/navigation-manifest', {
-					method: 'POST',
-					headers: {
-						'content-type': 'application/json'
-					},
-					body: JSON.stringify({
-						action: 'save-manifest',
-						manifest
-					})
-				});
-
-				if (response.status === 401) {
-					await redirectToReposForExpiredSession();
-					return;
-				}
-
-				if (!response.ok) {
-					throw new Error('Failed to save navigation manifest');
-				}
-
-				const result = (await response.json()) as {
-					branchName?: string | null;
-				};
-				if (result.branchName && data.selectedRepo) {
-					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
-				}
-			}
-
-			cancelNavigationEditing();
-			await invalidateGitHubPagesData();
-			toasts.success('Navigation saved.');
+			await runWorkspaceIntent({ type: 'save-navigation', manifest });
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to save navigation changes.');
 		} finally {
@@ -897,52 +870,7 @@
 		savingCollectionOrder = true;
 
 		try {
-			if (isLocalMode) {
-				const repoState = get(localRepo);
-				if (!repoState.backend) {
-					throw new Error('No local repository is open.');
-				}
-
-				await saveCollectionOrder(repoState.backend, config, collection, navigationManifest, {
-					message: MANIFEST_COMMIT_MESSAGE
-				});
-				await localContent.refresh({ force: true });
-				await loadLocalCollectionItems(configs);
-				await loadLocalConfigStates(configs);
-			} else {
-				const response = await fetch('/api/repo/navigation-manifest', {
-					method: 'POST',
-					headers: {
-						'content-type': 'application/json'
-					},
-					body: JSON.stringify({
-						action: 'save-collection-order',
-						collection: config.slug,
-						order: collection
-					})
-				});
-
-				if (response.status === 401) {
-					await redirectToReposForExpiredSession();
-					return;
-				}
-
-				if (!response.ok) {
-					throw new Error('Failed to save collection order');
-				}
-
-				const result = (await response.json()) as {
-					branchName?: string | null;
-				};
-				if (result.branchName && data.selectedRepo) {
-					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
-				}
-
-				await loadGitHubCollectionItems(config, { force: true });
-			}
-
-			await invalidateGitHubPagesData();
-			toasts.success(`${config.config.label} order saved.`);
+			await runWorkspaceIntent({ type: 'save-collection-order', config, collection });
 		} catch (error) {
 			toasts.error(error instanceof Error ? error.message : 'Failed to save collection order.');
 		} finally {
@@ -961,12 +889,25 @@
 	}
 
 	$effect(() => {
+		const consumer = getWorkspaceConsumer();
+		void consumer.run({ type: 'start-workspace' });
+
+		return () => {
+			void consumer.run({ type: 'stop-workspace' });
+		};
+	});
+
+	$effect(() => {
 		if (!isLocalMode || $localContent.status !== 'ready') {
 			return;
 		}
 
-		void loadLocalCollectionItems(configs);
-		void loadLocalConfigStates(configs);
+		void Promise.all(
+			configs
+				.filter((config: DiscoveredConfig) => config.config.collection)
+				.map((config: DiscoveredConfig) => loadWorkspaceCollectionItems(config, { force: true }))
+		);
+		void loadWorkspaceConfigStates({ force: true });
 	});
 
 	$effect(() => {
@@ -975,29 +916,18 @@
 		}
 
 		if (currentConfig?.config.collection) {
-			const unsubscribe = githubRepositoryCache.onCollectionChange(
+			const unsubscribe = getWorkspaceConsumer().watchCollectionNavigation(
 				currentConfig.slug,
-				(navigation) => {
-					if (!navigation) {
-						return;
-					}
-
-					githubCollectionItemsBySlug = {
-						...githubCollectionItemsBySlug,
-						[currentConfig.slug]: navigation
-					};
-					githubCollectionLoadStatusBySlug = {
-						...githubCollectionLoadStatusBySlug,
-						[currentConfig.slug]: 'ready'
-					};
+				(result) => {
+					void applyWorkspaceResult(result);
 				}
 			);
-			void loadGitHubCollectionItems(currentConfig);
-			void loadGitHubConfigStates();
+			void loadWorkspaceCollectionItems(currentConfig);
+			void loadWorkspaceConfigStates();
 			return unsubscribe;
 		}
 
-		void loadGitHubConfigStates();
+		void loadWorkspaceConfigStates();
 	});
 
 	$effect(() => {
@@ -1150,12 +1080,12 @@
 							canManageGroups={!!collectionSetup?.groupManagementEnabled}
 							savingCustomOrder={savingCollectionOrder}
 							onretry={() =>
-								void loadGitHubCollectionItems(currentConfig, {
+								void loadWorkspaceCollectionItems(currentConfig, {
 									force: true,
 									hydrateRemaining: true
 								})}
 							onrequestsorthydration={() =>
-								void loadGitHubCollectionItems(currentConfig, { hydrateRemaining: true })}
+								void loadWorkspaceCollectionItems(currentConfig, { hydrateRemaining: true })}
 							onpromoteitem={(item) =>
 								handlePromoteCollectionItem(currentConfig.slug, item.hrefItemId ?? item.itemId)}
 							onsavecustomorder={(collection: NavigationDraftCollection) =>
@@ -1247,12 +1177,12 @@
 					canManageGroups={!!collectionSetup?.groupManagementEnabled}
 					savingCustomOrder={savingCollectionOrder}
 					onretry={() =>
-						void loadGitHubCollectionItems(currentConfig, {
+						void loadWorkspaceCollectionItems(currentConfig, {
 							force: true,
 							hydrateRemaining: true
 						})}
 					onrequestsorthydration={() =>
-						void loadGitHubCollectionItems(currentConfig, { hydrateRemaining: true })}
+						void loadWorkspaceCollectionItems(currentConfig, { hydrateRemaining: true })}
 					onpromoteitem={(item) =>
 						handlePromoteCollectionItem(currentConfig.slug, item.hrefItemId ?? item.itemId)}
 					onsavecustomorder={(collection: NavigationDraftCollection) =>

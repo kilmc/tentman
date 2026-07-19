@@ -1,10 +1,10 @@
 import type {
-	NavigationManifestCollection,
 	SelectBlockOption,
 	SelectBlockOptions,
 	TentmanGroupBlockOptions,
 	TentmanGroupBlockUsage
 } from '$lib/config/types';
+import { getNavigationManifestCollection } from '@tentman/core/navigation-manifest';
 import type { NavigationManifest } from '$lib/features/content-management/navigation-manifest';
 
 export interface NewNavigationGroupInput {
@@ -32,39 +32,12 @@ export function getSelectOptionsFromNavigationGroups(
 	manifest: NavigationManifest | null | undefined,
 	collectionId: string
 ): SelectBlockOption[] {
-	const groups = getManifestCollectionByReference(manifest, collectionId)?.groups ?? [];
+	const groups = getNavigationManifestCollection(manifest, collectionId)?.groups ?? [];
 
 	return groups.map((group) => ({
 		value: group.id,
 		label: group.label || group.id
 	}));
-}
-
-function getManifestCollectionByReference(
-	manifest: NavigationManifest | null | undefined,
-	collectionReference: string
-): NavigationManifestCollection | null {
-	if (!manifest?.collections || !collectionReference.trim()) {
-		return null;
-	}
-
-	const directMatch = manifest.collections[collectionReference];
-	if (directMatch) {
-		return directMatch;
-	}
-
-	for (const [key, collection] of Object.entries(manifest.collections)) {
-		if (
-			key === collectionReference ||
-			collection.configId === collectionReference ||
-			collection.id === collectionReference ||
-			collection.slug === collectionReference
-		) {
-			return collection;
-		}
-	}
-
-	return null;
 }
 
 export function resolveSelectOptions(
@@ -113,7 +86,7 @@ export function addNavigationGroupToManifest(
 	const nextManifest: NavigationManifest = manifest
 		? {
 				...manifest,
-				content: manifest.content ? { items: [...manifest.content.items] } : undefined,
+				content: manifest.content ? { items: [...(manifest.content.items ?? [])] } : undefined,
 				collections: manifest.collections
 					? Object.fromEntries(
 							Object.entries(manifest.collections).map(([collectionId, collection]) => [
@@ -124,14 +97,14 @@ export function addNavigationGroupToManifest(
 									...(collection.slug ? { slug: collection.slug } : {}),
 									...(collection.href ? { href: collection.href } : {}),
 									...(collection.configId ? { configId: collection.configId } : {}),
-									items: [...collection.items],
+									items: [...(collection.items ?? [])],
 									...(collection.groups
 										? {
 												groups: collection.groups.map((group) => ({
 													id: group.id,
 													...(group.label && { label: group.label }),
 													...(group.value && { value: group.value }),
-													items: [...group.items]
+													items: [...(group.items ?? [])]
 												}))
 											}
 										: {})
@@ -162,7 +135,7 @@ export function addNavigationGroupToManifest(
 		...collections,
 		[resolvedCollectionKey]: {
 			...collection,
-			items: [...collection.items],
+			items: [...(collection.items ?? [])],
 			groups: [
 				...groups,
 				{
@@ -216,11 +189,19 @@ export function addCollectionGroupToConfigSource(
 		? (collectionConfig.groups as Array<Record<string, unknown>>)
 		: [];
 
-	if (currentGroups.some((group) => typeof group._tentmanId === 'string' && group._tentmanId === nextGroup._tentmanId)) {
+	if (
+		currentGroups.some(
+			(group) => typeof group._tentmanId === 'string' && group._tentmanId === nextGroup._tentmanId
+		)
+	) {
 		throw new Error(`A group with id "${nextGroup._tentmanId}" already exists`);
 	}
 
-	if (currentGroups.some((group) => typeof group.value === 'string' && group.value === nextGroup.value)) {
+	if (
+		currentGroups.some(
+			(group) => typeof group.value === 'string' && group.value === nextGroup.value
+		)
+	) {
 		throw new Error(`A group with value "${nextGroup.value}" already exists`);
 	}
 

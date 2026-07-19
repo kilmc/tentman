@@ -36,3 +36,17 @@
 - Implement the fix with minimal necessary surface area.
 - Verify with the most relevant tests and checks.
 - Document any follow-up work in GitHub issues rather than folding it into the current fix.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default five-role triage vocabulary is used: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single-context domain doc layout: root `CONTEXT.md` plus root `docs/adr/`. See `docs/agents/domain.md`.

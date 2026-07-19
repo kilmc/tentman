@@ -4,6 +4,11 @@ import {
 	githubCacheWarmStatus,
 	githubRepositoryCacheTestApi
 } from '$lib/stores/github-repository-cache';
+import {
+	assertWorkflowRequestBudgetForTests,
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -161,7 +166,8 @@ const sidebarEditorMocks = vi.hoisted(() => {
 		localContentReadyState,
 		page: {
 			params: {} as Record<string, string>,
-			url: new URL('http://localhost/pages')
+			url: new URL('http://localhost/pages'),
+			data: {} as Record<string, unknown>
 		},
 		localRepoStore,
 		localContentStore,
@@ -197,7 +203,10 @@ vi.mock('$app/paths', () => ({
 }));
 
 vi.mock('$app/state', () => ({
-	page: sidebarEditorMocks.page
+	page: sidebarEditorMocks.page,
+	navigating: {
+		current: null
+	}
 }));
 
 vi.mock('$lib/content/service', () => ({
@@ -329,6 +338,46 @@ const githubLayoutData = {
 	navigationManifest: sidebarEditorMocks.localContentReadyState.navigationManifest
 };
 
+const newsGithubLayoutData = {
+	...githubLayoutData,
+	configs: sidebarEditorMocks.localContentReadyState.configs.map((config) =>
+		config.slug === 'blog'
+			? {
+					...config,
+					slug: 'news',
+					path: 'content/news.tentman.json',
+					config: {
+						...config.config,
+						id: 'news',
+						_tentmanId: 'news-items',
+						label: 'News',
+						itemLabel: 'News Item',
+						content: {
+							mode: 'directory' as const,
+							path: 'src/content/news',
+							template: 'templates/news.md'
+						}
+					}
+				}
+			: config
+	),
+	navigationManifest: {
+		...sidebarEditorMocks.localContentReadyState.navigationManifest,
+		manifest: {
+			version: 1 as const,
+			content: {
+				items: ['about-page', 'news-items']
+			},
+			collections: {
+				'news-items': {
+					items: ['stable-1', 'stable-2'],
+					groups: []
+				}
+			}
+		}
+	}
+};
+
 function createGitHubFallbackItems(count: number) {
 	return Array.from({ length: count }, (_, index) => {
 		const itemNumber = index + 1;
@@ -381,6 +430,21 @@ function createGitHubIndexPayload(items = createGitHubFallbackItems(2)) {
 	};
 }
 
+function createGitHubNewsIndexPayload(items = createGitHubFallbackItems(2)) {
+	const payload = createGitHubIndexPayload(items);
+
+	return {
+		...payload,
+		configSlug: 'news',
+		identity: {
+			...payload.identity,
+			configSlug: 'news',
+			configPath: 'content/news.tentman.json',
+			contentIdentity: 'src/content/news:templates/news.md'
+		}
+	};
+}
+
 function getCollectionGroupSectionText(label: string): string {
 	const headings = Array.from(document.querySelectorAll('h3'));
 	const heading = headings.find((entry) => entry.textContent?.trim() === label);
@@ -415,6 +479,8 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		sidebarEditorMocks.localContentStore.set(sidebarEditorMocks.localContentReadyState);
 		sidebarEditorMocks.page.params = {};
 		sidebarEditorMocks.page.url = new URL('http://localhost/pages');
+		sidebarEditorMocks.page.data = {};
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	it('renders site pages only in the sidebar and edits top-level page order', async () => {
@@ -631,6 +697,12 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expectElement(screen.getByText('Hello world')).not.toBeInTheDocument();
 		await expectElement(screen.getByRole('link', { name: 'Open first item' })).toBeVisible();
 
+		const blogLink = document.querySelector<HTMLAnchorElement>('a[href="/pages/blog"]');
+		expect(blogLink).not.toBeNull();
+		blogLink?.addEventListener('click', (event) => event.preventDefault(), {
+			capture: true,
+			once: true
+		});
 		await screen.getByRole('link', { name: 'Blog Posts' }).click();
 
 		await expectElement(screen.getByText('Hello world')).toBeVisible();
@@ -756,6 +828,177 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		await expect.poll(() => document.body.textContent).toContain('Post 1');
 	});
 
+	it('keeps the desktop GitHub news collection landing usable without repeated bootstrap or document warming', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'news'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/news');
+		const fallbackItems = createGitHubFallbackItems(32);
+		const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createGitHubNewsIndexPayload(fallbackItems));
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+				return Response.json({
+					indexIdentity: createGitHubNewsIndexPayload().identity,
+					items: createGitHubProjectionItems(body.blobShas)
+				});
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				throw new Error('desktop news landing should not warm full item documents');
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayoutCollectionLandingHarness, {
+			data: newsGithubLayoutData
+		});
+
+		await expectElement(screen.getByRole('link', { name: 'New News Item' })).toBeVisible();
+		await expect.poll(() => document.body.textContent).toContain('Post 1');
+		await expect.poll(() => document.body.textContent).toContain('Post 30');
+		expect(document.body.textContent).toContain('post 31');
+		expect(document.body.textContent).not.toContain('Post 31');
+
+		const calls = fetch.mock.calls.map(([input]) => String(input));
+		expect(calls.filter((url) => url.startsWith('/api/repo/config-states'))).toHaveLength(1);
+		expect(calls.filter((url) => url.startsWith('/api/repo/collection-index'))).toHaveLength(1);
+		expect(calls.some((url) => url.startsWith('/api/repo/item-view'))).toBe(false);
+		const projectionCalls = calls.filter((url) => url.startsWith('/api/repo/collection-projections'));
+		expect(projectionCalls.length).toBeGreaterThan(0);
+		expect(projectionCalls.length).toBeLessThanOrEqual(2);
+
+		const events = getWorkflowInstrumentationEventsForTests();
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'browser-request',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/news',
+					endpoint: '/api/repo/collection-index?slug=news',
+					priority: 'foreground',
+					cacheTaskKey: 'collectionIndex:news',
+					resultStatus: 'ok'
+				}),
+				expect.objectContaining({
+					kind: 'browser-request',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/news',
+					endpoint: '/api/repo/collection-projections',
+					method: 'POST',
+					priority: 'foreground',
+					resultStatus: 'ok'
+				}),
+				expect.objectContaining({
+					kind: 'browser-request',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/news',
+					endpoint: '/api/repo/config-states',
+					priority: 'foreground',
+					resultStatus: 'ok'
+				}),
+				expect.objectContaining({
+					kind: 'workflow-readiness',
+					workflow: 'desktop-collection-landing',
+					mark: 'collection-landing-ready',
+					route: '/pages/news',
+					slug: 'news'
+				})
+			])
+		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'desktop-collection-landing',
+			route: '/pages/news',
+			maxBrowserRequests: 4,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 4
+		});
+	});
+
+	for (const itemCount of [25, 222]) {
+		it(`renders ${itemCount} GitHub collection route-data items before a client collection refresh completes`, async () => {
+			sidebarEditorMocks.page.params = {
+				page: 'news'
+			};
+			sidebarEditorMocks.page.url = new URL('http://localhost/pages/news');
+			sidebarEditorMocks.page.data = {
+				collectionNavigation: {
+					items: createGitHubProjectionItems(
+						Array.from({ length: itemCount }, (_, index) => `blob-${index + 1}`)
+					),
+					groups: []
+				}
+			};
+			const collectionRefresh = createDeferred<Response>();
+			const fetch = vi.fn(async (input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return collectionRefresh.promise;
+				}
+				if (url.startsWith('/api/repo/config-states')) {
+					return Response.json({ statesBySlug: {} });
+				}
+				throw new Error(`Unexpected fetch: ${url}`);
+			});
+			vi.stubGlobal('fetch', fetch);
+
+			const screen = await render(PagesLayoutCollectionLandingHarness, {
+				data: newsGithubLayoutData
+			});
+
+			await expectElement(screen.getByRole('link', { name: /^Post 1$/ })).toBeVisible();
+			await expectElement(
+				screen.getByRole('link', { name: new RegExp(`^Post ${itemCount}$`) })
+			).toBeVisible();
+			await expectElement(screen.getByText('No items yet.')).not.toBeInTheDocument();
+			collectionRefresh.resolve(Response.json(createGitHubNewsIndexPayload([])));
+		});
+	}
+
+	it('surfaces GitHub collection route-data errors instead of the empty collection state', async () => {
+		sidebarEditorMocks.page.params = {
+			page: 'news'
+		};
+		sidebarEditorMocks.page.url = new URL('http://localhost/pages/news');
+		sidebarEditorMocks.page.data = {
+			pageSlug: 'news',
+			collectionNavigation: {
+				items: [],
+				groups: []
+			},
+			contentError: 'collection projection batch request failed (503)'
+		};
+		const collectionRefresh = createDeferred<Response>();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return collectionRefresh.promise;
+			}
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({ statesBySlug: {} });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayoutCollectionLandingHarness, {
+			data: newsGithubLayoutData
+		});
+
+		await expectElement(
+			screen.getByText('collection projection batch request failed (503)')
+		).toBeVisible();
+		await expectElement(screen.getByText('No items yet.')).not.toBeInTheDocument();
+		collectionRefresh.resolve(Response.json(createGitHubNewsIndexPayload([])));
+	});
+
 	it('shows GitHub cache progress in the sidebar with a cache details link', async () => {
 		const fetch = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
@@ -877,6 +1120,45 @@ describe('routes/pages/+layout.svelte pages workspace navigation', () => {
 		});
 
 		expect(document.body.textContent).not.toContain('Site cache ready');
+	});
+
+	it('renders GitHub config states from the normalized workflow payload', async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/config-states')) {
+				return Response.json({
+					statesBySlug: {},
+					workflowData: {
+						identity: null,
+						statesBySlug: {
+							about: {
+								value: false,
+								label: 'Draft',
+								variant: 'warning',
+								icon: 'file-pen',
+								visibility: {
+									navigation: true,
+									header: true,
+									card: true
+								}
+							}
+						},
+						stateConfigCount: 1,
+						readiness: 'ready',
+						cacheMiss: null
+					}
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+		vi.stubGlobal('fetch', fetch);
+
+		const screen = await render(PagesLayout, {
+			data: githubLayoutData
+		});
+
+		await expectElement(screen.getByRole('link', { name: 'About Page' })).toBeVisible();
+		await expect.poll(() => document.body.textContent ?? '').toContain('Draft');
 	});
 
 	it('hydrates visible GitHub collection titles before background rows in the panel', async () => {

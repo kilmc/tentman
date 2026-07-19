@@ -1,8 +1,9 @@
 import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
-import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
-import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import { buildReposRedirect } from '$lib/utils/routing';
+import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
+import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
@@ -17,7 +18,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			content: null,
 			contentError: null,
 			blockRegistryError: null,
-			branch: null,
+			editor: null,
 			pageSlug: params.page,
 			mode: 'local' as const
 		};
@@ -29,63 +30,34 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 
 	depends('app:content');
 
-	await githubRepositoryCache.hydrateFromBootstrap({
+	const workflowResult = await githubWorkflowRouteCapabilities.loadSingletonEditWorkflowData({
 		repoFullName: workspace.selectedRepo.full_name,
-		bootstrap: parentData
+		bootstrap: parentData,
+		slug: params.page,
+		fetcher: fetch
 	});
-	const discoveredConfig = parentData.configs?.find((config) => config.slug === params.page) ?? null;
-	const cachedSingleton = await githubRepositoryCache.getSingletonDocumentForRoute({
-		slug: params.page
-	});
-	if (discoveredConfig && cachedSingleton?.blockSupport) {
-		if (discoveredConfig.config.collection) {
-			throw redirect(302, `/pages/${params.page}`);
-		}
 
-		return {
-			discoveredConfig,
-			blockConfigs: cachedSingleton.blockSupport.blockConfigs,
-			packageBlocks: cachedSingleton.blockSupport.packageBlocks,
-			blockRegistryError: cachedSingleton.blockSupport.blockRegistryError,
-			content: cachedSingleton.content,
-			contentError: null,
-			branch: parentData.activeDraftBranch,
-			pageSlug: params.page,
-			mode: 'github' as const
-		};
+	if (workflowResult.status === 'ready') {
+		markWorkflowReadiness({
+			workflow: 'page-route-shell',
+			mark: 'page-route-shell-ready',
+			route: `/pages/${params.page}/edit`,
+			slug: params.page
+		});
+		return workflowResult.data;
 	}
 
-	const response = await fetch(
-		buildPathWithQuery('/api/repo/page-view', {
-			slug: params.page
-		})
-	);
-
-	if (response.status === 401) {
+	if (workflowResult.status === 'unauthorized') {
 		throw redirect(302, reposRedirect);
 	}
 
-	if (response.status === 404) {
+	if (workflowResult.status === 'missing') {
 		throw httpError(404, 'Configuration not found');
 	}
 
-	if (!response.ok) {
-		throw httpError(response.status, 'Failed to load edit view');
-	}
-
-	const data = await response.json();
-
-	if (data?.discoveredConfig?.config?.collection) {
+	if (workflowResult.status === 'collection') {
 		throw redirect(302, `/pages/${params.page}`);
 	}
 
-	await githubRepositoryCache.setSingletonPageView({
-		slug: params.page,
-		content: data.content ?? null,
-		blockConfigs: data.blockConfigs,
-		packageBlocks: data.packageBlocks,
-		blockRegistryError: data.blockRegistryError ?? null
-	});
-
-	return data;
+	throw httpError(workflowResult.httpStatus, 'Failed to load edit view');
 };

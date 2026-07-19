@@ -7,6 +7,7 @@ import {
 	hasTagsBlock,
 	loadCollectionExistingItems
 } from '$lib/features/content-management/collection-existing-items';
+import { normalizeGitHubPageViewRouteData } from '$lib/repository/github-workflow-route-capabilities';
 
 async function loadTagSuggestionItems(
 	fetcher: typeof fetch,
@@ -19,7 +20,8 @@ async function loadTagSuggestionItems(
 }
 
 export const load: PageLoad = async ({ parent, fetch, params, depends, url }) => {
-	const workspace = resolveWorkspaceState(await parent());
+	const parentData = await parent();
+	const workspace = resolveWorkspaceState(parentData);
 	const reposRedirect = buildReposRedirect('/repos', url);
 
 	if (workspace.mode === 'local') {
@@ -28,7 +30,7 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 			blockConfigs: [],
 			packageBlocks: [],
 			blockRegistryError: null,
-			branch: null,
+			editor: null,
 			pageSlug: params.page,
 			mode: 'local' as const
 		};
@@ -58,7 +60,12 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 		throw httpError(response.status, 'Failed to load form config');
 	}
 
-	const data = await response.json();
+	const data = normalizeGitHubPageViewRouteData({
+		repoFullName: workspace.selectedRepo.full_name,
+		bootstrap: parentData,
+		slug: params.page,
+		data: await response.json()
+	});
 
 	if (!data?.discoveredConfig?.config?.collection) {
 		throw redirect(302, `/pages/${params.page}`);
@@ -66,6 +73,7 @@ export const load: PageLoad = async ({ parent, fetch, params, depends, url }) =>
 
 	return {
 		...data,
+		editor: data.editor,
 		existingItems: await loadTagSuggestionItems(fetch, data.discoveredConfig ?? null, params.page)
 	};
 };

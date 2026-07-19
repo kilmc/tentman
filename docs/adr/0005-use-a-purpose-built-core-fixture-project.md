@@ -1,0 +1,3 @@
+# Use a purpose-built core fixture project
+
+Core package tests should use a small fixture project owned by `@tentman/core` instead of copying the sibling sample app. The sample app exists for trying features and demonstrating Tentman, while core tests need a stable project shape with only the files required to exercise parsing, diagnostics, navigation, formatting, assets, and content-component behavior. Read-only tests should load the repo-owned fixture directly, and mutating tests should create self-cleaning temp copies so test runs do not duplicate dependencies, generated files, or long-lived temp directories.

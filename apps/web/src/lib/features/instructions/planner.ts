@@ -4,6 +4,7 @@ import {
 	loadNavigationManifestState,
 	type NavigationManifest
 } from '$lib/features/content-management/navigation-manifest';
+import { getNavigationReferenceIds } from '@tentman/core/navigation-manifest';
 import {
 	createInstructionInputDefaults,
 	getDefaultValue,
@@ -270,7 +271,7 @@ function buildNavigationManifestWithItem(
 		const nextManifest: NavigationManifest = {
 			version: 1,
 			content: {
-				items: [configId]
+				items: [{ id: configId }]
 			}
 		};
 
@@ -286,7 +287,7 @@ function buildNavigationManifestWithItem(
 		};
 	}
 
-	const existingItems = manifest.content?.items ?? [];
+	const existingItems = getNavigationReferenceIds(manifest.content?.items ?? []);
 	if (existingItems.includes(configId)) {
 		return {
 			manifest,
@@ -302,7 +303,7 @@ function buildNavigationManifestWithItem(
 	const nextManifest: NavigationManifest = {
 		...manifest,
 		content: {
-			items: [...existingItems, configId]
+			items: [...existingItems.map((id) => ({ id })), { id: configId }]
 		}
 	};
 

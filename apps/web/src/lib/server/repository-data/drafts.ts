@@ -3,6 +3,7 @@ import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { ParsedContentConfig } from '$lib/config/parse';
 import type { DraftMetadata } from '$lib/utils/draft-comparison';
 import { resolveConfigPath } from '$lib/utils/validation';
+import { traceGitHubRequest } from '$lib/utils/workflow-instrumentation';
 import {
 	getChangedFilePaths,
 	getDirectoryContentTarget,
@@ -55,14 +56,27 @@ async function listChangedFilesBetweenRefs(
 	let mergeBaseCommit: string | undefined;
 
 	while (true) {
-		const response = await input.octokit.rest.repos.compareCommits({
-			owner: input.owner,
-			repo: input.repo,
-			base: input.baseBranch,
-			head: input.draftBranch,
-			per_page: 100,
-			page
-		});
+		const response = await traceGitHubRequest(
+			{
+				source: 'repository-data',
+				operation: 'listChangedFilesBetweenRefs',
+				requestKind: 'compare',
+				repoKey: `github:${input.owner}/${input.repo}`,
+				owner: input.owner,
+				repo: input.repo,
+				ref: input.draftBranch,
+				path: `${input.baseBranch}...${input.draftBranch}`
+			},
+			() =>
+				input.octokit.rest.repos.compareCommits({
+					owner: input.owner,
+					repo: input.repo,
+					base: input.baseBranch,
+					head: input.draftBranch,
+					per_page: 100,
+					page
+				})
+		);
 
 		if (!mergeBaseCommit) {
 			mergeBaseCommit = response.data.merge_base_commit?.sha;
@@ -91,16 +105,40 @@ async function getDraftMetadata(
 	mergeBaseCommit?: string
 ): Promise<DraftMetadata> {
 	const [draftBranch, baseBranch] = await Promise.all([
-		input.octokit.rest.repos.getBranch({
-			owner: input.owner,
-			repo: input.repo,
-			branch: input.draftBranch
-		}),
-		input.octokit.rest.repos.getBranch({
-			owner: input.owner,
-			repo: input.repo,
-			branch: input.baseBranch
-		})
+		traceGitHubRequest(
+			{
+				source: 'repository-data',
+				operation: 'getDraftMetadataDraftBranch',
+				requestKind: 'branch',
+				repoKey: `github:${input.owner}/${input.repo}`,
+				owner: input.owner,
+				repo: input.repo,
+				ref: input.draftBranch
+			},
+			() =>
+				input.octokit.rest.repos.getBranch({
+					owner: input.owner,
+					repo: input.repo,
+					branch: input.draftBranch
+				})
+		),
+		traceGitHubRequest(
+			{
+				source: 'repository-data',
+				operation: 'getDraftMetadataBaseBranch',
+				requestKind: 'branch',
+				repoKey: `github:${input.owner}/${input.repo}`,
+				owner: input.owner,
+				repo: input.repo,
+				ref: input.baseBranch
+			},
+			() =>
+				input.octokit.rest.repos.getBranch({
+					owner: input.owner,
+					repo: input.repo,
+					branch: input.baseBranch
+				})
+		)
 	]);
 	const lastCommitDateValue = draftBranch.data.commit.commit.committer?.date;
 	const lastCommitDate = lastCommitDateValue ? new Date(lastCommitDateValue) : undefined;

@@ -12,6 +12,7 @@ import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 export const actions: Actions = {
 	createToPreview: async ({ locals, params, request, cookies, url }) => {
@@ -70,11 +71,36 @@ export const actions: Actions = {
 					? contentData[discoveredConfig.config.idField]
 					: 'new';
 
+			const mutation = createWorkflowMutationResult({
+				mode: 'github',
+				intent: {
+					type: 'create-item',
+					slug: discoveredConfig.slug,
+					itemId: String(itemId)
+				},
+				message: 'Item created in draft.',
+				changedPaths,
+				redirect: {
+					href: buildPathWithQuery(`/pages/${params.page}/${itemId}/edit`, {
+						saved: 'true'
+					})
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
+
 			throw redirect(
-				303,
-				buildPathWithQuery(`/pages/${params.page}/${itemId}/edit`, {
-					saved: 'true'
-				})
+				mutation.redirect?.status ?? 303,
+				mutation.redirect?.href ??
+					buildPathWithQuery(`/pages/${params.page}/${itemId}/edit`, {
+						saved: 'true'
+					})
 			);
 		} catch (err) {
 			// Handle redirects

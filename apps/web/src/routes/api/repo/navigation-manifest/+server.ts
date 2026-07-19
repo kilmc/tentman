@@ -26,6 +26,7 @@ import {
 import { createGitHubServerClient, handleGitHubSessionError } from '$lib/server/auth/github';
 import { getRepositorySnapshot, invalidateRepositoryData } from '$lib/server/repository-data';
 import { invalidateCache } from '$lib/stores/config-cache';
+import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 const CONFIG_ID_COMMIT_MESSAGE = 'Add Tentman content config ids';
 const MANIFEST_COMMIT_MESSAGE = 'Update Tentman navigation manifest';
@@ -196,6 +197,27 @@ function assertCollectionOrder(value: unknown): CollectionOrderDraft {
 				items: readStringArray(candidate.items ?? [], `Collection order groups[${index}].items`)
 			};
 		})
+	};
+}
+
+function getMutationIntent(mutation: NavigationManifestMutation) {
+	if (mutation.action === 'save-collection-order') {
+		return {
+			type: 'save-collection-order' as const,
+			slug: mutation.collection
+		};
+	}
+
+	if (mutation.action === 'manage-collection-groups') {
+		return {
+			type: 'manage-navigation-groups' as const,
+			slug: mutation.collection,
+			action: mutation.mutation.action
+		};
+	}
+
+	return {
+		type: 'save-navigation-manifest' as const
 	};
 }
 
@@ -386,10 +408,24 @@ export const POST: RequestHandler = async ({ locals, cookies, request }) => {
 			});
 		}
 
+		const mutationChangedPaths =
+			changedPaths.length > 0 ? changedPaths : ['tentman/navigation-manifest.json'];
+
 		return json({
 			navigationManifest: await loadNavigationManifestState(backend, writeOptions),
 			branchName: draftBranch?.branchName ?? null,
-			changedPaths: changedPaths.length > 0 ? changedPaths : ['tentman/navigation-manifest.json']
+			changedPaths: mutationChangedPaths,
+			mutation: createWorkflowMutationResult({
+				mode: 'github',
+				intent: getMutationIntent(mutation),
+				message: 'Navigation saved.',
+				changedPaths: mutationChangedPaths,
+				refresh: {
+					workspace: true,
+					navigationManifest: true,
+					cachePaths: mutationChangedPaths
+				}
+			})
 		});
 	} catch (err) {
 		handleGitHubSessionError({ cookies }, err);

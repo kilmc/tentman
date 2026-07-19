@@ -113,7 +113,10 @@ describe('components/form/ArrayField.svelte', () => {
 		await expectElement(
 			screen.getByRole('button', { name: /Edit Image 1/ })
 		).not.toBeInTheDocument();
-		await expectElement(screen.getByLabelText('Image path')).toHaveValue('');
+		const imageField = screen.getByRole('group', { name: 'Image path' });
+		await expectElement(imageField).toBeVisible();
+		await expectElement(imageField.getByRole('button', { name: 'Choose asset' })).toBeVisible();
+		await expectElement(imageField.getByRole('button', { name: 'Upload new' })).toBeDisabled();
 		await expectElement(screen.getByLabelText('Alt text')).toHaveValue('');
 		await expectElement(screen.getByLabelText('Size')).toHaveValue(0);
 		await expectElement(screen.getByRole('button', { name: 'Add', exact: true })).toBeDisabled();

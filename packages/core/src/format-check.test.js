@@ -8,14 +8,17 @@ import {
 	summarizeFormatCheck,
 	writeTentmanFormat
 } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-format-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-format-');
 }
 
 test('reports current fixture files Tentman would rewrite conservatively', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const rewrites = await checkTentmanFormat(project);
 
 	assert.deepEqual(rewrites, []);
@@ -27,8 +30,8 @@ test('reports current fixture files Tentman would rewrite conservatively', async
 	});
 });
 
-test('reports config, file-content, and manifest files Tentman would rewrite', async () => {
-	const projectRoot = await copyFixture();
+test('reports config, file-content, and manifest files Tentman would rewrite', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const configPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const contentPath = path.join(projectRoot, 'src/content/pages/news.json');
 	const manifestPath = path.join(projectRoot, 'tentman/navigation-manifest.json');
@@ -72,8 +75,8 @@ test('reports config, file-content, and manifest files Tentman would rewrite', a
 	});
 });
 
-test('writes Tentman-owned formatting rewrites and becomes clean on recheck', async () => {
-	const projectRoot = await copyFixture();
+test('writes Tentman-owned formatting rewrites and becomes clean on recheck', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const project = await loadTentmanProject(projectRoot);
 	const rewrites = await writeTentmanFormat(project);
 
@@ -102,8 +105,8 @@ test('writes Tentman-owned formatting rewrites and becomes clean on recheck', as
 	assert.match(contactContent, /^\{\n\t"title": "Contact",/);
 });
 
-test('formats markdown-backed file singletons through core helpers', async () => {
-	const projectRoot = await copyFixture();
+test('formats markdown-backed file singletons through core helpers', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const configPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const contentPath = path.join(projectRoot, 'src/content/pages/about.md');
 	const config = JSON.parse(await fs.readFile(configPath, 'utf8'));

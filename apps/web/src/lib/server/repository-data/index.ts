@@ -11,7 +11,11 @@ export { clearSingletonDocumentCache, getSingletonDocument } from './documents';
 export { clearDraftChangeIndexCache, getDraftChangeIndex } from './drafts';
 export { invalidateRepositoryData } from './invalidation';
 export { clearRepositorySnapshotCache, getRepositorySnapshot } from './snapshot';
-export { clearSingletonConfigStateCache, getSingletonConfigStates } from './states';
+export {
+	clearSingletonConfigStateCache,
+	getSingletonConfigStateResult,
+	getSingletonConfigStates
+} from './states';
 export type {
 	BlockConfigIndex,
 	CollectionIndex,

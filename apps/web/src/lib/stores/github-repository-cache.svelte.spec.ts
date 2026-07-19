@@ -2,12 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import {
 	githubCacheInventoryStatus,
+	githubCacheWorkObservabilityStatus,
 	githubCacheWarmDebugStatus,
 	githubCacheWarmStatus,
 	githubRepositoryCache,
 	githubRepositoryCacheTestApi
 } from '$lib/stores/github-repository-cache';
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
+import {
+	assertWorkflowRequestBudgetForTests,
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 type TestCollectionIndexItem = {
 	itemId: string;
@@ -92,6 +98,27 @@ function createCollectionConfig(slug: string, label: string, contentPath: string
 	};
 }
 
+function createGroupedCollectionConfig(slug = 'posts') {
+	const config = createCollectionConfig(slug, 'Posts', 'src/content/posts');
+
+	return {
+		...config,
+		config: {
+			...config.config,
+			_tentmanId: slug,
+			idField: 'slug',
+			collection: {
+				groupManagement: true,
+				groups: [{ _tentmanId: 'featured', label: 'Featured', value: 'featured' }]
+			},
+			blocks: [
+				{ id: 'title', type: 'text', label: 'Title' },
+				{ type: 'tentmanGroup', collection: slug, label: 'Group' }
+			]
+		}
+	};
+}
+
 function createSingletonConfig(slug: string, label: string, contentPath: string) {
 	return {
 		slug,
@@ -110,19 +137,22 @@ function createSingletonConfig(slug: string, label: string, contentPath: string)
 }
 
 function createIndexPayload(treeSha = 'tree-main') {
-	return createIndexPayloadWithItems([
-		{
-			itemId: 'hello-world',
-			route: 'hello-world',
-			path: 'src/content/posts/hello-world.md',
-			filename: 'hello-world.md',
-			blobSha: 'blob-hello',
-			title: 'hello world',
-			sortDate: null,
-			hydration: 'fallback' as const,
-			hrefItemId: 'hello-world'
-		}
-	], treeSha);
+	return createIndexPayloadWithItems(
+		[
+			{
+				itemId: 'hello-world',
+				route: 'hello-world',
+				path: 'src/content/posts/hello-world.md',
+				filename: 'hello-world.md',
+				blobSha: 'blob-hello',
+				title: 'hello world',
+				sortDate: null,
+				hydration: 'fallback' as const,
+				hrefItemId: 'hello-world'
+			}
+		],
+		treeSha
+	);
 }
 
 function createNotesIndexPayload(treeSha = 'tree-main') {
@@ -169,7 +199,11 @@ function createIndexPayloadWithItems(
 	};
 }
 
-function createIndexPayloadForRef(items: TestCollectionIndexItem[], ref: string, treeSha = 'tree-main') {
+function createIndexPayloadForRef(
+	items: TestCollectionIndexItem[],
+	ref: string,
+	treeSha = 'tree-main'
+) {
 	return {
 		...createIndexPayloadWithItems(items, treeSha),
 		identity: {
@@ -214,6 +248,23 @@ function createProjectionItems(blobShas: string[]) {
 	});
 }
 
+function createLowQuotaProjectionBatchResponse(init?: RequestInit): Response {
+	const body = JSON.parse(String(init?.body)) as { blobShas: string[]; slug?: string };
+	return Response.json(
+		{
+			indexIdentity:
+				body.slug === 'notes' ? createNotesIndexPayload().identity : createIndexPayload().identity,
+			items: createProjectionItems(body.blobShas)
+		},
+		{
+			headers: {
+				'x-ratelimit-remaining': '499',
+				'x-ratelimit-reset': '123'
+			}
+		}
+	);
+}
+
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
 	let reject!: (error: unknown) => void;
@@ -235,6 +286,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 	beforeEach(async () => {
 		const idleWindow = window as unknown as MutableIdleWindow;
+		clearWorkflowInstrumentationEventsForTests();
 		originalRequestIdleCallback = window.requestIdleCallback;
 		originalCancelIdleCallback = window.cancelIdleCallback;
 		idleWindow.requestIdleCallback = ((callback: IdleRequestCallback) => {
@@ -280,6 +332,16 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			missingTargets: 3
 		});
 		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'completed',
+			operation: 'collection-index-warming',
+			label: 'Posts'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).recent[0]).toMatchObject({
+			result: 'completed',
+			operation: 'collection-index-warming',
+			label: 'Posts'
+		});
 
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
 			items: [
@@ -397,16 +459,18 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			visibleLimit: 1
 		});
 
-		await expect(githubRepositoryCacheTestApi.getCollectionIndexItem('posts', 'stable-hello')).resolves
-			.toMatchObject({
-				itemId: 'stable-hello',
-				blobSha: 'blob-hello'
-			});
-		await expect(githubRepositoryCacheTestApi.getCollectionIndexItem('posts', 'hello-world')).resolves
-			.toMatchObject({
-				itemId: 'stable-hello',
-				blobSha: 'blob-hello'
-			});
+		await expect(
+			githubRepositoryCacheTestApi.getCollectionIndexItem('posts', 'stable-hello')
+		).resolves.toMatchObject({
+			itemId: 'stable-hello',
+			blobSha: 'blob-hello'
+		});
+		await expect(
+			githubRepositoryCacheTestApi.getCollectionIndexItem('posts', 'hello-world')
+		).resolves.toMatchObject({
+			itemId: 'stable-hello',
+			blobSha: 'blob-hello'
+		});
 
 		await githubRepositoryCache.setItemDocumentForRoute({
 			slug: 'posts',
@@ -417,16 +481,17 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			}
 		});
 
-		await expect(githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'hello-world' }))
-			.resolves.toMatchObject({
-				content: {
-					title: 'Hello world',
-					body: 'Full body'
-				},
-				indexItem: {
-					blobSha: 'blob-hello'
-				}
-			});
+		await expect(
+			githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'hello-world' })
+		).resolves.toMatchObject({
+			content: {
+				title: 'Hello world',
+				body: 'Full body'
+			},
+			indexItem: {
+				blobSha: 'blob-hello'
+			}
+		});
 
 		await githubRepositoryCache.invalidatePaths(['src/content/posts/hello-world.md']);
 
@@ -516,10 +581,12 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			]
 		});
 
-		await expect.poll(() => projectionCalls).toEqual([
-			['blob-1', 'blob-2'],
-			['blob-3', 'blob-4']
-		]);
+		await expect
+			.poll(() => projectionCalls)
+			.toEqual([
+				['blob-1', 'blob-2'],
+				['blob-3', 'blob-4']
+			]);
 		backgroundResponse.resolve(
 			Response.json({
 				indexIdentity: createIndexPayload().identity,
@@ -527,10 +594,425 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			})
 		);
 
-		await expect.poll(async () => {
-			const navigation = await githubRepositoryCache.getCollectionNavigation('posts');
-			return navigation?.items.map((item) => item.title);
-		}).toEqual(['Post 1', 'Post 2', 'Post 3', 'Post 4']);
+		await expect
+			.poll(async () => {
+				const navigation = await githubRepositoryCache.getCollectionNavigation('posts');
+				return navigation?.items.map((item) => item.title);
+			})
+			.toEqual(['Post 1', 'Post 2', 'Post 3', 'Post 4']);
+	});
+
+	it('queues remaining projection hydration behind idle after visible route readiness', async () => {
+		const idleCallbacks: IdleRequestCallback[] = [];
+		const idleWindow = window as unknown as MutableIdleWindow;
+		idleWindow.requestIdleCallback = ((callback: IdleRequestCallback) => {
+			idleCallbacks.push(callback);
+			return idleCallbacks.length;
+		}) as typeof window.requestIdleCallback;
+
+		const fallbackItems = createFallbackItems(4);
+		const backgroundResponse = createDeferred<Response>();
+		const projectionCalls: string[][] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(fallbackItems));
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			projectionCalls.push(body.blobShas);
+			if (projectionCalls.length === 1) {
+				return Response.json({
+					indexIdentity: createIndexPayload().identity,
+					items: createProjectionItems(body.blobShas)
+				});
+			}
+
+			return backgroundResponse.promise;
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher,
+			visibleLimit: 2,
+			warmDocuments: false
+		});
+
+		expect(projectionCalls).toEqual([['blob-1', 'blob-2']]);
+		expect(get(githubCacheWarmDebugStatus).taskKinds.collectionProjectionBatch.total).toBe(1);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-work',
+					phase: 'queued',
+					operation: 'projection-hydration',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/posts',
+					repoFullName: 'acme/docs',
+					ref: 'main',
+					taskKind: 'collectionProjectionBatch',
+					priority: 'passive',
+					progressCompleted: 4,
+					progressTotal: 12,
+					queuedTasks: 1,
+					runningTasks: 0,
+					reason: 'queued cache task'
+				})
+			])
+		);
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [
+				{ title: 'Post 1', hydration: 'hydrated' },
+				{ title: 'Post 2', hydration: 'hydrated' },
+				{ title: 'post 3', hydration: 'fallback' },
+				{ title: 'post 4', hydration: 'fallback' }
+			]
+		});
+
+		expect(idleCallbacks.length).toBeGreaterThan(0);
+		for (const callback of idleCallbacks) {
+			callback({ didTimeout: false, timeRemaining: () => 50 });
+		}
+		await expect
+			.poll(() => projectionCalls)
+			.toEqual([
+				['blob-1', 'blob-2'],
+				['blob-3', 'blob-4']
+			]);
+		backgroundResponse.resolve(
+			Response.json({
+				indexIdentity: createIndexPayload().identity,
+				items: createProjectionItems(['blob-3', 'blob-4'])
+			})
+		);
+		await expect
+			.poll(async () => {
+				const navigation = await githubRepositoryCache.getCollectionNavigation('posts');
+				return navigation?.items.map((item) => item.title);
+			})
+			.toEqual(['Post 1', 'Post 2', 'Post 3', 'Post 4']);
+	});
+
+	it('loads collection route workflow data with one index request and one visible projection batch', async () => {
+		const fallbackItems = createFallbackItems(3);
+		const fetchedEndpoints: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			fetchedEndpoints.push(url);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(fallbackItems));
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+				expect(body.blobShas).toEqual(['blob-1', 'blob-2']);
+				return Response.json({
+					indexIdentity: createIndexPayload().identity,
+					items: createProjectionItems(body.blobShas)
+				});
+			}
+			throw new Error(`Unexpected foreground collection route fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		clearWorkflowInstrumentationEventsForTests();
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 2
+		});
+
+		expect(workflowData).toMatchObject({
+			slug: 'posts',
+			readiness: 'ready',
+			cacheMiss: null,
+			identity: {
+				mode: 'github',
+				workspaceKey: 'github:acme/docs?ref=main',
+				workspaceLabel: 'acme/docs'
+			},
+			navigation: {
+				items: [
+					{ title: 'Post 1', hydration: 'hydrated' },
+					{ title: 'Post 2', hydration: 'hydrated' },
+					{ title: 'post 3', hydration: 'fallback' }
+				]
+			}
+		});
+		expect(fetchedEndpoints).toEqual([
+			'/api/repo/collection-index?slug=posts',
+			'/api/repo/collection-projections'
+		]);
+		expect(fetchedEndpoints).not.toEqual(
+			expect.arrayContaining(['/api/repo/page-view?slug=posts', '/api/repo/item-view'])
+		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'desktop-collection-landing',
+			route: '/pages/posts',
+			maxBrowserRequests: 2,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 2
+		});
+	});
+
+	it('reloads matching collection route workflow data from cached identities without foreground calls', async () => {
+		const fallbackItems = createFallbackItems(1);
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(fallbackItems));
+			}
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayload().identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+		const bootstrap = createBootstrap();
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 1
+		});
+
+		githubRepositoryCacheTestApi.resetMemoryForReloadTests();
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		fetcher.mockClear();
+		clearWorkflowInstrumentationEventsForTests();
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 1
+		});
+
+		expect(workflowData).toMatchObject({
+			readiness: 'ready',
+			cacheMiss: null,
+			navigation: {
+				items: [{ title: 'Post 1', hydration: 'hydrated' }]
+			}
+		});
+		expect(fetcher).not.toHaveBeenCalled();
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'warm-collection-reload',
+			route: '/pages/posts',
+			maxBrowserRequests: 0,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 0
+		});
+	});
+
+	it('returns degraded collection workflow data when route cache records fail to load', async () => {
+		const fetcher = vi.fn(async () => new Response(null, { status: 503 }));
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 2
+		});
+
+		expect(workflowData).toMatchObject({
+			slug: 'posts',
+			readiness: 'error',
+			navigation: {
+				items: [],
+				groups: []
+			},
+			cacheMiss: {
+				target: 'collection-navigation',
+				slug: 'posts',
+				readiness: 'error',
+				reason: 'collection index request failed (503)',
+				recovery: 'fetch-route-data'
+			}
+		});
+	});
+
+	it('names projection failures in degraded collection workflow data', async () => {
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				return new Response(null, { status: 502 });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		const workflowData = await githubRepositoryCache.loadCollectionNavigationWorkflowData('posts', {
+			fetcher,
+			visibleLimit: 1
+		});
+
+		expect(workflowData).toMatchObject({
+			readiness: 'error',
+			cacheMiss: {
+				reason: 'collection projection batch request failed (502)'
+			}
+		});
+	});
+
+	it('logs exact collection route cache miss reasons', async () => {
+		const fetcher = vi.fn(async () => Response.json(createIndexPayload()));
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.getCollectionNavigation('posts');
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'collection-index',
+					outcome: 'miss',
+					reason: 'missing record',
+					slug: 'posts'
+				})
+			])
+		);
+
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap('tree-next')
+		});
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.getCollectionNavigation('posts');
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'collection-index',
+					outcome: 'miss',
+					reason: 'stale identity',
+					slug: 'posts'
+				})
+			])
+		);
+	});
+
+	it('logs exact projection cache miss reasons for schema and blob identity mismatches', async () => {
+		const [item] = createFallbackItems(1);
+		const basePayload = createIndexPayloadWithItems([item]);
+		const createFetcher = (payload: ReturnType<typeof createIndexPayloadWithItems>) =>
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return Response.json(payload);
+				}
+
+				const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+				return Response.json({
+					indexIdentity: payload.identity,
+					items: createProjectionItems(body.blobShas)
+				});
+			});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		const baseFetcher = createFetcher(basePayload);
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: baseFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		const schemaPayload = {
+			...basePayload,
+			identity: {
+				...basePayload.identity,
+				schemaIdentity: 'summary'
+			}
+		};
+		const schemaFetcher = createFetcher(schemaPayload);
+		await githubRepositoryCache.ensureCollectionIndex('posts', {
+			fetcher: schemaFetcher,
+			force: true
+		});
+
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: schemaFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'projection',
+					outcome: 'miss',
+					reason: 'schema mismatch',
+					slug: 'posts'
+				})
+			])
+		);
+
+		await githubRepositoryCacheTestApi.reset();
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: baseFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		const blobPayload = createIndexPayloadWithItems([{ ...item, blobSha: 'blob-new' }]);
+		const blobFetcher = createFetcher(blobPayload);
+		await githubRepositoryCache.ensureCollectionIndex('posts', {
+			fetcher: blobFetcher,
+			force: true
+		});
+
+		clearWorkflowInstrumentationEventsForTests();
+		await githubRepositoryCache.warmCollection('posts', {
+			fetcher: blobFetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-outcome',
+					cacheArea: 'projection',
+					outcome: 'miss',
+					reason: 'blob identity mismatch',
+					slug: 'posts'
+				})
+			])
+		);
 	});
 
 	it('stales the repository snapshot without clearing collection indexes for navigation changes', async () => {
@@ -560,6 +1042,122 @@ describe('githubRepositoryCache IndexedDB records', () => {
 				(record) => record.targetId === 'collectionIndex:posts'
 			)
 		).toMatchObject({ status: 'fresh' });
+	});
+
+	it('patches group config and manifest state without clearing collection navigation', async () => {
+		const fetcher = vi.fn(async () =>
+			Response.json(createIndexPayloadWithItems(createFallbackItems(2)))
+		);
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createGroupedCollectionConfig()],
+			navigationManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: true,
+				manifest: {
+					version: 1 as const,
+					collections: {
+						posts: {
+							items: [{ id: 'post-1' }, { id: 'post-2' }],
+							groups: [
+								{ id: 'featured', label: 'Featured', value: 'featured', items: [{ id: 'post-1' }] }
+							]
+						}
+					}
+				},
+				error: null
+			}
+		} as RepoConfigsBootstrap;
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+
+		await githubRepositoryCache.patchCollectionGroups({
+			slug: 'posts',
+			mutation: {
+				action: 'create',
+				id: 'research',
+				label: 'Research',
+				value: 'research'
+			},
+			navigationManifest: {
+				version: 1,
+				collections: {
+					posts: {
+						items: [{ id: 'post-1' }, { id: 'post-2' }],
+						groups: [
+							{ id: 'featured', label: 'Featured', value: 'featured', items: [{ id: 'post-1' }] },
+							{ id: 'research', label: 'Research', value: 'research', items: [{ id: 'post-2' }] }
+						]
+					}
+				}
+			}
+		});
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			groups: [
+				{ id: 'featured', items: [{ itemId: 'post-1' }] },
+				{ id: 'research', items: [{ itemId: 'post-2' }] }
+			],
+			items: []
+		});
+		await expect(githubRepositoryCacheTestApi.getCollectionIndex('posts')).resolves.not.toBeNull();
+	});
+
+	it('patches collection order manifest state without clearing collection navigation', async () => {
+		const fetcher = vi.fn(async () =>
+			Response.json(createIndexPayloadWithItems(createFallbackItems(2)))
+		);
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createGroupedCollectionConfig()],
+			navigationManifest: {
+				path: 'tentman/navigation-manifest.json',
+				exists: true,
+				manifest: {
+					version: 1 as const,
+					collections: {
+						posts: {
+							items: [{ id: 'post-1' }, { id: 'post-2' }],
+							groups: [
+								{ id: 'featured', label: 'Featured', value: 'featured', items: [{ id: 'post-1' }] }
+							]
+						}
+					}
+				},
+				error: null
+			}
+		} as RepoConfigsBootstrap;
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+
+		await githubRepositoryCache.patchNavigationManifest({
+			navigationManifest: {
+				version: 1,
+				collections: {
+					posts: {
+						items: [{ id: 'post-2' }, { id: 'post-1' }],
+						groups: [
+							{ id: 'featured', label: 'Featured', value: 'featured', items: [{ id: 'post-2' }] }
+						]
+					}
+				}
+			},
+			collections: ['posts']
+		});
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			groups: [{ id: 'featured', items: [{ itemId: 'post-2' }] }],
+			items: [{ itemId: 'post-1' }]
+		});
+		await expect(githubRepositoryCacheTestApi.getCollectionIndex('posts')).resolves.not.toBeNull();
 	});
 
 	it('clears a collection index when a new file appears inside its content directory', async () => {
@@ -677,15 +1275,17 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			priority: 'foreground'
 		});
 
-		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
-			.toMatchObject({
-				content: { title: 'About' }
-			});
+		await expect(
+			githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })
+		).resolves.toMatchObject({
+			content: { title: 'About' }
+		});
 
 		await githubRepositoryCache.invalidatePaths(['src/content/about.md']);
 
-		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
-			.toBeNull();
+		await expect(
+			githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })
+		).resolves.toBeNull();
 		expect(
 			get(githubCacheInventoryStatus).records.find(
 				(record) => record.targetId === 'singletonDocument:about'
@@ -738,8 +1338,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 
 		await githubRepositoryCache.invalidatePaths(['tentman/configs/about.tentman.json']);
 
-		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
-			.toBeNull();
+		await expect(
+			githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })
+		).resolves.toBeNull();
 		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
 			items: [{ itemId: 'hello-world' }]
 		});
@@ -901,12 +1502,13 @@ describe('githubRepositoryCache IndexedDB records', () => {
 				(record) => record.targetId === 'itemDocument:posts:post-1'
 			)
 		).toMatchObject({ status: 'fresh' });
-		await expect(githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'post-1' }))
-			.resolves.toMatchObject({
-				content: {
-					title: 'Fresh post-1'
-				}
-			});
+		await expect(
+			githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'post-1' })
+		).resolves.toMatchObject({
+			content: {
+				title: 'Fresh post-1'
+			}
+		});
 	});
 
 	it('keeps durable inventory totals visible when a warm run restarts', async () => {
@@ -948,7 +1550,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 	it('clears a draft ref snapshot and index without clearing another ref', async () => {
 		const mainFetcher = vi.fn(async () => Response.json(createIndexPayload()));
 		const draftFetcher = vi.fn(async () =>
-			Response.json(createIndexPayloadForRef(createFallbackItems(1), 'tentman-preview', 'tree-draft'))
+			Response.json(
+				createIndexPayloadForRef(createFallbackItems(1), 'tentman-preview', 'tree-draft')
+			)
 		);
 
 		await githubRepositoryCache.hydrateFromBootstrap({
@@ -1020,15 +1624,16 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			priority: 'foreground'
 		});
 
-		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
-			.toMatchObject({
-				content: {
-					title: 'About Tentman'
-				},
-				blockSupport: {
-					blockConfigs: [{ id: 'hero' }],
-					blockRegistryError: null
-				}
+		await expect(
+			githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })
+		).resolves.toMatchObject({
+			content: {
+				title: 'About Tentman'
+			},
+			blockSupport: {
+				blockConfigs: [{ id: 'hero' }],
+				blockRegistryError: null
+			}
 		});
 		expect(fetcher).toHaveBeenCalledTimes(1);
 	});
@@ -1150,9 +1755,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		const draftFetcher = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
 			if (url.startsWith('/api/repo/collection-index')) {
-				return Response.json(
-					createIndexPayloadForRef(mainItems, 'tentman-preview', 'tree-draft')
-				);
+				return Response.json(createIndexPayloadForRef(mainItems, 'tentman-preview', 'tree-draft'));
 			}
 			if (url.startsWith('/api/repo/collection-projections')) {
 				throw new Error('matching draft blobs should reuse cached projections');
@@ -1210,12 +1813,13 @@ describe('githubRepositoryCache IndexedDB records', () => {
 				}
 			]
 		});
-		await expect(githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'post-1' }))
-			.resolves.toMatchObject({
-				content: {
-					title: 'Cached main document'
-				}
-			});
+		await expect(
+			githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'post-1' })
+		).resolves.toMatchObject({
+			content: {
+				title: 'Cached main document'
+			}
+		});
 		expect(draftFetcher).toHaveBeenCalledTimes(1);
 		expect(draftFetcher).toHaveBeenCalledWith('/api/repo/collection-index?slug=posts');
 	});
@@ -1283,10 +1887,11 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			}
 		});
 
-		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
-			.toMatchObject({
-				content: { title: 'About' }
-			});
+		await expect(
+			githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })
+		).resolves.toMatchObject({
+			content: { title: 'About' }
+		});
 		await expect(
 			githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'stable-hello' })
 		).resolves.toMatchObject({
@@ -1305,8 +1910,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			bootstrap
 		});
 
-		await expect(githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })).resolves
-			.toBeNull();
+		await expect(
+			githubRepositoryCache.getSingletonDocumentForRoute({ slug: 'about' })
+		).resolves.toBeNull();
 		await expect(
 			githubRepositoryCache.getItemDocumentForRoute({ slug: 'posts', itemId: 'stable-hello' })
 		).resolves.toBeNull();
@@ -1327,7 +1933,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			}
 			if (url.startsWith('/api/repo/item-view')) {
 				const parsedUrl = new URL(url, 'http://localhost');
-				events.push(`document:${parsedUrl.searchParams.get('slug')}:${parsedUrl.searchParams.get('itemId')}`);
+				events.push(
+					`document:${parsedUrl.searchParams.get('slug')}:${parsedUrl.searchParams.get('itemId')}`
+				);
 				return Response.json({
 					item: {
 						title: parsedUrl.searchParams.get('itemId')
@@ -1350,7 +1958,9 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			events.push(`projection:${body.slug}:${body.blobShas.join(',')}`);
 			return Response.json({
 				indexIdentity:
-					body.slug === 'notes' ? createNotesIndexPayload().identity : createIndexPayload().identity,
+					body.slug === 'notes'
+						? createNotesIndexPayload().identity
+						: createIndexPayload().identity,
 				items: createProjectionItems(body.blobShas)
 			});
 		});
@@ -1480,6 +2090,132 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		expect(itemViewCalls).toEqual(['post-1']);
 	});
 
+	it('caps idle full-document warming without limiting projection hydration', async () => {
+		githubRepositoryCacheTestApi.setIdleFullDocumentWarmBudgetForTests({ recordLimit: 2 });
+		const itemViewCalls: string[] = [];
+		const items = createFallbackItems(4);
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createCollectionConfig('posts', 'Posts', 'src/content/posts')]
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(items));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				const parsedUrl = new URL(url, 'http://localhost');
+				const itemId = parsedUrl.searchParams.get('itemId') ?? '';
+				itemViewCalls.push(itemId);
+				return Response.json({
+					item: {
+						title: itemId
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayloadWithItems(items).identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('ready');
+
+		expect(itemViewCalls).toEqual(['post-1', 'post-2']);
+		const inventory = get(githubCacheInventoryStatus);
+		expect(
+			inventory.records
+				.filter((record) => record.targetType === 'collectionProjection')
+				.sort((a, b) => a.targetId.localeCompare(b.targetId))
+				.map((record) => record.status)
+		).toEqual(['fresh', 'fresh', 'fresh', 'fresh']);
+		expect(
+			inventory.records
+				.filter((record) => record.targetType === 'itemDocument')
+				.sort((a, b) => a.targetId.localeCompare(b.targetId))
+				.map((record) => record.status)
+		).toEqual(['fresh', 'fresh', 'skipped-budget', 'skipped-budget']);
+	});
+
+	it('stops later idle full-document fetches after the byte budget is exhausted', async () => {
+		githubRepositoryCacheTestApi.setIdleFullDocumentWarmBudgetForTests({
+			bytes: 1,
+			recordLimit: 10
+		});
+		const itemViewCalls: string[] = [];
+		const items = createFallbackItems(3);
+		const bootstrap = {
+			...createBootstrap(),
+			configs: [createCollectionConfig('posts', 'Posts', 'src/content/posts')]
+		} as RepoConfigsBootstrap;
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(items));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				const parsedUrl = new URL(url, 'http://localhost');
+				const itemId = parsedUrl.searchParams.get('itemId') ?? '';
+				itemViewCalls.push(itemId);
+				return Response.json({
+					item: {
+						title: itemId
+					},
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayloadWithItems(items).identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('ready');
+
+		expect(itemViewCalls).toEqual(['post-1']);
+		expect(
+			get(githubCacheInventoryStatus)
+				.records.filter((record) => record.targetType === 'itemDocument')
+				.sort((a, b) => a.targetId.localeCompare(b.targetId))
+				.map((record) => record.status)
+		).toEqual(['fresh', 'skipped-budget', 'skipped-budget']);
+	});
+
 	it('schedules only the requested collection item document when a single item route is warmed', async () => {
 		const documentCalls: string[] = [];
 		const itemDocuments = new Map(
@@ -1523,9 +2259,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			priority: 'foreground'
 		});
 
-		await expect
-			.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total)
-			.toBe(1);
+		await expect.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total).toBe(1);
 		expect(documentCalls[0]).toBe('post-2');
 		expect(documentCalls).toEqual(['post-2']);
 
@@ -1570,9 +2304,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			fetcher,
 			priority: 'passive'
 		});
-		await expect
-			.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total)
-			.toBe(3);
+		await expect.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total).toBe(3);
 
 		const totalBeforePromotion = get(githubCacheWarmDebugStatus).totalTasks;
 		for (let index = 0; index < 3; index += 1) {
@@ -1582,9 +2314,7 @@ describe('githubRepositoryCache IndexedDB records', () => {
 				fetcher
 			});
 		}
-		await expect
-			.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total)
-			.toBe(3);
+		await expect.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total).toBe(3);
 		expect(get(githubCacheWarmDebugStatus).totalTasks).toBe(totalBeforePromotion);
 
 		for (const [itemId, deferred] of itemDocuments) {
@@ -1601,6 +2331,548 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.completed)
 			.toBe(3);
 	});
+
+	it('keeps foreground item route work ahead of passive queued documents', async () => {
+		const idleCallbacks: IdleRequestCallback[] = [];
+		const idleWindow = window as unknown as MutableIdleWindow;
+		idleWindow.requestIdleCallback = ((callback: IdleRequestCallback) => {
+			idleCallbacks.push(callback);
+			return idleCallbacks.length;
+		}) as typeof window.requestIdleCallback;
+
+		const documentCalls: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(3)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				const parsedUrl = new URL(url, 'http://localhost');
+				const itemId = parsedUrl.searchParams.get('itemId') ?? '';
+				documentCalls.push(itemId);
+				return Response.json({
+					item: { title: itemId },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			return Response.json({
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+
+		void githubRepositoryCache.warmCollectionDocuments('posts', {
+			fetcher,
+			priority: 'passive'
+		});
+		await expect.poll(() => get(githubCacheWarmDebugStatus).taskKinds.itemDocument.total).toBe(3);
+
+		const promoted = githubRepositoryCache.warmItemDocumentForRoute({
+			slug: 'posts',
+			itemId: 'post-3',
+			fetcher,
+			priority: 'foreground'
+		});
+
+		await expect.poll(() => documentCalls).toEqual(['post-3']);
+		expect(idleCallbacks.length).toBeGreaterThan(0);
+		for (const callback of idleCallbacks) {
+			callback({ didTimeout: false, timeRemaining: () => 50 });
+		}
+		await promoted;
+	});
+
+	it('does not write stale block support after the repository identity changes mid-flight', async () => {
+		const itemResponse = createDeferred<Response>();
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return itemResponse.promise;
+			}
+			return Response.json({
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		const warmPromise = githubRepositoryCache.warmItemDocumentForRoute({
+			slug: 'posts',
+			itemId: 'post-1',
+			fetcher,
+			priority: 'foreground'
+		});
+		await expect
+			.poll(() => fetcher)
+			.toHaveBeenCalledWith('/api/repo/item-view?slug=posts&itemId=post-1');
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap('tree-next')
+		});
+		itemResponse.resolve(
+			Response.json({
+				item: { title: 'stale post' },
+				blockConfigs: [{ slug: 'stale-block' }],
+				packageBlocks: [],
+				blockRegistryError: null
+			})
+		);
+
+		await expect(warmPromise).resolves.toBeNull();
+		await expect(githubRepositoryCache.getBlockSupport()).resolves.toBeNull();
+	});
+
+	it('retries rate-limited foreground cache work and surfaces the backoff status', async () => {
+		githubRepositoryCacheTestApi.setEndpointRetryPolicyForTests({
+			attempts: 2,
+			baseDelayMs: 200,
+			maxDelayMs: 200
+		});
+		let calls = 0;
+		const fetcher = vi.fn(async () => {
+			calls += 1;
+			if (calls === 1) {
+				return new Response(null, {
+					status: 429,
+					headers: {
+						'retry-after': '1'
+					}
+				});
+			}
+			return Response.json(createIndexPayload());
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		const promise = githubRepositoryCache.ensureCollectionIndex('posts', { fetcher });
+
+		await expect
+			.poll(() => get(githubCacheWarmStatus).message)
+			.toBe('GitHub rate limit reached; retrying cache work');
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'backing-off',
+			operation: 'retry-backoff',
+			label: 'Posts'
+		});
+		await expect(promise).resolves.toBeUndefined();
+		expect(fetcher).toHaveBeenCalledTimes(2);
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ itemId: 'hello-world' }]
+		});
+	});
+
+	it('retries rate-limited projection batches and surfaces the backoff status', async () => {
+		githubRepositoryCacheTestApi.setEndpointRetryPolicyForTests({
+			attempts: 2,
+			baseDelayMs: 50,
+			maxDelayMs: 50
+		});
+		let projectionCalls = 0;
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			projectionCalls += 1;
+			if (projectionCalls === 1) {
+				return new Response(null, {
+					status: 429,
+					headers: {
+						'retry-after': '1'
+					}
+				});
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayload().identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		const promise = githubRepositoryCache.warmCollection('posts', {
+			fetcher,
+			visibleLimit: 1,
+			hydrateRemaining: false,
+			warmDocuments: false
+		});
+
+		await expect
+			.poll(() => get(githubCacheWarmStatus).message)
+			.toBe('GitHub rate limit reached; retrying cache work');
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-work',
+					phase: 'backoff',
+					operation: 'retry-backoff',
+					workflow: 'desktop-collection-landing',
+					route: '/pages/posts',
+					repoFullName: 'acme/docs',
+					ref: 'main',
+					taskKind: 'collectionProjectionBatch',
+					priority: 'foreground',
+					reason: 'GitHub rate limit reached; retrying cache work'
+				})
+			])
+		);
+		await expect(promise).resolves.toBeUndefined();
+		expect(projectionCalls).toBe(2);
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ title: 'Post 1', hydration: 'hydrated' }]
+		});
+	});
+
+	it('retries secondary-limited projection batches with retry-after guidance', async () => {
+		githubRepositoryCacheTestApi.setEndpointRetryPolicyForTests({
+			attempts: 2,
+			baseDelayMs: 50,
+			maxDelayMs: 50
+		});
+		let projectionCalls = 0;
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			projectionCalls += 1;
+			if (projectionCalls === 1) {
+				return Response.json(
+					{ message: 'You have exceeded a secondary rate limit.' },
+					{
+						status: 403,
+						headers: {
+							'retry-after': '1'
+						}
+					}
+				);
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[] };
+			return Response.json({
+				indexIdentity: createIndexPayload().identity,
+				items: createProjectionItems(body.blobShas)
+			});
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await expect(
+			githubRepositoryCache.warmCollection('posts', {
+				fetcher,
+				visibleLimit: 1,
+				hydrateRemaining: false,
+				warmDocuments: false
+			})
+		).resolves.toBeUndefined();
+
+		expect(projectionCalls).toBe(2);
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ title: 'Post 1', hydration: 'hydrated' }]
+		});
+	});
+
+	it('pauses passive warming before document fetches when projection responses report exhausted quota', async () => {
+		const itemViewCalls: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				if (url.includes('slug=notes')) {
+					return Response.json(createNotesIndexPayload());
+				}
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				itemViewCalls.push(url);
+				return Response.json({
+					item: { title: 'Should not warm' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			const body = JSON.parse(String(init?.body)) as { blobShas: string[]; slug: string };
+			return Response.json(
+				{
+					indexIdentity:
+						body.slug === 'notes'
+							? createNotesIndexPayload().identity
+							: createIndexPayload().identity,
+					items: createProjectionItems(body.blobShas)
+				},
+				{
+					headers: {
+						'x-ratelimit-remaining': '0',
+						'x-ratelimit-reset': '123'
+					}
+				}
+			);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('error');
+		expect(get(githubCacheWarmStatus)).toMatchObject({
+			message: 'Cache warm paused',
+			error: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'rate-limited',
+			operation: 'rate-limit-pause',
+			reason: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(itemViewCalls).toEqual([]);
+	});
+
+	it('pauses passive warming when final projection responses report exhausted quota with a failure status', async () => {
+		githubRepositoryCacheTestApi.setEndpointRetryPolicyForTests({
+			attempts: 1,
+			baseDelayMs: 50,
+			maxDelayMs: 50
+		});
+		const itemViewCalls: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				if (url.includes('slug=notes')) {
+					return Response.json(createNotesIndexPayload());
+				}
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				itemViewCalls.push(url);
+				return Response.json({
+					item: { title: 'Should not warm' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			return Response.json(
+				{ message: 'API rate limit exceeded' },
+				{
+					status: 403,
+					headers: {
+						'x-ratelimit-remaining': '0',
+						'x-ratelimit-reset': '123'
+					}
+				}
+			);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('error');
+		expect(get(githubCacheWarmStatus)).toMatchObject({
+			message: 'Cache warm paused',
+			error: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'rate-limited',
+			operation: 'rate-limit-pause',
+			reason: 'GitHub rate limit exhausted; background cache warm paused'
+		});
+		expect(itemViewCalls).toEqual([]);
+	});
+
+	it('pauses passive warming before document fetches when projection responses report low quota', async () => {
+		const itemViewCalls: string[] = [];
+		const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/form-config')) {
+				return Response.json({
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				if (url.includes('slug=notes')) {
+					return Response.json(createNotesIndexPayload());
+				}
+				return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				itemViewCalls.push(url);
+				return Response.json({
+					item: { title: 'Should not warm' },
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+
+			return createLowQuotaProjectionBatchResponse(init);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		githubRepositoryCache.startIdleSiteWarm({ fetcher });
+
+		await expect.poll(() => get(githubCacheWarmStatus).phase).toBe('error');
+		expect(get(githubCacheWarmStatus)).toMatchObject({
+			message: 'Cache warm paused',
+			error: 'GitHub core quota low; background cache warm paused'
+		});
+		expect(get(githubCacheWorkObservabilityStatus).current).toMatchObject({
+			state: 'rate-limited',
+			operation: 'rate-limit-pause',
+			reason: 'GitHub core quota low; background cache warm paused'
+		});
+		expect(itemViewCalls).toEqual([]);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'cache-work',
+					phase: 'paused',
+					operation: 'rate-limit-pause',
+					taskKind: 'collectionProjectionBatch',
+					priority: 'topLevel',
+					reason: 'GitHub core quota low; background cache warm paused'
+				})
+			])
+		);
+	});
+
+	it.each(['foreground', 'intent'] as const)(
+		'allows %s route cache work to use successful low-quota projection responses',
+		async (priority) => {
+			const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+				}
+
+				return createLowQuotaProjectionBatchResponse(init);
+			});
+
+			await githubRepositoryCache.hydrateFromBootstrap({
+				repoFullName: 'acme/docs',
+				bootstrap: createBootstrap()
+			});
+
+			await expect(
+				githubRepositoryCache.warmCollection('posts', {
+					fetcher,
+					visibleLimit: 1,
+					hydrateRemaining: false,
+					warmDocuments: false,
+					priority
+				})
+			).resolves.toBeUndefined();
+
+			expect(get(githubCacheWarmStatus).error).toBeNull();
+			await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+				items: [{ title: 'Post 1', hydration: 'hydrated' }]
+			});
+		}
+	);
+
+	it.each(['foreground', 'intent'] as const)(
+		'allows %s route cache work to fail visibly when low quota is reported',
+		async (priority) => {
+			const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.startsWith('/api/repo/collection-index')) {
+					return Response.json(createIndexPayloadWithItems(createFallbackItems(1)));
+				}
+
+				return Response.json(
+					{ message: 'API rate limit nearly exhausted' },
+					{
+						status: 403,
+						headers: {
+							'x-ratelimit-remaining': '499',
+							'x-ratelimit-reset': '123'
+						}
+					}
+				);
+			});
+
+			await githubRepositoryCache.hydrateFromBootstrap({
+				repoFullName: 'acme/docs',
+				bootstrap: createBootstrap()
+			});
+
+			await expect(
+				githubRepositoryCache.warmCollection('posts', {
+					fetcher,
+					visibleLimit: 1,
+					hydrateRemaining: false,
+					warmDocuments: false,
+					priority
+				})
+			).rejects.toThrow('Failed to hydrate collection projections (403)');
+
+			expect(get(githubCacheWarmStatus).error).toBeNull();
+			expect(get(githubCacheWorkObservabilityStatus).current).not.toMatchObject({
+				state: 'rate-limited',
+				operation: 'rate-limit-pause'
+			});
+			expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						kind: 'browser-request',
+						endpoint: '/api/repo/collection-projections',
+						priority,
+						responseStatus: 403,
+						resultStatus: 'error'
+					})
+				])
+			);
+		}
+	);
 
 	it('does not refetch projections already cached by blob SHA and schema identity', async () => {
 		const projectionCalls: string[][] = [];
@@ -1658,11 +2930,15 @@ describe('githubRepositoryCache IndexedDB records', () => {
 	it('checks freshness with the active repository identity', async () => {
 		const fetcher = vi.fn(async (input: RequestInfo | URL) => {
 			const url = new URL(String(input), 'http://localhost');
-			expect(url.pathname).toBe('/api/repo/configs');
+			expect(url.pathname).toBe('/api/repo/freshness');
 			expect(url.searchParams.get('previousRef')).toBe('main');
 			expect(url.searchParams.get('previousHeadSha')).toBe('head-main');
 			expect(url.searchParams.get('previousTreeSha')).toBe('tree-main');
-			return Response.json(createBootstrap());
+			return Response.json({
+				repositoryIdentity: createBootstrap().repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap().repositoryIdentity,
+				draftRepositoryIdentity: null
+			});
 		});
 
 		await githubRepositoryCache.hydrateFromBootstrap({
@@ -1676,6 +2952,64 @@ describe('githubRepositoryCache IndexedDB records', () => {
 		});
 
 		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'browser-request',
+					workflow: 'freshness',
+					endpoint: expect.stringContaining('/api/repo/freshness'),
+					priority: 'passive'
+				})
+			])
+		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'freshness',
+			route: '/pages',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
+		expect(get(githubCacheInventoryStatus).lastCheckedAt).toEqual(expect.any(Number));
+	});
+
+	it('dedupes concurrent unchanged freshness checks for the same active identity', async () => {
+		const deferred = createDeferred<Response>();
+		const fetcher = vi.fn(async () => deferred.promise);
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		const firstCheck = githubRepositoryCache.checkFreshness({
+			fetcher,
+			warmChanged: false
+		});
+		const secondCheck = githubRepositoryCache.checkFreshness({
+			fetcher,
+			warmChanged: false
+		});
+
+		await expect.poll(() => fetcher).toHaveBeenCalledTimes(1);
+		deferred.resolve(
+			Response.json({
+				repositoryIdentity: createBootstrap().repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap().repositoryIdentity,
+				draftRepositoryIdentity: null
+			})
+		);
+
+		await expect(Promise.all([firstCheck, secondCheck])).resolves.toEqual([undefined, undefined]);
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'freshness',
+			route: '/pages',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('surfaces failed freshness checks through inventory while keeping cached navigation usable', async () => {
@@ -1717,12 +3051,18 @@ describe('githubRepositoryCache IndexedDB records', () => {
 	it('backs off unchanged freshness checks and resets after changed paths', async () => {
 		const fetcher = vi.fn(async () => Response.json(createBootstrap()));
 		const indexFetcher = vi.fn(async () => Response.json(createIndexPayload()));
-		const changedFetcher = vi.fn(async () =>
-			Response.json({
-				...createBootstrap('tree-next'),
+		const changedCalls: string[] = [];
+		const changedFetcher = vi.fn(async (input: RequestInfo | URL) => {
+			changedCalls.push(String(input));
+			return Response.json({
+				repositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				draftRepositoryIdentity: null,
+				unchanged: false,
+				freshnessStatus: 'changed',
 				changedPaths: ['src/content/posts/hello-world.md']
-			})
-		);
+			});
+		});
 
 		await githubRepositoryCache.hydrateFromBootstrap({
 			repoFullName: 'acme/docs',
@@ -1751,6 +3091,55 @@ describe('githubRepositoryCache IndexedDB records', () => {
 			get(githubCacheInventoryStatus).records.find(
 				(record) => record.targetId === 'collectionIndex:posts'
 			)
-		).toMatchObject({ status: 'missing' });
+		).toMatchObject({ status: 'stale' });
+		expect(changedFetcher).toHaveBeenCalledTimes(1);
+		expect(changedCalls[0]).toContain('/api/repo/freshness');
+		expect(changedCalls[0]).not.toContain('/api/repo/configs');
+	});
+
+	it('marks active records stale with recovery guidance when freshness cannot derive paths', async () => {
+		const indexFetcher = vi.fn(async () => Response.json(createIndexPayload()));
+		const staleFetcher = vi.fn(async () =>
+			Response.json({
+				repositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				mainRepositoryIdentity: createBootstrap('tree-next').repositoryIdentity,
+				draftRepositoryIdentity: null,
+				unchanged: false,
+				freshnessStatus: 'stale',
+				changedPaths: null,
+				error: 'The previous GitHub tree is no longer available.',
+				recovery: 'Refresh stale GitHub cache records to reload route data.'
+			})
+		);
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+		await githubRepositoryCache.ensureCollectionIndex('posts', { fetcher: indexFetcher });
+
+		await githubRepositoryCache.checkFreshness({
+			fetcher: staleFetcher,
+			warmChanged: false
+		});
+
+		await expect(githubRepositoryCache.getCollectionNavigation('posts')).resolves.toMatchObject({
+			items: [{ itemId: 'hello-world' }]
+		});
+		expect(get(githubCacheInventoryStatus).records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					targetId: 'collectionIndex:posts',
+					status: 'stale',
+					error: expect.stringContaining('Refresh stale GitHub cache records')
+				}),
+				expect.objectContaining({
+					targetId: 'blockSupport',
+					status: 'stale',
+					error: expect.stringContaining('previous GitHub tree')
+				})
+			])
+		);
+		expect(staleFetcher).toHaveBeenCalledTimes(1);
 	});
 });

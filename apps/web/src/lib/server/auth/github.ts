@@ -10,6 +10,7 @@ import {
 import { env } from '$env/dynamic/private';
 import { Octokit } from 'octokit';
 import type { RootConfig } from '$lib/config/root-config';
+import type { RepoBootstrapIdentity } from '$lib/repository/config-bootstrap';
 import type {
 	GitHubUserSnapshot,
 	RecentGitHubRepositorySnapshot,
@@ -47,6 +48,8 @@ interface GitHubOAuthRelayStateEnvelope {
 	payload: GitHubOAuthRelayStatePayload;
 	signatureValid: boolean;
 }
+
+type GitHubOAuthDebugDetails = Record<string, boolean | number | string | null | undefined>;
 
 interface GitHubSessionPayload {
 	token: string;
@@ -185,6 +188,18 @@ function getNetlifyMainSiteUrlForDeployHost(requestUrl: URL): URL | null {
 	} catch {
 		return null;
 	}
+}
+
+export function logGitHubOAuthDebug(event: string, details: GitHubOAuthDebugDetails = {}): void {
+	console.info(`[DEBUG-github-oauth] ${event}`, JSON.stringify(details));
+}
+
+export function getGitHubOAuthStateFingerprint(state: string | null | undefined): string | null {
+	if (!state) {
+		return null;
+	}
+
+	return createHash('sha256').update(state).digest('hex').slice(0, 12);
 }
 
 export function getGitHubCookieOptions(
@@ -380,16 +395,20 @@ export function readGitHubSession(cookies: Pick<Cookies, 'get' | 'delete'>): {
 export function persistSelectedGitHubRepository(
 	cookies: Pick<Cookies, 'get' | 'set' | 'delete'>,
 	repository: GitHubRepositoryIdentity,
-	rootConfig: RootConfig | null
+	rootConfig: RootConfig | null,
+	repositoryIdentity?: RepoBootstrapIdentity | null
 ): void {
 	const options = getGitHubCookieOptions();
 	const selectedRepoConfigSummary: SelectedRepoConfigSummary | null = rootConfig
 		? {
 				...(rootConfig.siteName ? { siteName: rootConfig.siteName } : {}),
 				...(rootConfig.componentsDir ? { componentsDir: rootConfig.componentsDir } : {}),
-				...(rootConfig.netlify ? { netlify: rootConfig.netlify } : {})
+				...(rootConfig.netlify ? { netlify: rootConfig.netlify } : {}),
+				...(repositoryIdentity ? { repositoryIdentity } : {})
 			}
-		: null;
+		: repositoryIdentity
+			? { repositoryIdentity }
+			: null;
 
 	cookies.set(SELECTED_REPO_COOKIE, JSON.stringify(repository), options);
 	cookies.set(

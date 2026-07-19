@@ -1,4 +1,5 @@
 export * from './content-components.js';
+export * from './navigation-manifest.js';
 
 export interface TentmanDiagnostic {
 	level: 'error' | 'warning';
@@ -23,14 +24,7 @@ export interface RootAssetConfig {
 	publicPath: string;
 }
 
-export interface NavigationManifest {
-	version: 1;
-	content?: Record<string, unknown>;
-	collections?: Record<string, unknown>;
-}
-
 export const ROOT_CONFIG_PATH: string;
-export const NAVIGATION_MANIFEST_PATH: string;
 export const TENTMAN_ID_PREFIX: string;
 export const TENTMAN_ID_PATTERN: RegExp;
 
@@ -42,8 +36,6 @@ export class TentmanProjectError extends Error {
 export function createTentmanId(): string;
 export function describeTentmanId(value: string): string;
 export function isTentmanId(value: string): boolean;
-export function parseNavigationManifest(source: string): NavigationManifest;
-export function serializeNavigationManifest(manifest: NavigationManifest): string;
 export function detectJsonIndent(source: string): string;
 export function isMarkdownContentPath(filePath: string): boolean;
 export function parseContentRecordFile(filePath: string, source: string): Record<string, unknown>;

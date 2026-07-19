@@ -20,12 +20,21 @@ import {
 	GITHUB_REPO_SESSION_COOKIE,
 	GITHUB_SESSION_COOKIE,
 	GITHUB_TOKEN_COOKIE,
+	readSelectedGitHubRepositorySession,
 	SELECTED_REPO_COOKIE
 } from '$lib/server/auth/github';
 
 function createCookies() {
+	const values = new Map<string, string>();
 	return {
-		delete: vi.fn()
+		values,
+		get: vi.fn((name: string) => values.get(name)),
+		set: vi.fn((name: string, value: string) => {
+			values.set(name, value);
+		}),
+		delete: vi.fn((name: string) => {
+			values.delete(name);
+		})
 	};
 }
 
@@ -209,7 +218,49 @@ describe('GET /api/repo/configs', () => {
 				treeSha: 'github:acme/docs?ref=main:main'
 			},
 			draftRepositoryIdentity: null,
-			changedPaths: null
+			changedPaths: null,
+			freshnessStatus: 'unchanged',
+			workflowData: {
+				identity: {
+					mode: 'github',
+					workspaceKey: 'github:acme/docs?ref=main',
+					workspaceLabel: 'acme/docs',
+					hasEditableDraft: false
+				},
+				rootConfig: null,
+				configs: [
+					{
+						slug: 'posts',
+						path: 'content/posts.tentman.json'
+					}
+				],
+				navigationManifest: {
+					path: 'tentman/navigation-manifest.json',
+					exists: false,
+					manifest: null,
+					error: null
+				},
+				blockSupport: {
+					blockConfigs: [],
+					packageBlocks: [],
+					error: null
+				},
+				changedContentPaths: [],
+				freshness: {
+					status: 'unchanged',
+					unchanged: true,
+					changedContentPaths: []
+				}
+			}
+		});
+		expect(readSelectedGitHubRepositorySession(cookies)).toMatchObject({
+			selectedRepoConfigSummary: {
+				repositoryIdentity: {
+					ref: 'main',
+					headSha: 'github:acme/docs?ref=main:main',
+					treeSha: 'github:acme/docs?ref=main:main'
+				}
+			}
 		});
 	});
 

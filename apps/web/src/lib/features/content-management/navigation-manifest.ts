@@ -1,4 +1,22 @@
 import { JSONPath } from 'jsonpath-plus';
+import {
+	getNavigationReferenceId,
+	getNavigationReferenceIds,
+	NAVIGATION_MANIFEST_PATH,
+	normalizeNavigationReference,
+	parseNavigationManifest,
+	serializeNavigationManifest
+} from '@tentman/core/navigation-manifest';
+import type {
+	NavigationManifest as CoreNavigationManifest,
+	NavigationManifestCollection as CoreNavigationManifestCollection,
+	NavigationManifestCollectionInput as CoreNavigationManifestCollectionInput,
+	NavigationManifestGroup as CoreNavigationManifestGroup,
+	NavigationManifestGroupInput as CoreNavigationManifestGroupInput,
+	NavigationManifestInput as CoreNavigationManifestInput,
+	NavigationReference,
+	NavigationReferenceInput
+} from '@tentman/core/navigation-manifest';
 import { fetchContentDocument } from '$lib/content/service';
 import type { DiscoveredConfig } from '$lib/config/discovery';
 import type { CollectionGroupConfig } from '$lib/config/types';
@@ -18,6 +36,7 @@ import {
 	isCollectionManifestBacked,
 	isCollectionOrderingEnabled
 } from './config';
+import { toNavigationReferences } from './navigation-references';
 import { getItemFilename, getItemId, getItemRoute, getItemSlug } from './item';
 import { createTentmanId, hasGeneratedTentmanId } from './stable-identity';
 import type { ContentRecord } from './types';
@@ -29,34 +48,17 @@ import type {
 	RepositoryWriteOptions
 } from '$lib/repository/types';
 
-export const NAVIGATION_MANIFEST_PATH = 'tentman/navigation-manifest.json';
+export { NAVIGATION_MANIFEST_PATH, parseNavigationManifest, serializeNavigationManifest };
+
 const ROOT_CONFIG_PATH = 'tentman.json';
 const NAVIGATION_MANIFEST_CACHE_TTL = 60 * 1000;
 
-export interface NavigationManifestGroup {
-	id: string;
-	label?: string;
-	value?: string;
-	items: string[];
-}
-
-export interface NavigationManifestCollection {
-	id?: string;
-	label?: string;
-	slug?: string;
-	href?: string;
-	configId?: string;
-	items: string[];
-	groups?: NavigationManifestGroup[];
-}
-
-export interface NavigationManifest {
-	version: 1;
-	content?: {
-		items: string[];
-	};
-	collections?: Record<string, NavigationManifestCollection>;
-}
+export type NavigationManifestGroup = CoreNavigationManifestGroup;
+export type NavigationManifestCollection = CoreNavigationManifestCollection;
+export type NavigationManifest = CoreNavigationManifest;
+export type NavigationManifestInput = CoreNavigationManifestInput;
+export type NavigationManifestGroupInput = CoreNavigationManifestGroupInput;
+export type NavigationManifestCollectionInput = CoreNavigationManifestCollectionInput;
 
 export interface CollectionOrderDraftGroup {
 	id: string;
@@ -143,30 +145,6 @@ function assertObject(value: unknown, message: string): asserts value is Record<
 	}
 }
 
-function readStringArray(value: unknown, context: string): string[] {
-	if (!Array.isArray(value)) {
-		throw new Error(`${context} must be an array`);
-	}
-
-	return value.map((entry, index) => {
-		if (typeof entry === 'string' && entry.length > 0) {
-			return entry;
-		}
-
-		if (
-			entry &&
-			typeof entry === 'object' &&
-			!Array.isArray(entry) &&
-			typeof entry.id === 'string' &&
-			entry.id.length > 0
-		) {
-			return entry.id;
-		}
-
-		throw new Error(`${context}[${index}] must be a non-empty string or object with id`);
-	});
-}
-
 function readOptionalString(value: unknown, context: string): string | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -177,6 +155,20 @@ function readOptionalString(value: unknown, context: string): string | undefined
 	}
 
 	return value;
+}
+
+function getNavigationIds(references: NavigationReferenceInput[] | null | undefined): string[] {
+	return getNavigationReferenceIds(references);
+}
+
+function cloneNavigationReferences(
+	references: NavigationReferenceInput[] | null | undefined
+): NavigationReference[] {
+	return (references ?? []).map((reference) => normalizeNavigationReference(reference));
+}
+
+function getGroupNavigationReferences(groups: NavigationManifestGroup[]): NavigationReference[] {
+	return cloneNavigationReferences(groups.flatMap((group) => group.items ?? []));
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
@@ -259,15 +251,15 @@ function getItemReferenceCandidates(config: DiscoveredConfig, item: ContentRecor
 
 function getConfigReferenceSet(manifest: NavigationManifest | null | undefined): Set<string> {
 	return new Set([
-		...(manifest?.content?.items ?? []),
+		...getNavigationIds(manifest?.content?.items),
 		...Object.keys(manifest?.collections ?? {})
 	]);
 }
 
 function getCollectionReferenceSet(collection: NavigationManifestCollection | null): Set<string> {
 	return new Set([
-		...(collection?.items ?? []),
-		...(collection?.groups?.flatMap((group) => group.items) ?? [])
+		...getNavigationIds(collection?.items),
+		...(collection?.groups?.flatMap((group) => getNavigationIds(group.items)) ?? [])
 	]);
 }
 
@@ -331,14 +323,15 @@ function cloneManifestCollection(
 		...(collection.slug ? { slug: collection.slug } : {}),
 		...(collection.href ? { href: collection.href } : {}),
 		...(collection.configId ? { configId: collection.configId } : {}),
-		items: [...collection.items],
+		items: cloneNavigationReferences(collection.items),
 		...(collection.groups
 			? {
 					groups: collection.groups.map((group) => ({
 						id: group.id,
 						...(group.label ? { label: group.label } : {}),
 						...(group.value ? { value: group.value } : {}),
-						items: [...group.items]
+						...(group.href ? { href: group.href } : {}),
+						items: cloneNavigationReferences(group.items)
 					}))
 				}
 			: {})
@@ -372,116 +365,6 @@ function groupByKey<T>(items: T[], getKey: (item: T) => string): Map<string, T[]
 	}
 
 	return groups;
-}
-
-function parseNavigationManifestCollection(
-	value: unknown,
-	context: string
-): NavigationManifestCollection {
-	assertObject(value, `${context} must be an object`);
-
-	const items = readStringArray(value.items ?? [], `${context}.items`);
-	const groupsValue = value.groups;
-
-	if (groupsValue === undefined) {
-		return {
-			...(readOptionalString(value.id, `${context}.id`) ? { id: value.id as string } : {}),
-			...(readOptionalString(value.label, `${context}.label`)
-				? { label: value.label as string }
-				: {}),
-			...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug as string } : {}),
-			...(readOptionalString(value.href, `${context}.href`) ? { href: value.href as string } : {}),
-			...(readOptionalString(value.configId, `${context}.configId`)
-				? { configId: value.configId as string }
-				: {}),
-			items
-		};
-	}
-
-	if (!Array.isArray(groupsValue)) {
-		throw new Error(`${context}.groups must be an array`);
-	}
-
-	return {
-		...(readOptionalString(value.id, `${context}.id`) ? { id: value.id as string } : {}),
-		...(readOptionalString(value.label, `${context}.label`)
-			? { label: value.label as string }
-			: {}),
-		...(readOptionalString(value.slug, `${context}.slug`) ? { slug: value.slug as string } : {}),
-		...(readOptionalString(value.href, `${context}.href`) ? { href: value.href as string } : {}),
-		...(readOptionalString(value.configId, `${context}.configId`)
-			? { configId: value.configId as string }
-			: {}),
-		items,
-		groups: groupsValue.map((group, index) => {
-			assertObject(group, `${context}.groups[${index}] must be an object`);
-
-			if (typeof group.id !== 'string' || group.id.length === 0) {
-				throw new Error(`${context}.groups[${index}].id must be a non-empty string`);
-			}
-
-			if (
-				group.label !== undefined &&
-				(typeof group.label !== 'string' || group.label.length === 0)
-			) {
-				throw new Error(
-					`${context}.groups[${index}].label must be a non-empty string when present`
-				);
-			}
-
-			if (
-				group.value !== undefined &&
-				(typeof group.value !== 'string' || group.value.length === 0)
-			) {
-				throw new Error(
-					`${context}.groups[${index}].value must be a non-empty string when present`
-				);
-			}
-
-			return {
-				id: group.id,
-				...(group.label ? { label: group.label } : {}),
-				...(group.value ? { value: group.value } : {}),
-				items: readStringArray(group.items ?? [], `${context}.groups[${index}].items`)
-			};
-		})
-	};
-}
-
-export function parseNavigationManifest(input: string): NavigationManifest {
-	const parsed = JSON.parse(input) as unknown;
-	assertObject(parsed, 'navigation manifest must be an object');
-
-	if (parsed.version !== 1) {
-		throw new Error('navigation manifest version must be 1');
-	}
-
-	const manifest: NavigationManifest = {
-		version: 1
-	};
-
-	if (parsed.content !== undefined) {
-		assertObject(parsed.content, 'navigation manifest content must be an object');
-		manifest.content = {
-			items: readStringArray(parsed.content.items ?? [], 'navigation manifest content.items')
-		};
-	}
-
-	if (parsed.collections !== undefined) {
-		assertObject(parsed.collections, 'navigation manifest collections must be an object');
-		manifest.collections = Object.fromEntries(
-			Object.entries(parsed.collections).map(([configId, value]) => [
-				configId,
-				parseNavigationManifestCollection(value, `navigation manifest collections.${configId}`)
-			])
-		);
-	}
-
-	return manifest;
-}
-
-export function serializeNavigationManifest(manifest: NavigationManifest): string {
-	return `${JSON.stringify(manifest, null, '\t')}\n`;
 }
 
 function isServerRuntime(): boolean {
@@ -871,12 +754,12 @@ function getManifestItemGroupMap(
 		: null;
 
 	for (const group of collection?.groups ?? []) {
-		for (const itemId of group.items) {
+		for (const itemId of getNavigationIds(group.items)) {
 			map.set(itemId, group.id);
 		}
 	}
 
-	for (const itemId of collection?.items ?? []) {
+	for (const itemId of getNavigationIds(collection?.items)) {
 		if (!map.has(itemId)) {
 			map.set(itemId, null);
 		}
@@ -971,7 +854,7 @@ function toManifestGroups(
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: [...(draftGroups.get(group._tentmanId)?.items ?? [])]
+				items: toNavigationReferences(draftGroups.get(group._tentmanId)?.items ?? [])
 			}
 		];
 	});
@@ -985,7 +868,7 @@ function setManifestCollectionOrder(
 ): NavigationManifest {
 	const nextManifest: NavigationManifest = {
 		version: 1,
-		...(manifest?.content ? { content: { items: [...manifest.content.items] } } : {}),
+		...(manifest?.content ? { content: { items: [...(manifest.content.items ?? [])] } } : {}),
 		...(manifest?.collections
 			? {
 					collections: Object.fromEntries(
@@ -1002,7 +885,10 @@ function setManifestCollectionOrder(
 		...(nextManifest.collections ?? {}),
 		[configId]: {
 			...(nextManifest.collections?.[configId] ?? {}),
-			items: [...groups.flatMap((group) => group.items), ...ungroupedItems],
+			items: [
+				...groups.flatMap((group) => group.items ?? []),
+				...toNavigationReferences(ungroupedItems)
+			],
 			...(groups.length > 0 ? { groups } : {})
 		}
 	};
@@ -1014,7 +900,11 @@ function areNavigationManifestsEqual(
 	left: NavigationManifest | null | undefined,
 	right: NavigationManifest | null | undefined
 ): boolean {
-	return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+	if (!left || !right) {
+		return left === right;
+	}
+
+	return serializeNavigationManifest(left) === serializeNavigationManifest(right);
 }
 
 function getExistingGroupValues(
@@ -1077,23 +967,30 @@ function createManifestCollectionFromItems(
 		const itemId = getItemId(item);
 		return itemId ? [itemId] : [];
 	});
-	const orderedItems = appendRemainingIds(manifestCollection?.items ?? [], itemIds);
+	const orderedItems = appendRemainingIds(getNavigationIds(manifestCollection?.items), itemIds);
 	const itemGroups = getCurrentItemGroupMap(items, TENTMAN_GROUP_STORAGE_KEY);
 	const manifestGroups = groups.flatMap((group) => {
 		if (!group._tentmanId) {
 			return [];
 		}
 
-		const existingItems =
-			manifestCollection?.groups?.find((candidate) => candidate.id === group._tentmanId)?.items ??
-			orderedItems.filter((itemId) => itemGroups.get(itemId) === group._tentmanId);
+		const existingGroup = manifestCollection?.groups?.find(
+			(candidate) => candidate.id === group._tentmanId
+		);
+		const existingItems = existingGroup
+			? cloneNavigationReferences(existingGroup.items).filter((reference) =>
+					orderedItems.includes(reference.id)
+				)
+			: toNavigationReferences(
+					orderedItems.filter((itemId) => itemGroups.get(itemId) === group._tentmanId)
+				);
 
 		return [
 			{
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: existingItems.filter((itemId) => orderedItems.includes(itemId))
+				items: existingItems
 			}
 		];
 	});
@@ -1104,7 +1001,7 @@ function createManifestCollectionFromItems(
 		label: config.config.label,
 		slug: config.slug,
 		...(config.config.id ? { configId: config.config.id } : {}),
-		items: orderedItems,
+		items: toNavigationReferences(orderedItems),
 		...(manifestGroups.length > 0 ? { groups: manifestGroups } : {})
 	};
 }
@@ -1116,7 +1013,7 @@ function setManifestCollection(
 ): NavigationManifest {
 	const nextManifest: NavigationManifest = {
 		version: 1,
-		...(manifest?.content ? { content: { items: [...manifest.content.items] } } : {}),
+		...(manifest?.content ? { content: { items: [...(manifest.content.items ?? [])] } } : {}),
 		...(manifest?.collections
 			? {
 					collections: Object.fromEntries(
@@ -1138,8 +1035,10 @@ function setManifestCollection(
 }
 
 function getUngroupedManifestItems(collection: NavigationManifestCollection): string[] {
-	const groupedItems = new Set(collection.groups?.flatMap((group) => group.items) ?? []);
-	return collection.items.filter((itemId) => !groupedItems.has(itemId));
+	const groupedItems = new Set(
+		collection.groups?.flatMap((group) => getNavigationIds(group.items)) ?? []
+	);
+	return getNavigationIds(collection.items).filter((itemId) => !groupedItems.has(itemId));
 }
 
 function applyCollectionGroupMutationToConfig(
@@ -1205,10 +1104,16 @@ function applyCollectionGroupMutationToManifest(
 	if (mutation.action === 'delete') {
 		const deletedGroup = collection.groups?.find((group) => group.id === mutation.groupId);
 		const nextGroups = (collection.groups ?? []).filter((group) => group.id !== mutation.groupId);
-		const ungroupedItems = [...getUngroupedManifestItems(collection), ...(deletedGroup?.items ?? [])];
+		const ungroupedItems = [
+			...getUngroupedManifestItems(collection),
+			...getNavigationIds(deletedGroup?.items)
+		];
 		return {
 			...collection,
-			items: [...nextGroups.flatMap((group) => group.items), ...ungroupedItems],
+			items: [
+				...getGroupNavigationReferences(nextGroups),
+				...toNavigationReferences(ungroupedItems)
+			],
 			...(nextGroups.length > 0 ? { groups: nextGroups } : { groups: undefined })
 		};
 	}
@@ -1230,7 +1135,10 @@ function applyCollectionGroupMutationToManifest(
 				group.id === mutation.targetGroupId
 					? {
 							...group,
-							items: [...group.items, ...sourceGroup.items]
+							items: cloneNavigationReferences([
+								...(group.items ?? []),
+								...(sourceGroup.items ?? [])
+							])
 						}
 					: group
 			);
@@ -1238,12 +1146,17 @@ function applyCollectionGroupMutationToManifest(
 
 		return {
 			...collection,
-			items: [...nextGroups.flatMap((group) => group.items), ...ungroupedItems],
+			items: [
+				...getGroupNavigationReferences(nextGroups),
+				...toNavigationReferences(ungroupedItems)
+			],
 			...(nextGroups.length > 0 ? { groups: nextGroups } : { groups: undefined })
 		};
 	}
 
-	const groupsById = new Map(groups.flatMap((group) => (group._tentmanId ? [[group._tentmanId, group]] : [])));
+	const groupsById = new Map(
+		groups.flatMap((group) => (group._tentmanId ? [[group._tentmanId, group]] : []))
+	);
 	const existingGroupsById = new Map((collection.groups ?? []).map((group) => [group.id, group]));
 	const nextGroups = groups.flatMap((group) => {
 		if (!group._tentmanId) {
@@ -1256,18 +1169,22 @@ function applyCollectionGroupMutationToManifest(
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: [...(existingGroup?.items ?? [])]
+				items: cloneNavigationReferences(existingGroup?.items)
 			}
 		];
 	});
 	const knownGroupIds = new Set(groupsById.keys());
-	const groupedItems = new Set(nextGroups.flatMap((group) => group.items));
-	const ungroupedItems = collection.items.filter((itemId) => !groupedItems.has(itemId));
+	const groupedItems = new Set(nextGroups.flatMap((group) => getNavigationIds(group.items)));
+	const ungroupedItems = getNavigationIds(collection.items).filter(
+		(itemId) => !groupedItems.has(itemId)
+	);
 
 	return {
 		...collection,
-		items: [...nextGroups.flatMap((group) => group.items), ...ungroupedItems],
-		...(nextGroups.length > 0 ? { groups: nextGroups.filter((group) => knownGroupIds.has(group.id)) } : {})
+		items: [...getGroupNavigationReferences(nextGroups), ...toNavigationReferences(ungroupedItems)],
+		...(nextGroups.length > 0
+			? { groups: nextGroups.filter((group) => knownGroupIds.has(group.id)) }
+			: {})
 	};
 }
 
@@ -1613,13 +1530,15 @@ export async function buildNavigationManifestFromRepository(
 		...(rootConfig?.content?.sorting === 'manual'
 			? {
 					content: {
-						items: appendRemainingIds(
-							orderByManifestReferences(
-								existingManifest?.content?.items ?? [],
-								configIdentity.refMap
-							),
-							configIdentity.configs.flatMap((config) =>
-								config.config._tentmanId ? [config.config._tentmanId] : []
+						items: toNavigationReferences(
+							appendRemainingIds(
+								orderByManifestReferences(
+									getNavigationIds(existingManifest?.content?.items),
+									configIdentity.refMap
+								),
+								configIdentity.configs.flatMap((config) =>
+									config.config._tentmanId ? [config.config._tentmanId] : []
+								)
 							)
 						)
 					}
@@ -1644,7 +1563,7 @@ export async function buildNavigationManifestFromRepository(
 			);
 			const groupIdentity = reconcileGroupIdentity(config, manifestCollection);
 			const orderedItemIds = appendRemainingIds(
-				orderByManifestReferences(manifestCollection?.items ?? [], itemIdentity.refMap),
+				orderByManifestReferences(getNavigationIds(manifestCollection?.items), itemIdentity.refMap),
 				itemIdentity.items.flatMap((item) => {
 					const itemId = getItemId(item);
 					return itemId ? [itemId] : [];
@@ -1657,7 +1576,7 @@ export async function buildNavigationManifestFromRepository(
 					label: config.config.label,
 					slug: config.slug,
 					...(config.config.id ? { configId: config.config.id } : {}),
-					items: orderedItemIds,
+					items: toNavigationReferences(orderedItemIds),
 					...(groupIdentity.groups.length > 0
 						? {
 								groups: groupIdentity.groups.flatMap((group) =>
@@ -1667,15 +1586,17 @@ export async function buildNavigationManifestFromRepository(
 													id: group._tentmanId,
 													label: group.label,
 													...(group.value ? { value: group.value } : {}),
-													items: orderByManifestReferences(
-														(manifestCollection?.groups ?? [])
-															.filter(
-																(manifestGroup) =>
-																	(groupIdentity.refMap.get(manifestGroup.id) ??
-																		manifestGroup.id) === group._tentmanId
-															)
-															.flatMap((manifestGroup) => manifestGroup.items),
-														itemIdentity.refMap
+													items: toNavigationReferences(
+														orderByManifestReferences(
+															(manifestCollection?.groups ?? [])
+																.filter(
+																	(manifestGroup) =>
+																		(groupIdentity.refMap.get(manifestGroup.id) ??
+																			manifestGroup.id) === group._tentmanId
+																)
+																.flatMap((manifestGroup) => getNavigationIds(manifestGroup.items)),
+															itemIdentity.refMap
+														)
 													)
 												}
 											]
@@ -1847,7 +1768,11 @@ export async function manageCollectionGroups(
 	const currentGroups = getCollectionGroups(config.config);
 	const nextGroups = applyCollectionGroupMutationToConfig(currentGroups, mutation);
 	const configSource = await backend.readTextFile(config.path, options);
-	await backend.writeTextFile(config.path, setCollectionGroupsInSource(configSource, nextGroups), options);
+	await backend.writeTextFile(
+		config.path,
+		setCollectionGroupsInSource(configSource, nextGroups),
+		options
+	);
 
 	const content = await fetchContentDocument(backend, config.config, config.path);
 	const contentItems = Array.isArray(content) ? (content as ContentRecord[]) : [];
@@ -1911,9 +1836,8 @@ export function syncCollectionItemGroupSelectionInManifest(
 	) ?? {
 		items: []
 	};
-	const nextItems = manifestCollection.items.includes(itemId)
-		? [...manifestCollection.items]
-		: [...manifestCollection.items, itemId];
+	const currentItems = getNavigationIds(manifestCollection.items);
+	const nextItems = currentItems.includes(itemId) ? currentItems : [...currentItems, itemId];
 	const nextItemGroups = getManifestItemGroupMap(baseManifest, config);
 	nextItemGroups.set(itemId, selectedGroupId);
 	const nextGroups = getCollectionGroups(config.config).flatMap((group) => {
@@ -1926,11 +1850,13 @@ export function syncCollectionItemGroupSelectionInManifest(
 				id: group._tentmanId,
 				label: group.label,
 				...(group.value ? { value: group.value } : {}),
-				items: nextItems.filter((candidate) => nextItemGroups.get(candidate) === group._tentmanId)
+				items: toNavigationReferences(
+					nextItems.filter((candidate) => nextItemGroups.get(candidate) === group._tentmanId)
+				)
 			}
 		];
 	});
-	const groupedItemIds = new Set(nextGroups.flatMap((group) => group.items));
+	const groupedItemIds = new Set(nextGroups.flatMap((group) => getNavigationIds(group.items)));
 	const manifest = setManifestCollectionOrder(
 		baseManifest,
 		config.config._tentmanId,
@@ -1981,7 +1907,7 @@ export async function syncCollectionItemGroupSelection(
 
 export async function writeNavigationManifest(
 	backend: RepositoryBackend,
-	manifest: NavigationManifest,
+	manifest: NavigationManifestInput,
 	options?: RepositoryWriteOptions
 ): Promise<void> {
 	await backend.writeTextFile(

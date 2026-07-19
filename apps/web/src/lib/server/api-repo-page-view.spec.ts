@@ -73,6 +73,15 @@ describe('GET /api/repo/page-view', () => {
 		vi.mocked(getCollectionNavigation).mockResolvedValue(null);
 		vi.mocked(getSingletonDocument).mockResolvedValue(null);
 		vi.mocked(getRepositorySnapshot).mockResolvedValue({
+			identity: {
+				mode: 'github',
+				repoKey: 'github:acme/docs',
+				label: 'acme/docs',
+				ref: 'main',
+				headSha: 'commit-main',
+				treeSha: 'tree-main',
+				resolvedAt: 1_811_427_200_000
+			},
 			rootConfig: null,
 			configIndex: {
 				bySlug: new Map<string, unknown>([
@@ -126,6 +135,15 @@ describe('GET /api/repo/page-view', () => {
 					}
 				],
 				groups: []
+			},
+			workflowData: {
+				identity: {
+					mode: 'github',
+					workspaceKey: 'github:acme/docs',
+					workspaceLabel: 'acme/docs',
+					dataSetKey: expect.stringMatching(/^dataset:/),
+					hasEditableDraft: false
+				}
 			},
 			mode: 'github',
 			pageSlug: 'posts'

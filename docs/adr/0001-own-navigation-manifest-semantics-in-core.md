@@ -1,0 +1,3 @@
+# Own navigation manifest semantics in core
+
+Tentman's navigation manifest schema is consumed by runtime, core, and the web app, but the schema rules should have one browser-safe owner. We will put pure navigation manifest semantics in `@tentman/core` rather than creating a new package, because core already owns content schema parsing, diagnostics, and navigation utilities while package-specific adapters can stay thin. The manifest API should have an intention-revealing subpath export such as `@tentman/core/navigation-manifest`, with compatibility re-exports kept where useful. The manifest module may expose pure semantic helpers used by diagnostics, but it should not own repository loading, config discovery, web caching, or API workflows.

@@ -1,4 +1,8 @@
 import type { DiscoveredConfig } from '$lib/config/discovery';
+import {
+	getNavigationReferenceIds,
+	type NavigationReferenceInput
+} from '@tentman/core/navigation-manifest';
 import { getCollectionGroups } from '$lib/features/content-management/config';
 import type {
 	NavigationManifest,
@@ -8,6 +12,7 @@ import {
 	orderDiscoveredConfigs,
 	type OrderedCollectionNavigation
 } from '$lib/features/content-management/navigation';
+import { toNavigationReferences } from '$lib/features/content-management/navigation-references';
 
 export interface NavigationDraftGroup {
 	id: string;
@@ -33,20 +38,23 @@ function cloneGroups(
 	return groups.map((group) => ({
 		id: group.id,
 		label: group.label || group.id,
-		items: [...group.items]
+		items: getNavigationReferenceIds(group.items ?? [])
 	}));
 }
 
 function getUngroupedItemsFromManifestSection(
-	items: string[],
+	items: NavigationReferenceInput[] | undefined,
 	groups: NavigationManifestGroup[] | undefined
 ): string[] {
+	const itemIds = getNavigationReferenceIds(items ?? []);
 	if (!groups?.length) {
-		return [...items];
+		return itemIds;
 	}
 
-	const groupedItemIds = new Set(groups.flatMap((group) => group.items));
-	return items.filter((itemId) => !groupedItemIds.has(itemId));
+	const groupedItemIds = new Set(
+		groups.flatMap((group) => getNavigationReferenceIds(group.items ?? []))
+	);
+	return itemIds.filter((itemId) => !groupedItemIds.has(itemId));
 }
 
 function getCollectionDraft(
@@ -97,7 +105,7 @@ function getCollectionDraft(
 				{
 					id: group._tentmanId,
 					label: group.label,
-					items: [...(manifestGroup?.items ?? [])]
+					items: getNavigationReferenceIds(manifestGroup?.items ?? [])
 				}
 			];
 		})
@@ -151,12 +159,18 @@ export function cloneNavigationDraft(draft: NavigationDraft): NavigationDraft {
 export function serializeNavigationDraft(draft: NavigationDraft): NavigationManifest {
 	const collections = Object.fromEntries(
 		Object.entries(draft.collections).map(([configId, collection]) => {
-			const groups = cloneGroups(collection.groups);
+			const groups = cloneGroups(collection.groups).map((group) => ({
+				...group,
+				items: toNavigationReferences(group.items)
+			}));
 
 			return [
 				configId,
 				{
-					items: [...groups.flatMap((group) => group.items), ...collection.ungroupedItems],
+					items: toNavigationReferences([
+						...getNavigationReferenceIds(groups.flatMap((group) => group.items)),
+						...collection.ungroupedItems
+					]),
 					...(groups.length > 0 ? { groups } : {})
 				}
 			];
@@ -166,7 +180,7 @@ export function serializeNavigationDraft(draft: NavigationDraft): NavigationMani
 	return {
 		version: 1,
 		content: {
-			items: [...draft.contentOrder]
+			items: toNavigationReferences(draft.contentOrder)
 		},
 		...(Object.keys(collections).length > 0 ? { collections } : {})
 	};

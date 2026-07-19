@@ -1,6 +1,10 @@
 import fs from 'node:fs/promises';
 import { isTentmanId } from './ids.js';
 import {
+	getNavigationManifestCollectionEntries,
+	getNavigationManifestCollectionItems,
+	getNavigationManifestGroupItems,
+	getNavigationManifestGroups,
 	getNavigationReferenceId,
 	NAVIGATION_MANIFEST_PATH,
 	serializeNavigationManifest
@@ -56,15 +60,15 @@ function refreshCollectionManifest(project, config, collectionManifest, changes,
 		...(collectionManifest.label ? { label: collectionManifest.label } : {}),
 		...(collectionManifest.slug ? { slug: collectionManifest.slug } : {}),
 		...(collectionManifest.href ? { href: collectionManifest.href } : {}),
-		items: (collectionManifest.items ?? []).map((itemReference) =>
+		items: getNavigationManifestCollectionItems(collectionManifest).map((itemReference) =>
 			mapReference(itemReference, itemByReference, changes, {
 				kind: 'item',
 				collection: config._tentmanId ?? config.id ?? config.slug
 			})
 		),
-		...(collectionManifest.groups
+		...(getNavigationManifestGroups(collectionManifest).length > 0
 			? {
-					groups: collectionManifest.groups.map((group) => ({
+					groups: getNavigationManifestGroups(collectionManifest).map((group) => ({
 						id: mapReference(group.id, groupByReference, changes, {
 							kind: 'group',
 							collection: config._tentmanId ?? config.id ?? config.slug
@@ -72,7 +76,7 @@ function refreshCollectionManifest(project, config, collectionManifest, changes,
 						...(group.label ? { label: group.label } : {}),
 						...(group.value ? { value: group.value } : {}),
 						...(group.href ? { href: group.href } : {}),
-						items: (group.items ?? []).map((itemReference) =>
+						items: getNavigationManifestGroupItems(group).map((itemReference) =>
 							mapReference(itemReference, itemByReference, changes, {
 								kind: 'item',
 								collection: config._tentmanId ?? config.id ?? config.slug,
@@ -115,8 +119,12 @@ export async function refreshNavigationManifest(project) {
 		...(manifest.collections
 			? {
 					collections: Object.fromEntries(
-						Object.entries(manifest.collections).map(([collectionReference, collectionManifest]) => {
-							const config = configByReference.get(collectionReference);
+						getNavigationManifestCollectionEntries(manifest).map((collectionEntry) => {
+							const collectionReference = collectionEntry.reference;
+							const collectionManifest = collectionEntry.collection;
+							const config = collectionEntry.references
+								.map((reference) => configByReference.get(reference))
+								.find(Boolean);
 							const nextCollectionReference = mapReference(
 								collectionReference,
 								configByReference,

@@ -1,0 +1,49 @@
+{
+	"id": "create-page",
+	"label": "Create page",
+	"description": "Scaffold a simple singleton page for the fixture app, including Tentman config, starter content, and a working SvelteKit route.",
+	"inputs": [
+		{
+			"id": "title",
+			"type": "text",
+			"label": "Page title",
+			"description": "The human-friendly page name shown in Tentman and in the starter content.",
+			"required": true
+		},
+		{
+			"id": "slug",
+			"type": "slug",
+			"label": "URL slug",
+			"description": "Used for route paths, content paths, and the Tentman config id.",
+			"required": true
+		},
+		{
+			"id": "showInNavigation",
+			"type": "boolean",
+			"label": "Show in navigation",
+			"description": "Add the new page to Tentman's navigation manifest preview.",
+			"defaultValue": true
+		}
+	],
+	"navigation": {
+		"enabled": "{{showInNavigation}}",
+		"addItem": "{{slug}}"
+	},
+	"confirmation": {
+		"title": "Create {{title}}",
+		"summary": [
+			"This will create a new page at /{{slug}}.",
+			"The page will be editable in Tentman as {{title}}.",
+			"A SvelteKit route and server load will be scaffolded for this page.",
+			{
+				"text": "This page will be added to Tentman navigation.",
+				"if": "{{showInNavigation}}"
+			}
+		]
+	},
+	"notes": [
+		{
+			"text": "Review the generated copy and styling so the new page feels at home with the rest of the fixture app."
+		}
+	]
+}

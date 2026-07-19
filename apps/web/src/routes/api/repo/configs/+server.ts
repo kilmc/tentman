@@ -1,6 +1,6 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
-import { handleGitHubSessionError } from '$lib/server/auth/github';
+import { handleGitHubSessionError, persistSelectedGitHubRepository } from '$lib/server/auth/github';
 import { loadSelectedGitHubRepoConfigs } from '$lib/server/repo-config-bootstrap';
 import { logDevRouting } from '$lib/utils/dev-routing-log';
 import { timeAsync } from '$lib/utils/performance-logging';
@@ -40,6 +40,12 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
 					previousHeadSha: searchParams.get('previousHeadSha'),
 					previousTreeSha: searchParams.get('previousTreeSha')
 				})
+		);
+		persistSelectedGitHubRepository(
+			cookies,
+			locals.selectedRepo,
+			configs.rootConfig,
+			configs.repositoryIdentity
 		);
 		return json(configs);
 	} catch (err) {

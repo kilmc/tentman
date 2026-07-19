@@ -23,6 +23,10 @@ import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/servic
 import { requireGitHubRepository } from '$lib/server/page-context';
 import { getDraftChangeIndex } from '$lib/server/repository-data';
 import { EMPTY_REPO_CONFIGS_BOOTSTRAP } from '$lib/repository/config-bootstrap';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 function createRequest(body: unknown) {
 	return {
@@ -39,6 +43,7 @@ function createRequest(body: unknown) {
 describe('POST /api/repo/pages-summary', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearWorkflowInstrumentationEventsForTests();
 		vi.mocked(requireGitHubRepository).mockReturnValue({
 			octokit: {},
 			owner: 'acme',
@@ -68,7 +73,13 @@ describe('POST /api/repo/pages-summary', () => {
 			draftBranch: null,
 			changedPages: [],
 			totalChanges: 0,
-			hasConfigs: false
+			hasConfigs: false,
+			status: {
+				mode: 'scoped',
+				source: 'compare-metadata',
+				message: 'Tentman summarized this draft from compare metadata.',
+				degradedPages: []
+			}
 		});
 		expect(requireGitHubRepository).not.toHaveBeenCalled();
 	});
@@ -101,7 +112,13 @@ describe('POST /api/repo/pages-summary', () => {
 			draftBranch: null,
 			changedPages: [],
 			totalChanges: 0,
-			hasConfigs: true
+			hasConfigs: true,
+			status: {
+				mode: 'scoped',
+				source: 'compare-metadata',
+				message: 'Tentman summarized this draft from compare metadata.',
+				degradedPages: []
+			}
 		});
 	});
 
@@ -185,12 +202,18 @@ describe('POST /api/repo/pages-summary', () => {
 				}
 			],
 			totalChanges: 2,
-			hasConfigs: true
+			hasConfigs: true,
+			status: {
+				mode: 'scoped',
+				source: 'compare-metadata',
+				message: 'Tentman summarized this draft from compare metadata.',
+				degradedPages: []
+			}
 		});
 		expect(compareDraftToBranch).not.toHaveBeenCalled();
 	});
 
-	it('falls back to full comparison for ambiguous indexed changes', async () => {
+	it('reports degraded summary status instead of full comparison for ambiguous indexed changes', async () => {
 		vi.mocked(getTentmanDraftBranchName).mockResolvedValue('tentman-preview');
 		vi.mocked(getDraftChangeIndex).mockResolvedValue({
 			owner: 'acme',
@@ -213,11 +236,6 @@ describe('POST /api/repo/pages-summary', () => {
 					}
 				]
 			])
-		});
-		vi.mocked(compareDraftToBranch).mockResolvedValue({
-			modified: [{ itemId: 'hello-world' }],
-			created: [],
-			deleted: [{ itemId: 'old-post' }]
 		});
 
 		const response = await POST(
@@ -243,37 +261,36 @@ describe('POST /api/repo/pages-summary', () => {
 
 		expect(await response.json()).toEqual({
 			draftBranch: 'tentman-preview',
-			changedPages: [
-				{
-					slug: 'posts',
-					label: 'Posts',
-					changeCount: 2,
-					isCollection: true
-				}
-			],
-			totalChanges: 2,
-			hasConfigs: true
-		});
-		expect(compareDraftToBranch).toHaveBeenCalledTimes(1);
-		expect(compareDraftToBranch).toHaveBeenCalledWith(
-			{},
-			'acme',
-			'docs',
-			'main',
-			expect.objectContaining({
-				label: 'Posts'
-			}),
-			'content/posts.tentman.json',
-			'tentman-preview',
-			{
-				comparisonContext: {
-					metadata: {
-						branchExists: true
-					},
-					changedFiles: [],
-					canUseCheapComparison: true
-				}
+			changedPages: [],
+			totalChanges: 0,
+			hasConfigs: true,
+			status: {
+				mode: 'degraded',
+				source: 'unsupported-scope',
+				message:
+					'Tentman used scoped compare metadata and skipped collection-wide draft comparison for pages that need a narrower review path.',
+				degradedPages: [
+					{
+						slug: 'posts',
+						label: 'Posts',
+						reason:
+							'Posts needs full document comparison, which is unsupported on the scoped pages-summary path.'
+					}
+				]
 			}
+		});
+		expect(compareDraftToBranch).not.toHaveBeenCalled();
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'route-data-fallback',
+					route: '/pages',
+					slug: 'posts',
+					source: 'pages-summary',
+					reason:
+						'Posts needs full document comparison, which is unsupported on the scoped pages-summary path.'
+				})
+			])
 		);
 	});
 });

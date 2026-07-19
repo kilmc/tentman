@@ -3,9 +3,13 @@
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import {
 		githubCacheInventoryStatus,
+		githubCacheWorkObservabilityStatus,
 		githubRepositoryCache,
-		type GithubCacheInventoryRecord
+		type GithubCacheCurrentWorkState,
+		type GithubCacheInventoryRecord,
+		type GithubCacheWorkHistoryRecord
 	} from '$lib/stores/github-repository-cache';
+	import type { CacheWorkOperation } from '$lib/utils/workflow-instrumentation';
 
 	let refreshing = $state<string | null>(null);
 
@@ -26,6 +30,8 @@
 	const visibleRecords = $derived($githubCacheInventoryStatus.records);
 	const hasErrors = $derived($githubCacheInventoryStatus.errorTargets > 0);
 	const isInventoryRefreshing = $derived($githubCacheInventoryStatus.refreshingTargets > 0);
+	const currentWork = $derived($githubCacheWorkObservabilityStatus.current);
+	const recentWork = $derived($githubCacheWorkObservabilityStatus.recent);
 
 	function formatBytes(bytes: number | null) {
 		if (!bytes) {
@@ -56,8 +62,78 @@
 		}).format(timestamp);
 	}
 
+	function formatDuration(durationMs: number) {
+		if (durationMs < 1000) {
+			return `${durationMs}ms`;
+		}
+
+		return `${(durationMs / 1000).toFixed(1)}s`;
+	}
+
 	function shortSha(value: string | null) {
 		return value ? value.slice(0, 10) : '—';
+	}
+
+	function getOperationLabel(operation: CacheWorkOperation) {
+		const labels: Record<CacheWorkOperation, string> = {
+			'projection-hydration': 'Projection hydration',
+			'item-document-warming': 'Item-document warming',
+			'full-document-warming': 'Full-document warming',
+			'block-support-warming': 'Block support warming',
+			'singleton-document-warming': 'Singleton document warming',
+			'collection-index-warming': 'Collection index warming',
+			freshness: 'Freshness',
+			'retry-backoff': 'Retry/backoff',
+			'rate-limit-pause': 'Rate-limit pause',
+			'queue-wait': 'Queue wait',
+			'indexeddb-write': 'IndexedDB write',
+			'no-active-work': 'No active work'
+		};
+
+		return labels[operation];
+	}
+
+	function getStateLabel(state: GithubCacheCurrentWorkState) {
+		const labels: Record<GithubCacheCurrentWorkState, string> = {
+			idle: 'Idle',
+			queued: 'Queued',
+			running: 'Running',
+			'waiting-for-idle': 'Waiting for idle',
+			'blocked-by-foreground': 'Blocked by foreground work',
+			'backing-off': 'Backing off',
+			paused: 'Paused',
+			'rate-limited': 'Rate limited',
+			completed: 'Completed',
+			error: 'Error'
+		};
+
+		return labels[state];
+	}
+
+	function getStateClass(state: GithubCacheCurrentWorkState) {
+		if (state === 'running') {
+			return 'border-blue-200 bg-blue-50 text-blue-800';
+		}
+		if (state === 'backing-off' || state === 'waiting-for-idle' || state === 'queued') {
+			return 'border-amber-200 bg-amber-50 text-amber-800';
+		}
+		if (state === 'rate-limited' || state === 'paused' || state === 'error') {
+			return 'border-red-200 bg-red-50 text-red-800';
+		}
+		if (state === 'completed') {
+			return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+		}
+		return 'border-stone-200 bg-stone-100 text-stone-700';
+	}
+
+	function getHistoryResultClass(result: GithubCacheWorkHistoryRecord['result']) {
+		if (result === 'completed') {
+			return 'text-emerald-700';
+		}
+		if (result === 'error' || result === 'paused') {
+			return 'text-red-700';
+		}
+		return 'text-stone-600';
 	}
 
 	function getStatusClass(status: GithubCacheInventoryRecord['status']) {
@@ -232,6 +308,7 @@
 		<div class="h-2 overflow-hidden rounded-full bg-stone-200">
 			<span class="block h-full rounded-full bg-stone-950" style={`width: ${progressPercent}%`}></span>
 		</div>
+		<p class="text-xs text-stone-600">{$githubCacheWorkObservabilityStatus.progressExplanation}</p>
 		<p class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-500">
 			<span>Full document budget: {formatBytes($githubCacheInventoryStatus.documentBudgetBytes)}</span>
 			{#if $githubCacheInventoryStatus.budgetLimited}
@@ -248,6 +325,84 @@
 				</span>
 			{/if}
 		</p>
+	</section>
+
+	<section class="grid gap-3 rounded-md border border-stone-200 bg-white p-4">
+		<div class="flex flex-wrap items-start justify-between gap-3">
+			<div class="grid gap-1">
+				<p class="text-xs font-semibold tracking-[0.18em] text-stone-500 uppercase">
+					Current work
+				</p>
+				<div class="flex flex-wrap items-center gap-2">
+					<span
+						class={`rounded-full border px-2 py-1 text-xs font-semibold ${getStateClass(currentWork.state)}`}
+					>
+						{getStateLabel(currentWork.state)}
+					</span>
+					<span class="font-mono text-xs text-stone-600">
+						{getOperationLabel(currentWork.operation)}
+					</span>
+				</div>
+				<p class="text-base font-semibold text-stone-950">{currentWork.label}</p>
+				{#if currentWork.route}
+					<p class="font-mono text-xs text-stone-500">{currentWork.route}</p>
+				{/if}
+				{#if currentWork.reason}
+					<p class="text-sm text-stone-600">{currentWork.reason}</p>
+				{/if}
+			</div>
+
+			<dl class="grid grid-cols-3 gap-3 text-right text-xs text-stone-600">
+				<div>
+					<dt class="font-semibold text-stone-500">Progress</dt>
+					<dd class="font-mono text-stone-900">
+						{currentWork.progressCompleted}/{currentWork.progressTotal}
+					</dd>
+				</div>
+				<div>
+					<dt class="font-semibold text-stone-500">Queued</dt>
+					<dd class="font-mono text-stone-900">
+						{currentWork.queuedTasks} queued
+					</dd>
+				</div>
+				<div>
+					<dt class="font-semibold text-stone-500">Active</dt>
+					<dd class="font-mono text-stone-900">
+						{currentWork.runningTasks} active
+					</dd>
+				</div>
+			</dl>
+		</div>
+
+		<div class="border-t border-stone-200 pt-3">
+			<p class="text-xs font-semibold tracking-[0.18em] text-stone-500 uppercase">Recent work</p>
+			{#if recentWork.length > 0}
+				<ul class="mt-2 grid gap-2">
+					{#each recentWork as record (record.id)}
+						<li class="grid gap-1 text-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+							<div class="min-w-0">
+								<p class="truncate font-semibold text-stone-900">{record.label}</p>
+								<p class="font-mono text-xs text-stone-500">
+									{getOperationLabel(record.operation)}
+									{#if record.route}
+										<span class="text-stone-400"> · {record.route}</span>
+									{/if}
+								</p>
+								{#if record.reason}
+									<p class="text-xs text-stone-600">{record.reason}</p>
+								{/if}
+							</div>
+							<p class="font-mono text-xs">
+								<span class={getHistoryResultClass(record.result)}>{record.result}</span>
+								<span class="text-stone-400"> · {formatDuration(record.durationMs)}</span>
+							</p>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="mt-2 text-sm text-stone-500">No recent cache work for this workspace.</p>
+			{/if}
+		</div>
 	</section>
 
 	<section class="overflow-hidden rounded-md border border-stone-200 bg-white">

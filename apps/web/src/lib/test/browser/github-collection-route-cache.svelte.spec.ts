@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepoConfigsBootstrap } from '$lib/repository/config-bootstrap';
+import { githubWorkflowRouteCapabilities } from '$lib/repository/github-workflow-route-capabilities';
 import {
 	githubRepositoryCache,
 	githubRepositoryCacheTestApi
 } from '$lib/stores/github-repository-cache';
+import {
+	assertWorkflowRequestBudgetForTests,
+	clearWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 import { load as loadCollectionLanding } from '../../../routes/pages/[page]/+page';
 import { load as loadItemView } from '../../../routes/pages/[page]/[itemId]/+page';
 import { load as loadItemEditView } from '../../../routes/pages/[page]/[itemId]/edit/+page';
@@ -123,6 +128,34 @@ function createSingletonBootstrap(): RepoConfigsBootstrap {
 	} as RepoConfigsBootstrap;
 }
 
+function createTagBootstrap(): RepoConfigsBootstrap {
+	const bootstrap = createBootstrap();
+	return {
+		...bootstrap,
+		configs: [
+			{
+				...bootstrap.configs[0],
+				config: {
+					...bootstrap.configs[0].config,
+					blocks: [
+						{ id: 'title', type: 'text', label: 'Title' },
+						{ id: 'topics', type: 'tags', label: 'Topics' }
+					]
+				}
+			}
+		]
+	} as RepoConfigsBootstrap;
+}
+
+function createMixedConfigBootstrap(): RepoConfigsBootstrap {
+	const singleton = createSingletonBootstrap().configs[0];
+	const collection = createBootstrap().configs[0];
+	return {
+		...createBootstrap(),
+		configs: [singleton, collection]
+	} as RepoConfigsBootstrap;
+}
+
 function createLoadEvent(fetch: typeof globalThis.fetch, bootstrap = createBootstrap()) {
 	return {
 		parent: async () => bootstrap,
@@ -135,9 +168,13 @@ function createLoadEvent(fetch: typeof globalThis.fetch, bootstrap = createBoots
 	};
 }
 
-function createItemLoadEvent(fetch: typeof globalThis.fetch, pathname: string) {
+function createItemLoadEvent(
+	fetch: typeof globalThis.fetch,
+	pathname: string,
+	bootstrap = createBootstrap()
+) {
 	return {
-		parent: async () => createBootstrap(),
+		parent: async () => bootstrap,
 		fetch,
 		params: {
 			page: 'projects',
@@ -151,20 +188,38 @@ function createItemLoadEvent(fetch: typeof globalThis.fetch, pathname: string) {
 describe('GitHub collection route cache in the browser', () => {
 	beforeEach(async () => {
 		await githubRepositoryCacheTestApi.reset();
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	afterEach(async () => {
 		await githubRepositoryCacheTestApi.reset();
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	it('returns warm collection navigation without calling the page-view endpoint', async () => {
-		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+		const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
 			if (url.startsWith('/api/repo/page-view')) {
 				throw new Error('collection landing should not call page-view');
 			}
 			if (url.startsWith('/api/repo/collection-index')) {
 				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/collection-projections')) {
+				expect(JSON.parse(String(init?.body))).toEqual({
+					slug: 'projects',
+					blobShas: ['blob-panorama']
+				});
+				return Response.json({
+					indexIdentity: createIndexPayload().identity,
+					items: [
+						{
+							...createIndexPayload().items[0],
+							title: 'Panorama 4',
+							hydration: 'hydrated'
+						}
+					]
+				});
 			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		});
@@ -175,20 +230,35 @@ describe('GitHub collection route cache in the browser', () => {
 		expect(firstResult).toMatchObject({
 			pageSlug: 'projects',
 			collectionNavigation: {
-				items: [{ title: 'panorama 4', hydration: 'fallback' }]
+				items: [{ title: 'Panorama 4', hydration: 'hydrated' }]
 			}
 		});
 		expect(secondResult).toMatchObject({
 			pageSlug: 'projects',
 			collectionNavigation: {
-				items: [{ title: 'panorama 4', hydration: 'fallback' }]
+				items: [{ title: 'Panorama 4', hydration: 'hydrated' }]
 			}
 		});
-		expect(fetch).toHaveBeenCalledTimes(1);
-		expect(fetch).toHaveBeenCalledWith('/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenNthCalledWith(
+			2,
+			'/api/repo/collection-projections',
+			expect.objectContaining({
+				method: 'POST'
+			})
+		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'desktop-collection-landing',
+			route: '/pages/projects',
+			maxBrowserRequests: 2,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 2
+		});
 
 		await expect(githubRepositoryCache.getCollectionNavigation('projects')).resolves.toMatchObject({
-			items: [{ title: 'panorama 4' }]
+			items: [{ title: 'Panorama 4' }]
 		});
 	});
 
@@ -231,6 +301,14 @@ describe('GitHub collection route cache in the browser', () => {
 
 		expect(fetch).toHaveBeenCalledTimes(1);
 		expect(fetch).toHaveBeenCalledWith('/api/repo/page-view?slug=about');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/about',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('opens a cached singleton route by fetching only missing block support', async () => {
@@ -272,6 +350,14 @@ describe('GitHub collection route cache in the browser', () => {
 
 		expect(fetch).toHaveBeenCalledTimes(1);
 		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=about');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/about',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('uses a cached item document without calling the item-view endpoint', async () => {
@@ -330,6 +416,14 @@ describe('GitHub collection route cache in the browser', () => {
 		expect(fetch).toHaveBeenCalledTimes(2);
 		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
 		expect(fetch).toHaveBeenNthCalledWith(2, '/api/repo/form-config?slug=projects');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/projects/panorama-4',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('fetches only the selected item view when an indexed item document is not cached', async () => {
@@ -384,6 +478,14 @@ describe('GitHub collection route cache in the browser', () => {
 			2,
 			'/api/repo/item-view?slug=projects&itemId=panorama-4'
 		);
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'item-route-shell',
+			route: '/pages/projects/panorama-4',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 		await expect(
 			githubRepositoryCache.getItemDocumentForRoute({
 				slug: 'projects',
@@ -394,5 +496,151 @@ describe('GitHub collection route cache in the browser', () => {
 				title: 'Panorama 4'
 			}
 		});
+	});
+
+	it('loads item edit existing items from the index without a foreground projection batch', async () => {
+		const bootstrap = createTagBootstrap();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-projections')) {
+				throw new Error('edit shell should not read every collection projection');
+			}
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/item-view')) {
+				return Response.json({
+					discoveredConfig: bootstrap.configs[0],
+					blockConfigs: [],
+					packageBlocks: [],
+					blockRegistryError: null,
+					navigationManifest: bootstrap.navigationManifest,
+					item: {
+						title: 'Panorama 4',
+						slug: 'panorama-4',
+						topics: ['berlin']
+					},
+					contentError: null,
+					itemId: 'panorama-4',
+					branch: null,
+					pageSlug: 'projects',
+					mode: 'github'
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+
+		await expect(
+			loadItemEditView(
+				createItemLoadEvent(fetch, '/pages/projects/panorama-4/edit', bootstrap) as never
+			)
+		).resolves.toMatchObject({
+			item: {
+				title: 'Panorama 4'
+			},
+			existingItems: [
+				expect.objectContaining({
+					slug: 'panorama-4',
+					_tentmanId: 'panorama-4'
+				})
+			]
+		});
+
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(fetch).toHaveBeenNthCalledWith(1, '/api/repo/collection-index?slug=projects');
+		expect(fetch).toHaveBeenNthCalledWith(
+			2,
+			'/api/repo/item-view?slug=projects&itemId=panorama-4'
+		);
+	});
+
+	it('returns a normalized item workflow error when route records fail to load', async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return new Response(null, { status: 503 });
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap: createBootstrap()
+		});
+
+		await expect(
+			githubWorkflowRouteCapabilities.loadItemViewWorkflowData({
+				repoFullName: 'acme/docs',
+				bootstrap: createBootstrap(),
+				slug: 'projects',
+				itemId: 'panorama-4',
+				fetcher: fetch,
+				priority: 'foreground',
+				route: '/pages/projects/panorama-4'
+			})
+		).resolves.toMatchObject({
+			slug: 'projects',
+			itemId: 'panorama-4',
+			readiness: 'error',
+			cacheMiss: {
+				target: 'item-view',
+				slug: 'projects',
+				itemId: 'panorama-4',
+				readiness: 'error',
+				status: 503,
+				reason: 'Failed to load collection index (503)'
+			}
+		});
+	});
+
+	it('scopes cached item block-support misses to the selected collection slug', async () => {
+		const bootstrap = createMixedConfigBootstrap();
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/repo/collection-index')) {
+				return Response.json(createIndexPayload());
+			}
+			if (url.startsWith('/api/repo/form-config')) {
+				expect(url).toBe('/api/repo/form-config?slug=projects');
+				return Response.json({
+					blockConfigs: [{ id: 'gallery', path: 'tentman/blocks/gallery.tentman.json', config: {} }],
+					packageBlocks: [],
+					blockRegistryError: null
+				});
+			}
+			throw new Error(`Unexpected fetch: ${url}`);
+		});
+
+		await githubRepositoryCache.hydrateFromBootstrap({
+			repoFullName: 'acme/docs',
+			bootstrap
+		});
+		await githubRepositoryCache.ensureCollectionIndex('projects', { fetcher: fetch });
+		await githubRepositoryCache.setItemDocumentForRoute({
+			slug: 'projects',
+			itemId: 'panorama-4',
+			content: {
+				title: 'Panorama 4',
+				slug: 'panorama-4'
+			}
+		});
+		fetch.mockClear();
+
+		await expect(
+			loadItemView(createItemLoadEvent(fetch, '/pages/projects/panorama-4', bootstrap) as never)
+		).resolves.toMatchObject({
+			item: {
+				title: 'Panorama 4'
+			},
+			blockConfigs: [{ id: 'gallery' }]
+		});
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(fetch).toHaveBeenCalledWith('/api/repo/form-config?slug=projects');
 	});
 });

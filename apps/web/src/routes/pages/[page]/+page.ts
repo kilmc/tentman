@@ -1,8 +1,13 @@
+import { browser } from '$app/environment';
 import { error as httpError, redirect } from '@sveltejs/kit';
 import { resolveWorkspaceState } from '$lib/repository/workspace-state';
 import type { PageLoad } from './$types';
 import { buildPathWithQuery, buildReposRedirect } from '$lib/utils/routing';
-import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
+import {
+	githubWorkflowRouteCapabilities,
+	normalizeGitHubPageViewRouteData
+} from '$lib/repository/github-workflow-route-capabilities';
+import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 export const load: PageLoad = async ({ parent, fetch, params, url, depends }) => {
 	const parentData = await parent();
@@ -19,6 +24,7 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 			blockRegistryError: null,
 			draftBranch: null,
 			draftChanges: null,
+			editor: null,
 			pageSlug: params.page,
 			mode: 'local' as const
 		};
@@ -32,76 +38,120 @@ export const load: PageLoad = async ({ parent, fetch, params, url, depends }) =>
 
 	const discoveredConfig = parentData.configs.find((config) => config.slug === params.page);
 	if (discoveredConfig?.config.collection && url.searchParams.size === 0) {
-		await githubRepositoryCache.hydrateFromBootstrap({
+		const collectionNavigationWorkflowData =
+			await githubWorkflowRouteCapabilities.loadCollectionNavigationWorkflowData({
+				repoFullName: workspace.selectedRepo.full_name,
+				bootstrap: parentData,
+				slug: params.page,
+				fetcher: fetch
+			});
+		const contentError =
+			collectionNavigationWorkflowData.readiness === 'error'
+				? (collectionNavigationWorkflowData.cacheMiss?.reason ?? null)
+				: null;
+		const routeData = normalizeGitHubPageViewRouteData({
 			repoFullName: workspace.selectedRepo.full_name,
-			bootstrap: parentData
+			bootstrap: parentData,
+			slug: params.page,
+			data: {
+				discoveredConfig,
+				blockConfigs: parentData.blockConfigs ?? [],
+				packageBlocks: [],
+				blockRegistryError: null,
+				content: null,
+				collectionNavigation: collectionNavigationWorkflowData.navigation,
+				contentError,
+				pageSlug: params.page,
+				mode: 'github'
+			}
 		});
-		await githubRepositoryCache.ensureCollectionIndex(params.page, { fetcher: fetch });
 
 		return {
-			discoveredConfig,
-			blockConfigs: parentData.blockConfigs ?? [],
-			packageBlocks: [],
-			blockRegistryError: null,
-			content: null,
-			collectionNavigation: await githubRepositoryCache.getCollectionNavigation(params.page),
-			contentError: null,
-			branch: parentData.activeDraftBranch,
-			pageSlug: params.page,
-			mode: 'github' as const
+			...routeData,
+			collectionNavigation: collectionNavigationWorkflowData.navigation
 		};
 	}
 
-	await githubRepositoryCache.hydrateFromBootstrap({
+	if (!browser) {
+		const response = await fetch(
+			buildPathWithQuery('/api/repo/page-view', {
+				slug: params.page
+			})
+		);
+
+		if (response.status === 401) {
+			throw redirect(302, reposRedirect);
+		}
+		if (response.status === 404) {
+			throw httpError(404, 'Configuration not found');
+		}
+		if (!response.ok) {
+			throw httpError(response.status, 'Failed to load page view');
+		}
+
+		const data = normalizeGitHubPageViewRouteData({
+			repoFullName: workspace.selectedRepo.full_name,
+			bootstrap: parentData,
+			slug: params.page,
+			data: await response.json()
+		});
+		const workflowData = data.workflowData?.blockSupport ? data.workflowData : null;
+		if (!workflowData) {
+			return {
+				...data,
+				editor: data.editor
+			};
+		}
+
+		return {
+			...data,
+			discoveredConfig: workflowData.discoveredConfig ?? data.discoveredConfig,
+			blockConfigs: workflowData.blockSupport.blockConfigs,
+			packageBlocks: workflowData.blockSupport.packageBlocks,
+			blockRegistryError: workflowData.blockSupport.error,
+			content: workflowData.content,
+			collectionNavigation: workflowData.collectionNavigation,
+			contentError: workflowData.contentError,
+			editor: workflowData.editor,
+			workflowData
+		};
+	}
+
+	const workflowData = await githubWorkflowRouteCapabilities.loadPageViewWorkflowData({
 		repoFullName: workspace.selectedRepo.full_name,
-		bootstrap: parentData
-	});
-	const cachedSingleton = await githubRepositoryCache.warmSingletonDocumentRoute({
+		bootstrap: parentData,
 		slug: params.page,
 		fetcher: fetch,
 		priority: 'foreground'
 	});
-	if (discoveredConfig && cachedSingleton?.blockSupport) {
-		return {
-			discoveredConfig,
-			blockConfigs: cachedSingleton.blockSupport.blockConfigs,
-			packageBlocks: cachedSingleton.blockSupport.packageBlocks,
-			blockRegistryError: cachedSingleton.blockSupport.blockRegistryError,
-			content: cachedSingleton.content,
-			collectionNavigation: null,
-			contentError: null,
-			branch: parentData.activeDraftBranch,
-			pageSlug: params.page,
-			mode: 'github' as const
-		};
-	}
-
-	const response = await fetch(
-		buildPathWithQuery('/api/repo/page-view', {
-			slug: params.page
-		})
-	);
-
-	if (response.status === 401) {
+	const routeStatus = workflowData.cacheMiss?.status ?? null;
+	if (routeStatus === 401) {
 		throw redirect(302, reposRedirect);
 	}
-
-	if (response.status === 404) {
+	if (routeStatus === 404) {
 		throw httpError(404, 'Configuration not found');
 	}
-
-	if (!response.ok) {
-		throw httpError(response.status, 'Failed to load page view');
+	if (workflowData.readiness === 'error') {
+		throw httpError(500, 'Failed to load page view');
 	}
-
-	const data = await response.json();
-	await githubRepositoryCache.setSingletonPageView({
-		slug: params.page,
-		content: data.content ?? null,
-		blockConfigs: data.blockConfigs,
-		packageBlocks: data.packageBlocks,
-		blockRegistryError: data.blockRegistryError ?? null
+	markWorkflowReadiness({
+		workflow: 'page-route-shell',
+		mark: 'page-route-shell-ready',
+		route: `/pages/${params.page}`,
+		slug: params.page
 	});
 
-	return data;
+	return {
+		discoveredConfig: workflowData.discoveredConfig ?? discoveredConfig,
+		blockConfigs: workflowData.blockSupport.blockConfigs,
+		packageBlocks: workflowData.blockSupport.packageBlocks,
+		blockRegistryError: workflowData.blockSupport.error,
+		content: workflowData.content,
+		collectionNavigation: workflowData.collectionNavigation,
+		contentError: workflowData.contentError,
+		editor: workflowData.editor,
+		workflowData,
+		pageSlug: params.page,
+		mode: 'github' as const
+	};
 };

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectElement, render } from '$lib/test-support/browser-test';
 import { setMockFormGeneratorResult } from '$lib/test/mock-form-generator';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 function createStoreState<T>(initialValue: T) {
 	let value = initialValue;
@@ -207,6 +211,7 @@ import NewItemPage from '../../../routes/pages/[page]/new/+page.svelte';
 describe('routes/pages/[page]/new/+page.svelte', () => {
 	beforeEach(() => {
 		localStorage.clear();
+		clearWorkflowInstrumentationEventsForTests();
 		localFlowMocks.refresh.mockClear();
 		localFlowMocks.materializeDraftAssets.mockReset();
 		localFlowMocks.createContentDocument.mockReset();
@@ -296,6 +301,33 @@ describe('routes/pages/[page]/new/+page.svelte', () => {
 		expect(localFlowMocks.goto).toHaveBeenCalledWith('/pages/posts?published=true');
 		expect(localFlowMocks.deleteDraftAsset.mock.invocationCallOrder[0]).toBeGreaterThan(
 			localFlowMocks.createContentDocument.mock.invocationCallOrder[0]
+		);
+	});
+
+	it('marks the new-item rich editor as interactive after mount', async () => {
+		const screen = await render(NewItemPage, {
+			data: {
+				mode: 'local',
+				pageSlug: 'posts',
+				discoveredConfig: null,
+				blockConfigs: [],
+				packageBlocks: [],
+				blockRegistryError: null,
+				branch: null
+			},
+			form: undefined as never
+		});
+
+		await expectElement(screen.getByTestId('mock-form-generator')).toBeInTheDocument();
+
+		expect(getWorkflowInstrumentationEventsForTests()).toContainEqual(
+			expect.objectContaining({
+				kind: 'workflow-readiness',
+				workflow: 'rich-editor-interactive',
+				mark: 'rich-editor-interactive',
+				route: '/pages/posts/new',
+				slug: 'posts'
+			})
 		);
 	});
 

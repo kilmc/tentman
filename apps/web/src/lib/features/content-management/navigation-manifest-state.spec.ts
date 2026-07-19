@@ -97,6 +97,42 @@ describe('content-management/navigation-manifest state loading', () => {
 		expect(backend.readTextFile).toHaveBeenCalledTimes(2);
 	});
 
+	it('loads shorthand repository manifests as canonical navigation references', async () => {
+		const backend = new MemoryRepositoryBackend();
+		backend.readTextFile.mockResolvedValue(
+			JSON.stringify({
+				version: 1,
+				content: {
+					items: ['home']
+				},
+				collections: {
+					projects: {
+						items: ['launch'],
+						groups: [{ id: 'featured', items: ['launch'] }]
+					}
+				}
+			})
+		);
+
+		await expect(loadNavigationManifestState(backend)).resolves.toEqual({
+			path: 'tentman/navigation-manifest.json',
+			exists: true,
+			manifest: {
+				version: 1,
+				content: {
+					items: [{ id: 'home' }]
+				},
+				collections: {
+					projects: {
+						items: [{ id: 'launch' }],
+						groups: [{ id: 'featured', items: [{ id: 'launch' }] }]
+					}
+				}
+			},
+			error: null
+		});
+	});
+
 	it('treats a 404 read as a missing manifest from a single read attempt', async () => {
 		const backend = new MemoryRepositoryBackend();
 		backend.readTextFile.mockRejectedValue({ status: 404 });

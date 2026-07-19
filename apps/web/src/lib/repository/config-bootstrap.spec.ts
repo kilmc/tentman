@@ -10,6 +10,56 @@ describe('repository/config-bootstrap', () => {
 		expect(normalizeRepoConfigsBootstrap({})).toEqual(EMPTY_REPO_CONFIGS_BOOTSTRAP);
 	});
 
+	it('preserves normalized workflow bootstrap data when present', () => {
+		const bootstrap = normalizeRepoConfigsBootstrap({
+			workflowData: {
+				identity: null,
+				rootConfig: null,
+				configs: [],
+				navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+				blockSupport: {
+					blockConfigs: [],
+					packageBlocks: [],
+					error: null,
+					readiness: 'ready',
+					cacheMiss: null
+				},
+				changedContentPaths: [],
+				freshness: {
+					identity: null,
+					status: 'unchanged',
+					unchanged: true,
+					changedContentPaths: [],
+					error: null,
+					recovery: null
+				}
+			}
+		});
+
+		expect(bootstrap.workflowData).toEqual({
+			identity: null,
+			rootConfig: null,
+			configs: [],
+			navigationManifest: EMPTY_REPO_CONFIGS_BOOTSTRAP.navigationManifest,
+			blockSupport: {
+				blockConfigs: [],
+				packageBlocks: [],
+				error: null,
+				readiness: 'ready',
+				cacheMiss: null
+			},
+			changedContentPaths: [],
+			freshness: {
+				identity: null,
+				status: 'unchanged',
+				unchanged: true,
+				changedContentPaths: [],
+				error: null,
+				recovery: null
+			}
+		});
+	});
+
 	it('loads the repo config bootstrap payload from /api/repo/configs', async () => {
 		const fetcher = vi.fn(
 			async () =>

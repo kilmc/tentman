@@ -4,10 +4,13 @@ import path from 'node:path';
 import test from 'node:test';
 import { loadTentmanProject, runTentmanCi } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-ci-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-ci-');
 }
 
 async function writeReferenceComponent(projectRoot) {
@@ -35,7 +38,7 @@ async function writeReferenceComponent(projectRoot) {
 }
 
 test('aggregates current non-writing checks for tentman ci', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const result = await runTentmanCi(project);
 
 	assert.deepEqual(
@@ -62,8 +65,8 @@ test('aggregates current non-writing checks for tentman ci', async () => {
 	});
 });
 
-test('reports ci failures from doctor, ids, nav, and format together', async () => {
-	const projectRoot = await copyFixture();
+test('reports ci failures from doctor, ids, nav, and format together', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 
@@ -85,8 +88,7 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 		new Set([
 			'assets.legacy-assets-dir',
 			'assets.missing-directory',
-			'manifest.stale-config-reference',
-			'manifest.stale-collection-reference'
+			'manifest.stale-config-reference'
 		])
 	);
 	assert.deepEqual(
@@ -98,13 +100,13 @@ test('reports ci failures from doctor, ids, nav, and format together', async () 
 	assert.equal(result.checks[3]?.summary.files, 0);
 	assert.ok(result.checks[4]?.errors > 0);
 	assert.deepEqual(new Set(result.summary.failedChecks), new Set(['doctor', 'nav', 'assets']));
-	assert.equal(result.summary.warnings, 3);
+	assert.equal(result.summary.warnings, 5);
 	assert.equal(result.summary.checks, 5);
 	assert.ok(result.summary.errors >= 6);
 });
 
-test('tentman ci fails doctor on invalid reference bindings', async () => {
-	const projectRoot = await copyFixture();
+test('tentman ci fails doctor on invalid reference bindings', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const projectsConfigPath = path.join(projectRoot, 'tentman/configs/projects.tentman.json');
 	const projectsContentPath = path.join(projectRoot, 'src/content/pages/projects.json');
 	const projectsConfig = JSON.parse(await fs.readFile(projectsConfigPath, 'utf8'));

@@ -1,0 +1,72 @@
+{
+	"type": "content",
+	"label": "Blog Posts",
+	"_tentmanId": "tent_01KQD7Q12YAMHFJ3FWHBQ16Z07",
+	"id": "blog",
+	"itemLabel": "Blog Post",
+	"collection": true,
+	"idField": "slug",
+	"content": {
+		"mode": "directory",
+		"path": "../../src/content/posts",
+		"template": "../templates/post.md",
+		"filename": "{{slug}}"
+	},
+	"editorLayout": {
+		"aside": [
+			"slug",
+			"date",
+			"author"
+		],
+		"asideLabel": "Metadata"
+	},
+	"blocks": [
+		{
+			"id": "title",
+			"type": "text",
+			"label": "Title",
+			"required": true
+		},
+		{
+			"id": "slug",
+			"type": "text",
+			"label": "Slug",
+			"required": true
+		},
+		{
+			"id": "date",
+			"type": "date",
+			"label": "Publish date",
+			"required": true
+		},
+		{
+			"id": "author",
+			"type": "text",
+			"label": "Author",
+			"required": true
+		},
+		{
+			"id": "coverImage",
+			"type": "image",
+			"label": "Cover image"
+		},
+		{
+			"id": "excerpt",
+			"type": "textarea",
+			"label": "Excerpt",
+			"required": true,
+			"maxLength": 240
+		},
+		{
+			"id": "body",
+			"type": "markdown",
+			"label": "Body",
+			"required": true
+		},
+		{
+			"id": "published",
+			"type": "toggle",
+			"label": "Published"
+		}
+	]
+}

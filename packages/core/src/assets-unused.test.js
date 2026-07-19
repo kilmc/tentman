@@ -3,14 +3,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { findUnusedTentmanAssets, loadTentmanProject } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-assets-unused-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-assets-unused-');
 }
 
 test('reports no unused files in configured asset directories for the fixture', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const unused = await findUnusedTentmanAssets(project);
 
 	assert.deepEqual(
@@ -24,7 +27,7 @@ test('reports no unused files in configured asset directories for the fixture', 
 });
 
 test('scans loose root assets inside root assets path', async () => {
-	const project = await loadTentmanProject(await copyFixture());
+	const project = await loadCoreFixtureProject();
 	const unused = await findUnusedTentmanAssets(project);
 
 	assert.ok(
@@ -34,8 +37,8 @@ test('scans loose root assets inside root assets path', async () => {
 	);
 });
 
-test('finds unused files conservatively in known asset directories', async () => {
-	const projectRoot = await copyFixture();
+test('finds unused files conservatively in known asset directories', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const orphanPostAsset = path.join(projectRoot, 'static/images/posts/orphan.svg');
 	const orphanGalleryAsset = path.join(projectRoot, 'static/images/gallery/orphan.svg');
 
@@ -61,8 +64,8 @@ test('finds unused files conservatively in known asset directories', async () =>
 	);
 });
 
-test('treats non-image markdown link and html media assets as referenced', async () => {
-	const projectRoot = await copyFixture();
+test('treats non-image markdown link and html media assets as referenced', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const aboutContentPath = path.join(projectRoot, 'src/routes/about/+page.md');
 	const mediaDir = path.join(projectRoot, 'static/images/media');
 	await fs.mkdir(mediaDir, { recursive: true });
@@ -96,8 +99,8 @@ test('treats non-image markdown link and html media assets as referenced', async
 	assert.ok(!unusedFiles.includes('static/images/media/trailer-poster.jpg'));
 });
 
-test('scopes unused asset results to one config when requested', async () => {
-	const projectRoot = await copyFixture();
+test('scopes unused asset results to one config when requested', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const orphanGalleryAsset = path.join(projectRoot, 'static/images/gallery/orphan.svg');
 
 	await fs.writeFile(orphanGalleryAsset, '<svg></svg>\n');

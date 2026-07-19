@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeNavigationManifest } from '@tentman/core/navigation-manifest';
 import { applyInstructionExecutionPlan } from '$lib/features/instructions/execution';
 import type { InstructionExecutionPlan } from '$lib/features/instructions/types';
 import type {
@@ -99,12 +100,12 @@ const basePlan: InstructionExecutionPlan = {
 		status: 'append-item',
 		configId: 'press-kit',
 		summary: 'Tentman will append this item to the existing navigation manifest.',
-		nextManifest: {
+		nextManifest: normalizeNavigationManifest({
 			version: 1,
 			content: {
 				items: ['about', 'press-kit']
 			}
-		}
+		})
 	},
 	inputErrors: [],
 	planErrors: []

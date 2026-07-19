@@ -13,7 +13,6 @@
 	} from '$lib/features/content-management/navigation-manifest';
 	import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
 	import { localContent } from '$lib/stores/local-content';
-	import { draftBranch } from '$lib/stores/draft-branch';
 	import { localPreviewUrl } from '$lib/stores/local-preview-url';
 	import { localRepo } from '$lib/stores/local-repo';
 	import {
@@ -114,21 +113,8 @@
 				throw new Error('Failed to repair navigation state');
 			}
 
-			const result = (await response.json()) as {
-				branchName?: string | null;
-			};
-			if (result.branchName && data.selectedRepo) {
-				draftBranch.setBranch(
-					result.branchName,
-					`${data.selectedRepo.owner}/${data.selectedRepo.name}`
-				);
-			}
-
-			await refreshAfterMutation(
-				result.branchName
-					? `Navigation state staged in ${result.branchName}.`
-					: 'Navigation state repaired.'
-			);
+			await response.json();
+			await refreshAfterMutation('Navigation state staged in the current draft.');
 		} catch (error) {
 			actionError = error instanceof Error ? error.message : 'Failed to repair navigation state';
 		} finally {
@@ -169,21 +155,8 @@
 				throw new Error('Failed to add missing content config ids');
 			}
 
-			const result = (await response.json()) as {
-				branchName?: string | null;
-			};
-			if (result.branchName && data.selectedRepo) {
-				draftBranch.setBranch(
-					result.branchName,
-					`${data.selectedRepo.owner}/${data.selectedRepo.name}`
-				);
-			}
-
-			await refreshAfterMutation(
-				result.branchName
-					? `Tentman ids staged in ${result.branchName}.`
-					: 'Added missing content config ids.'
-			);
+			await response.json();
+			await refreshAfterMutation('Tentman ids staged in the current draft.');
 		} catch (error) {
 			actionError =
 				error instanceof Error ? error.message : 'Failed to add missing content config ids';

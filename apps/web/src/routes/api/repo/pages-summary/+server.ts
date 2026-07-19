@@ -1,15 +1,16 @@
 // SERVER_JUSTIFICATION: github_proxy
 import { error, json } from '@sveltejs/kit';
-import { compareDraftToBranch } from '$lib/utils/draft-comparison';
 import { orderDiscoveredConfigs } from '$lib/features/content-management/navigation';
 import { getTentmanDraftBranchName } from '$lib/features/draft-publishing/service';
 import {
 	createEmptyPagesOverviewSummary,
+	type PagesOverviewSummaryStatus,
 	type PagesOverviewSummaryRequest
 } from '$lib/features/content-management/overview-summary';
 import { handleGitHubRouteError, requireGitHubRepository } from '$lib/server/page-context';
 import { getDraftChangeIndex } from '$lib/server/repository-data';
 import { logTiming, timeAsync } from '$lib/utils/performance-logging';
+import { logRouteDataFallback } from '$lib/utils/workflow-instrumentation';
 import type { RequestHandler } from './$types';
 
 function isPagesOverviewSummaryRequest(value: unknown): value is PagesOverviewSummaryRequest {
@@ -24,6 +25,27 @@ function isPagesOverviewSummaryRequest(value: unknown): value is PagesOverviewSu
 		Boolean(value.navigationManifest) &&
 		typeof value.navigationManifest === 'object'
 	);
+}
+
+function buildSummaryStatus(
+	degradedPages: PagesOverviewSummaryStatus['degradedPages']
+): PagesOverviewSummaryStatus {
+	if (degradedPages.length) {
+		return {
+			mode: 'degraded',
+			source: 'unsupported-scope',
+			message:
+				'Tentman used scoped compare metadata and skipped collection-wide draft comparison for pages that need a narrower review path.',
+			degradedPages
+		};
+	}
+
+	return {
+		mode: 'scoped',
+		source: 'compare-metadata',
+		message: 'Tentman summarized this draft from compare metadata.',
+		degradedPages: []
+	};
 }
 
 export const POST: RequestHandler = async ({ request, locals, cookies }) => {
@@ -69,33 +91,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 					await Promise.all(
 						orderedConfigs.map(async (config) => {
 							const changeScope = draftChangeIndex.byConfigSlug.get(config.slug);
-							let changeCount =
+							const changeCount =
 								(changeScope?.modified.length ?? 0) +
 								(changeScope?.created.length ?? 0) +
 								(changeScope?.deleted.length ?? 0);
-
-							if (changeScope?.requiresFullFetch) {
-								const draftChanges = await compareDraftToBranch(
-									octokit,
-									owner,
-									name,
-									defaultBranch,
-									config.config,
-									config.path,
-									draftBranch,
-									{
-										comparisonContext: {
-											metadata: draftChangeIndex.metadata,
-											changedFiles: draftChangeIndex.files,
-											canUseCheapComparison: true
-										}
-									}
-								);
-								changeCount =
-									draftChanges.modified.length +
-									draftChanges.created.length +
-									draftChanges.deleted.length;
-							}
 
 							if (changeCount === 0) {
 								return null;
@@ -110,19 +109,42 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 						})
 					)
 				).filter((value) => value !== null);
+				const degradedPages = orderedConfigs.flatMap((config) => {
+					const changeScope = draftChangeIndex.byConfigSlug.get(config.slug);
+					if (!changeScope?.requiresFullFetch) {
+						return [];
+					}
+
+					const reason = `${config.config.label} needs full document comparison, which is unsupported on the scoped pages-summary path.`;
+					logRouteDataFallback({
+						route: '/pages',
+						slug: config.slug,
+						source: 'pages-summary',
+						reason
+					});
+					return [
+						{
+							slug: config.slug,
+							label: config.config.label,
+							reason
+						}
+					];
+				});
 
 				logTiming('api.repo.pages-summary.result', {
 					repo: locals.selectedRepo?.full_name ?? null,
 					configCount: orderedConfigs.length,
 					changedPageCount: changedPages.length,
-					totalChanges: changedPages.reduce((total, page) => total + page.changeCount, 0)
+					totalChanges: changedPages.reduce((total, page) => total + page.changeCount, 0),
+					status: degradedPages.length ? 'degraded' : 'scoped'
 				});
 
 				return json({
 					draftBranch,
 					changedPages,
 					totalChanges: changedPages.reduce((total, page) => total + page.changeCount, 0),
-					hasConfigs: true
+					hasConfigs: true,
+					status: buildSummaryStatus(degradedPages)
 				});
 			}
 		);

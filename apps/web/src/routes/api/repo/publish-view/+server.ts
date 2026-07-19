@@ -47,7 +47,6 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			);
 		}
 
-		const draftSnapshot = await getRepositorySnapshot({ backend, ref: draftBranch });
 		const reviewModel = await buildPublishReviewModel({
 			octokit,
 			owner,
@@ -57,8 +56,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
 			baseBranch: repo.default_branch,
 			draftBranch,
 			changedFiles: draftChangeIndex.files,
-			baseSnapshot,
-			draftSnapshot
+			baseSnapshot
 		});
 
 		return json({

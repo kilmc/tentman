@@ -170,4 +170,61 @@ describe('stores/local-content', () => {
 			error: null
 		});
 	});
+
+	it('exposes local discovery through the shared workflow bootstrap vocabulary', async () => {
+		const backend = createBackend({
+			readRootConfig: vi.fn(async () => ({
+				siteName: 'Local Docs',
+				local: {
+					previewUrl: 'http://localhost:5173/'
+				},
+				debug: { cacheConfigs: false }
+			}))
+		});
+		localRepoState.set({
+			status: 'ready',
+			repo: {
+				name: 'Docs',
+				pathLabel: '~/Docs'
+			},
+			backend,
+			error: null
+		});
+
+		await localContent.refresh({ force: true });
+
+		const state = get(localContent);
+		expect(state.workflowData).toMatchObject({
+			identity: {
+				mode: 'local',
+				workspaceKey: 'local:docs',
+				workspaceLabel: 'Docs',
+				hasEditableDraft: false
+			},
+			rootConfig: {
+				siteName: 'Local Docs',
+				local: {
+					previewUrl: 'http://localhost:5173/'
+				}
+			},
+			configs: [
+				{
+					slug: 'pages'
+				}
+			],
+			blockSupport: {
+				blockConfigs: [],
+				packageBlocks: [],
+				error: null,
+				readiness: 'ready'
+			},
+			changedContentPaths: [],
+			freshness: {
+				status: 'unchanged',
+				unchanged: true,
+				changedContentPaths: []
+			}
+		});
+		expect(state.workflowData?.identity?.dataSetKey).toMatch(/^dataset:/);
+	});
 });

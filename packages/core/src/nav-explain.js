@@ -1,11 +1,31 @@
 import { printTentmanNavigation } from './nav-print.js';
-import { getNavigationReferenceIds } from './manifest.js';
+import {
+	getNavigationManifestCollectionEntry,
+	getNavigationManifestCollectionItems,
+	getNavigationManifestContentItems,
+	getNavigationReferenceIds
+} from './manifest.js';
 import { getConfigByReference } from './references.js';
 
-function findCollectionReference(project, config) {
-	return Object.keys(project.navigationManifest.manifest?.collections ?? {}).find((reference) =>
-		config.path === getConfigByReference(project).get(reference)?.path
-	);
+function findCollectionEntry(project, config) {
+	const configByReference = getConfigByReference(project);
+
+	for (const reference of configByReference.keys()) {
+		if (configByReference.get(reference)?.path !== config.path) {
+			continue;
+		}
+
+		const collectionEntry = getNavigationManifestCollectionEntry(
+			project.navigationManifest.manifest,
+			reference
+		);
+
+		if (collectionEntry) {
+			return collectionEntry;
+		}
+	}
+
+	return null;
 }
 
 export function explainTentmanNavigation(project, configReference, itemReference) {
@@ -17,7 +37,9 @@ export function explainTentmanNavigation(project, configReference, itemReference
 
 	const topLevelNavigation = printTentmanNavigation(project);
 	const topLevelIndex = topLevelNavigation.content.findIndex((entry) => entry.path === config.path);
-	const manifestTopLevelItems = getNavigationReferenceIds(project.navigationManifest.manifest?.content?.items);
+	const manifestTopLevelItems = getNavigationReferenceIds(
+		getNavigationManifestContentItems(project.navigationManifest.manifest)
+	);
 	const topLevelMatchedReference =
 		topLevelNavigation.content[topLevelIndex]?.references.find((reference) =>
 			manifestTopLevelItems.includes(reference)
@@ -53,10 +75,10 @@ export function explainTentmanNavigation(project, configReference, itemReference
 		group.items.some((groupItem) => groupItem.reference === item.reference)
 	);
 	const group = groupIndex === -1 ? null : collectionNavigation.groups[groupIndex];
-	const collectionReference = findCollectionReference(project, config);
-	const manifestCollectionItems = collectionReference
-		? getNavigationReferenceIds(project.navigationManifest.manifest?.collections?.[collectionReference]?.items)
-		: [];
+	const collectionEntry = findCollectionEntry(project, config);
+	const manifestCollectionItems = getNavigationReferenceIds(
+		getNavigationManifestCollectionItems(collectionEntry?.collection)
+	);
 	const itemMatchedReference =
 		item.references.find((reference) => manifestCollectionItems.includes(reference)) ?? null;
 

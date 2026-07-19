@@ -8,21 +8,23 @@ import {
 	validateTentmanContentComponents
 } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import {
+	copyCoreFixtureProjectToTempGitRepo,
+	loadCoreFixtureProject
+} from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-component-validate-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-component-validate-');
 }
 
 test('returns no diagnostics when the project components directory does not exist yet', async () => {
-	const projectRoot = await copyFixture();
-	const project = await loadTentmanProject(projectRoot);
+	const project = await loadCoreFixtureProject();
 
 	assert.deepEqual(await validateTentmanContentComponents(project), []);
 });
 
-test('returns no diagnostics for valid scaffolded content components', async () => {
-	const projectRoot = await copyFixture();
+test('returns no diagnostics for valid scaffolded content components', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await createContentComponentScaffold(projectRoot, 'promo-banner');
 	await createContentComponentScaffold(projectRoot, 'image-gallery', { kind: 'block' });
 	const project = await loadTentmanProject(projectRoot);
@@ -30,8 +32,8 @@ test('returns no diagnostics for valid scaffolded content components', async () 
 	assert.deepEqual(await validateTentmanContentComponents(project), []);
 });
 
-test('reports invalid content component files', async () => {
-	const projectRoot = await copyFixture();
+test('reports invalid content component files', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const componentDir = path.join(projectRoot, 'src/lib/content-components/broken-widget');
 	await fs.mkdir(componentDir, { recursive: true });
 	await fs.writeFile(
@@ -53,8 +55,8 @@ test('reports invalid content component files', async () => {
 	assert.equal(diagnostics[0].path, 'src/lib/content-components/broken-widget');
 });
 
-test('reports duplicate ids across discovered content components', async () => {
-	const projectRoot = await copyFixture();
+test('reports duplicate ids across discovered content components', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await createContentComponentScaffold(projectRoot, 'promo-banner');
 	await createContentComponentScaffold(projectRoot, 'hero-banner');
 

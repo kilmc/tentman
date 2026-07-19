@@ -15,6 +15,8 @@ import { localRepo } from '$lib/stores/local-repo';
 import { shouldUseLocalConfigCache, type RootConfig } from '$lib/config/root-config';
 import type { LocalDiscoverySignature } from '$lib/repository/local';
 import type { RepositoryBackend } from '$lib/repository/types';
+import { createLocalWorkflowWorkspaceBootstrapData } from '$lib/repository/local-workflow-data';
+import type { WorkflowWorkspaceBootstrapData } from '$lib/repository/workflow-data';
 
 type LocalContentState = {
 	status: 'idle' | 'loading' | 'ready' | 'error';
@@ -27,6 +29,7 @@ type LocalContentState = {
 	navigationManifest: NavigationManifestState;
 	instructionDiscovery: InstructionDiscoveryResult;
 	discoverySignature: LocalDiscoverySignature | null;
+	workflowData: WorkflowWorkspaceBootstrapData | null;
 	error: string | null;
 };
 
@@ -162,6 +165,7 @@ function createStore() {
 			issues: []
 		},
 		discoverySignature: null,
+		workflowData: null,
 		error: null
 	});
 	const { subscribe, set, update } = store;
@@ -197,6 +201,7 @@ function createStore() {
 						issues: []
 					},
 					discoverySignature: null,
+					workflowData: null,
 					error: 'No local repository is open.'
 				});
 				return;
@@ -278,6 +283,7 @@ function createStore() {
 						}
 					: state.instructionDiscovery,
 				discoverySignature: shouldClearForRepoChange ? null : state.discoverySignature,
+				workflowData: shouldClearForRepoChange ? null : state.workflowData,
 				error: null
 			}));
 
@@ -303,6 +309,15 @@ function createStore() {
 						navigationManifest: persistedState.navigationManifest,
 						instructionDiscovery: persistedState.instructionDiscovery,
 						discoverySignature: persistedState.discoverySignature ?? null,
+						workflowData: createLocalWorkflowWorkspaceBootstrapData({
+							backend,
+							configs: persistedState.configs,
+							blockConfigs: persistedState.blockConfigs,
+							blockRegistryError,
+							rootConfig: persistedState.rootConfig,
+							navigationManifest: persistedState.navigationManifest,
+							discoverySignature: persistedState.discoverySignature ?? null
+						}),
 						error: null
 					});
 					return;
@@ -329,6 +344,15 @@ function createStore() {
 						blockConfigs,
 						rootConfig
 					);
+					const workflowData = createLocalWorkflowWorkspaceBootstrapData({
+						backend,
+						configs,
+						blockConfigs,
+						blockRegistryError,
+						rootConfig,
+						navigationManifest,
+						discoverySignature
+					});
 
 					if (shouldUsePersistedCache) {
 						writePersistedState({
@@ -354,6 +378,7 @@ function createStore() {
 						navigationManifest,
 						instructionDiscovery,
 						discoverySignature,
+						workflowData,
 						error: null
 					});
 				} catch (error) {
@@ -376,6 +401,7 @@ function createStore() {
 							issues: []
 						},
 						discoverySignature: null,
+						workflowData: null,
 						error:
 							error instanceof Error ? error.message : 'Failed to load local repository content'
 					});
@@ -408,6 +434,7 @@ function createStore() {
 					issues: []
 				},
 				discoverySignature: null,
+				workflowData: null,
 				error: null
 			});
 		}

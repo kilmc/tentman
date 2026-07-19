@@ -15,7 +15,6 @@
 	import { appendDraftAssetsToFormData } from '$lib/features/draft-assets/client';
 	import { materializeDraftAssets } from '$lib/features/draft-assets/materialize';
 	import { draftAssetStore } from '$lib/features/draft-assets/store';
-	import { draftBranch } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
@@ -38,9 +37,7 @@
 	import type { FormDirtyState } from '$lib/features/forms/edit-session';
 	import type { ContentRecord } from '$lib/features/content-management/types';
 	import type { NavigationManifestState } from '$lib/features/content-management/navigation-manifest';
-	import {
-		manageCollectionGroups
-	} from '$lib/features/content-management/navigation-manifest';
+	import { manageCollectionGroups } from '$lib/features/content-management/navigation-manifest';
 	import { getCollectionConfigReferences } from '$lib/features/content-management/config';
 	import {
 		buildCollectionFilePath,
@@ -48,6 +45,8 @@
 		getTemplateInfo
 	} from '$lib/features/content-management/transforms';
 	import { resolveConfigPath } from '$lib/utils/validation';
+	import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
+	import { markWorkflowReadiness } from '$lib/utils/workflow-instrumentation';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -107,11 +106,12 @@
 	);
 	const requiresFilename = $derived(false);
 	const hasUnsavedChanges = $derived(formHasUnsavedChanges || filenameHasUnsavedChanges);
+	const workflowEditor = $derived(data.editor ?? null);
 	const recoveryRouteKey = $derived(`${page.url.pathname}${page.url.search}`);
 	const recoveryContextKey = $derived.by(() =>
 		isLocalMode
 			? `local:${$localRepo.backend?.cacheKey ?? 'none'}`
-			: `github:${data.selectedRepo?.full_name ?? 'none'}:${data.branch ?? 'live'}`
+			: (workflowEditor?.recoveryContextKey ?? 'editor:github:unknown')
 	);
 	const currentSaveError = $derived(form?.error ?? localError);
 	const saveStatus = $derived.by<EditorSaveStatus>(() => {
@@ -173,6 +173,12 @@
 	});
 
 	onMount(() => {
+		markWorkflowReadiness({
+			workflow: 'rich-editor-interactive',
+			mark: 'rich-editor-interactive',
+			route: `/pages/${data.pageSlug}/new`,
+			slug: data.pageSlug
+		});
 		const cleanup = registerKeyboardShortcuts([
 			{
 				key: 's',
@@ -326,7 +332,7 @@
 	}
 
 	function getCreatedItemCacheInvalidationPaths(contentData: ContentRecord): string[] {
-		if (!discoveredConfig) {
+		if (!discoveredConfig || typeof discoveredConfig.config.content.path !== 'string') {
 			return [];
 		}
 
@@ -334,16 +340,20 @@
 			discoveredConfig.path,
 			discoveredConfig.config.content.path
 		);
-		const itemPath =
-			discoveredConfig.config.content.mode === 'directory'
-				? buildCollectionFilePath(
-						contentPath,
-						ensureFilenameExtension(
-							filename || getCollectionFilenameBase(discoveredConfig.config, contentData),
-							getTemplateInfo(discoveredConfig.path, discoveredConfig.config).templateExt
-						)
-					)
-				: contentPath;
+		if (discoveredConfig.config.content.mode !== 'directory') {
+			return [contentPath];
+		}
+
+		const directoryConfig = discoveredConfig.config as Parameters<
+			typeof getCollectionFilenameBase
+		>[0];
+		const itemPath = buildCollectionFilePath(
+			contentPath,
+			ensureFilenameExtension(
+				filename || getCollectionFilenameBase(directoryConfig, contentData),
+				getTemplateInfo(discoveredConfig.path, directoryConfig).templateExt
+			)
+		);
 
 		return [itemPath];
 	}
@@ -403,9 +413,6 @@
 
 		const result = await response.json();
 		navigationManifest = result.navigationManifest;
-		if (result.branchName && data.selectedRepo) {
-			draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
-		}
 	}
 
 	function prepareFormSubmit(event?: SubmitEvent): ContentRecord | null {
@@ -458,11 +465,41 @@
 				materialized.content,
 				undefined
 			);
-			await Promise.all(materialized.cleanedRefs.map((ref) => draftAssetStore.delete(ref)));
-			clearRecoveryDraft();
-			await localContent.refresh({ force: true });
+			const changedPaths = getCreatedItemCacheInvalidationPaths(materialized.content);
+			const mutation = createWorkflowMutationResult({
+				mode: 'local',
+				intent: {
+					type: 'create-item',
+					slug: discoveredConfig.slug
+				},
+				message: 'Item created in local files.',
+				changedPaths,
+				redirect: {
+					href: `${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true,
+					draftAssetRefs: materialized.cleanedRefs
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
 
-			await goto(`${resolve(`/pages/${discoveredConfig.slug}`)}?published=true`);
+			await Promise.all(
+				mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+			);
+			if (mutation.recoveryCleanup.clearEditorRecovery) {
+				clearRecoveryDraft();
+			}
+			if (mutation.refresh.workspace) {
+				await localContent.refresh({ force: true });
+			}
+			if (mutation.redirect) {
+				await goto(mutation.redirect.href);
+			}
 		} catch (error) {
 			formHasUnsavedChanges = true;
 			localError = error instanceof Error ? error.message : 'Failed to create item';
@@ -647,12 +684,32 @@
 
 				return async ({ update, result }) => {
 					if (result.type === 'redirect' || result.type === 'success') {
-						await githubRepositoryCache.invalidatePaths(
-							submittedContent ? getCreatedItemCacheInvalidationPaths(submittedContent) : []
-						);
+						const mutation = createWorkflowMutationResult({
+							mode: 'github',
+							intent: {
+								type: 'create-item',
+								slug: discoveredConfig?.slug ?? data.pageSlug
+							},
+							recoveryCleanup: {
+								clearEditorRecovery: true,
+								draftAssetRefs: submittedRefs
+							},
+							refresh: {
+								workspace: true,
+								collections: [discoveredConfig?.slug ?? data.pageSlug],
+								cachePaths: submittedContent
+									? getCreatedItemCacheInvalidationPaths(submittedContent)
+									: []
+							}
+						});
+						await githubRepositoryCache.invalidatePaths(mutation.refresh.cachePaths);
 						await update();
-						await Promise.all(submittedRefs.map((ref) => draftAssetStore.delete(ref)));
-						clearRecoveryDraft();
+						await Promise.all(
+							mutation.recoveryCleanup.draftAssetRefs.map((ref) => draftAssetStore.delete(ref))
+						);
+						if (mutation.recoveryCleanup.clearEditorRecovery) {
+							clearRecoveryDraft();
+						}
 					} else {
 						await update();
 						formHasUnsavedChanges = true;

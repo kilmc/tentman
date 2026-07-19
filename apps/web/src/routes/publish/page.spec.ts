@@ -1,7 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	assertWorkflowRequestBudgetForTests,
+	clearWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 import { load } from './+page';
 
 describe('routes/publish/+page', () => {
+	beforeEach(() => {
+		clearWorkflowInstrumentationEventsForTests();
+	});
+
 	it('redirects unauthenticated users to login', async () => {
 		await expect(
 			load({
@@ -27,7 +35,14 @@ describe('routes/publish/+page', () => {
 							topLevelOrderChange: null,
 							sections: [],
 							otherSiteChanges: null,
-							hasHiddenUnreviewedChanges: false
+							hasHiddenUnreviewedChanges: false,
+							reviewStatus: {
+								mode: 'scoped',
+								source: 'compare-metadata',
+								message: 'Tentman summarized this draft from compare metadata.',
+								changedFileCount: 0,
+								degradedChanges: []
+							}
 						}
 					}),
 					{
@@ -67,11 +82,26 @@ describe('routes/publish/+page', () => {
 				topLevelOrderChange: null,
 				sections: [],
 				otherSiteChanges: null,
-				hasHiddenUnreviewedChanges: false
+				hasHiddenUnreviewedChanges: false,
+				reviewStatus: {
+					mode: 'scoped',
+					source: 'compare-metadata',
+					message: 'Tentman summarized this draft from compare metadata.',
+					changedFileCount: 0,
+					degradedChanges: []
+				}
 			}
 		});
 
 		expect(fetch).toHaveBeenCalledWith('/api/repo/publish-view');
+		assertWorkflowRequestBudgetForTests({
+			workflow: 'publish-summary',
+			route: '/publish',
+			maxBrowserRequests: 1,
+			maxGitHubRequests: 0,
+			maxRouteDataFallbacks: 0,
+			maxRequests: 1
+		});
 	});
 
 	it('returns blocked review data when the thin API prevents an expensive review', async () => {

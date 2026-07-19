@@ -10,14 +10,14 @@ import {
 	validateContentComponent
 } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { copyCoreFixtureProjectToTempGitRepo } from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-component-create-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-component-create-');
 }
 
-test('creates a valid content component scaffold in the default components directory', async () => {
-	const projectRoot = await copyFixture();
+test('creates a valid content component scaffold in the default components directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 
 	const created = await createContentComponentScaffold(projectRoot, 'buy-button');
 
@@ -45,8 +45,8 @@ test('creates a valid content component scaffold in the default components direc
 	);
 });
 
-test('creates a valid content component scaffold in the configured components directory', async () => {
-	const projectRoot = await copyFixture();
+test('creates a valid content component scaffold in the configured components directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.componentsDir = './src/lib/components/content';
@@ -58,8 +58,8 @@ test('creates a valid content component scaffold in the configured components di
 	assert.equal(created.directory, 'src/lib/components/content/hero-callout');
 });
 
-test('creates a valid block content component scaffold when requested', async () => {
-	const projectRoot = await copyFixture();
+test('creates a valid block content component scaffold when requested', async (t) => {
+	const projectRoot = await copyFixture(t);
 
 	const created = await createContentComponentScaffold(projectRoot, 'image-gallery', {
 		kind: 'block'
@@ -81,8 +81,8 @@ test('creates a valid block content component scaffold when requested', async ()
 	);
 });
 
-test('rejects invalid content component names', async () => {
-	const projectRoot = await copyFixture();
+test('rejects invalid content component names', async (t) => {
+	const projectRoot = await copyFixture(t);
 
 	await assert.rejects(
 		() => createContentComponentScaffold(projectRoot, 'BuyButton'),
@@ -90,8 +90,8 @@ test('rejects invalid content component names', async () => {
 	);
 });
 
-test('rejects invalid content component kinds', async () => {
-	const projectRoot = await copyFixture();
+test('rejects invalid content component kinds', async (t) => {
+	const projectRoot = await copyFixture(t);
 
 	await assert.rejects(
 		() => createContentComponentScaffold(projectRoot, 'buy-button', { kind: 'grid' }),
@@ -99,8 +99,8 @@ test('rejects invalid content component kinds', async () => {
 	);
 });
 
-test('rejects creating a scaffold when the component directory already exists', async () => {
-	const projectRoot = await copyFixture();
+test('rejects creating a scaffold when the component directory already exists', async (t) => {
+	const projectRoot = await copyFixture(t);
 
 	await createContentComponentScaffold(projectRoot, 'buy-button');
 

@@ -15,6 +15,10 @@ import {
 } from './preview';
 import { resolveCollectionItemDocument } from '$lib/server/repository-data';
 import { getCachedContent } from '$lib/stores/content-cache';
+import {
+	clearWorkflowInstrumentationEventsForTests,
+	getWorkflowInstrumentationEventsForTests
+} from '$lib/utils/workflow-instrumentation';
 
 const directoryConfig = {
 	slug: 'posts',
@@ -49,6 +53,7 @@ describe('preview mutation helpers', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(resolveCollectionItemDocument).mockResolvedValue(null);
+		clearWorkflowInstrumentationEventsForTests();
 	});
 
 	it('keeps existing item save options mode-specific', () => {
@@ -126,6 +131,11 @@ describe('preview mutation helpers', () => {
 			ref: 'tentman-preview'
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(
+			getWorkflowInstrumentationEventsForTests().filter(
+				(event) => event.kind === 'route-data-fallback'
+			)
+		).toEqual([]);
 	});
 
 	it('falls back to legacy content cache for existing directory mutation options', async () => {
@@ -152,6 +162,18 @@ describe('preview mutation helpers', () => {
 			directoryConfig.path,
 			directoryConfig.slug,
 			undefined
+		);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'route-data-fallback',
+					route: '/pages/posts/hello-world/preview-changes',
+					slug: 'posts',
+					itemId: 'hello-world',
+					source: 'preview-filename',
+					reason: 'directory item filename repository-data unavailable'
+				})
+			])
 		);
 	});
 
@@ -192,6 +214,11 @@ describe('preview mutation helpers', () => {
 			ref: 'tentman-preview'
 		});
 		expect(getCachedContent).not.toHaveBeenCalled();
+		expect(
+			getWorkflowInstrumentationEventsForTests().filter(
+				(event) => event.kind === 'route-data-fallback'
+			)
+		).toEqual([]);
 	});
 
 	it('falls back to legacy content cache filenames for incomplete directory resolvers', async () => {
@@ -220,6 +247,18 @@ describe('preview mutation helpers', () => {
 			directoryConfig.path,
 			directoryConfig.slug,
 			'tentman-preview'
+		);
+		expect(getWorkflowInstrumentationEventsForTests()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'route-data-fallback',
+					route: '/pages/posts/hello-world/preview-changes',
+					slug: 'posts',
+					itemId: 'hello-world',
+					source: 'preview-filename',
+					reason: 'directory item filename repository-data unavailable'
+				})
+			])
 		);
 	});
 });

@@ -11,6 +11,7 @@ import { buildPathWithQuery, getRoutePath } from '$lib/utils/routing';
 import { handleGitHubRouteError, requireDiscoveredConfig } from '$lib/server/page-context';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 export const actions: Actions = {
 	saveToPreview: async ({ locals, params, request, cookies, url }) => {
@@ -62,11 +63,35 @@ export const actions: Actions = {
 				reason: 'content-write'
 			});
 
+			const mutation = createWorkflowMutationResult({
+				mode: 'github',
+				intent: {
+					type: 'save-content',
+					slug: discoveredConfig.slug,
+					target: 'singleton'
+				},
+				message: 'Changes saved to draft.',
+				changedPaths,
+				redirect: {
+					href: buildPathWithQuery(`/pages/${params.page}/edit`, {
+						saved: 'true'
+					})
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true
+				},
+				refresh: {
+					workspace: true,
+					cachePaths: changedPaths
+				}
+			});
+
 			throw redirect(
-				303,
-				buildPathWithQuery(`/pages/${params.page}/edit`, {
-					saved: 'true'
-				})
+				mutation.redirect?.status ?? 303,
+				mutation.redirect?.href ??
+					buildPathWithQuery(`/pages/${params.page}/edit`, {
+						saved: 'true'
+					})
 			);
 		} catch (err) {
 			// Handle redirects

@@ -1,0 +1,3 @@
+# Normalize navigation references to objects
+
+Navigation manifests may accept shorthand string references for compatibility, but `@tentman/core` will expose one canonical parsed shape where navigation references are objects with an `id` and optional metadata. New persisted manifests and serializers should produce the canonical object shape, while workflow-specific app code may still pass around ids through helper functions and draft types. Existing manifests should be normalized lazily when Tentman next writes them, rather than through a dedicated migration command. This keeps runtime and web consumers from carrying separate simplified manifest shapes without allowing the old shorthand shape to keep spreading.

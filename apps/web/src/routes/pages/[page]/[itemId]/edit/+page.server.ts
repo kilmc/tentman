@@ -17,6 +17,7 @@ import {
 } from '$lib/server/preview';
 import { invalidateRepositoryData } from '$lib/server/repository-data';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import { createWorkflowMutationResult } from '$lib/repository/workflow-mutations';
 
 export const actions: Actions = {
 	delete: async ({ locals, params, cookies, request, url }) => {
@@ -58,12 +59,33 @@ export const actions: Actions = {
 				reason: 'content-write'
 			});
 
-			// Redirect back to list view with success message
+			const mutation = createWorkflowMutationResult({
+				mode: 'github',
+				intent: {
+					type: 'delete-item',
+					slug: discoveredConfig.slug,
+					itemId
+				},
+				message: 'Item deleted from draft.',
+				changedPaths,
+				redirect: {
+					href: buildPathWithQuery(`/pages/${params.page}`, {
+						deleted: 'true'
+					})
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
+
 			throw redirect(
-				303,
-				buildPathWithQuery(`/pages/${params.page}`, {
-					deleted: 'true'
-				})
+				mutation.redirect?.status ?? 303,
+				mutation.redirect?.href ??
+					buildPathWithQuery(`/pages/${params.page}`, {
+						deleted: 'true'
+					})
 			);
 		} catch (err) {
 			// Handle redirects
@@ -160,11 +182,37 @@ export const actions: Actions = {
 				reason: 'content-write'
 			});
 
+			const mutation = createWorkflowMutationResult({
+				mode: 'github',
+				intent: {
+					type: 'save-content',
+					slug: discoveredConfig.slug,
+					target: 'collection-item',
+					itemId: params.itemId
+				},
+				message: 'Changes saved to draft.',
+				changedPaths,
+				redirect: {
+					href: buildPathWithQuery(`/pages/${params.page}/${params.itemId}/edit`, {
+						saved: 'true'
+					})
+				},
+				recoveryCleanup: {
+					clearEditorRecovery: true
+				},
+				refresh: {
+					workspace: true,
+					collections: [discoveredConfig.slug],
+					cachePaths: changedPaths
+				}
+			});
+
 			throw redirect(
-				303,
-				buildPathWithQuery(`/pages/${params.page}/${params.itemId}/edit`, {
-					saved: 'true'
-				})
+				mutation.redirect?.status ?? 303,
+				mutation.redirect?.href ??
+					buildPathWithQuery(`/pages/${params.page}/${params.itemId}/edit`, {
+						saved: 'true'
+					})
 			);
 		} catch (err) {
 			// Handle redirects

@@ -5,7 +5,6 @@
 	import type { SerializablePackageBlock } from '$lib/blocks/packages';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { draftBranch as draftBranchStore } from '$lib/stores/draft-branch';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import ContentValueDisplay from '$lib/components/content/ContentValueDisplay.svelte';
 	import { getContentItemTitle } from '$lib/features/content-management/navigation';
@@ -20,10 +19,12 @@
 	import { fetchContentDocument } from '$lib/content/service';
 	import { findContentItemByRoute } from '$lib/features/content-management/item';
 	import { buildContentTitleContext, formatAppTitle } from '$lib/utils/page-title';
+	import { createLocalWorkflowItemViewData } from '$lib/repository/local-workflow-data';
+	import type { WorkflowItemViewData } from '$lib/repository/workflow-data';
 
 	let { data }: { data: PageData } = $props();
 
-	const isLocalMode = $derived(data.mode === 'local');
+	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 
 	function getInitialDiscoveredConfig() {
 		return data.discoveredConfig;
@@ -49,18 +50,27 @@
 		return data.contentError;
 	}
 
+	function getInitialWorkflowData() {
+		return data.workflowData ?? null;
+	}
+
 	let discoveredConfig = $state(getInitialDiscoveredConfig());
 	let blockConfigs = $state(getInitialBlockConfigs());
 	let packageBlocks = $state<SerializablePackageBlock[]>(getInitialPackageBlocks());
 	let blockRegistryError = $state<string | null>(getInitialBlockRegistryError());
 	let localBlockRegistry = $state<BlockRegistry | null>(null);
 	let item = $state(getInitialItem());
+	let routeWorkflowData = $state<WorkflowItemViewData | null>(getInitialWorkflowData());
 	let contentError = $state(getInitialContentError());
 	let localLoadRequest = 0;
 	const flashMessageKeys = ['published', 'deleted', 'branch'] as const;
 
 	const config = $derived(discoveredConfig?.config ?? null);
-	const isDraftView = $derived(!isLocalMode && !!data.branch);
+	const workflowEditor = $derived(routeWorkflowData?.editor ?? data.editor ?? null);
+	const isDraftView = $derived(!isLocalMode && workflowEditor?.isDraft === true);
+	const draftStatusMessage = $derived(
+		workflowEditor?.message ?? 'This item is being loaded from the current draft.'
+	);
 	const blockRegistry = $derived.by(() => {
 		if (blockRegistryError) {
 			return null;
@@ -109,6 +119,7 @@
 		blockRegistryError = data.blockRegistryError ?? null;
 		localBlockRegistry = null;
 		item = data.item;
+		routeWorkflowData = data.workflowData ?? null;
 		contentError = data.contentError;
 	}
 
@@ -120,6 +131,7 @@
 		packageBlocks = [];
 		localBlockRegistry = null;
 		item = null;
+		routeWorkflowData = null;
 		contentError = null;
 		blockRegistryError = null;
 		await localContent.refresh();
@@ -139,11 +151,37 @@
 
 		if (!repoState.backend || !discoveredConfig) {
 			contentError = 'Configuration not found';
+			if (repoState.backend) {
+				routeWorkflowData = createLocalWorkflowItemViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					itemId,
+					discoveredConfig,
+					item: null,
+					navigationManifest: contentState.navigationManifest,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError
+				});
+			}
 			return;
 		}
 
 		if (!localBlockRegistry) {
 			contentError = contentState.blockRegistryError ?? 'Block registry is still loading';
+			routeWorkflowData = createLocalWorkflowItemViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				itemId,
+				discoveredConfig,
+				item: null,
+				navigationManifest: contentState.navigationManifest,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 			return;
 		}
 
@@ -159,7 +197,34 @@
 			}
 
 			if (Array.isArray(loadedContent)) {
-				item = findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
+				const localItem =
+					findContentItemByRoute(loadedContent, discoveredConfig.config, itemId) ?? null;
+				routeWorkflowData = createLocalWorkflowItemViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					itemId,
+					discoveredConfig,
+					item: localItem,
+					navigationManifest: contentState.navigationManifest,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError: null
+				});
+				item = routeWorkflowData.item;
+			} else {
+				routeWorkflowData = createLocalWorkflowItemViewData({
+					backend: repoState.backend,
+					discoverySignature: contentState.discoverySignature ?? null,
+					slug: pageSlug,
+					itemId,
+					discoveredConfig,
+					item: null,
+					navigationManifest: contentState.navigationManifest,
+					blockConfigs: contentState.blockConfigs,
+					blockRegistryError: contentState.blockRegistryError,
+					contentError: null
+				});
 			}
 		} catch (error) {
 			if (requestId !== localLoadRequest) {
@@ -167,6 +232,18 @@
 			}
 
 			contentError = error instanceof Error ? error.message : 'Failed to load content';
+			routeWorkflowData = createLocalWorkflowItemViewData({
+				backend: repoState.backend,
+				discoverySignature: contentState.discoverySignature ?? null,
+				slug: pageSlug,
+				itemId,
+				discoveredConfig,
+				item: null,
+				navigationManifest: contentState.navigationManifest,
+				blockConfigs: contentState.blockConfigs,
+				blockRegistryError: contentState.blockRegistryError,
+				contentError
+			});
 		}
 	}
 
@@ -178,15 +255,6 @@
 
 		localLoadRequest += 1;
 		applyRemoteData();
-	});
-
-	$effect(() => {
-		if (!data.branch || !data.selectedRepo || isLocalMode) {
-			return;
-		}
-
-		const repoFullName = `${data.selectedRepo.owner}/${data.selectedRepo.name}`;
-		draftBranchStore.setBranch(data.branch, repoFullName);
 	});
 
 	function getFlashMessageKey() {
@@ -241,10 +309,7 @@
 	{#if isDraftView}
 		<div class="mb-5 rounded-md border border-stone-200 bg-stone-100 p-3">
 			<p class="text-sm font-medium text-stone-900">Viewing draft content</p>
-			<p class="mt-1 text-sm text-stone-600">
-				This item is being loaded from
-				<code class="rounded bg-white px-1 text-xs">{data.branch}</code>
-			</p>
+			<p class="mt-1 text-sm text-stone-600">{draftStatusMessage}</p>
 		</div>
 	{/if}
 

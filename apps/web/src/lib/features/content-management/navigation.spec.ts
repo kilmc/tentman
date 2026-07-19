@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeNavigationManifest } from '@tentman/core/navigation-manifest';
 import {
 	getCollectionNavigationItems,
 	getConfigItemLabel,
@@ -446,12 +447,12 @@ describe('content navigation helpers', () => {
 						}
 					}
 				],
-				{
+				normalizeNavigationManifest({
 					version: 1,
 					content: {
 						items: ['posts', 'about']
 					}
-				},
+				}),
 				{ content: { sorting: 'manual' } }
 			).map((config) => config.slug)
 		).toEqual(['posts', 'about', 'contact']);
@@ -466,7 +467,7 @@ describe('content navigation helpers', () => {
 					{ _tentmanId: 'post-2', title: 'Second Post', slug: 'second-post' },
 					{ _tentmanId: 'post-3', title: 'Third Post', slug: 'third-post' }
 				],
-				{
+				normalizeNavigationManifest({
 					version: 1,
 					collections: {
 						posts: {
@@ -480,7 +481,7 @@ describe('content navigation helpers', () => {
 							]
 						}
 					}
-				}
+				})
 			)
 		).toEqual({
 			groups: [

@@ -1,4 +1,5 @@
 import type { Octokit } from 'octokit';
+import { traceGitHubRequest } from '$lib/utils/workflow-instrumentation';
 
 /**
  * Updates a file in a GitHub repository by creating a new commit
@@ -17,12 +18,25 @@ export async function updateFile(
 		// Get the current file to retrieve its SHA (required for updates)
 		let sha: string | undefined;
 		try {
-			const { data: currentFile } = await octokit.rest.repos.getContent({
-				owner,
-				repo,
-				path,
-				...(branch && { ref: branch })
-			});
+			const { data: currentFile } = await traceGitHubRequest(
+				{
+					source: 'github-helper',
+					operation: 'updateFileReadContent',
+					requestKind: 'contents',
+					repoKey: `github:${owner}/${repo}`,
+					owner,
+					repo,
+					ref: branch ?? null,
+					path
+				},
+				() =>
+					octokit.rest.repos.getContent({
+						owner,
+						repo,
+						path,
+						...(branch && { ref: branch })
+					})
+			);
 
 			if ('sha' in currentFile) {
 				sha = currentFile.sha;
@@ -33,15 +47,28 @@ export async function updateFile(
 		}
 
 		// Update or create the file
-		await octokit.rest.repos.createOrUpdateFileContents({
-			owner,
-			repo,
-			path,
-			message,
-			content: Buffer.from(content).toString('base64'),
-			sha,
-			...(branch && { branch })
-		});
+		await traceGitHubRequest(
+			{
+				source: 'github-helper',
+				operation: 'updateFileWriteContent',
+				requestKind: 'contents',
+				repoKey: `github:${owner}/${repo}`,
+				owner,
+				repo,
+				ref: branch ?? null,
+				path
+			},
+			() =>
+				octokit.rest.repos.createOrUpdateFileContents({
+					owner,
+					repo,
+					path,
+					message,
+					content: Buffer.from(content).toString('base64'),
+					sha,
+					...(branch && { branch })
+				})
+		);
 	} catch (err) {
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 		console.error('Failed to update file:', { path, error: err });

@@ -42,6 +42,10 @@
 		"./content-components": {
 			"types": "./src/content-components.d.ts",
 			"default": "./src/content-components.js"
+		},
+		"./navigation-manifest": {
+			"types": "./src/navigation-manifest.d.ts",
+			"default": "./src/navigation-manifest.js"
 		}
 	},
 	"types": "./src/index.d.ts",

@@ -8,14 +8,14 @@ import {
 	loadTentmanProject
 } from './index.js';
 import { serializeJson } from './json.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { copyCoreFixtureProjectToTempGitRepo } from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-component-inspect-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-component-inspect-');
 }
 
-test('inspects a scaffolded content component by name', async () => {
-	const projectRoot = await copyFixture();
+test('inspects a scaffolded content component by name', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await createContentComponentScaffold(projectRoot, 'promo-banner');
 	const project = await loadTentmanProject(projectRoot);
 
@@ -39,8 +39,8 @@ test('inspects a scaffolded content component by name', async () => {
 	});
 });
 
-test('inspects a scaffolded content component by id from a configured directory', async () => {
-	const projectRoot = await copyFixture();
+test('inspects a scaffolded content component by id from a configured directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const rootConfigPath = path.join(projectRoot, 'tentman.json');
 	const rootConfig = JSON.parse(await fs.readFile(rootConfigPath, 'utf8'));
 	rootConfig.componentsDir = './src/lib/components/content';
@@ -54,8 +54,8 @@ test('inspects a scaffolded content component by id from a configured directory'
 	assert.equal(component.path, 'src/lib/components/content/hero-callout');
 });
 
-test('throws when inspecting an unknown content component', async () => {
-	const projectRoot = await copyFixture();
+test('throws when inspecting an unknown content component', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await fs.rm(path.join(projectRoot, 'src/lib/content-components'), {
 		recursive: true,
 		force: true
@@ -68,8 +68,8 @@ test('throws when inspecting an unknown content component', async () => {
 	);
 });
 
-test('throws when a requested content component does not exist in an existing directory', async () => {
-	const projectRoot = await copyFixture();
+test('throws when a requested content component does not exist in an existing directory', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await createContentComponentScaffold(projectRoot, 'promo-banner');
 	const project = await loadTentmanProject(projectRoot);
 

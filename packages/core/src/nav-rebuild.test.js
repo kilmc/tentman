@@ -8,14 +8,14 @@ import {
 	parseNavigationManifest,
 	rebuildNavigationManifest
 } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { copyCoreFixtureProjectToTempGitRepo } from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-nav-rebuild-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-nav-rebuild-');
 }
 
-test('rebuilds navigation manifest from current configs and content', async () => {
-	const projectRoot = await copyFixture();
+test('rebuilds navigation manifest from current configs and content', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await fs.writeFile(
 		path.join(projectRoot, 'tentman/navigation-manifest.json'),
 		'{\n\t"version": 1,\n\t"content": {\n\t\t"items": ["about"]\n\t}\n}\n'
@@ -70,8 +70,8 @@ test('rebuilds navigation manifest from current configs and content', async () =
 	});
 });
 
-test('rebuilds config-backed collection groups', async () => {
-	const projectRoot = await copyFixture();
+test('rebuilds config-backed collection groups', async (t) => {
+	const projectRoot = await copyFixture(t);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
 	blogConfig.collection = {

@@ -10,14 +10,17 @@ import {
 } from '$lib/features/content-management/navigation';
 import {
 	syncCollectionItemGroupSelectionInManifest,
+	type CollectionGroupManagementMutation,
 	type NavigationManifest,
 	type NavigationManifestState
 } from '$lib/features/content-management/navigation-manifest';
+import { normalizeNavigationManifest } from '@tentman/core/navigation-manifest';
 import {
 	resolveCollectionItemState,
 	type ResolvedContentState
 } from '$lib/features/content-management/state';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import { getCollectionGroups } from '$lib/features/content-management/config';
 import {
 	getCollectionSortValues,
 	resolveCollectionSortCapabilities
@@ -27,8 +30,30 @@ import type { SerializablePackageBlock } from '$lib/blocks/packages';
 import type {
 	RepoBootstrapIdentity,
 	RepoConfigsBootstrap,
+	RepoFreshnessIdentityResult,
 	RepoSingletonContentIdentity
 } from '$lib/repository/config-bootstrap';
+import {
+	createWorkflowCacheMissResult,
+	createWorkflowBlockSupportData,
+	createWorkflowCollectionNavigationData,
+	createWorkflowItemViewData,
+	createWorkflowPageViewData,
+	createWorkflowRouteDataIdentity,
+	type WorkflowBlockSupportData,
+	type WorkflowCollectionNavigationData,
+	type WorkflowItemViewData,
+	type WorkflowPageViewData
+} from '$lib/repository/workflow-data';
+import {
+	markWorkflowReadiness,
+	recordCacheOutcome,
+	recordCacheWork,
+	traceBrowserRequest,
+	type CacheWorkOperation,
+	type CacheWorkPhase,
+	type RequestDuplicateState
+} from '$lib/utils/workflow-instrumentation';
 
 const DATABASE_NAME = 'tentman-github-repository-cache';
 const DATABASE_VERSION = 3;
@@ -51,17 +76,40 @@ const REQUIRED_STORE_NAMES = [
 const VISIBLE_PROJECTION_LIMIT = 30;
 const BACKGROUND_PROJECTION_BATCH_SIZE = 20;
 const SITE_WARM_PROJECTION_BATCH_SIZE = 20;
+const BACKGROUND_CACHE_CORE_QUOTA_PAUSE_THRESHOLD = 500;
 const SITE_WARM_READY_RESET_MS = 2500;
 const CACHE_PROGRESS_LARGE_TASK_THRESHOLD = 25;
 const CACHE_PROGRESS_SLOW_JOB_MS = 800;
+const RECENT_CACHE_WORK_LIMIT = 8;
+const DEFAULT_ENDPOINT_RETRY_ATTEMPTS = 2;
+const DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS = 500;
+const DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS = 5000;
 const DEFAULT_FULL_DOCUMENT_BUDGET_BYTES = 50 * 1024 * 1024;
 const DEFAULT_FULL_DOCUMENT_RECORD_LIMIT = 2500;
+const DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES = 10 * 1024 * 1024;
+const DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT = 50;
 const FRESHNESS_BACKOFF_INTERVALS_MS = [5, 15, 30, 60].map((minutes) => minutes * 60 * 1000);
 
 let fullDocumentBudgetPolicy = {
 	bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 	recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
 };
+let idleFullDocumentBudgetPolicy = {
+	bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+	recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+};
+let endpointRetryPolicy = {
+	attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+	baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+	maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
+};
+
+class BackgroundCacheWarmPausedError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'BackgroundCacheWarmPausedError';
+	}
+}
 
 export type GithubCacheWarmPhase =
 	| 'idle'
@@ -106,6 +154,55 @@ export interface GithubCacheWarmDebugStatus extends GithubCacheWarmStatus {
 	pendingTaskKeys: string[];
 	runningTaskKind: CacheTaskKind | null;
 	taskKinds: Record<CacheTaskKind, GithubCacheTaskKindDebug>;
+}
+
+export type GithubCacheCurrentWorkState =
+	| 'idle'
+	| 'queued'
+	| 'running'
+	| 'waiting-for-idle'
+	| 'blocked-by-foreground'
+	| 'backing-off'
+	| 'paused'
+	| 'rate-limited'
+	| 'completed'
+	| 'error';
+
+export type GithubCacheWorkResult = 'completed' | 'error' | 'paused' | 'canceled';
+
+export interface GithubCacheCurrentWork {
+	state: GithubCacheCurrentWorkState;
+	operation: CacheWorkOperation;
+	taskKey: string | null;
+	taskKind: CacheTaskKind | null;
+	label: string;
+	route: string | null;
+	reason: string | null;
+	startedAt: number | null;
+	updatedAt: number;
+	progressCompleted: number;
+	progressTotal: number;
+	queuedTasks: number;
+	runningTasks: number;
+}
+
+export interface GithubCacheWorkHistoryRecord {
+	id: string;
+	label: string;
+	operation: CacheWorkOperation;
+	taskKey: string | null;
+	taskKind: CacheTaskKind | null;
+	route: string | null;
+	result: GithubCacheWorkResult;
+	reason: string | null;
+	durationMs: number;
+	finishedAt: number;
+}
+
+export interface GithubCacheWorkObservabilityStatus {
+	current: GithubCacheCurrentWork;
+	recent: GithubCacheWorkHistoryRecord[];
+	progressExplanation: string;
 }
 
 export type GithubCacheInventoryTargetType =
@@ -274,10 +371,10 @@ interface CachedSingletonDocumentResult {
 	blockSupport: CachedBlockSupport | null;
 }
 
-type FreshnessBootstrap = RepoConfigsBootstrap & {
+type FreshnessIdentityResult = RepoFreshnessIdentityResult & {
+	repositoryIdentity?: RepoBootstrapIdentity | null;
 	mainRepositoryIdentity?: RepoBootstrapIdentity | null;
 	draftRepositoryIdentity?: RepoBootstrapIdentity | null;
-	changedPaths?: string[] | null;
 };
 
 type CacheTaskKind =
@@ -288,13 +385,27 @@ type CacheTaskKind =
 	| 'itemDocument';
 
 type CacheTaskPriority = 'foreground' | 'intent' | 'topLevel' | 'passive';
+type CollectionRouteWorkflow = 'desktop-collection-landing' | 'warm-collection-reload';
+type ReadRouteWorkflow = CollectionRouteWorkflow | 'item-route-shell';
+type CacheWorkContext = {
+	runId: number;
+	identityKey: string | null;
+};
+interface FullDocumentWarmBudget {
+	remainingBytes: number;
+	remainingRecords: number;
+}
 
 interface CacheTask<T = unknown> {
 	key: string;
 	kind: CacheTaskKind;
 	priority: number;
+	priorityLabel: CacheTaskPriority;
 	passive: boolean;
+	duplicateState: RequestDuplicateState;
 	order: number;
+	queuedAt: number;
+	startedAt: number | null;
 	status: 'queued' | 'running' | 'done' | 'error';
 	run: () => Promise<T>;
 	promise: Promise<T>;
@@ -322,9 +433,13 @@ let queueScheduled = false;
 let runningTask: CacheTask | null = null;
 let freshnessTimer: ReturnType<typeof setTimeout> | null = null;
 let freshnessBackoffIndex = 0;
-let freshnessCheckInFlight: Promise<void> | null = null;
+let cacheRetryStatusMessage: string | null = null;
+let currentCacheWorkStartedAt: number | null = null;
+let currentCacheWorkHistoryId = 0;
+const freshnessChecksInFlight = new Map<string, Promise<void>>();
 const collectionListeners = new Map<string, Set<CollectionListener>>();
 const cacheTasks = new Map<string, CacheTask<unknown>>();
+const recentCacheWork: GithubCacheWorkHistoryRecord[] = [];
 const totalQueuedTasksByKind = new Map<CacheTaskKind, number>();
 const completedQueuedTasksByKind = new Map<CacheTaskKind, number>();
 const erroredQueuedTasksByKind = new Map<CacheTaskKind, number>();
@@ -371,6 +486,35 @@ export const githubCacheWarmDebugStatus = writable<GithubCacheWarmDebugStatus>(
 
 export const githubCacheInventoryStatus =
 	writable<GithubCacheInventorySummary>(emptyInventorySummary);
+
+function createIdleCacheWorkStatus(
+	summary = get(githubCacheInventoryStatus)
+): GithubCacheWorkObservabilityStatus {
+	const now = Date.now();
+	return {
+		current: {
+			state: 'idle',
+			operation: 'no-active-work',
+			taskKey: null,
+			taskKind: null,
+			label: 'No cache work is running',
+			route: null,
+			reason: null,
+			startedAt: null,
+			updatedAt: now,
+			progressCompleted: summary.cachedTargets + summary.skippedBudgetTargets,
+			progressTotal: summary.totalTargets,
+			queuedTasks: 0,
+			runningTasks: 0
+		},
+		recent: recentCacheWork,
+		progressExplanation: getCacheProgressExplanation(summary)
+	};
+}
+
+export const githubCacheWorkObservabilityStatus = writable<GithubCacheWorkObservabilityStatus>(
+	createIdleCacheWorkStatus(emptyInventorySummary)
+);
 
 function openDatabase(): Promise<IDBDatabase> {
 	if (!browser) {
@@ -631,14 +775,243 @@ function createInventorySummary(
 	};
 }
 
+function getCacheProgressExplanation(summary: GithubCacheInventorySummary): string {
+	if (summary.totalTargets <= 0) {
+		return 'No cache targets have been discovered for the active workspace yet.';
+	}
+
+	const completedTargets = summary.cachedTargets + summary.skippedBudgetTargets;
+	const staleTargets = summary.staleTargets + summary.missingTargets;
+	const parts = [
+		`${completedTargets} of ${summary.totalTargets} cache targets are complete.`,
+		'The total can grow after Tentman discovers collection items.'
+	];
+	if (staleTargets > 0) {
+		parts.push(`${staleTargets} target${staleTargets === 1 ? '' : 's'} still need work.`);
+	}
+	if (summary.refreshingTargets > 0) {
+		parts.push(
+			`${summary.refreshingTargets} target${
+				summary.refreshingTargets === 1 ? '' : 's'
+			} currently refreshing.`
+		);
+	}
+	if (summary.errorTargets > 0) {
+		parts.push(`${summary.errorTargets} target${summary.errorTargets === 1 ? '' : 's'} failed.`);
+	}
+	if (summary.skippedBudgetTargets > 0) {
+		parts.push('Budget-skipped full documents count as completed for progress.');
+	}
+
+	return parts.join(' ');
+}
+
+function getTaskLabelFromInventory(taskKey: string | null): string | null {
+	if (!taskKey) {
+		return null;
+	}
+
+	const records = get(githubCacheInventoryStatus).records;
+	const record =
+		records.find((candidate) => candidate.targetId === taskKey || candidate.key === taskKey) ??
+		records.find((candidate) => taskKey.startsWith(candidate.targetId));
+	if (!record) {
+		return null;
+	}
+
+	if (record.configSlug && record.itemId) {
+		return `${record.configSlug} / ${record.label}`;
+	}
+
+	return record.label;
+}
+
+function getTaskFallbackLabel(taskKey: string | null, taskKind: CacheTaskKind | null): string {
+	if (!taskKey) {
+		return 'No cache work is running';
+	}
+
+	const [, slug, itemId] = taskKey.split(':');
+	if (slug && itemId) {
+		return `${slug} / ${itemId}`;
+	}
+	if (slug) {
+		return slug;
+	}
+	if (taskKind) {
+		return taskKind;
+	}
+	return taskKey;
+}
+
+function getCacheWorkLabel(taskKey: string | null, taskKind: CacheTaskKind | null): string {
+	return getTaskLabelFromInventory(taskKey) ?? getTaskFallbackLabel(taskKey, taskKind);
+}
+
+function getTaskKindFromOperation(operation: CacheWorkOperation): CacheTaskKind | null {
+	if (operation === 'projection-hydration') {
+		return 'collectionProjectionBatch';
+	}
+	if (operation === 'item-document-warming' || operation === 'full-document-warming') {
+		return 'itemDocument';
+	}
+	if (operation === 'collection-index-warming') {
+		return 'collectionIndex';
+	}
+	if (operation === 'singleton-document-warming') {
+		return 'singletonDocument';
+	}
+	if (operation === 'block-support-warming') {
+		return 'blockRegistry';
+	}
+	return null;
+}
+
+function getCacheWorkStateFromPhase(
+	phase: CacheWorkPhase,
+	operation: CacheWorkOperation,
+	task: CacheTask | null
+): GithubCacheCurrentWorkState {
+	if (operation === 'rate-limit-pause') {
+		return 'rate-limited';
+	}
+	if (operation === 'retry-backoff' || phase === 'backoff') {
+		return 'backing-off';
+	}
+	if (operation === 'queue-wait') {
+		return task?.passive ? 'waiting-for-idle' : 'queued';
+	}
+	if (phase === 'paused') {
+		return 'paused';
+	}
+	if (phase === 'running') {
+		return 'running';
+	}
+	if (phase === 'completed') {
+		return 'completed';
+	}
+	if (phase === 'error') {
+		return 'error';
+	}
+	if (phase === 'queued') {
+		return runningTask &&
+			task &&
+			task.priority < runningTask.priority &&
+			(runningTask.priorityLabel === 'foreground' || runningTask.priorityLabel === 'intent')
+			? 'blocked-by-foreground'
+			: 'queued';
+	}
+	if (phase === 'canceled') {
+		return 'paused';
+	}
+	return 'idle';
+}
+
+function getCacheWorkDurationMs(
+	startedAt: number | null,
+	finishedAt: number,
+	fallbackStartedAt: number | null = currentCacheWorkStartedAt
+): number {
+	const start = startedAt ?? fallbackStartedAt ?? finishedAt;
+	return Math.max(0, finishedAt - start);
+}
+
+function setCurrentCacheWork(input: {
+	phase: CacheWorkPhase;
+	operation: CacheWorkOperation;
+	task?: CacheTask | null;
+	taskKey?: string | null;
+	taskKind?: CacheTaskKind | null;
+	route?: string | null;
+	reason?: string | null;
+}): void {
+	const now = Date.now();
+	const task = input.task ?? null;
+	const taskKey = input.taskKey ?? task?.key ?? null;
+	const taskKind = input.taskKind ?? task?.kind ?? getTaskKindFromOperation(input.operation);
+	const state = getCacheWorkStateFromPhase(input.phase, input.operation, task);
+	const progress = getCacheWorkProgress();
+	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
+	const runningTasks = [...cacheTasks.values()].filter(
+		(cacheTask) => cacheTask.status === 'running'
+	);
+	if (state !== 'idle' && !currentCacheWorkStartedAt) {
+		currentCacheWorkStartedAt = task?.startedAt ?? task?.queuedAt ?? now;
+	}
+
+	githubCacheWorkObservabilityStatus.set({
+		current: {
+			state,
+			operation: input.operation,
+			taskKey,
+			taskKind,
+			label: getCacheWorkLabel(taskKey, taskKind),
+			route: input.route ?? (task ? getCacheWorkRoute(task) : null),
+			reason: input.reason ?? null,
+			startedAt: task?.startedAt ?? task?.queuedAt ?? currentCacheWorkStartedAt,
+			updatedAt: now,
+			progressCompleted: progress.progressCompleted,
+			progressTotal: progress.progressTotal,
+			queuedTasks: queuedTasks.length,
+			runningTasks: runningTasks.length
+		},
+		recent: [...recentCacheWork],
+		progressExplanation: getCacheProgressExplanation(get(githubCacheInventoryStatus))
+	});
+}
+
+function addRecentCacheWork(input: {
+	task?: CacheTask | null;
+	taskKey?: string | null;
+	taskKind?: CacheTaskKind | null;
+	operation: CacheWorkOperation;
+	result: GithubCacheWorkResult;
+	route?: string | null;
+	reason?: string | null;
+	finishedAt?: number;
+}): void {
+	const finishedAt = input.finishedAt ?? Date.now();
+	const task = input.task ?? null;
+	const taskKey = input.taskKey ?? task?.key ?? null;
+	const taskKind = input.taskKind ?? task?.kind ?? getTaskKindFromOperation(input.operation);
+	recentCacheWork.unshift({
+		id: `cache-work:${++currentCacheWorkHistoryId}`,
+		label: getCacheWorkLabel(taskKey, taskKind),
+		operation: input.operation,
+		taskKey,
+		taskKind,
+		route: input.route ?? (task ? getCacheWorkRoute(task) : null),
+		result: input.result,
+		reason: input.reason ?? null,
+		durationMs: getCacheWorkDurationMs(task?.startedAt ?? task?.queuedAt ?? null, finishedAt),
+		finishedAt
+	});
+	recentCacheWork.splice(RECENT_CACHE_WORK_LIMIT);
+}
+
+function syncCacheWorkObservabilityFromInventory(summary = get(githubCacheInventoryStatus)): void {
+	const current = get(githubCacheWorkObservabilityStatus).current;
+	if (current.state === 'idle' || current.state === 'completed' || current.state === 'error') {
+		githubCacheWorkObservabilityStatus.set(createIdleCacheWorkStatus(summary));
+		return;
+	}
+
+	githubCacheWorkObservabilityStatus.update((status) => ({
+		...status,
+		progressExplanation: getCacheProgressExplanation(summary)
+	}));
+}
+
 async function refreshInventoryStatus(): Promise<void> {
 	if (!browser) {
 		githubCacheInventoryStatus.set(emptyInventorySummary);
+		syncCacheWorkObservabilityFromInventory(emptyInventorySummary);
 		return;
 	}
 
 	const summary = createInventorySummary(await readActiveInventoryRecords());
 	githubCacheInventoryStatus.set(summary);
+	syncCacheWorkObservabilityFromInventory(summary);
 	updateWarmStatusFromInventory(summary);
 }
 
@@ -669,7 +1042,7 @@ function updateWarmStatusFromInventory(summary = get(githubCacheInventoryStatus)
 						? 'warming'
 						: 'checking'
 					: 'ready',
-		message: activeWork > 0 ? 'Caching site data' : 'Site data cached',
+		message: cacheRetryStatusMessage ?? (activeWork > 0 ? 'Caching site data' : 'Site data cached'),
 		totalTasks: summary.totalTargets,
 		completedTasks: summary.cachedTargets + summary.skippedBudgetTargets,
 		showProgress: activeWork > 0,
@@ -935,6 +1308,111 @@ function getProjectionKey(input: {
 	return `${input.repoFullName}:${input.blobSha}:${input.schemaIdentity}`;
 }
 
+function formatCacheReadFailure(error: unknown): string {
+	return `cache read failure: ${error instanceof Error ? error.message : String(error)}`;
+}
+
+function getErrorResponseStatus(error: unknown): number | null {
+	if (error && typeof error === 'object' && 'status' in error && typeof error.status === 'number') {
+		return error.status;
+	}
+	if (!(error instanceof Error)) {
+		return null;
+	}
+
+	const status = error.message.match(/\((\d{3})\)/)?.[1];
+	return status ? Number(status) : null;
+}
+
+function getCollectionIndexMissReason(input: {
+	indexes: SerializableCollectionIndex[];
+	snapshot: CachedSnapshot;
+	slug: string;
+}): string {
+	const slugIndexes = input.indexes.filter((index) => index.identity.configSlug === input.slug);
+	if (slugIndexes.length === 0) {
+		return 'missing record';
+	}
+
+	const repositoryIndexes = slugIndexes.filter(
+		(index) =>
+			index.identity.repoKey === input.snapshot.identity.repoKey &&
+			index.identity.ref === input.snapshot.identity.ref
+	);
+	if (repositoryIndexes.length === 0) {
+		return 'stale identity';
+	}
+
+	const activeTreeIndexes = repositoryIndexes.filter(
+		(index) => index.identity.treeSha === input.snapshot.identity.treeSha
+	);
+	if (activeTreeIndexes.length === 0) {
+		return 'stale identity';
+	}
+
+	const config = getConfig(input.snapshot, input.slug);
+	if (config && activeTreeIndexes.some((index) => index.identity.configPath !== config.path)) {
+		return 'stale identity';
+	}
+
+	return 'missing record';
+}
+
+function isSameProjectionItem(record: CachedProjection, item: CollectionIndexItem): boolean {
+	const cachedItemId = record.item.hrefItemId ?? record.item.itemId;
+	const itemId = item.hrefItemId ?? item.itemId;
+	return cachedItemId === itemId || record.item.path === item.path;
+}
+
+function getProjectionMissReason(input: {
+	projections: CachedProjection[];
+	snapshot: CachedSnapshot;
+	index: SerializableCollectionIndex;
+	item: CollectionIndexItem;
+}): string {
+	const repoProjections = input.projections.filter(
+		(projection) => projection.repoFullName === input.snapshot.repoFullName
+	);
+	const sameBlob = repoProjections.filter(
+		(projection) => projection.blobSha === input.item.blobSha
+	);
+	if (
+		sameBlob.length > 0 &&
+		sameBlob.every(
+			(projection) => projection.schemaIdentity !== input.index.identity.schemaIdentity
+		)
+	) {
+		return 'schema mismatch';
+	}
+
+	if (
+		repoProjections.some(
+			(projection) =>
+				isSameProjectionItem(projection, input.item) && projection.blobSha !== input.item.blobSha
+		)
+	) {
+		return 'blob identity mismatch';
+	}
+
+	return 'missing record';
+}
+
+async function getCollectionRouteWorkflow(input: {
+	cachedIndex: SerializableCollectionIndex | null;
+	snapshot: CachedSnapshot;
+	visibleLimit?: number;
+}): Promise<CollectionRouteWorkflow> {
+	if (!input.cachedIndex) {
+		return 'desktop-collection-landing';
+	}
+
+	const missingBlobShas = await getMissingProjectionBlobShas(input.cachedIndex, input.snapshot);
+	const visibleLimit = input.visibleLimit ?? VISIBLE_PROJECTION_LIMIT;
+	return missingBlobShas.slice(0, visibleLimit).length === 0
+		? 'warm-collection-reload'
+		: 'desktop-collection-landing';
+}
+
 function getDocumentKey(input: {
 	repoFullName: string;
 	blobSha: string;
@@ -1007,6 +1485,213 @@ function getPriorityValue(priority: CacheTaskPriority): number {
 	return 0;
 }
 
+function getTaskDuplicateState(taskKey: string): RequestDuplicateState {
+	return cacheTasks.get(taskKey)?.duplicateState ?? 'unique';
+}
+
+function getRetryAfterDelayMs(response: Response): number | null {
+	const retryAfter = response.headers.get('retry-after');
+	if (!retryAfter) {
+		return null;
+	}
+
+	const seconds = Number(retryAfter);
+	if (Number.isFinite(seconds)) {
+		return Math.max(0, seconds * 1000);
+	}
+
+	const timestamp = Date.parse(retryAfter);
+	return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : null;
+}
+
+function getEndpointBackoffDelayMs(response: Response, attemptIndex: number): number {
+	const retryAfterDelay = getRetryAfterDelayMs(response);
+	const exponentialDelay = endpointRetryPolicy.baseDelayMs * 2 ** attemptIndex;
+	return Math.min(retryAfterDelay ?? exponentialDelay, endpointRetryPolicy.maxDelayMs);
+}
+
+function getRateLimitRemaining(response: Response): number | null {
+	const remaining = response.headers.get('x-ratelimit-remaining');
+	if (remaining === null) {
+		return null;
+	}
+
+	const value = Number(remaining);
+	return Number.isFinite(value) ? value : null;
+}
+
+async function isSecondaryOrAbuseLimitResponse(response: Response): Promise<boolean> {
+	if (response.status !== 403) {
+		return false;
+	}
+	if (response.headers.has('retry-after') || getRateLimitRemaining(response) === 0) {
+		return true;
+	}
+
+	const body = await response
+		.clone()
+		.text()
+		.catch(() => '');
+	const lowerBody = body.toLowerCase();
+	return lowerBody.includes('secondary rate limit') || lowerBody.includes('abuse');
+}
+
+async function isRetryableCacheResponse(response: Response): Promise<boolean> {
+	if (response.status === 429 || response.status === 408 || response.status >= 500) {
+		return true;
+	}
+
+	return await isSecondaryOrAbuseLimitResponse(response);
+}
+
+function assertBackgroundCacheQuotaAvailable(
+	response: Response,
+	priority: CacheTaskPriority
+): void {
+	if (priority === 'foreground' || priority === 'intent') {
+		return;
+	}
+
+	const remaining = getRateLimitRemaining(response);
+	if (remaining === null) {
+		return;
+	}
+
+	if (remaining === 0) {
+		throw new BackgroundCacheWarmPausedError(
+			'GitHub rate limit exhausted; background cache warm paused'
+		);
+	}
+
+	if (remaining < BACKGROUND_CACHE_CORE_QUOTA_PAUSE_THRESHOLD) {
+		throw new BackgroundCacheWarmPausedError('GitHub core quota low; background cache warm paused');
+	}
+}
+
+function getCacheEndpointTaskKind(url: string, taskKey: string | null): CacheTaskKind | null {
+	if (taskKey?.startsWith('collectionProjection:') || url.includes('/collection-projections')) {
+		return 'collectionProjectionBatch';
+	}
+	if (taskKey?.startsWith('collectionIndex:') || url.includes('/collection-index')) {
+		return 'collectionIndex';
+	}
+	if (taskKey?.startsWith('itemDocument:') || url.includes('/item-view')) {
+		return 'itemDocument';
+	}
+	if (taskKey?.startsWith('singletonDocument:') || url.includes('/page-view')) {
+		return 'singletonDocument';
+	}
+	if (taskKey?.startsWith('blockSupport:') || url.includes('/form-config')) {
+		return 'blockRegistry';
+	}
+	return null;
+}
+
+function recordCacheEndpointBackoff(input: {
+	workflow: Parameters<typeof recordCacheWork>[0]['workflow'];
+	route: string;
+	url: string;
+	priority: CacheTaskPriority;
+	taskKey: string | null;
+	reason: string;
+}) {
+	const snapshot = getActiveSnapshot();
+	const taskKind = getCacheEndpointTaskKind(input.url, input.taskKey);
+	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
+	const runningTasks = [...cacheTasks.values()].filter(
+		(cacheTask) => cacheTask.status === 'running'
+	);
+	setCurrentCacheWork({
+		phase: 'backoff',
+		operation: 'retry-backoff',
+		taskKey: input.taskKey,
+		taskKind,
+		route: input.route,
+		reason: input.reason
+	});
+	recordCacheWork({
+		phase: 'backoff',
+		operation: 'retry-backoff',
+		workflow: input.workflow,
+		route: input.route,
+		repoFullName: snapshot?.repoFullName ?? null,
+		ref: snapshot?.identity.ref ?? null,
+		taskKey: input.taskKey,
+		taskKind,
+		priority: input.priority,
+		...getCacheWorkProgress(),
+		queuedTasks: queuedTasks.length,
+		runningTasks: runningTasks.length,
+		reason: input.reason
+	});
+}
+
+async function waitForEndpointBackoff(delayMs: number): Promise<void> {
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, delayMs);
+	});
+}
+
+async function fetchCacheEndpoint(
+	fetcher: typeof fetch,
+	url: string,
+	input: {
+		workflow:
+			| 'desktop-collection-landing'
+			| 'warm-collection-reload'
+			| 'item-route-shell'
+			| 'rich-editor-interactive'
+			| 'freshness';
+		route: string;
+		priority: CacheTaskPriority;
+		taskKey: string | null;
+		init?: RequestInit;
+	}
+): Promise<Response> {
+	for (let attemptIndex = 0; attemptIndex < endpointRetryPolicy.attempts; attemptIndex += 1) {
+		const response = await traceBrowserRequest(
+			{
+				workflow: input.workflow,
+				route: input.route,
+				endpoint: url,
+				method: input.init?.method ?? 'GET',
+				priority: input.priority,
+				cacheTaskKey: input.taskKey,
+				duplicateState: input.taskKey ? getTaskDuplicateState(input.taskKey) : 'unique'
+			},
+			() => (input.init ? fetcher(url, input.init) : fetcher(url))
+		);
+		const hasAttemptsRemaining = attemptIndex < endpointRetryPolicy.attempts - 1;
+		if (!hasAttemptsRemaining || !(await isRetryableCacheResponse(response))) {
+			cacheRetryStatusMessage = null;
+			assertBackgroundCacheQuotaAvailable(response, input.priority);
+			return response;
+		}
+
+		cacheRetryStatusMessage =
+			response.status === 429 || response.status === 403
+				? 'GitHub rate limit reached; retrying cache work'
+				: 'GitHub request failed; retrying cache work';
+		updateWarmStatus({
+			phase: 'checking',
+			message: cacheRetryStatusMessage,
+			error: null,
+			showProgress: true
+		});
+		recordCacheEndpointBackoff({
+			workflow: input.workflow,
+			route: input.route,
+			url,
+			priority: input.priority,
+			taskKey: input.taskKey,
+			reason: cacheRetryStatusMessage
+		});
+		await waitForEndpointBackoff(getEndpointBackoffDelayMs(response, attemptIndex));
+	}
+
+	throw new Error('Cache endpoint retry policy did not return a response');
+}
+
 function getActiveRef(bootstrap: RepoConfigsBootstrap): string {
 	return bootstrap.repositoryIdentity?.ref ?? bootstrap.activeDraftBranch ?? 'main';
 }
@@ -1017,6 +1702,17 @@ function stripFileExtension(filename: string): string {
 
 function getActiveSnapshot(): CachedSnapshot | null {
 	return activeSnapshot;
+}
+
+function captureCacheWorkContext(runId: number): CacheWorkContext {
+	return {
+		runId,
+		identityKey: activeSnapshotIdentityKey
+	};
+}
+
+function isCacheWorkContextCurrent(context: CacheWorkContext): boolean {
+	return isRunCurrent(context.runId) && activeSnapshotIdentityKey === context.identityKey;
 }
 
 function createEmptyTaskKindDebug(): GithubCacheTaskKindDebug {
@@ -1095,6 +1791,12 @@ function resetTaskCounters() {
 	erroredQueuedTasksByKind.clear();
 }
 
+function clearRecentCacheWork() {
+	recentCacheWork.length = 0;
+	currentCacheWorkHistoryId = 0;
+	currentCacheWorkStartedAt = null;
+}
+
 function clearWarmReadyResetTimer() {
 	if (!warmReadyResetTimer) {
 		return;
@@ -1138,7 +1840,9 @@ function hasSameRepositoryIdentity(
 	);
 }
 
-function extractChangedPaths(bootstrap: FreshnessBootstrap): string[] {
+function extractChangedPaths(
+	bootstrap: Pick<RepoFreshnessIdentityResult, 'changedPaths'>
+): string[] {
 	return Array.isArray(bootstrap.changedPaths)
 		? bootstrap.changedPaths.filter(
 				(path): path is string => typeof path === 'string' && path.length > 0
@@ -1146,10 +1850,21 @@ function extractChangedPaths(bootstrap: FreshnessBootstrap): string[] {
 		: [];
 }
 
+function getFreshnessRecoveryMessage(freshness: FreshnessIdentityResult): string | null {
+	return (
+		[freshness.error, freshness.recovery]
+			.filter((message): message is string => typeof message === 'string' && message.length > 0)
+			.join(' ')
+			.trim() || null
+	);
+}
+
 function resetWarmStatus() {
 	clearWarmReadyResetTimer();
 	clearWarmProgressRevealTimer();
 	resetTaskCounters();
+	cacheRetryStatusMessage = null;
+	currentCacheWorkStartedAt = null;
 	githubCacheWarmStatus.set({
 		phase: 'idle',
 		message: null,
@@ -1164,6 +1879,7 @@ function resetWarmStatus() {
 		error: null
 	});
 	syncWarmDebugStatus();
+	githubCacheWorkObservabilityStatus.set(createIdleCacheWorkStatus());
 }
 
 function updateWarmStatus(nextStatus: Partial<GithubCacheWarmStatus>) {
@@ -1220,6 +1936,11 @@ function markWarmReady(totalCollections: number, totalItems: number) {
 		error: null
 	});
 	syncWarmDebugStatus();
+	setCurrentCacheWork({
+		phase: 'completed',
+		operation: 'no-active-work',
+		reason: 'Site data cached'
+	});
 	clearWarmReadyResetTimer();
 	warmReadyResetTimer = setTimeout(() => {
 		warmReadyResetTimer = null;
@@ -1228,11 +1949,18 @@ function markWarmReady(totalCollections: number, totalItems: number) {
 }
 
 function markWarmError(error: unknown) {
+	const reason = error instanceof Error ? error.message : 'Failed to warm repository cache';
 	updateWarmStatus({
 		phase: 'error',
 		message: 'Cache warm paused',
 		currentCollectionSlug: null,
-		error: error instanceof Error ? error.message : 'Failed to warm repository cache'
+		error: reason
+	});
+	setCurrentCacheWork({
+		phase: error instanceof BackgroundCacheWarmPausedError ? 'paused' : 'error',
+		operation:
+			error instanceof BackgroundCacheWarmPausedError ? 'rate-limit-pause' : 'no-active-work',
+		reason
 	});
 }
 
@@ -1281,6 +2009,77 @@ function getNextTask(): CacheTask | null {
 	return queuedTasks[0] ?? null;
 }
 
+function getCacheTaskOperation(
+	task: CacheTask
+): Parameters<typeof recordCacheWork>[0]['operation'] {
+	if (task.kind === 'collectionProjectionBatch') {
+		return 'projection-hydration';
+	}
+	if (task.kind === 'itemDocument') {
+		return task.priorityLabel === 'passive' ? 'full-document-warming' : 'item-document-warming';
+	}
+	if (task.kind === 'blockRegistry') {
+		return 'block-support-warming';
+	}
+	if (task.kind === 'singletonDocument') {
+		return 'singleton-document-warming';
+	}
+	return 'collection-index-warming';
+}
+
+function getCacheWorkRoute(task: CacheTask): string | null {
+	const [, slug, itemId] = task.key.split(':');
+	if (!slug) {
+		return null;
+	}
+	if (task.kind === 'itemDocument' && itemId) {
+		return `/pages/${slug}/${itemId}`;
+	}
+	if (task.kind === 'collectionIndex' || task.kind === 'collectionProjectionBatch') {
+		return `/pages/${slug}`;
+	}
+	return null;
+}
+
+function getCacheWorkProgress() {
+	const status = get(githubCacheWarmStatus);
+	return {
+		progressCompleted: status.completedTasks,
+		progressTotal: status.totalTasks
+	};
+}
+
+function recordCacheTaskWork(
+	task: CacheTask,
+	phase: Parameters<typeof recordCacheWork>[0]['phase'],
+	reason: string,
+	operation = getCacheTaskOperation(task)
+) {
+	const snapshot = getActiveSnapshot();
+	const queuedTasks = [...cacheTasks.values()].filter((cacheTask) => cacheTask.status === 'queued');
+	const runningTasks = [...cacheTasks.values()].filter(
+		(cacheTask) => cacheTask.status === 'running'
+	);
+	recordCacheWork({
+		phase,
+		operation,
+		workflow:
+			task.kind === 'itemDocument' && task.priorityLabel !== 'passive'
+				? 'item-route-shell'
+				: 'desktop-collection-landing',
+		route: getCacheWorkRoute(task),
+		repoFullName: snapshot?.repoFullName ?? null,
+		ref: snapshot?.identity.ref ?? null,
+		taskKey: task.key,
+		taskKind: task.kind,
+		priority: task.priorityLabel,
+		...getCacheWorkProgress(),
+		queuedTasks: queuedTasks.length,
+		runningTasks: runningTasks.length,
+		reason
+	});
+}
+
 function scheduleQueueRun(runId: number) {
 	if (queueScheduled || runningTask || !isRunCurrent(runId)) {
 		return;
@@ -1303,11 +2102,33 @@ async function runQueue(runId: number): Promise<void> {
 		return;
 	}
 
-	if (task.passive && !(await waitForIdle(runId))) {
+	if (task.passive) {
+		setCurrentCacheWork({
+			phase: 'waiting',
+			operation: 'queue-wait',
+			task,
+			reason: 'waiting for route readiness and browser idle'
+		});
+		recordCacheTaskWork(
+			task,
+			'waiting',
+			'waiting for route readiness and browser idle',
+			'queue-wait'
+		);
+		if (!(await waitForIdle(runId))) {
+			return;
+		}
+	}
+	if (runningTask || !isRunCurrent(runId)) {
+		return;
+	}
+	if (getNextTask() !== task) {
+		scheduleQueueRun(runId);
 		return;
 	}
 
 	task.status = 'running';
+	task.startedAt = Date.now();
 	runningTask = task;
 	syncWarmDebugStatus();
 	updateQueueProgress({
@@ -1315,6 +2136,13 @@ async function runQueue(runId: number): Promise<void> {
 		message: 'Caching site data',
 		error: null
 	});
+	setCurrentCacheWork({
+		phase: 'running',
+		operation: getCacheTaskOperation(task),
+		task,
+		reason: 'running cache task'
+	});
+	recordCacheTaskWork(task, 'running', 'running cache task');
 
 	try {
 		const result = await task.run();
@@ -1323,20 +2151,67 @@ async function runQueue(runId: number): Promise<void> {
 			completedQueuedTasks += 1;
 			incrementTaskKindCount(completedQueuedTasksByKind, task.kind);
 		}
+		recordCacheTaskWork(task, 'completed', 'completed cache task');
+		addRecentCacheWork({
+			task,
+			operation: getCacheTaskOperation(task),
+			result: 'completed',
+			reason: 'completed cache task'
+		});
+		setCurrentCacheWork({
+			phase: 'completed',
+			operation: getCacheTaskOperation(task),
+			task,
+			reason: 'completed cache task'
+		});
 		task.resolve(result);
 	} catch (error) {
 		task.status = 'error';
+		const errorReason = error instanceof Error ? error.message : 'cache task failed';
+		const isRateLimitPause = error instanceof BackgroundCacheWarmPausedError;
 		await updateInventoryTarget(task.key, {
 			status: 'error',
-			error: error instanceof Error ? error.message : 'Failed to refresh cache target',
+			error: errorReason,
 			lastCheckedAt: Date.now()
 		});
 		task.reject(error);
 		if (isRunCurrent(runId)) {
+			if (isRateLimitPause) {
+				cacheTasks.clear();
+				queueScheduled = false;
+				recordCacheTaskWork(task, 'paused', errorReason, 'rate-limit-pause');
+				addRecentCacheWork({
+					task,
+					operation: 'rate-limit-pause',
+					result: 'paused',
+					reason: errorReason
+				});
+				setCurrentCacheWork({
+					phase: 'paused',
+					operation: 'rate-limit-pause',
+					task,
+					reason: errorReason
+				});
+			}
 			erroredQueuedTasks += 1;
 			incrementTaskKindCount(erroredQueuedTasksByKind, task.kind);
 			markWarmError(error);
 		}
+		if (!isRateLimitPause) {
+			addRecentCacheWork({
+				task,
+				operation: getCacheTaskOperation(task),
+				result: 'error',
+				reason: errorReason
+			});
+			setCurrentCacheWork({
+				phase: 'error',
+				operation: getCacheTaskOperation(task),
+				task,
+				reason: errorReason
+			});
+		}
+		recordCacheTaskWork(task, 'error', errorReason);
 	} finally {
 		cacheTasks.delete(task.key);
 		if (runningTask === task) {
@@ -1360,8 +2235,12 @@ function enqueueCacheTask<T>(input: {
 	const nextPriority = getPriorityValue(input.priority);
 	const existing = cacheTasks.get(input.key) as CacheTask<T> | undefined;
 	if (existing) {
+		if (nextPriority > existing.priority) {
+			existing.priorityLabel = input.priority;
+		}
 		existing.priority = Math.max(existing.priority, nextPriority);
 		existing.passive = existing.passive && input.priority === 'passive';
+		existing.duplicateState = 'deduped';
 		scheduleQueueRun(input.runId);
 		return existing.promise;
 	}
@@ -1376,8 +2255,12 @@ function enqueueCacheTask<T>(input: {
 		key: input.key,
 		kind: input.kind,
 		priority: nextPriority,
+		priorityLabel: input.priority,
 		passive: input.passive ?? input.priority === 'passive',
+		duplicateState: 'unique',
 		order: taskOrder++,
+		queuedAt: Date.now(),
+		startedAt: null,
 		status: 'queued',
 		run: input.run,
 		promise,
@@ -1401,12 +2284,94 @@ function enqueueCacheTask<T>(input: {
 		message: 'Caching site data',
 		error: null
 	});
+	setCurrentCacheWork({
+		phase: 'queued',
+		operation: getCacheTaskOperation(task as CacheTask<unknown>),
+		task: task as CacheTask<unknown>,
+		reason: 'queued cache task'
+	});
+	recordCacheTaskWork(task as CacheTask<unknown>, 'queued', 'queued cache task');
 	scheduleQueueRun(input.runId);
 	return promise;
 }
 
 function getConfig(snapshot: CachedSnapshot, slug: string): DiscoveredConfig | null {
 	return snapshot.configs.find((config) => config.slug === slug) ?? null;
+}
+
+function applyCachedCollectionGroupMutation(
+	config: DiscoveredConfig,
+	mutation: CollectionGroupManagementMutation,
+	navigationManifest: NavigationManifest | null | undefined
+): DiscoveredConfig {
+	const collection =
+		config.config.collection && typeof config.config.collection === 'object'
+			? config.config.collection
+			: {};
+	const groups = getCollectionGroups(config.config);
+	const nextGroups = (() => {
+		if (mutation.action === 'create') {
+			const createdGroupId =
+				mutation.id ??
+				(config.config._tentmanId
+					? navigationManifest?.collections?.[config.config._tentmanId]?.groups?.find(
+							(group) => group.value === mutation.value || group.label === mutation.label
+						)?.id
+					: undefined);
+
+			return [
+				...groups,
+				{
+					_tentmanId: createdGroupId ?? '',
+					label: mutation.label,
+					value: mutation.value
+				}
+			].filter((group) => group._tentmanId);
+		}
+
+		if (mutation.action === 'edit') {
+			return groups.map((group) =>
+				group._tentmanId === mutation.groupId
+					? {
+							...group,
+							label: mutation.label,
+							value: mutation.value
+						}
+					: group
+			);
+		}
+
+		if (mutation.action === 'delete') {
+			return groups.filter((group) => group._tentmanId !== mutation.groupId);
+		}
+
+		return groups.filter((group) => group._tentmanId !== mutation.sourceGroupId);
+	})();
+
+	return {
+		...config,
+		config: {
+			...config.config,
+			collection: {
+				...collection,
+				groups: nextGroups
+			}
+		}
+	};
+}
+
+async function writePatchedSnapshot(
+	snapshot: CachedSnapshot,
+	changedCollections: string[] = []
+): Promise<void> {
+	const nextSnapshot = {
+		...snapshot,
+		updatedAt: Date.now()
+	};
+	activeSnapshot = nextSnapshot;
+	await writeStore(SNAPSHOT_STORE, nextSnapshot);
+	await buildInventoryFromActiveSnapshot();
+	await Promise.all(changedCollections.map((slug) => notifyCollection(slug)));
 }
 
 function getSingletonContentPath(config: DiscoveredConfig): string | null {
@@ -1441,17 +2406,60 @@ function getSingletonContentPath(config: DiscoveredConfig): string | null {
 async function getCachedBlockSupport(): Promise<CachedBlockSupport | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
+		recordCacheOutcome({
+			cacheArea: 'block-support',
+			outcome: 'miss',
+			reason: 'no active repository snapshot'
+		});
 		return null;
 	}
 
-	return await readStore<CachedBlockSupport>(
-		BLOCK_SUPPORT_STORE,
-		getBlockSupportKey({
-			repoFullName: snapshot.repoFullName,
-			ref: snapshot.identity.ref,
-			treeSha: snapshot.identity.treeSha
-		})
-	);
+	const key = getBlockSupportKey({
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		treeSha: snapshot.identity.treeSha
+	});
+	const cached = await readStore<CachedBlockSupport>(BLOCK_SUPPORT_STORE, key);
+	recordCacheOutcome({
+		cacheArea: 'block-support',
+		outcome: cached ? 'hit' : 'miss',
+		reason: cached
+			? 'block support cached for active tree'
+			: 'block support missing for active tree',
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		key
+	});
+	return cached;
+}
+
+function createWorkflowBlockSupportFromCached(
+	cached: CachedBlockSupport | null,
+	cacheMissReason = 'block support missing for active tree'
+): WorkflowBlockSupportData {
+	if (!cached) {
+		return createWorkflowBlockSupportData({
+			readiness: 'missing',
+			cacheMiss: createWorkflowCacheMissResult({
+				target: 'block-support',
+				reason: cacheMissReason
+			})
+		});
+	}
+
+	return createWorkflowBlockSupportData({
+		blockConfigs: cached.blockConfigs,
+		packageBlocks: cached.packageBlocks,
+		blockRegistryError: cached.blockRegistryError,
+		readiness: cached.blockRegistryError ? 'error' : 'ready',
+		cacheMiss: cached.blockRegistryError
+			? createWorkflowCacheMissResult({
+					target: 'block-support',
+					readiness: 'error',
+					reason: cached.blockRegistryError
+				})
+			: null
+	});
 }
 
 async function writeBlockSupport(input: {
@@ -1479,6 +2487,14 @@ async function writeBlockSupport(input: {
 		updatedAt: Date.now()
 	};
 	await writeStore<CachedBlockSupport>(BLOCK_SUPPORT_STORE, record);
+	recordCacheOutcome({
+		cacheArea: 'block-support',
+		outcome: 'write',
+		reason: 'block support refreshed for active tree',
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		key: record.key
+	});
 	await updateInventoryTarget(getInventoryTargetId({ targetType: 'blockSupport' }), {
 		status: 'fresh',
 		lastCachedAt: record.updatedAt,
@@ -1490,19 +2506,52 @@ async function writeBlockSupport(input: {
 async function getCachedCollectionIndex(slug: string): Promise<SerializableCollectionIndex | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
+		recordCacheOutcome({
+			cacheArea: 'collection-index',
+			outcome: 'miss',
+			reason: 'no active repository snapshot',
+			slug
+		});
 		return null;
 	}
 
-	const indexes = await readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE);
-	return (
-		indexes.find(
-			(index) =>
-				index.identity.repoKey === snapshot.identity.repoKey &&
-				index.identity.ref === snapshot.identity.ref &&
-				index.identity.treeSha === snapshot.identity.treeSha &&
-				index.identity.configSlug === slug
-		) ?? null
-	);
+	let indexes: SerializableCollectionIndex[];
+	try {
+		indexes = await readAllStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE);
+	} catch (error) {
+		recordCacheOutcome({
+			cacheArea: 'collection-index',
+			outcome: 'miss',
+			reason: formatCacheReadFailure(error),
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: null,
+			slug
+		});
+		return null;
+	}
+	const cached =
+		indexes
+			.filter(
+				(index) =>
+					index.identity.repoKey === snapshot.identity.repoKey &&
+					index.identity.ref === snapshot.identity.ref &&
+					index.identity.treeSha === snapshot.identity.treeSha &&
+					index.identity.configSlug === slug
+			)
+			.sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
+	recordCacheOutcome({
+		cacheArea: 'collection-index',
+		outcome: cached ? 'hit' : 'miss',
+		reason: cached
+			? 'collection index cached for active tree'
+			: getCollectionIndexMissReason({ indexes, snapshot, slug }),
+		repoFullName: snapshot.repoFullName,
+		ref: snapshot.identity.ref,
+		key: cached?.key ?? null,
+		slug
+	});
+	return cached;
 }
 
 async function writeCollectionIndex(index: Omit<SerializableCollectionIndex, 'key' | 'updatedAt'>) {
@@ -1512,6 +2561,15 @@ async function writeCollectionIndex(index: Omit<SerializableCollectionIndex, 'ke
 		updatedAt: Date.now()
 	};
 	await writeStore<SerializableCollectionIndex>(COLLECTION_INDEX_STORE, record);
+	recordCacheOutcome({
+		cacheArea: 'collection-index',
+		outcome: 'write',
+		reason: 'collection index refreshed from route endpoint',
+		repoFullName: record.identity.repoKey,
+		ref: record.identity.ref,
+		key: record.key,
+		slug: record.configSlug
+	});
 	await updateInventoryTarget(
 		getInventoryTargetId({ targetType: 'collectionIndex', configSlug: index.configSlug }),
 		{
@@ -1541,6 +2599,16 @@ async function writeProjectionItems(
 				updatedAt: Date.now()
 			};
 			await writeStore<CachedProjection>(PROJECTION_STORE, record);
+			recordCacheOutcome({
+				cacheArea: 'projection',
+				outcome: 'write',
+				reason: 'collection projection hydrated from route endpoint',
+				repoFullName,
+				key: record.key,
+				slug: configSlug,
+				itemId: item.hrefItemId ?? item.itemId ?? null,
+				path: item.path
+			});
 			await updateInventoryTarget(
 				getInventoryTargetId({
 					targetType: 'collectionProjection',
@@ -1563,16 +2631,45 @@ async function getMissingProjectionBlobShas(
 	index: SerializableCollectionIndex,
 	snapshot: CachedSnapshot
 ): Promise<string[]> {
+	let projections: CachedProjection[];
+	try {
+		projections = await readAllStore<CachedProjection>(PROJECTION_STORE);
+	} catch (error) {
+		const reason = formatCacheReadFailure(error);
+		for (const item of index.items) {
+			recordCacheOutcome({
+				cacheArea: 'projection',
+				outcome: 'miss',
+				reason,
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				slug: index.configSlug,
+				itemId: item.hrefItemId ?? item.itemId ?? null,
+				path: item.path
+			});
+		}
+		return index.items.map((item) => item.blobSha);
+	}
 	const missingBlobShas = await Promise.all(
 		index.items.map(async (item) => {
-			const cached = await readStore<CachedProjection>(
-				PROJECTION_STORE,
-				getProjectionKey({
-					repoFullName: snapshot.repoFullName,
-					blobSha: item.blobSha,
-					schemaIdentity: index.identity.schemaIdentity
-				})
-			);
+			const projectionKey = getProjectionKey({
+				repoFullName: snapshot.repoFullName,
+				blobSha: item.blobSha,
+				schemaIdentity: index.identity.schemaIdentity
+			});
+			const cached = projections.find((projection) => projection.key === projectionKey) ?? null;
+			recordCacheOutcome({
+				cacheArea: 'projection',
+				outcome: cached ? 'hit' : 'miss',
+				reason: cached
+					? 'collection projection cached for item blob'
+					: getProjectionMissReason({ projections, snapshot, index, item }),
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				slug: index.configSlug,
+				itemId: item.hrefItemId ?? item.itemId ?? null,
+				path: item.path
+			});
 			return cached ? null : item.blobSha;
 		})
 	);
@@ -1607,6 +2704,22 @@ async function mergeCachedProjections(
 	);
 
 	return index.items.map((item) => projectionByBlobSha.get(item.blobSha) ?? item);
+}
+
+function collectionIndexItemToExistingContentRecord(
+	config: DiscoveredConfig | null,
+	item: CollectionIndexItem
+): ContentRecord {
+	const itemId = item.hrefItemId ?? item.route ?? item.itemId;
+	const idField = config?.config.idField ?? 'id';
+
+	return {
+		...item,
+		[idField]: itemId,
+		title: item.title,
+		_tentmanId: item.itemId,
+		_filename: item.filename
+	} as ContentRecord;
 }
 
 function isMatchingCollectionIndexItem(item: CollectionIndexItem, itemId: string): boolean {
@@ -1755,26 +2868,47 @@ async function hydrateProjectionBatch(input: {
 	fetcher: typeof fetch;
 	slug: string;
 	blobShas: string[];
+	context?: CacheWorkContext;
+	workflow?: CollectionRouteWorkflow;
+	priority?: CacheTaskPriority;
 }): Promise<void> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot || input.blobShas.length === 0) {
 		return;
 	}
 
-	const response = await input.fetcher('/api/repo/collection-projections', {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({
-			slug: input.slug,
-			blobShas: input.blobShas
-		})
+	const priority = input.priority ?? 'passive';
+	const response = await fetchCacheEndpoint(input.fetcher, '/api/repo/collection-projections', {
+		workflow: input.workflow ?? 'desktop-collection-landing',
+		route: `/pages/${input.slug}`,
+		priority,
+		taskKey: getInventoryTargetId({
+			targetType: 'collectionProjection',
+			configSlug: input.slug,
+			itemId: input.blobShas.join(',')
+		}),
+		init: {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				slug: input.slug,
+				blobShas: input.blobShas
+			})
+		}
 	});
 
 	if (!response.ok) {
 		throw new Error(`Failed to hydrate collection projections (${response.status})`);
 	}
+	assertBackgroundCacheQuotaAvailable(response, priority);
+	if (input.context && !isCacheWorkContextCurrent(input.context)) {
+		return;
+	}
 
 	const result = (await response.json()) as CollectionProjectionBatchResult;
+	if (input.context && !isCacheWorkContextCurrent(input.context)) {
+		return;
+	}
 	await writeProjectionItems(
 		snapshot.repoFullName,
 		input.slug,
@@ -1782,6 +2916,49 @@ async function hydrateProjectionBatch(input: {
 		result.items
 	);
 	await notifyCollection(input.slug);
+}
+
+function enqueueProjectionBatchTask(input: {
+	runId: number;
+	slug: string;
+	blobShas: string[];
+	fetcher: typeof fetch;
+	priority: CacheTaskPriority;
+	passive?: boolean;
+	onComplete?: () => void;
+}): Promise<void> {
+	if (input.blobShas.length === 0) {
+		return Promise.resolve();
+	}
+
+	const context = captureCacheWorkContext(input.runId);
+	return enqueueCacheTask({
+		runId: input.runId,
+		key: [
+			getInventoryTargetId({
+				targetType: 'collectionProjection',
+				configSlug: input.slug,
+				itemId: input.blobShas[0]
+			}),
+			input.blobShas.join(',')
+		].join(':'),
+		kind: 'collectionProjectionBatch',
+		priority: input.priority,
+		passive: input.passive ?? input.priority === 'passive',
+		run: async () => {
+			await hydrateProjectionBatch({
+				fetcher: input.fetcher,
+				slug: input.slug,
+				blobShas: input.blobShas,
+				context,
+				priority: input.priority
+			});
+			if (!isCacheWorkContextCurrent(context)) {
+				return;
+			}
+			input.onComplete?.();
+		}
+	});
 }
 
 async function getCachedItemDocumentForIndexItem(
@@ -1804,6 +2981,7 @@ async function enqueueItemDocumentTask(input: {
 	indexItem: CollectionIndexItem;
 	fetcher: typeof fetch;
 	priority: CacheTaskPriority;
+	documentBudget?: FullDocumentWarmBudget;
 }): Promise<CachedItemDocumentResult | null> {
 	const snapshot = getActiveSnapshot();
 	if (!snapshot) {
@@ -1824,6 +3002,17 @@ async function enqueueItemDocumentTask(input: {
 		input.priority !== 'foreground' &&
 		input.priority !== 'intent'
 	) {
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: 'skip',
+			reason: 'full document budget skipped passive item document warm',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: targetId,
+			slug: input.slug,
+			itemId: input.itemId,
+			path: input.indexItem.path
+		});
 		return null;
 	}
 
@@ -1832,6 +3021,32 @@ async function enqueueItemDocumentTask(input: {
 		return cached;
 	}
 
+	const documentBudget = input.priority === 'passive' ? input.documentBudget : undefined;
+	if (documentBudget) {
+		if (documentBudget.remainingRecords <= 0 || documentBudget.remainingBytes <= 0) {
+			await updateInventoryTarget(targetId, {
+				status: 'skipped-budget',
+				error: null,
+				lastCheckedAt: Date.now()
+			});
+			recordCacheOutcome({
+				cacheArea: 'item-document',
+				outcome: 'skip',
+				reason: 'idle full document warm budget skipped passive item document warm',
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				key: targetId,
+				slug: input.slug,
+				itemId: input.itemId,
+				path: input.indexItem.path
+			});
+			return null;
+		}
+		documentBudget.remainingRecords -= 1;
+	}
+
+	const warmBudget = documentBudget;
+	const context = captureCacheWorkContext(input.runId);
 	await enqueueCacheTask({
 		runId: input.runId,
 		key: targetId,
@@ -1839,11 +3054,18 @@ async function enqueueItemDocumentTask(input: {
 		priority: input.priority,
 		passive: input.priority === 'passive',
 		run: async () => {
-			const response = await input.fetcher(
-				`/api/repo/item-view?slug=${encodeURIComponent(input.slug)}&itemId=${encodeURIComponent(input.itemId)}`
-			);
+			const endpoint = `/api/repo/item-view?slug=${encodeURIComponent(input.slug)}&itemId=${encodeURIComponent(input.itemId)}`;
+			const response = await fetchCacheEndpoint(input.fetcher, endpoint, {
+				workflow: 'item-route-shell',
+				route: `/pages/${input.slug}/${input.itemId}`,
+				priority: input.priority,
+				taskKey: targetId
+			});
 			if (!response.ok) {
 				throw new Error(`Failed to load item document (${response.status})`);
+			}
+			if (!isCacheWorkContextCurrent(context)) {
+				return;
 			}
 
 			const data = (await response.json()) as {
@@ -1856,16 +3078,23 @@ async function enqueueItemDocumentTask(input: {
 			if (data.redirectTo) {
 				return;
 			}
+			if (!isCacheWorkContextCurrent(context)) {
+				return;
+			}
 			await writeBlockSupport({
 				blockConfigs: data.blockConfigs ?? getActiveSnapshot()?.blockConfigs ?? [],
 				packageBlocks: data.packageBlocks ?? [],
 				blockRegistryError: data.blockRegistryError ?? null
 			});
+			const itemContent = data.item ?? null;
 			await githubRepositoryCache.setItemDocumentForRoute({
 				slug: input.slug,
 				itemId: input.itemId,
-				content: data.item ?? null
+				content: itemContent
 			});
+			if (warmBudget && itemContent) {
+				warmBudget.remainingBytes -= getSerializedByteSize(itemContent) ?? 0;
+			}
 		}
 	});
 
@@ -1910,11 +3139,20 @@ export const githubRepositoryCache = {
 		const nextIdentityKey = getSnapshotIdentityKey(snapshot);
 		if (activeSnapshotIdentityKey && activeSnapshotIdentityKey !== nextIdentityKey) {
 			cancelActiveSiteWarm();
+			clearRecentCacheWork();
 		}
 		activeSnapshot = snapshot;
 		activeSnapshotIdentityKey = nextIdentityKey;
 		syncWarmDebugStatus();
 		await writeStore(SNAPSHOT_STORE, snapshot);
+		recordCacheOutcome({
+			cacheArea: 'snapshot',
+			outcome: 'write',
+			reason: 'repository bootstrap hydrated active snapshot',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: snapshot.key
+		});
 		await buildInventoryFromActiveSnapshot();
 	},
 
@@ -1963,12 +3201,117 @@ export const githubRepositoryCache = {
 		);
 	},
 
+	async loadCollectionNavigationWorkflowData(
+		slug: string,
+		options: {
+			fetcher: typeof fetch;
+			visibleLimit?: number;
+			force?: boolean;
+		}
+	): Promise<WorkflowCollectionNavigationData> {
+		const emptyNavigation: OrderedCollectionNavigation = { items: [], groups: [] };
+		if (!browser) {
+			return createWorkflowCollectionNavigationData({
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'missing',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					reason: 'browser cache unavailable'
+				})
+			});
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return createWorkflowCollectionNavigationData({
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'missing',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					reason: 'missing active repository snapshot'
+				})
+			});
+		}
+
+		const identity = createWorkflowRouteDataIdentity(snapshot.identity, {
+			hasEditableDraft: Boolean(snapshot.activeDraftBranch)
+		});
+		const cachedIndex = options.force ? null : await getCachedCollectionIndex(slug);
+		const workflow = await getCollectionRouteWorkflow({
+			cachedIndex,
+			snapshot,
+			visibleLimit: options.visibleLimit
+		});
+
+		try {
+			await githubRepositoryCache.warmCollection(slug, {
+				fetcher: options.fetcher,
+				visibleLimit: options.visibleLimit,
+				force: options.force,
+				hydrateRemaining: false,
+				warmDocuments: false,
+				priority: 'foreground',
+				workflow
+			});
+		} catch (error) {
+			const status = getErrorResponseStatus(error);
+			const failedRequest =
+				error instanceof Error && error.message.includes('projection')
+					? 'collection projection batch request'
+					: 'collection index request';
+			const reason = status
+				? `${failedRequest} failed (${status})`
+				: error instanceof Error
+					? error.message
+					: 'failed to load collection navigation';
+			return createWorkflowCollectionNavigationData({
+				identity,
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'error',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
+
+		const navigation = await githubRepositoryCache.getCollectionNavigation(slug);
+		if (!navigation) {
+			return createWorkflowCollectionNavigationData({
+				identity,
+				slug,
+				navigation: emptyNavigation,
+				readiness: 'missing',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'collection-navigation',
+					slug,
+					reason: 'missing record'
+				})
+			});
+		}
+
+		return createWorkflowCollectionNavigationData({
+			identity,
+			slug,
+			navigation
+		});
+	},
+
 	async ensureCollectionIndex(
 		slug: string,
 		options: {
 			fetcher: typeof fetch;
 			force?: boolean;
 			priority?: CacheTaskPriority;
+			workflow?: ReadRouteWorkflow;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -1978,29 +3321,52 @@ export const githubRepositoryCache = {
 		const cached = options.force ? null : await getCachedCollectionIndex(slug);
 		if (cached) {
 			await notifyCollection(slug);
+			markWorkflowReadiness({
+				workflow: options.workflow ?? 'warm-collection-reload',
+				mark:
+					(options.workflow ?? 'warm-collection-reload') === 'warm-collection-reload'
+						? 'collection-reload-ready'
+						: 'collection-landing-ready',
+				route: `/pages/${slug}`,
+				slug
+			});
 			return;
 		}
 
 		const runId = siteWarmRunId;
+		const targetId = getInventoryTargetId({ targetType: 'collectionIndex', configSlug: slug });
+		const context = captureCacheWorkContext(runId);
 		await enqueueCacheTask({
 			runId,
-			key: getInventoryTargetId({ targetType: 'collectionIndex', configSlug: slug }),
+			key: targetId,
 			kind: 'collectionIndex',
 			priority: options.priority ?? 'foreground',
 			passive: (options.priority ?? 'foreground') === 'passive',
 			run: async () => {
-				const response = await options.fetcher(
-					`/api/repo/collection-index?slug=${encodeURIComponent(slug)}`
-				);
+				const endpoint = `/api/repo/collection-index?slug=${encodeURIComponent(slug)}`;
+				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
+					workflow:
+						options.workflow ??
+						(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
+					route: `/pages/${slug}`,
+					priority: options.priority ?? 'foreground',
+					taskKey: targetId
+				});
 
 				if (!response.ok) {
 					throw new Error(`Failed to load collection index (${response.status})`);
+				}
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
 				}
 
 				const payload = (await response.json()) as Omit<
 					SerializableCollectionIndex,
 					'key' | 'updatedAt'
 				>;
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 				await writeCollectionIndex(payload);
 				await notifyCollection(slug);
 			}
@@ -2017,6 +3383,7 @@ export const githubRepositoryCache = {
 			priority?: CacheTaskPriority;
 			hydrateRemaining?: boolean;
 			warmDocuments?: boolean;
+			workflow?: CollectionRouteWorkflow;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2026,7 +3393,8 @@ export const githubRepositoryCache = {
 		await githubRepositoryCache.ensureCollectionIndex(slug, {
 			fetcher: options.fetcher,
 			force: options.force,
-			priority: options.priority ?? 'foreground'
+			priority: options.priority ?? 'foreground',
+			workflow: options.workflow
 		});
 		const index = await getCachedCollectionIndex(slug);
 
@@ -2052,10 +3420,32 @@ export const githubRepositoryCache = {
 
 		const visibleLimit = options.visibleLimit ?? VISIBLE_PROJECTION_LIMIT;
 		const visibleBlobShas = missingBlobShas.slice(0, visibleLimit);
+		const visibleProjectionContext = captureCacheWorkContext(siteWarmRunId);
 		await hydrateProjectionBatch({
 			fetcher: options.fetcher,
 			slug,
-			blobShas: visibleBlobShas
+			blobShas: visibleBlobShas,
+			context: visibleProjectionContext,
+			workflow:
+				options.workflow ??
+				(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
+			priority: options.priority ?? 'foreground'
+		});
+		if (!isCacheWorkContextCurrent(visibleProjectionContext)) {
+			return;
+		}
+		markWorkflowReadiness({
+			workflow:
+				options.workflow ??
+				(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
+			mark:
+				(options.workflow ??
+					(options.force ? 'warm-collection-reload' : 'desktop-collection-landing')) ===
+				'warm-collection-reload'
+					? 'collection-reload-ready'
+					: 'collection-landing-ready',
+			route: `/pages/${slug}`,
+			slug
 		});
 
 		const remainingBlobShas = missingBlobShas.slice(visibleLimit);
@@ -2063,28 +3453,35 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		const hydrateRemaining = async () => {
-			for (
-				let index = 0;
-				index < remainingBlobShas.length;
-				index += BACKGROUND_PROJECTION_BATCH_SIZE
-			) {
-				await hydrateProjectionBatch({
+		const runId = siteWarmRunId;
+		const remainingTasks: Promise<void>[] = [];
+		for (
+			let index = 0;
+			index < remainingBlobShas.length;
+			index += BACKGROUND_PROJECTION_BATCH_SIZE
+		) {
+			remainingTasks.push(
+				enqueueProjectionBatchTask({
+					runId,
 					fetcher: options.fetcher,
 					slug,
-					blobShas: remainingBlobShas.slice(index, index + BACKGROUND_PROJECTION_BATCH_SIZE)
-				});
-			}
-		};
+					blobShas: remainingBlobShas.slice(index, index + BACKGROUND_PROJECTION_BATCH_SIZE),
+					priority: 'passive',
+					passive: true
+				})
+			);
+		}
 
 		if (options.waitForBackground) {
-			await hydrateRemaining();
+			await Promise.all(remainingTasks);
 			return;
 		}
 
-		void hydrateRemaining().catch((error) => {
-			console.error(`Failed to hydrate background projections for ${slug}:`, error);
-		});
+		for (const task of remainingTasks) {
+			void task.catch((error) => {
+				console.error(`Failed to hydrate background projections for ${slug}:`, error);
+			});
+		}
 	},
 
 	async warmCollectionDocuments(
@@ -2095,6 +3492,7 @@ export const githubRepositoryCache = {
 			promotedItemId?: string | null;
 			promotedPriority?: CacheTaskPriority;
 			waitForBackground?: boolean;
+			documentBudget?: FullDocumentWarmBudget;
 		}
 	): Promise<void> {
 		if (!browser || !getActiveSnapshot()) {
@@ -2119,7 +3517,7 @@ export const githubRepositoryCache = {
 		const orderedItems = promotedItem
 			? [promotedItem, ...index.items.filter((item) => item !== promotedItem)]
 			: index.items;
-		const tasks = orderedItems.map((item) => {
+		const createTask = (item: CollectionIndexItem) => {
 			const itemId = item.hrefItemId ?? item.itemId;
 			const isPromoted =
 				options.promotedItemId !== undefined &&
@@ -2133,9 +3531,19 @@ export const githubRepositoryCache = {
 				fetcher: options.fetcher,
 				priority: isPromoted
 					? (options.promotedPriority ?? options.priority ?? 'intent')
-					: (options.priority ?? 'passive')
+					: (options.priority ?? 'passive'),
+				documentBudget: options.documentBudget
 			});
-		});
+		};
+
+		if (options.documentBudget) {
+			for (const item of orderedItems) {
+				await createTask(item);
+			}
+			return;
+		}
+
+		const tasks = orderedItems.map((item) => createTask(item));
 
 		if (options.waitForBackground) {
 			await Promise.all(tasks);
@@ -2156,18 +3564,34 @@ export const githubRepositoryCache = {
 
 		const snapshot = getActiveSnapshot();
 		if (!snapshot) {
+			recordCacheOutcome({
+				cacheArea: 'singleton-document',
+				outcome: 'miss',
+				reason: 'no active repository snapshot',
+				slug: input.slug
+			});
 			return null;
 		}
 
+		const key = getSingletonDocumentKey(snapshot, input.slug);
 		const cached =
-			(await readStore<CachedSingletonDocument>(
-				SINGLETON_DOCUMENT_STORE,
-				getSingletonDocumentKey(snapshot, input.slug)
-			)) ??
+			(await readStore<CachedSingletonDocument>(SINGLETON_DOCUMENT_STORE, key)) ??
 			(await readStore<CachedSingletonDocument>(
 				SINGLETON_DOCUMENT_STORE,
 				getLegacySingletonDocumentKey(snapshot, input.slug)
 			));
+		recordCacheOutcome({
+			cacheArea: 'singleton-document',
+			outcome: cached ? 'hit' : 'miss',
+			reason: cached
+				? 'singleton document cached for active tree'
+				: 'singleton document missing for active tree',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key,
+			slug: input.slug,
+			path: cached?.path ?? null
+		});
 		if (!cached) {
 			return null;
 		}
@@ -2221,6 +3645,16 @@ export const githubRepositoryCache = {
 			updatedAt: Date.now()
 		};
 		await writeStore<CachedSingletonDocument>(SINGLETON_DOCUMENT_STORE, record);
+		recordCacheOutcome({
+			cacheArea: 'singleton-document',
+			outcome: 'write',
+			reason: 'singleton document cached for route',
+			repoFullName: snapshot.repoFullName,
+			ref: snapshot.identity.ref,
+			key: record.key,
+			slug: input.slug,
+			path
+		});
 		await updateInventoryTarget(
 			getInventoryTargetId({ targetType: 'singletonDocument', configSlug: input.slug }),
 			{
@@ -2236,6 +3670,9 @@ export const githubRepositoryCache = {
 	async warmBlockSupport(options: {
 		fetcher: typeof fetch;
 		priority?: CacheTaskPriority;
+		slug?: string | null;
+		workflow?: ReadRouteWorkflow | 'rich-editor-interactive';
+		route?: string | null;
 	}): Promise<CachedBlockSupport | null> {
 		if (!browser) {
 			return null;
@@ -2251,7 +3688,7 @@ export const githubRepositoryCache = {
 			return cached;
 		}
 
-		const slug = snapshot.configs[0]?.slug;
+		const slug = options.slug ?? snapshot.configs[0]?.slug;
 		if (!slug) {
 			await writeBlockSupport({
 				blockConfigs: snapshot.blockConfigs,
@@ -2261,18 +3698,27 @@ export const githubRepositoryCache = {
 			return await getCachedBlockSupport();
 		}
 
+		const runId = siteWarmRunId;
+		const context = captureCacheWorkContext(runId);
 		await enqueueCacheTask({
-			runId: siteWarmRunId,
+			runId,
 			key: getInventoryTargetId({ targetType: 'blockSupport' }),
 			kind: 'blockRegistry',
 			priority: options.priority ?? 'topLevel',
 			passive: (options.priority ?? 'topLevel') === 'passive',
 			run: async () => {
-				const response = await options.fetcher(
-					`/api/repo/form-config?slug=${encodeURIComponent(slug)}`
-				);
+				const endpoint = `/api/repo/form-config?slug=${encodeURIComponent(slug)}`;
+				const response = await fetchCacheEndpoint(options.fetcher, endpoint, {
+					workflow: options.workflow ?? 'rich-editor-interactive',
+					route: options.route ?? `/pages/${slug}`,
+					priority: options.priority ?? 'topLevel',
+					taskKey: getInventoryTargetId({ targetType: 'blockSupport' })
+				});
 				if (!response.ok) {
 					throw new Error(`Failed to load block support (${response.status})`);
+				}
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
 				}
 
 				const data = (await response.json()) as {
@@ -2280,6 +3726,9 @@ export const githubRepositoryCache = {
 					packageBlocks?: SerializablePackageBlock[];
 					blockRegistryError?: string | null;
 				};
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 				await writeBlockSupport({
 					blockConfigs: data.blockConfigs ?? snapshot.blockConfigs,
 					packageBlocks: data.packageBlocks ?? [],
@@ -2289,6 +3738,49 @@ export const githubRepositoryCache = {
 		});
 
 		return await getCachedBlockSupport();
+	},
+
+	async loadBlockSupportWorkflowData(options: {
+		fetcher: typeof fetch;
+		slug?: string | null;
+		priority?: CacheTaskPriority;
+		workflow?: ReadRouteWorkflow | 'rich-editor-interactive';
+		route?: string | null;
+	}): Promise<WorkflowBlockSupportData> {
+		if (!browser) {
+			return createWorkflowBlockSupportFromCached(null, 'browser cache unavailable');
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return createWorkflowBlockSupportFromCached(null, 'missing active repository snapshot');
+		}
+
+		try {
+			const cached =
+				(await getCachedBlockSupport()) ??
+				(await githubRepositoryCache.warmBlockSupport({
+					fetcher: options.fetcher,
+					slug: options.slug,
+					priority: options.priority ?? 'foreground',
+					workflow: options.workflow,
+					route: options.route
+				}));
+			return createWorkflowBlockSupportFromCached(cached);
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'failed to load block support';
+			const status = getErrorResponseStatus(error);
+			return createWorkflowBlockSupportData({
+				readiness: 'error',
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'block-support',
+					slug: options.slug ?? null,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
 	},
 
 	async getBlockSupport(): Promise<CachedBlockSupport | null> {
@@ -2317,23 +3809,39 @@ export const githubRepositoryCache = {
 		if (cached && !cached.blockSupport) {
 			await githubRepositoryCache.warmBlockSupport({
 				fetcher: input.fetcher,
-				priority: input.priority ?? 'foreground'
+				priority: input.priority ?? 'foreground',
+				slug: input.slug,
+				workflow: 'item-route-shell',
+				route: `/pages/${input.slug}`
 			});
 			return await githubRepositoryCache.getSingletonDocumentForRoute({ slug: input.slug });
 		}
 
+		const runId = siteWarmRunId;
+		const context = captureCacheWorkContext(runId);
 		await enqueueCacheTask({
-			runId: siteWarmRunId,
+			runId,
 			key: getInventoryTargetId({ targetType: 'singletonDocument', configSlug: input.slug }),
 			kind: 'singletonDocument',
 			priority: input.priority ?? 'foreground',
 			passive: (input.priority ?? 'foreground') === 'passive',
 			run: async () => {
-				const response = await input.fetcher(
-					`/api/repo/page-view?slug=${encodeURIComponent(input.slug)}`
-				);
+				const targetId = getInventoryTargetId({
+					targetType: 'singletonDocument',
+					configSlug: input.slug
+				});
+				const endpoint = `/api/repo/page-view?slug=${encodeURIComponent(input.slug)}`;
+				const response = await fetchCacheEndpoint(input.fetcher, endpoint, {
+					workflow: 'item-route-shell',
+					route: `/pages/${input.slug}`,
+					priority: input.priority ?? 'foreground',
+					taskKey: targetId
+				});
 				if (!response.ok) {
 					throw new Error(`Failed to load singleton document (${response.status})`);
+				}
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
 				}
 
 				const data = (await response.json()) as {
@@ -2342,6 +3850,9 @@ export const githubRepositoryCache = {
 					packageBlocks?: SerializablePackageBlock[];
 					blockRegistryError?: string | null;
 				};
+				if (!isCacheWorkContextCurrent(context)) {
+					return;
+				}
 				await githubRepositoryCache.setSingletonPageView({
 					slug: input.slug,
 					content: data.content ?? null,
@@ -2353,6 +3864,108 @@ export const githubRepositoryCache = {
 		});
 
 		return await githubRepositoryCache.getSingletonDocumentForRoute({ slug: input.slug });
+	},
+
+	async loadPageViewWorkflowData(
+		slug: string,
+		options: {
+			fetcher: typeof fetch;
+			priority?: CacheTaskPriority;
+		}
+	): Promise<WorkflowPageViewData> {
+		const snapshot = getActiveSnapshot();
+		const identity = snapshot
+			? createWorkflowRouteDataIdentity(snapshot.identity, {
+					hasEditableDraft: Boolean(snapshot.activeDraftBranch)
+				})
+			: null;
+		const discoveredConfig = snapshot ? getConfig(snapshot, slug) : null;
+
+		if (!browser) {
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'page-view',
+					slug,
+					reason: 'browser cache unavailable'
+				})
+			});
+		}
+
+		if (!snapshot) {
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'page-view',
+					slug,
+					reason: 'missing active repository snapshot'
+				})
+			});
+		}
+
+		const cached = await githubRepositoryCache.getSingletonDocumentForRoute({ slug });
+		if (cached) {
+			const blockSupport = await githubRepositoryCache.loadBlockSupportWorkflowData({
+				fetcher: options.fetcher,
+				slug,
+				priority: options.priority ?? 'foreground',
+				workflow: 'item-route-shell',
+				route: `/pages/${slug}`
+			});
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				content: cached.content,
+				collectionNavigation: null,
+				blockSupport,
+				cacheMiss: blockSupport.cacheMiss
+			});
+		}
+
+		try {
+			const warmed = await githubRepositoryCache.warmSingletonDocumentRoute({
+				slug,
+				fetcher: options.fetcher,
+				priority: options.priority ?? 'foreground'
+			});
+			const blockSupport = createWorkflowBlockSupportFromCached(warmed?.blockSupport ?? null);
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				content: warmed?.content ?? null,
+				collectionNavigation: null,
+				blockSupport,
+				cacheMiss: warmed
+					? blockSupport.cacheMiss
+					: createWorkflowCacheMissResult({
+							target: 'page-view',
+							slug,
+							reason: 'missing singleton route record'
+						})
+			});
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'failed to load page view';
+			const status = getErrorResponseStatus(error);
+			return createWorkflowPageViewData({
+				identity,
+				slug,
+				discoveredConfig,
+				contentError: reason,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'page-view',
+					slug,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
 	},
 
 	async warmItemDocumentForRoute(input: {
@@ -2377,14 +3990,18 @@ export const githubRepositoryCache = {
 		if (cached && !cachedBlockSupport) {
 			await githubRepositoryCache.warmBlockSupport({
 				fetcher: input.fetcher,
-				priority: input.priority ?? 'foreground'
+				priority: input.priority ?? 'foreground',
+				slug: input.slug,
+				workflow: 'item-route-shell',
+				route: `/pages/${input.slug}/${input.itemId}`
 			});
 			return cached;
 		}
 
 		await githubRepositoryCache.ensureCollectionIndex(input.slug, {
 			fetcher: input.fetcher,
-			priority: input.priority ?? 'foreground'
+			priority: input.priority ?? 'foreground',
+			workflow: 'item-route-shell'
 		});
 
 		const indexItem = await getCachedCollectionIndexItem(input.slug, input.itemId);
@@ -2400,6 +4017,153 @@ export const githubRepositoryCache = {
 			fetcher: input.fetcher,
 			priority: input.priority ?? 'foreground'
 		});
+	},
+
+	async loadItemViewWorkflowData(
+		slug: string,
+		itemId: string,
+		options: {
+			fetcher: typeof fetch;
+			priority?: CacheTaskPriority;
+			route?: string | null;
+		}
+	): Promise<WorkflowItemViewData> {
+		const snapshot = getActiveSnapshot();
+		const identity = snapshot
+			? createWorkflowRouteDataIdentity(snapshot.identity, {
+					hasEditableDraft: Boolean(snapshot.activeDraftBranch)
+				})
+			: null;
+		const discoveredConfig = snapshot ? getConfig(snapshot, slug) : null;
+		const route = options.route ?? `/pages/${slug}/${itemId}`;
+
+		if (!browser) {
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'item-view',
+					slug,
+					itemId,
+					reason: 'browser cache unavailable'
+				})
+			});
+		}
+
+		if (!snapshot) {
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'item-view',
+					slug,
+					itemId,
+					reason: 'missing active repository snapshot'
+				})
+			});
+		}
+
+		const cached = await githubRepositoryCache.getItemDocumentForRoute({ slug, itemId });
+		if (cached) {
+			const blockSupport = await githubRepositoryCache.loadBlockSupportWorkflowData({
+				fetcher: options.fetcher,
+				slug,
+				priority: options.priority ?? 'foreground',
+				workflow: 'item-route-shell',
+				route
+			});
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				item: cached.content,
+				navigationManifest: snapshot.navigationManifest,
+				blockSupport,
+				cacheMiss: blockSupport.cacheMiss
+			});
+		}
+
+		try {
+			const warmed = await githubRepositoryCache.warmItemDocumentForRoute({
+				slug,
+				itemId,
+				fetcher: options.fetcher,
+				priority: options.priority ?? 'foreground'
+			});
+			const blockSupport = createWorkflowBlockSupportFromCached(await getCachedBlockSupport());
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				item: warmed?.content ?? null,
+				navigationManifest: snapshot.navigationManifest,
+				blockSupport,
+				cacheMiss: warmed
+					? blockSupport.cacheMiss
+					: createWorkflowCacheMissResult({
+							target: 'item-view',
+							slug,
+							itemId,
+							reason: 'missing item route record'
+						})
+			});
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'failed to load item view';
+			const status = getErrorResponseStatus(error);
+			return createWorkflowItemViewData({
+				identity,
+				slug,
+				itemId,
+				discoveredConfig,
+				navigationManifest: snapshot.navigationManifest,
+				contentError: reason,
+				cacheMiss: createWorkflowCacheMissResult({
+					target: 'item-view',
+					slug,
+					itemId,
+					readiness: 'error',
+					status,
+					reason
+				})
+			});
+		}
+	},
+
+	async loadExistingItemsForRoute(
+		slug: string,
+		options: {
+			fetcher: typeof fetch;
+			priority?: CacheTaskPriority;
+		}
+	): Promise<ContentRecord[]> {
+		if (!browser || !getActiveSnapshot()) {
+			return [];
+		}
+
+		try {
+			await githubRepositoryCache.ensureCollectionIndex(slug, {
+				fetcher: options.fetcher,
+				priority: options.priority ?? 'foreground',
+				workflow: 'item-route-shell'
+			});
+			const index = await getCachedCollectionIndex(slug);
+			if (!index) {
+				return [];
+			}
+
+			const snapshot = getActiveSnapshot();
+			const config = snapshot ? getConfig(snapshot, slug) : null;
+			const items = await mergeCachedProjections(index);
+			return items.map((item) => collectionIndexItemToExistingContentRecord(config, item));
+		} catch {
+			return [];
+		}
 	},
 
 	promoteRoute(input: { slug: string; itemId?: string | null; fetcher: typeof fetch }): void {
@@ -2537,12 +4301,6 @@ export const githubRepositoryCache = {
 					currentCollectionSlug: index.configSlug,
 					hydratedItems
 				});
-				void githubRepositoryCache
-					.warmCollectionDocuments(index.configSlug, {
-						fetcher: options.fetcher,
-						priority: 'passive'
-					})
-					.catch(() => {});
 
 				for (
 					let batchStart = 0;
@@ -2554,25 +4312,14 @@ export const githubRepositoryCache = {
 						batchStart + SITE_WARM_PROJECTION_BATCH_SIZE
 					);
 					projectionTasks.push(
-						enqueueCacheTask({
+						enqueueProjectionBatchTask({
 							runId,
-							key: [
-								getInventoryTargetId({
-									targetType: 'collectionProjection',
-									configSlug: index.configSlug,
-									itemId: blobShas[0]
-								}),
-								blobShas.join(',')
-							].join(':'),
-							kind: 'collectionProjectionBatch',
+							slug: index.configSlug,
+							blobShas,
+							fetcher: options.fetcher,
 							priority: 'topLevel',
 							passive: true,
-							run: async () => {
-								await hydrateProjectionBatch({
-									fetcher: options.fetcher,
-									slug: index.configSlug,
-									blobShas
-								});
+							onComplete: () => {
 								hydratedItems += blobShas.length;
 								updateWarmStatus({
 									currentCollectionSlug: index.configSlug,
@@ -2589,14 +4336,18 @@ export const githubRepositoryCache = {
 				return;
 			}
 
-			const documentTasks = indexes.map((index) =>
-				githubRepositoryCache.warmCollectionDocuments(index.configSlug, {
+			const documentBudget: FullDocumentWarmBudget = {
+				remainingBytes: idleFullDocumentBudgetPolicy.bytes,
+				remainingRecords: idleFullDocumentBudgetPolicy.recordLimit
+			};
+			for (const index of indexes) {
+				await githubRepositoryCache.warmCollectionDocuments(index.configSlug, {
 					fetcher: options.fetcher,
 					priority: 'passive',
-					waitForBackground: true
-				})
-			);
-			await Promise.all(documentTasks);
+					waitForBackground: true,
+					documentBudget
+				});
+			}
 
 			if (isRunCurrent(runId)) {
 				markWarmReady(collectionSlugs.length, totalItems);
@@ -2620,8 +4371,7 @@ export const githubRepositoryCache = {
 	},
 
 	async checkFreshness(options: { fetcher: typeof fetch; warmChanged?: boolean }): Promise<void> {
-		if (!browser || freshnessCheckInFlight) {
-			await freshnessCheckInFlight;
+		if (!browser) {
 			return;
 		}
 
@@ -2630,35 +4380,55 @@ export const githubRepositoryCache = {
 			return;
 		}
 
-		freshnessCheckInFlight = (async () => {
+		const freshnessIdentityKey = getSnapshotIdentityKey(snapshot);
+		const pendingFreshnessCheck = freshnessChecksInFlight.get(freshnessIdentityKey);
+		if (pendingFreshnessCheck) {
+			await pendingFreshnessCheck;
+			return;
+		}
+
+		const promise = (async () => {
 			const params = new URLSearchParams({
 				previousRef: snapshot.identity.ref,
 				previousHeadSha: snapshot.identity.headSha,
 				previousTreeSha: snapshot.identity.treeSha
 			});
+			markWorkflowReadiness({
+				workflow: 'freshness',
+				mark: 'freshness-start',
+				route: '/pages',
+				slug: null
+			});
 			try {
-				const response = await options.fetcher(`/api/repo/configs?${params.toString()}`);
-				if (!response.ok) {
-					throw new Error(`Failed to check repository freshness (${response.status})`);
+				const freshnessEndpoint = `/api/repo/freshness?${params.toString()}`;
+				const freshnessResponse = await fetchCacheEndpoint(options.fetcher, freshnessEndpoint, {
+					workflow: 'freshness',
+					route: '/pages',
+					priority: 'passive',
+					taskKey: null
+				});
+				if (!freshnessResponse.ok) {
+					throw new Error(`Failed to check repository freshness (${freshnessResponse.status})`);
 				}
 
-				const bootstrap = (await response.json()) as FreshnessBootstrap;
-				const nextIdentity = bootstrap.repositoryIdentity ?? null;
+				const freshness = (await freshnessResponse.json()) as FreshnessIdentityResult;
+				const nextIdentity = freshness.repositoryIdentity ?? null;
 				const activeIdentityUnchanged = hasSameRepositoryIdentity(snapshot.identity, nextIdentity);
 				const mainIdentityUnchanged = snapshot.activeDraftBranch
 					? true
 					: hasSameRepositoryIdentity(
 							snapshot.identity,
-							bootstrap.mainRepositoryIdentity ?? nextIdentity
+							freshness.mainRepositoryIdentity ?? nextIdentity
 						);
 				const draftIdentityUnchanged = snapshot.activeDraftBranch
 					? hasSameRepositoryIdentity(
 							snapshot.identity,
-							bootstrap.draftRepositoryIdentity ?? nextIdentity
+							freshness.draftRepositoryIdentity ?? nextIdentity
 						)
 					: true;
 				const unchanged =
-					activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged;
+					freshness.unchanged ||
+					(activeIdentityUnchanged && mainIdentityUnchanged && draftIdentityUnchanged);
 
 				if (unchanged) {
 					const records = await readActiveInventoryRecords();
@@ -2670,48 +4440,89 @@ export const githubRepositoryCache = {
 						freshnessBackoffIndex + 1,
 						FRESHNESS_BACKOFF_INTERVALS_MS.length - 1
 					);
+					markWorkflowReadiness({
+						workflow: 'freshness',
+						mark: 'freshness-end',
+						route: '/pages',
+						slug: null
+					});
 					return;
 				}
 
 				resetFreshnessBackoff();
-				if (nextIdentity) {
-					await githubRepositoryCache.hydrateFromBootstrap({
-						repoFullName: snapshot.repoFullName,
-						bootstrap
+				const freshnessMessage = getFreshnessRecoveryMessage(freshness);
+				if (freshness.freshnessStatus === 'error') {
+					const records = await readActiveInventoryRecords();
+					await updateInventoryRecords(records, {
+						status: 'error',
+						error: freshnessMessage ?? 'Failed to derive changed repository paths',
+						lastCheckedAt: Date.now()
 					});
+					markWorkflowReadiness({
+						workflow: 'freshness',
+						mark: 'freshness-end',
+						route: '/pages',
+						slug: null
+					});
+					return;
 				}
 
-				const changedPaths = extractChangedPaths(bootstrap);
+				if (freshness.freshnessStatus === 'stale') {
+					const records = await readActiveInventoryRecords();
+					await updateInventoryRecords(records, {
+						status: 'stale',
+						error: freshnessMessage,
+						lastCheckedAt: Date.now()
+					});
+					markWorkflowReadiness({
+						workflow: 'freshness',
+						mark: 'freshness-end',
+						route: '/pages',
+						slug: null
+					});
+					return;
+				}
+
+				const changedPaths = extractChangedPaths(freshness);
 				if (changedPaths.length > 0) {
 					await markInventoryTargetsStaleForPaths(changedPaths);
 				} else {
 					const records = await readActiveInventoryRecords();
-					await updateInventoryRecords(
-						records.filter((record) => record.targetType !== 'snapshot'),
-						{
-							status: 'stale',
-							error: null,
-							lastCheckedAt: Date.now()
-						}
-					);
+					await updateInventoryRecords(records, {
+						error: null,
+						lastCheckedAt: Date.now()
+					});
 				}
 
 				if (options.warmChanged ?? false) {
 					githubRepositoryCache.startIdleSiteWarm({ fetcher: options.fetcher });
 				}
+				markWorkflowReadiness({
+					workflow: 'freshness',
+					mark: 'freshness-end',
+					route: '/pages',
+					slug: null
+				});
 			} catch (error) {
 				const records = await readActiveInventoryRecords();
 				await updateInventoryRecords(records, {
 					error: error instanceof Error ? error.message : 'Failed to check repository freshness',
 					lastCheckedAt: Date.now()
 				});
+				markWorkflowReadiness({
+					workflow: 'freshness',
+					mark: 'freshness-end',
+					route: '/pages',
+					slug: null
+				});
 				throw error;
 			}
 		})().finally(() => {
-			freshnessCheckInFlight = null;
+			freshnessChecksInFlight.delete(freshnessIdentityKey);
 		});
+		freshnessChecksInFlight.set(freshnessIdentityKey, promise);
 
-		await freshnessCheckInFlight;
+		await promise;
 	},
 
 	startFreshnessScheduler(options: { fetcher: typeof fetch }): () => void {
@@ -2766,7 +4577,16 @@ export const githubRepositoryCache = {
 			return null;
 		}
 
-		const cached = await readStore<CachedDocument>(DOCUMENT_STORE, getDocumentKey(input));
+		const key = getDocumentKey(input);
+		const cached = await readStore<CachedDocument>(DOCUMENT_STORE, key);
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: cached ? 'hit' : 'miss',
+			reason: cached ? 'item document cached for blob sha' : 'item document missing for blob sha',
+			repoFullName: input.repoFullName,
+			key,
+			slug: input.configSlug
+		});
 		return cached?.content ?? null;
 	},
 
@@ -2780,11 +4600,27 @@ export const githubRepositoryCache = {
 
 		const snapshot = getActiveSnapshot();
 		if (!snapshot) {
+			recordCacheOutcome({
+				cacheArea: 'item-document',
+				outcome: 'miss',
+				reason: 'no active repository snapshot',
+				slug: input.slug,
+				itemId: input.itemId
+			});
 			return null;
 		}
 
 		const indexItem = await getCachedCollectionIndexItem(input.slug, input.itemId);
 		if (!indexItem) {
+			recordCacheOutcome({
+				cacheArea: 'item-document',
+				outcome: 'miss',
+				reason: 'collection index item missing for route',
+				repoFullName: snapshot.repoFullName,
+				ref: snapshot.identity.ref,
+				slug: input.slug,
+				itemId: input.itemId
+			});
 			return null;
 		}
 
@@ -2815,6 +4651,16 @@ export const githubRepositoryCache = {
 			updatedAt: Date.now()
 		};
 		await writeStore<CachedDocument>(DOCUMENT_STORE, record);
+		recordCacheOutcome({
+			cacheArea: 'item-document',
+			outcome: 'write',
+			reason: 'item document cached for route',
+			repoFullName: input.repoFullName,
+			ref: snapshot?.identity.ref ?? null,
+			key: record.key,
+			slug: input.configSlug,
+			path: input.path
+		});
 		await updateInventoryTarget(
 			getInventoryTargetId({
 				targetType: 'itemDocument',
@@ -2870,6 +4716,75 @@ export const githubRepositoryCache = {
 				blobSha: indexItem.blobSha,
 				path: indexItem.path
 			}
+		);
+	},
+
+	async patchNavigationManifest(input: {
+		navigationManifest: NavigationManifest | null;
+		collections?: string[];
+	}): Promise<void> {
+		if (!browser) {
+			return;
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return;
+		}
+
+		const canonicalManifest = input.navigationManifest
+			? normalizeNavigationManifest(input.navigationManifest)
+			: null;
+		await writePatchedSnapshot(
+			{
+				...snapshot,
+				navigationManifest: {
+					...snapshot.navigationManifest,
+					exists: snapshot.navigationManifest.exists || !!canonicalManifest,
+					manifest: canonicalManifest,
+					error: null
+				}
+			},
+			input.collections ?? []
+		);
+	},
+
+	async patchCollectionGroups(input: {
+		slug: string;
+		mutation: CollectionGroupManagementMutation;
+		navigationManifest?: NavigationManifest | null;
+	}): Promise<void> {
+		if (!browser) {
+			return;
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return;
+		}
+
+		const canonicalManifest =
+			input.navigationManifest === undefined
+				? snapshot.navigationManifest.manifest
+				: input.navigationManifest
+					? normalizeNavigationManifest(input.navigationManifest)
+					: null;
+		await writePatchedSnapshot(
+			{
+				...snapshot,
+				configs: snapshot.configs.map((config) =>
+					config.slug === input.slug
+						? applyCachedCollectionGroupMutation(config, input.mutation, canonicalManifest)
+						: config
+				),
+				navigationManifest: {
+					...snapshot.navigationManifest,
+					exists: snapshot.navigationManifest.exists || !!canonicalManifest,
+					manifest: canonicalManifest,
+					error: null
+				}
+			},
+			[input.slug]
 		);
 	},
 
@@ -2947,12 +4862,13 @@ export const githubRepositoryCache = {
 				input.content,
 				input.navigationManifest
 			);
+			const canonicalManifest = manifest ? normalizeNavigationManifest(manifest) : null;
 			const nextSnapshot: CachedSnapshot = {
 				...snapshot,
 				navigationManifest: {
 					...snapshot.navigationManifest,
 					exists: snapshot.navigationManifest.exists || !!manifest,
-					manifest
+					manifest: canonicalManifest
 				},
 				updatedAt: Date.now()
 			};
@@ -3254,8 +5170,19 @@ export const githubRepositoryCacheTestApi = {
 		activeSnapshotIdentityKey = null;
 		clearFreshnessTimer();
 		resetFreshnessBackoff();
-		freshnessCheckInFlight = null;
+		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
+		clearRecentCacheWork();
+		idleFullDocumentBudgetPolicy = {
+			bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+			recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+		};
+		cacheRetryStatusMessage = null;
+		endpointRetryPolicy = {
+			attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+			baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+			maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
+		};
 		collectionListeners.clear();
 		githubCacheInventoryStatus.set(emptyInventorySummary);
 		syncWarmDebugStatus();
@@ -3270,6 +5197,17 @@ export const githubRepositoryCacheTestApi = {
 				bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 				recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
 			};
+			idleFullDocumentBudgetPolicy = {
+				bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+				recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+			};
+			cacheRetryStatusMessage = null;
+			clearRecentCacheWork();
+			endpointRetryPolicy = {
+				attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+				baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+				maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
+			};
 			syncWarmDebugStatus();
 			return;
 		}
@@ -3282,7 +5220,18 @@ export const githubRepositoryCacheTestApi = {
 			bytes: DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
 		};
-		freshnessCheckInFlight = null;
+		idleFullDocumentBudgetPolicy = {
+			bytes: DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+			recordLimit: DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+		};
+		cacheRetryStatusMessage = null;
+		clearRecentCacheWork();
+		endpointRetryPolicy = {
+			attempts: DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+			baseDelayMs: DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+			maxDelayMs: DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
+		};
+		freshnessChecksInFlight.clear();
 		cancelActiveSiteWarm();
 		collectionListeners.clear();
 		const database = await openDatabase();
@@ -3325,6 +5274,25 @@ export const githubRepositoryCacheTestApi = {
 		fullDocumentBudgetPolicy = {
 			bytes: input.bytes ?? DEFAULT_FULL_DOCUMENT_BUDGET_BYTES,
 			recordLimit: input.recordLimit ?? DEFAULT_FULL_DOCUMENT_RECORD_LIMIT
+		};
+	},
+
+	setIdleFullDocumentWarmBudgetForTests(input: { bytes?: number; recordLimit?: number }): void {
+		idleFullDocumentBudgetPolicy = {
+			bytes: input.bytes ?? DEFAULT_IDLE_FULL_DOCUMENT_BUDGET_BYTES,
+			recordLimit: input.recordLimit ?? DEFAULT_IDLE_FULL_DOCUMENT_RECORD_LIMIT
+		};
+	},
+
+	setEndpointRetryPolicyForTests(input: {
+		attempts?: number;
+		baseDelayMs?: number;
+		maxDelayMs?: number;
+	}): void {
+		endpointRetryPolicy = {
+			attempts: input.attempts ?? DEFAULT_ENDPOINT_RETRY_ATTEMPTS,
+			baseDelayMs: input.baseDelayMs ?? DEFAULT_ENDPOINT_RETRY_BASE_DELAY_MS,
+			maxDelayMs: input.maxDelayMs ?? DEFAULT_ENDPOINT_RETRY_MAX_DELAY_MS
 		};
 	},
 

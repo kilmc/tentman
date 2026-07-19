@@ -1,4 +1,5 @@
 import type { RootConfig } from '$lib/config/root-config';
+import type { RepoBootstrapIdentity } from '$lib/repository/config-bootstrap';
 import type { GitHubRepositoryIdentity } from '$lib/repository/github';
 import type { SelectedBackend } from '$lib/repository/selection';
 
@@ -13,6 +14,7 @@ export interface SelectedRepoConfigSummary {
 	siteName?: RootConfig['siteName'];
 	componentsDir?: RootConfig['componentsDir'];
 	netlify?: RootConfig['netlify'];
+	repositoryIdentity?: RepoBootstrapIdentity | null;
 }
 
 export interface RecentGitHubRepositorySnapshot extends GitHubRepositoryIdentity {

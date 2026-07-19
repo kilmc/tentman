@@ -8,10 +8,10 @@ import {
 	summarizeIdWriteChanges,
 	writeMissingTentmanIds
 } from './index.js';
-import { copyTestAppToTempGitRepo } from './test-paths.test-helper.js';
+import { copyCoreFixtureProjectToTempGitRepo } from './test-paths.test-helper.js';
 
-async function copyFixture() {
-	return copyTestAppToTempGitRepo('tentman-core-');
+async function copyFixture(t) {
+	return copyCoreFixtureProjectToTempGitRepo(t, 'tentman-core-');
 }
 
 async function stripFixtureIds(projectRoot) {
@@ -44,8 +44,8 @@ function createDeterministicIdGenerator() {
 	};
 }
 
-test('writes missing config and collection item ids', async () => {
-	const projectRoot = await copyFixture();
+test('writes missing config and collection item ids', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await stripFixtureIds(projectRoot);
 	const project = await loadTentmanProject(projectRoot);
 	const changes = await writeMissingTentmanIds(project, {
@@ -85,8 +85,8 @@ test('writes missing config and collection item ids', async () => {
 	assert.match(post, /_tentmanId: ?(?:'tent_|tent_)/);
 });
 
-test('writes missing collection group ids', async () => {
-	const projectRoot = await copyFixture();
+test('writes missing collection group ids', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await stripFixtureIds(projectRoot);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
@@ -127,8 +127,8 @@ test('writes missing collection group ids', async () => {
 	);
 });
 
-test('replaces legacy and malformed ids', async () => {
-	const projectRoot = await copyFixture();
+test('replaces legacy and malformed ids', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await stripFixtureIds(projectRoot);
 	const aboutConfigPath = path.join(projectRoot, 'tentman/configs/about.tentman.json');
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
@@ -202,8 +202,8 @@ test('replaces legacy and malformed ids', async () => {
 	assert.doesNotMatch(nextPostSource, /_tentmanId: ?(?:'designing-a-reliable-fixture'|designing-a-reliable-fixture)/);
 });
 
-test('backfills _tentmanGroupId from legacy group values without rewriting group', async () => {
-	const projectRoot = await copyFixture();
+test('backfills _tentmanGroupId from legacy group values without rewriting group', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await stripFixtureIds(projectRoot);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
@@ -254,8 +254,8 @@ test('backfills _tentmanGroupId from legacy group values without rewriting group
 	);
 });
 
-test('does not overwrite an existing _tentmanGroupId during backfill', async () => {
-	const projectRoot = await copyFixture();
+test('does not overwrite an existing _tentmanGroupId during backfill', async (t) => {
+	const projectRoot = await copyFixture(t);
 	await stripFixtureIds(projectRoot);
 	const blogConfigPath = path.join(projectRoot, 'tentman/configs/blog.tentman.json');
 	const blogConfig = JSON.parse(await fs.readFile(blogConfigPath, 'utf8'));
