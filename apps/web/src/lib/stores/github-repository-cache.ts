@@ -10,6 +10,7 @@ import {
 } from '$lib/features/content-management/navigation';
 import {
 	syncCollectionItemGroupSelectionInManifest,
+	type CollectionGroupManagementMutation,
 	type NavigationManifest,
 	type NavigationManifestState
 } from '$lib/features/content-management/navigation-manifest';
@@ -19,6 +20,7 @@ import {
 	type ResolvedContentState
 } from '$lib/features/content-management/state';
 import type { ContentRecord } from '$lib/features/content-management/types';
+import { getCollectionGroups } from '$lib/features/content-management/config';
 import {
 	getCollectionSortValues,
 	resolveCollectionSortCapabilities
@@ -510,8 +512,9 @@ function createIdleCacheWorkStatus(
 	};
 }
 
-export const githubCacheWorkObservabilityStatus =
-	writable<GithubCacheWorkObservabilityStatus>(createIdleCacheWorkStatus(emptyInventorySummary));
+export const githubCacheWorkObservabilityStatus = writable<GithubCacheWorkObservabilityStatus>(
+	createIdleCacheWorkStatus(emptyInventorySummary)
+);
 
 function openDatabase(): Promise<IDBDatabase> {
 	if (!browser) {
@@ -794,9 +797,7 @@ function getCacheProgressExplanation(summary: GithubCacheInventorySummary): stri
 		);
 	}
 	if (summary.errorTargets > 0) {
-		parts.push(
-			`${summary.errorTargets} target${summary.errorTargets === 1 ? '' : 's'} failed.`
-		);
+		parts.push(`${summary.errorTargets} target${summary.errorTargets === 1 ? '' : 's'} failed.`);
 	}
 	if (summary.skippedBudgetTargets > 0) {
 		parts.push('Budget-skipped full documents count as completed for progress.');
@@ -988,9 +989,7 @@ function addRecentCacheWork(input: {
 	recentCacheWork.splice(RECENT_CACHE_WORK_LIMIT);
 }
 
-function syncCacheWorkObservabilityFromInventory(
-	summary = get(githubCacheInventoryStatus)
-): void {
+function syncCacheWorkObservabilityFromInventory(summary = get(githubCacheInventoryStatus)): void {
 	const current = get(githubCacheWorkObservabilityStatus).current;
 	if (current.state === 'idle' || current.state === 'completed' || current.state === 'error') {
 		githubCacheWorkObservabilityStatus.set(createIdleCacheWorkStatus(summary));
@@ -1379,7 +1378,9 @@ function getProjectionMissReason(input: {
 	);
 	if (
 		sameBlob.length > 0 &&
-		sameBlob.every((projection) => projection.schemaIdentity !== input.index.identity.schemaIdentity)
+		sameBlob.every(
+			(projection) => projection.schemaIdentity !== input.index.identity.schemaIdentity
+		)
 	) {
 		return 'schema mismatch';
 	}
@@ -1387,8 +1388,7 @@ function getProjectionMissReason(input: {
 	if (
 		repoProjections.some(
 			(projection) =>
-				isSameProjectionItem(projection, input.item) &&
-				projection.blobSha !== input.item.blobSha
+				isSameProjectionItem(projection, input.item) && projection.blobSha !== input.item.blobSha
 		)
 	) {
 		return 'blob identity mismatch';
@@ -1544,7 +1544,10 @@ async function isRetryableCacheResponse(response: Response): Promise<boolean> {
 	return await isSecondaryOrAbuseLimitResponse(response);
 }
 
-function assertBackgroundCacheQuotaAvailable(response: Response, priority: CacheTaskPriority): void {
+function assertBackgroundCacheQuotaAvailable(
+	response: Response,
+	priority: CacheTaskPriority
+): void {
 	if (priority === 'foreground' || priority === 'intent') {
 		return;
 	}
@@ -1561,9 +1564,7 @@ function assertBackgroundCacheQuotaAvailable(response: Response, priority: Cache
 	}
 
 	if (remaining < BACKGROUND_CACHE_CORE_QUOTA_PAUSE_THRESHOLD) {
-		throw new BackgroundCacheWarmPausedError(
-			'GitHub core quota low; background cache warm paused'
-		);
+		throw new BackgroundCacheWarmPausedError('GitHub core quota low; background cache warm paused');
 	}
 }
 
@@ -1839,7 +1840,9 @@ function hasSameRepositoryIdentity(
 	);
 }
 
-function extractChangedPaths(bootstrap: Pick<RepoFreshnessIdentityResult, 'changedPaths'>): string[] {
+function extractChangedPaths(
+	bootstrap: Pick<RepoFreshnessIdentityResult, 'changedPaths'>
+): string[] {
 	return Array.isArray(bootstrap.changedPaths)
 		? bootstrap.changedPaths.filter(
 				(path): path is string => typeof path === 'string' && path.length > 0
@@ -1848,10 +1851,12 @@ function extractChangedPaths(bootstrap: Pick<RepoFreshnessIdentityResult, 'chang
 }
 
 function getFreshnessRecoveryMessage(freshness: FreshnessIdentityResult): string | null {
-	return [freshness.error, freshness.recovery]
-		.filter((message): message is string => typeof message === 'string' && message.length > 0)
-		.join(' ')
-		.trim() || null;
+	return (
+		[freshness.error, freshness.recovery]
+			.filter((message): message is string => typeof message === 'string' && message.length > 0)
+			.join(' ')
+			.trim() || null
+	);
 }
 
 function resetWarmStatus() {
@@ -1953,7 +1958,8 @@ function markWarmError(error: unknown) {
 	});
 	setCurrentCacheWork({
 		phase: error instanceof BackgroundCacheWarmPausedError ? 'paused' : 'error',
-		operation: error instanceof BackgroundCacheWarmPausedError ? 'rate-limit-pause' : 'no-active-work',
+		operation:
+			error instanceof BackgroundCacheWarmPausedError ? 'rate-limit-pause' : 'no-active-work',
 		reason
 	});
 }
@@ -2003,7 +2009,9 @@ function getNextTask(): CacheTask | null {
 	return queuedTasks[0] ?? null;
 }
 
-function getCacheTaskOperation(task: CacheTask): Parameters<typeof recordCacheWork>[0]['operation'] {
+function getCacheTaskOperation(
+	task: CacheTask
+): Parameters<typeof recordCacheWork>[0]['operation'] {
 	if (task.kind === 'collectionProjectionBatch') {
 		return 'projection-hydration';
 	}
@@ -2101,7 +2109,12 @@ async function runQueue(runId: number): Promise<void> {
 			task,
 			reason: 'waiting for route readiness and browser idle'
 		});
-		recordCacheTaskWork(task, 'waiting', 'waiting for route readiness and browser idle', 'queue-wait');
+		recordCacheTaskWork(
+			task,
+			'waiting',
+			'waiting for route readiness and browser idle',
+			'queue-wait'
+		);
 		if (!(await waitForIdle(runId))) {
 			return;
 		}
@@ -2284,6 +2297,81 @@ function enqueueCacheTask<T>(input: {
 
 function getConfig(snapshot: CachedSnapshot, slug: string): DiscoveredConfig | null {
 	return snapshot.configs.find((config) => config.slug === slug) ?? null;
+}
+
+function applyCachedCollectionGroupMutation(
+	config: DiscoveredConfig,
+	mutation: CollectionGroupManagementMutation,
+	navigationManifest: NavigationManifest | null | undefined
+): DiscoveredConfig {
+	const collection =
+		config.config.collection && typeof config.config.collection === 'object'
+			? config.config.collection
+			: {};
+	const groups = getCollectionGroups(config.config);
+	const nextGroups = (() => {
+		if (mutation.action === 'create') {
+			const createdGroupId =
+				mutation.id ??
+				(config.config._tentmanId
+					? navigationManifest?.collections?.[config.config._tentmanId]?.groups?.find(
+							(group) => group.value === mutation.value || group.label === mutation.label
+						)?.id
+					: undefined);
+
+			return [
+				...groups,
+				{
+					_tentmanId: createdGroupId ?? '',
+					label: mutation.label,
+					value: mutation.value
+				}
+			].filter((group) => group._tentmanId);
+		}
+
+		if (mutation.action === 'edit') {
+			return groups.map((group) =>
+				group._tentmanId === mutation.groupId
+					? {
+							...group,
+							label: mutation.label,
+							value: mutation.value
+						}
+					: group
+			);
+		}
+
+		if (mutation.action === 'delete') {
+			return groups.filter((group) => group._tentmanId !== mutation.groupId);
+		}
+
+		return groups.filter((group) => group._tentmanId !== mutation.sourceGroupId);
+	})();
+
+	return {
+		...config,
+		config: {
+			...config.config,
+			collection: {
+				...collection,
+				groups: nextGroups
+			}
+		}
+	};
+}
+
+async function writePatchedSnapshot(
+	snapshot: CachedSnapshot,
+	changedCollections: string[] = []
+): Promise<void> {
+	const nextSnapshot = {
+		...snapshot,
+		updatedAt: Date.now()
+	};
+	activeSnapshot = nextSnapshot;
+	await writeStore(SNAPSHOT_STORE, nextSnapshot);
+	await buildInventoryFromActiveSnapshot();
+	await Promise.all(changedCollections.map((slug) => notifyCollection(slug)));
 }
 
 function getSingletonContentPath(config: DiscoveredConfig): string | null {
@@ -3351,7 +3439,8 @@ export const githubRepositoryCache = {
 				options.workflow ??
 				(options.force ? 'warm-collection-reload' : 'desktop-collection-landing'),
 			mark:
-				(options.workflow ?? (options.force ? 'warm-collection-reload' : 'desktop-collection-landing')) ===
+				(options.workflow ??
+					(options.force ? 'warm-collection-reload' : 'desktop-collection-landing')) ===
 				'warm-collection-reload'
 					? 'collection-reload-ready'
 					: 'collection-landing-ready',
@@ -4399,13 +4488,10 @@ export const githubRepositoryCache = {
 					await markInventoryTargetsStaleForPaths(changedPaths);
 				} else {
 					const records = await readActiveInventoryRecords();
-					await updateInventoryRecords(
-						records,
-						{
-							error: null,
-							lastCheckedAt: Date.now()
-						}
-					);
+					await updateInventoryRecords(records, {
+						error: null,
+						lastCheckedAt: Date.now()
+					});
 				}
 
 				if (options.warmChanged ?? false) {
@@ -4630,6 +4716,75 @@ export const githubRepositoryCache = {
 				blobSha: indexItem.blobSha,
 				path: indexItem.path
 			}
+		);
+	},
+
+	async patchNavigationManifest(input: {
+		navigationManifest: NavigationManifest | null;
+		collections?: string[];
+	}): Promise<void> {
+		if (!browser) {
+			return;
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return;
+		}
+
+		const canonicalManifest = input.navigationManifest
+			? normalizeNavigationManifest(input.navigationManifest)
+			: null;
+		await writePatchedSnapshot(
+			{
+				...snapshot,
+				navigationManifest: {
+					...snapshot.navigationManifest,
+					exists: snapshot.navigationManifest.exists || !!canonicalManifest,
+					manifest: canonicalManifest,
+					error: null
+				}
+			},
+			input.collections ?? []
+		);
+	},
+
+	async patchCollectionGroups(input: {
+		slug: string;
+		mutation: CollectionGroupManagementMutation;
+		navigationManifest?: NavigationManifest | null;
+	}): Promise<void> {
+		if (!browser) {
+			return;
+		}
+
+		const snapshot = getActiveSnapshot();
+		if (!snapshot) {
+			return;
+		}
+
+		const canonicalManifest =
+			input.navigationManifest === undefined
+				? snapshot.navigationManifest.manifest
+				: input.navigationManifest
+					? normalizeNavigationManifest(input.navigationManifest)
+					: null;
+		await writePatchedSnapshot(
+			{
+				...snapshot,
+				configs: snapshot.configs.map((config) =>
+					config.slug === input.slug
+						? applyCachedCollectionGroupMutation(config, input.mutation, canonicalManifest)
+						: config
+				),
+				navigationManifest: {
+					...snapshot.navigationManifest,
+					exists: snapshot.navigationManifest.exists || !!canonicalManifest,
+					manifest: canonicalManifest,
+					error: null
+				}
+			},
+			[input.slug]
 		);
 	},
 

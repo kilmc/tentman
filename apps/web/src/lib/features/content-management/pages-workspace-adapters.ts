@@ -541,9 +541,16 @@ export function createPagesWorkspaceAdapter(
 			const result = (await response.json()) as {
 				branchName?: string | null;
 				changedPaths?: string[] | null;
+				navigationManifest?: { manifest?: NavigationManifest | null } | null;
 				mutation?: unknown;
 			};
 			setDraftBranch(result.branchName, context.selectedRepo);
+			await githubRepositoryCache.patchNavigationManifest({
+				navigationManifest: result.navigationManifest?.manifest ?? manifest,
+				collections: context
+					.getConfigs()
+					.flatMap((config) => (config.config.collection ? [config.slug] : []))
+			});
 			await invalidateNavigationManifestCache(context);
 
 			return {
@@ -638,8 +645,13 @@ export function createPagesWorkspaceAdapter(
 			const result = (await response.json()) as {
 				branchName?: string | null;
 				changedPaths?: string[] | null;
+				navigationManifest?: { manifest?: NavigationManifest | null } | null;
 			};
 			setDraftBranch(result.branchName, context.selectedRepo);
+			await githubRepositoryCache.patchNavigationManifest({
+				navigationManifest: result.navigationManifest?.manifest ?? context.getNavigationManifest(),
+				collections: [config.slug]
+			});
 			await invalidateNavigationManifestCache(context);
 
 			const collectionResult = await adapter.loadCollectionNavigation({

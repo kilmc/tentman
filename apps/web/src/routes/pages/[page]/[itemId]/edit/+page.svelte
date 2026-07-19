@@ -24,6 +24,7 @@
 	import { formatContentValue } from '$lib/features/content-management/item';
 	import { buildCollectionFilePath } from '$lib/features/content-management/transforms';
 	import type { ContentRecord } from '$lib/features/content-management/types';
+	import { draftBranch } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { toasts } from '$lib/stores/toasts';
 	import {
@@ -47,6 +48,7 @@
 		syncCollectionItemGroupSelectionInManifest
 	} from '$lib/features/content-management/navigation-manifest';
 	import {
+		getCollectionGroups,
 		getCollectionConfigReferences,
 		isCollectionManifestBacked
 	} from '$lib/features/content-management/config';
@@ -398,8 +400,25 @@
 			throw new Error(await response.text());
 		}
 
-		const result = await response.json();
-		navigationManifest = result.navigationManifest;
+		const result = (await response.json()) as {
+			branchName?: string | null;
+			navigationManifest?: NavigationManifestState | null;
+		};
+		if (result.branchName && data.selectedRepo) {
+			draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
+		}
+		patchCurrentConfigWithCreatedGroup(input);
+		navigationManifest = result.navigationManifest ?? null;
+		await githubRepositoryCache.patchCollectionGroups({
+			slug: input.collection,
+			mutation: {
+				action: 'create',
+				id: input.id,
+				label: input.label,
+				value: input.value
+			},
+			navigationManifest: result.navigationManifest?.manifest
+		});
 	}
 
 	$effect(() => {
@@ -482,6 +501,35 @@
 		}
 
 		recoverDraft(recoveryState.snapshot);
+	}
+
+	function patchCurrentConfigWithCreatedGroup(input: { id: string; value: string; label: string }) {
+		if (!discoveredConfig) {
+			return;
+		}
+
+		const collection =
+			discoveredConfig.config.collection && typeof discoveredConfig.config.collection === 'object'
+				? discoveredConfig.config.collection
+				: {};
+
+		discoveredConfig = {
+			...discoveredConfig,
+			config: {
+				...discoveredConfig.config,
+				collection: {
+					...collection,
+					groups: [
+						...getCollectionGroups(discoveredConfig.config),
+						{
+							_tentmanId: input.id,
+							label: input.label,
+							value: input.value
+						}
+					]
+				}
+			}
+		};
 	}
 
 	function canSaveCurrentItemUpdateNavigationManifest(): boolean {

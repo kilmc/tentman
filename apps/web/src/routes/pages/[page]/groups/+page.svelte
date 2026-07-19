@@ -19,8 +19,10 @@
 	} from '$lib/features/content-management/navigation';
 	import {
 		manageCollectionGroups,
-		type CollectionGroupManagementMutation
+		type CollectionGroupManagementMutation,
+		type NavigationManifest
 	} from '$lib/features/content-management/navigation-manifest';
+	import { draftBranch } from '$lib/stores/draft-branch';
 	import { githubRepositoryCache } from '$lib/stores/github-repository-cache';
 	import { localContent } from '$lib/stores/local-content';
 	import { localRepo } from '$lib/stores/local-repo';
@@ -30,12 +32,18 @@
 
 	let { data }: { data: PageData } = $props();
 
+	function getInitialRemoteConfigEntry() {
+		return data.discoveredConfig;
+	}
+
+	let remoteConfigEntry = $state(getInitialRemoteConfigEntry());
+
 	const isLocalMode = $derived(data.selectedBackend?.kind === 'local');
 	const configEntry = $derived(
 		isLocalMode
 			? ($localContent.configs.find((config) => config.slug === data.pageSlug) ??
 					data.discoveredConfig)
-			: data.discoveredConfig
+			: remoteConfigEntry
 	);
 	const config = $derived(configEntry?.config ?? null);
 	const navigationManifest = $derived(
@@ -70,6 +78,12 @@
 	const mergeTargets = $derived(
 		groups.filter((group) => group._tentmanId && group._tentmanId !== mergeSourceGroupId)
 	);
+
+	$effect(() => {
+		if (!isLocalMode) {
+			remoteConfigEntry = data.discoveredConfig;
+		}
+	});
 
 	$effect(() => {
 		if (!isLocalMode) {
@@ -128,6 +142,99 @@
 		editingGroupId = null;
 		editLabel = '';
 		editValue = '';
+	}
+
+	function getCreatedGroupId(mutation: CollectionGroupManagementMutation, manifest: unknown) {
+		if (mutation.action !== 'create') {
+			return null;
+		}
+
+		if (mutation.id) {
+			return mutation.id;
+		}
+
+		if (
+			!configEntry?.config._tentmanId ||
+			!manifest ||
+			typeof manifest !== 'object' ||
+			!('collections' in manifest) ||
+			!manifest.collections ||
+			typeof manifest.collections !== 'object'
+		) {
+			return null;
+		}
+
+		const collection = (
+			manifest.collections as Record<
+				string,
+				{ groups?: Array<{ id: string; label?: string; value?: string }> }
+			>
+		)[configEntry.config._tentmanId];
+
+		return (
+			collection?.groups?.find(
+				(group) => group.value === mutation.value || group.label === mutation.label
+			)?.id ?? null
+		);
+	}
+
+	function patchRemoteConfigEntryGroups(
+		mutation: CollectionGroupManagementMutation,
+		manifest: unknown
+	) {
+		if (!remoteConfigEntry) {
+			return;
+		}
+
+		const collection =
+			remoteConfigEntry.config.collection && typeof remoteConfigEntry.config.collection === 'object'
+				? remoteConfigEntry.config.collection
+				: {};
+		const currentGroups = getCollectionGroups(remoteConfigEntry.config);
+		const nextGroups = (() => {
+			if (mutation.action === 'create') {
+				const groupId = getCreatedGroupId(mutation, manifest);
+				return groupId
+					? [
+							...currentGroups,
+							{
+								_tentmanId: groupId,
+								label: mutation.label,
+								value: mutation.value
+							}
+						]
+					: currentGroups;
+			}
+
+			if (mutation.action === 'edit') {
+				return currentGroups.map((group) =>
+					group._tentmanId === mutation.groupId
+						? {
+								...group,
+								label: mutation.label,
+								value: mutation.value
+							}
+						: group
+				);
+			}
+
+			if (mutation.action === 'delete') {
+				return currentGroups.filter((group) => group._tentmanId !== mutation.groupId);
+			}
+
+			return currentGroups.filter((group) => group._tentmanId !== mutation.sourceGroupId);
+		})();
+
+		remoteConfigEntry = {
+			...remoteConfigEntry,
+			config: {
+				...remoteConfigEntry.config,
+				collection: {
+					...collection,
+					groups: nextGroups
+				}
+			}
+		};
 	}
 
 	async function applyMutation(mutation: CollectionGroupManagementMutation) {
@@ -200,29 +307,19 @@
 				}
 
 				const result = (await response.json()) as {
-					changedPaths?: string[] | null;
+					branchName?: string | null;
+					navigationManifest?: { manifest?: NavigationManifest | null } | null;
 				};
-				const mutationResult = createWorkflowMutationResult({
-					mode: 'github',
-					intent: {
-						type: 'manage-navigation-groups',
-						slug: configEntry.slug,
-						action: mutation.action
-					},
-					message: 'Groups updated.',
-					changedPaths: result.changedPaths?.length
-						? result.changedPaths
-						: ['tentman/navigation-manifest.json', configEntry.path],
-					refresh: {
-						workspace: true,
-						navigationManifest: true,
-						collections: [configEntry.slug],
-						cachePaths: result.changedPaths?.length
-							? result.changedPaths
-							: ['tentman/navigation-manifest.json', configEntry.path]
-					}
+				if (result.branchName && data.selectedRepo) {
+					draftBranch.setBranch(result.branchName, data.selectedRepo.full_name);
+				}
+				const manifest = result.navigationManifest?.manifest;
+				patchRemoteConfigEntryGroups(mutation, manifest);
+				await githubRepositoryCache.patchCollectionGroups({
+					slug: configEntry.slug,
+					mutation,
+					navigationManifest: manifest ?? null
 				});
-				await githubRepositoryCache.invalidatePaths(mutationResult.refresh.cachePaths);
 				await githubRepositoryCache.warmCollection(data.pageSlug, {
 					fetcher: fetch,
 					force: true,

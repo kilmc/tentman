@@ -13,6 +13,8 @@ const githubRepositoryCacheMock = vi.hoisted(() => ({
 	resetFreshnessSchedule: vi.fn(),
 	getCollectionNavigation: vi.fn(),
 	warmCollection: vi.fn(),
+	patchNavigationManifest: vi.fn(),
+	patchCollectionGroups: vi.fn(),
 	invalidatePaths: vi.fn(),
 	promoteRoute: vi.fn(),
 	onCollectionChange: vi.fn()

@@ -22,13 +22,15 @@ function createStoreState<T>(initialValue: T) {
 }
 
 async function waitForElement(locator: { element: () => unknown }) {
-	await expect.poll(() => {
-		try {
-			return Boolean(locator.element());
-		} catch {
-			return false;
-		}
-	}).toBe(true);
+	await expect
+		.poll(() => {
+			try {
+				return Boolean(locator.element());
+			} catch {
+				return false;
+			}
+		})
+		.toBe(true);
 }
 
 const localFlowMocks = vi.hoisted(() => {
@@ -175,7 +177,9 @@ const localFlowMocks = vi.hoisted(() => {
 		invalidate: vi.fn(),
 		invalidatePaths: vi.fn(),
 		warmCollection: vi.fn(),
+		patchCollectionGroups: vi.fn(),
 		patchCollectionItemFromContent: vi.fn(),
+		setBranch: vi.fn(),
 		goto: vi.fn(),
 		resolve: vi.fn((path: string) => path),
 		beforeNavigateCallbacks: [] as Array<(navigation: { cancel: () => void }) => void>,
@@ -289,7 +293,14 @@ vi.mock('$lib/stores/github-repository-cache', () => ({
 	githubRepositoryCache: {
 		invalidatePaths: localFlowMocks.invalidatePaths,
 		warmCollection: localFlowMocks.warmCollection,
+		patchCollectionGroups: localFlowMocks.patchCollectionGroups,
 		patchCollectionItemFromContent: localFlowMocks.patchCollectionItemFromContent
+	}
+}));
+
+vi.mock('$lib/stores/draft-branch', () => ({
+	draftBranch: {
+		setBranch: localFlowMocks.setBranch
 	}
 }));
 
@@ -308,7 +319,9 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		localFlowMocks.invalidate.mockReset();
 		localFlowMocks.invalidatePaths.mockReset();
 		localFlowMocks.warmCollection.mockReset();
+		localFlowMocks.patchCollectionGroups.mockReset();
 		localFlowMocks.patchCollectionItemFromContent.mockReset();
+		localFlowMocks.setBranch.mockReset();
 		localFlowMocks.enhanceUpdate.mockClear();
 		localFlowMocks.goto.mockReset();
 		localFlowMocks.resolve.mockClear();
@@ -367,6 +380,7 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		localFlowMocks.deleteDraftAsset.mockResolvedValue(undefined);
 		localFlowMocks.invalidatePaths.mockResolvedValue(undefined);
 		localFlowMocks.warmCollection.mockResolvedValue(undefined);
+		localFlowMocks.patchCollectionGroups.mockResolvedValue(undefined);
 		localFlowMocks.patchCollectionItemFromContent.mockResolvedValue(undefined);
 		localFlowMocks.invalidate.mockResolvedValue(undefined);
 		localFlowMocks.goto.mockResolvedValue(undefined);
@@ -376,6 +390,13 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		const screen = await render(ItemEditPage, {
 			data: {
 				mode: 'local',
+				selectedBackend: {
+					kind: 'local',
+					repo: {
+						name: 'Docs',
+						pathLabel: '~/Docs'
+					}
+				},
 				pageSlug: 'posts',
 				itemId: 'hello-world',
 				discoveredConfig: null,
@@ -450,6 +471,13 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		const screen = await render(ItemEditPage, {
 			data: {
 				mode: 'local',
+				selectedBackend: {
+					kind: 'local',
+					repo: {
+						name: 'Docs',
+						pathLabel: '~/Docs'
+					}
+				},
 				pageSlug: 'posts',
 				itemId: 'hello-world',
 				discoveredConfig: null,
@@ -555,7 +583,9 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		await screen.getByTestId('mock-form-dirty').click();
 		await screen.getByRole('button', { name: 'Save Changes' }).click();
 
-		await expect.poll(() => localFlowMocks.patchCollectionItemFromContent.mock.calls.length).toBe(1);
+		await expect
+			.poll(() => localFlowMocks.patchCollectionItemFromContent.mock.calls.length)
+			.toBe(1);
 		expect(localFlowMocks.patchCollectionItemFromContent).toHaveBeenCalledWith({
 			slug: 'posts',
 			itemId: 'hello-world',
@@ -621,6 +651,13 @@ describe('routes/pages/[page]/[itemId]/edit/+page.svelte', () => {
 		const screen = await render(ItemEditPage, {
 			data: {
 				mode: 'local',
+				selectedBackend: {
+					kind: 'local',
+					repo: {
+						name: 'Docs',
+						pathLabel: '~/Docs'
+					}
+				},
 				pageSlug: 'posts',
 				itemId: 'hello-world',
 				discoveredConfig: null,

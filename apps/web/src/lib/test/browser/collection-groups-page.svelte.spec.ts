@@ -125,6 +125,39 @@ const groupPageMocks = vi.hoisted(() => {
 		fetch: vi.fn(async () =>
 			Response.json({
 				branchName: 'tentman-preview',
+				navigationManifest: {
+					path: 'tentman/navigation-manifest.json',
+					exists: true,
+					manifest: {
+						version: 1,
+						collections: {
+							projects: {
+								items: ['brand-system', 'launch', 'archive'],
+								groups: [
+									{
+										id: 'identity',
+										label: 'Identity',
+										value: 'identity',
+										items: ['brand-system']
+									},
+									{
+										id: 'campaigns',
+										label: 'Campaigns',
+										value: 'campaigns',
+										items: ['launch']
+									},
+									{
+										id: 'research',
+										label: 'Research',
+										value: 'research',
+										items: []
+									}
+								]
+							}
+						}
+					},
+					error: null
+				},
 				changedPaths: [
 					'tentman/configs/projects.tentman.json',
 					'src/content/projects.json',
@@ -134,6 +167,7 @@ const groupPageMocks = vi.hoisted(() => {
 		),
 		invalidatePaths: vi.fn(async () => {}),
 		warmCollection: vi.fn(async () => {}),
+		patchCollectionGroups: vi.fn(async () => {}),
 		setBranch: vi.fn(),
 		toasts: {
 			success: vi.fn(),
@@ -180,7 +214,8 @@ vi.mock('$lib/stores/local-repo', () => ({
 vi.mock('$lib/stores/github-repository-cache', () => ({
 	githubRepositoryCache: {
 		invalidatePaths: groupPageMocks.invalidatePaths,
-		warmCollection: groupPageMocks.warmCollection
+		warmCollection: groupPageMocks.warmCollection,
+		patchCollectionGroups: groupPageMocks.patchCollectionGroups
 	}
 }));
 
@@ -273,6 +308,7 @@ describe('routes/pages/[page]/groups/+page.svelte', () => {
 		groupPageMocks.fetch.mockClear();
 		groupPageMocks.invalidatePaths.mockClear();
 		groupPageMocks.warmCollection.mockClear();
+		groupPageMocks.patchCollectionGroups.mockClear();
 		groupPageMocks.setBranch.mockClear();
 		groupPageMocks.toasts.success.mockClear();
 		groupPageMocks.toasts.error.mockClear();
@@ -434,11 +470,18 @@ describe('routes/pages/[page]/groups/+page.svelte', () => {
 			})
 		});
 		expect(groupPageMocks.setBranch).toHaveBeenCalledWith('tentman-preview', 'acme/docs');
-		expect(groupPageMocks.invalidatePaths).toHaveBeenCalledWith([
-			'tentman/configs/projects.tentman.json',
-			'src/content/projects.json',
-			'tentman/navigation-manifest.json'
-		]);
+		expect(groupPageMocks.patchCollectionGroups).toHaveBeenCalledWith({
+			slug: 'projects',
+			mutation: {
+				action: 'create',
+				label: 'Research',
+				value: 'research'
+			},
+			navigationManifest: expect.objectContaining({
+				version: 1
+			})
+		});
+		expect(groupPageMocks.invalidatePaths).not.toHaveBeenCalled();
 		expect(groupPageMocks.warmCollection).toHaveBeenCalledWith('projects', {
 			fetcher: groupPageMocks.fetch,
 			force: true,
